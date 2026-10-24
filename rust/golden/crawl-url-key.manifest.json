@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "crawl-url-key/crawlUrlKey"
+  ],
+  "function": {
+    "name": "crawlUrlKey",
+    "sourcePath": "src/utils/crawl-url-key.ts",
+    "sourceSha256": "6685c03b6565580bcbc00560b4119c6345b9c67b0da04c0c188e3405c9342828",
+    "artifactPath": "dist/src/utils/crawl-url-key.js",
+    "artifactSha256": "1819cf0bb6e0a27ce0c6a3765d318a2ff7a59b55f18c00fd0e3b8fd53179c1c6"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-crawl-url-key.json",
+    "sha256": "cc73a78a09965826850ce073786d09915afa943c41827b49cd17b29ef75c6cd2",
+    "cases": 24
+  },
+  "output": {
+    "path": "rust/golden/crawl-url-key.jsonl",
+    "sha256": "e978a412580bfed2f5272a5f98caab5a4880aee5eacea20f6b7d5861a2f089ee",
+    "lines": 24
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "18a03d7c643429af3564b0d586327f7be18b3c1c"
+  }
+}

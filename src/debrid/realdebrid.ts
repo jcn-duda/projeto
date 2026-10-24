@@ -9,7 +9,7 @@
  * sonda, e REEXPORTA os demais nomes — a superfície de exports é a MESMA de
  * antes da divisão (o registry faz spread do namespace e não muda).
  */
-import { magnetFor, isBlockedError, isRateLimitError, isQuotaError } from './common.js';
+import { magnetForPlay, isBlockedError, isRateLimitError, isQuotaError } from './common.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as memo from './inventory-memo.js';
@@ -167,7 +167,7 @@ async function probeInstantUngated(apiKey: string, infoHash: string): Promise<Pr
   try {
     const add = await rawWrite(apiKey, '/torrents/addMagnet', {
       method: 'POST',
-      body: new URLSearchParams({ magnet: magnetFor(hash) }),
+      body: new URLSearchParams({ magnet: magnetForPlay(hash) }),
     });
     if (!add?.id) {
       metrics.count('debrid.rd.probe.error');

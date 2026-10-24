@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
  *
  * Registrado na lista explícita do `npm test` (package.json).
  */
-import transport from '../resolvers/transport.js';
+import * as transport from '../resolvers/transport.js';
 
 const HASH = '0123456789abcdef0123456789abcdef01234567';
 const MAGNET = `magnet:?xt=urn:btih:${HASH}&dn=Filme`;
@@ -301,6 +301,47 @@ describe('transport contrato existente (redirect/manual e magnet)', () => {
       );
     } finally {
       chain.restore();
+    }
+  });
+});
+
+describe('followProtectedUrl: Link inválido ou expirado (400)', () => {
+  test('HTTP 400 + texto real → protector_link_expired', async () => {
+    const original = global.fetch;
+    global.fetch = (async () => ({
+      ok: false,
+      status: 400,
+      headers: { get: () => null },
+      text: async () => 'Link inválido ou expirado',
+    })) as unknown as typeof fetch;
+    try {
+      await assert.rejects(
+        () => transport.followProtectedUrl('https://sys-a.example.com/go', null, opts),
+        (err: unknown) => {
+          assert.match(err instanceof Error ? err.message : String(err), /protector_link_expired/);
+          return true;
+        },
+      );
+    } finally {
+      global.fetch = original;
+    }
+  });
+
+  test('HTTP 400 sem o texto → http_400 (inalterado)', async () => {
+    const original = global.fetch;
+    global.fetch = (async () => ({
+      ok: false,
+      status: 400,
+      headers: { get: () => null },
+      text: async () => 'bad request generico',
+    })) as unknown as typeof fetch;
+    try {
+      await assert.rejects(
+        () => transport.followProtectedUrl('https://sys-a.example.com/go', null, opts),
+        /http_400/,
+      );
+    } finally {
+      global.fetch = original;
     }
   });
 });

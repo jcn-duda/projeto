@@ -1,0 +1,70 @@
+{
+  "version": "corpus-catalog-classify/1",
+  "note": "Classificação do catálogo durável de catalog-classify.ts: foreignProofLabel (op label), classifyByTitle (op title) e classifyWithEvidence (op evidence). Saída medida no Node: 'cena'/'audio'/'sim' para label; 'bucket|audio|foreignProof|ptProof' para as duas classificações (topo dos rótulos de prova: cena/audio/sim do lado estrangeiro, titulo/arquivo do lado BR; bucket de audioBucket). As listas calibradas do audit vêm no bloco config (default de src/config/audit.ts) e são injetadas no ambiente do oráculo; o Rust as recebe por parâmetro. Títulos fictícios.",
+  "config": {
+    "enabled": true,
+    "ptMarkers": [
+      "dublado", "dublada", "dublagem", "dubbed", "dual audio", "dual",
+      "pt br", "ptbr", "portugues", "portuguese", "nacional", "fleg"
+    ],
+    "enGroups": [
+      "rarbg", "killers", "ettv", "afm72", "tovar", "evo", "megusta", "galaxyrg",
+      "glxrc", "yts", "fgt", "ntb", "roarb", "oxy", "bae", "drs", "huzzah", "tgx",
+      "ethel", "yify"
+    ]
+  },
+  "cases": [
+    {"id":"cc-001","input":"{\"op\":\"label\",\"candidates\":[\"Movie.2024.1080p.WEB-DL.x264-RARBG.mkv\"]}","note":"label cena: grupo de cena EN"},
+    {"id":"cc-002","input":"{\"op\":\"label\",\"candidates\":[\"Movie.2024.1080p.WEB-DL.x264-KILLERS.mkv\"]}","note":"label cena: grupo killers"},
+    {"id":"cc-003","input":"{\"op\":\"label\",\"candidates\":[\"Movie.TRUEFRENCH.1080p.mkv\"]}","note":"label audio: idioma estrangeiro nomeado"},
+    {"id":"cc-004","input":"{\"op\":\"label\",\"candidates\":[\"Movie.HINDI.720p.mkv\"]}","note":"label audio: HINDI"},
+    {"id":"cc-005","input":"{\"op\":\"label\",\"candidates\":[\"Movie.2024.1080p.mkv\"]}","note":"label sim: sem prova de cena nem idioma"},
+    {"id":"cc-006","input":"{\"op\":\"label\",\"candidates\":[]}","note":"label sim: lista vazia"},
+    {"id":"cc-007","input":"{\"op\":\"label\",\"candidates\":[\"Movie.HINDI.1080p.mkv\",\"Movie.2024.WEB-DL-RARBG.mkv\"]}","note":"label cena: passe de cena vence o audio do 1º candidato"},
+    {"id":"cc-008","input":"{\"op\":\"label\",\"candidates\":[\"Movie.WEB-DL-RARBG.mkv\",\"Movie.HINDI.1080p.mkv\"]}","note":"label cena: cena no 1º candidato"},
+    {"id":"cc-009","input":"{\"op\":\"label\",\"candidates\":[\"Movie.Dublado.1080p-RARBG.mkv\"]}","note":"label sim: marcador PT suprime o grupo de cena"},
+    {"id":"cc-010","input":"{\"op\":\"label\",\"candidates\":[\"Movie.TRUEFRENCH.mkv\",\"Movie.2024.1080p-ETTV.mkv\"]}","note":"label cena: cena posterior vence audio anterior"},
+    {"id":"cc-011","input":"{\"op\":\"label\",\"candidates\":[\"Movie.VOSTFR.1080p.mkv\"]}","note":"label audio: VOSTFR é prova de idioma"},
+    {"id":"cc-012","input":"{\"op\":\"label\",\"candidates\":[\"Movie.1080p.WEB-DL.YTS.mkv\"]}","note":"label cena: grupo yts"},
+    {"id":"cc-013","input":"{\"op\":\"label\",\"candidates\":[\"Movie.GERMAN.720p.mkv\"]}","note":"label audio: GERMAN"},
+    {"id":"cc-014","input":"{\"op\":\"label\",\"candidates\":[\"Movie.2024.1080p.mkv\",\"Movie.Nacional.1080p.mkv\"]}","note":"label sim: NACIONAL não é cena nem idioma estrangeiro explícito"},
+
+    {"id":"cc-020","input":"{\"op\":\"title\",\"filename\":\"Movie.2024.1080p.WEB-DL.x264-RARBG.mkv\"}","note":"title condena/cena, bucket lixo"},
+    {"id":"cc-021","input":"{\"op\":\"title\",\"filename\":\"Movie.TRUEFRENCH.1080p.mkv\"}","note":"title condena/audio, bucket lixo"},
+    {"id":"cc-022","input":"{\"op\":\"title\",\"filename\":\"Movie.HINDI.720p.mkv\"}","note":"title condena/audio HINDI, bucket lixo"},
+    {"id":"cc-023","input":"{\"op\":\"title\",\"filename\":\"Movie.HINDI.1080p-RARBG.mkv\"}","note":"title condena/cena: grupo vence o idioma"},
+    {"id":"cc-024","input":"{\"op\":\"title\",\"filename\":\"Filme.Dublado.1080p.mkv\"}","note":"title absolve/titulo, bucket dub"},
+    {"id":"cc-025","input":"{\"op\":\"title\",\"filename\":\"Movie.Nacional.1080p.mkv\"}","note":"title absolve/titulo Nacional, bucket dub"},
+    {"id":"cc-026","input":"{\"op\":\"title\",\"filename\":\"Operação.Invasão.1080p.mkv\"}","note":"title absolve/titulo por acento, bucket pt"},
+    {"id":"cc-027","input":"{\"op\":\"title\",\"filename\":\"Movie.Temporada.1.1080p.mkv\"}","note":"title absolve/titulo por vocabulário PT, bucket pt"},
+    {"id":"cc-028","input":"{\"op\":\"title\",\"filename\":\"Movie.Dual.Audio.PT-BR.1080p.mkv\"}","note":"title absolve/titulo Dual+PT, bucket dub"},
+    {"id":"cc-029","input":"{\"op\":\"title\",\"filename\":\"Movie.DUB.1080p.mkv\"}","note":"title absolve/titulo DUB genérico, bucket dub"},
+    {"id":"cc-030","input":"{\"op\":\"title\",\"filename\":\"Movie.2024.1080p.WEB-DL.x264.mkv\"}","note":"title unknown sem prova, bucket lixo"},
+    {"id":"cc-031","input":"{\"op\":\"title\",\"filename\":\"Movie.Legendado.1080p.mkv\"}","note":"title unknown: LEGENDADO não é prova, bucket lixo"},
+    {"id":"cc-032","input":"{\"op\":\"title\",\"filename\":\"Movie.Multi.1080p.mkv\"}","note":"title unknown, bucket dual (MULTI ambíguo)"},
+    {"id":"cc-033","input":"{\"op\":\"title\",\"filename\":\"Movie.Dual.Audio.Hindi.1080p.mkv\"}","note":"title condena/audio Dual+idioma estrangeiro, bucket lixo"},
+    {"id":"cc-034","input":"{\"op\":\"title\",\"filename\":\"Movie.1080p-RARBG.DUBBED.mkv\"}","note":"title absolve/titulo: DUBBED genérico vence a cena, bucket dub"},
+    {"id":"cc-035","input":"{\"op\":\"title\",\"filename\":\"Movie.1080p.ComandoTorrents.mkv\"}","note":"title absolve/titulo por host BR, bucket pt"},
+    {"id":"cc-036","input":"{\"op\":\"title\",\"filename\":\"Movie.1080p.ThePirateFilmes.mkv\"}","note":"title absolve/titulo só por brOriginMark, bucket pt"},
+    {"id":"cc-037","input":"{\"op\":\"title\",\"filename\":\"Um.Filme.de.Amor.de.2024.1080p.mkv\"}","note":"title absolve/titulo por PT_STOP_TWO, bucket pt"},
+    {"id":"cc-038","input":"{\"op\":\"title\",\"filename\":\"Movie.2024.1080p.WEB-DL.x264-TGx.mkv\"}","note":"title condena/cena grupo tgx, bucket lixo"},
+    {"id":"cc-039","input":"{\"op\":\"title\",\"filename\":\"Ação.2024.1080p.mkv\"}","note":"title absolve/titulo por acento ç/ã, bucket pt"},
+
+    {"id":"cc-050","input":"{\"op\":\"evidence\",\"filename\":\"Filme.Dublado.1080p.mkv\"}","note":"evidence sem arquivos: absolve/arquivo, bucket dub"},
+    {"id":"cc-051","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p-RARBG.mkv\"}","note":"evidence sem arquivos: condena/cena, bucket lixo"},
+    {"id":"cc-052","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p.WEB-DL.x264.mkv\"}","note":"evidence sem arquivos: unknown, bucket lixo"},
+    {"id":"cc-053","input":"{\"op\":\"evidence\",\"filename\":\"Filme.Dublado.1080p.mkv\",\"evidence\":\"\"}","note":"evidence vazia = ausente: absolve/arquivo"},
+    {"id":"cc-054","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p-RARBG.mkv\",\"evidence\":\"Filme.Dublado.1080p.mkv\"}","note":"evidence PT absolve título de cena: arquivo"},
+    {"id":"cc-055","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p.mkv\",\"evidence\":\"Movie.HINDI.720p.mkv\"}","note":"evidence idioma estrangeiro condena: audio"},
+    {"id":"cc-056","input":"{\"op\":\"evidence\",\"filename\":\"Movie.TRUEFRENCH.720p.mkv\",\"evidence\":\"Movie.2024.1080p-RARBG.mkv\"}","note":"evidence cena eleva o rótulo para cena"},
+    {"id":"cc-057","input":"{\"op\":\"evidence\",\"filename\":\"Filme.Dublado.1080p.mkv\",\"evidence\":\"Movie.2024.1080p-RARBG.mkv\"}","note":"evidence: título PT absolve mesmo com cena na evidência"},
+    {"id":"cc-058","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p.mkv\",\"evidence\":\"Movie.WEB-DL-ETTV.mkv\"}","note":"evidence grupo de cena condena: cena"},
+    {"id":"cc-059","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p-RARBG.mkv\",\"evidence\":\"Operação.Invasão.1080p.mkv\"}","note":"evidence sinal PT absolve: arquivo"},
+    {"id":"cc-060","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p.mkv\",\"evidence\":\"Movie.2024.720p.mkv\"}","note":"evidence neutra dos dois lados: unknown"},
+    {"id":"cc-061","input":"{\"op\":\"evidence\",\"filename\":\"Movie.Multi.1080p.mkv\"}","note":"evidence unknown com bucket dual"},
+    {"id":"cc-062","input":"{\"op\":\"evidence\",\"filename\":\"Operação.Invasão.1080p.mkv\"}","note":"evidence sem arquivos: absolve/arquivo, bucket pt"},
+    {"id":"cc-063","input":"{\"op\":\"evidence\",\"filename\":\"Movie.Dual.Audio.Hindi.1080p.mkv\"}","note":"evidence sem arquivos: condena/audio, bucket lixo"},
+    {"id":"cc-064","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.1080p.mkv\",\"evidence\":\"Movie.GERMAN.720p.mkv\"}","note":"evidence idioma GERMAN condena: audio"},
+    {"id":"cc-065","input":"{\"op\":\"evidence\",\"filename\":\"Movie.2024.WEB-DL-RARBG.mkv\",\"evidence\":\"Movie.Dublado.720p.mkv\"}","note":"evidence PT absolve título de cena: arquivo, bucket lixo"}
+  ]
+}

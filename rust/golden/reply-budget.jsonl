@@ -1,0 +1,14 @@
+{"id":"rb-001","input":"{\"deadlineAt\":null,\"now\":1760000000000,\"margin\":0}","expected":"null"}
+{"id":"rb-002","input":"{\"deadlineAt\":1760000010000,\"now\":1760000000000,\"margin\":0}","expected":"10000"}
+{"id":"rb-003","input":"{\"deadlineAt\":1760000000500,\"now\":1760000000000,\"margin\":500}","expected":"0"}
+{"id":"rb-004","input":"{\"deadlineAt\":1759999000000,\"now\":1760000000000,\"margin\":0}","expected":"0"}
+{"id":"rb-005","input":"{\"deadlineAt\":1760000001000,\"now\":1760000000000,\"margin\":2000}","expected":"0"}
+{"id":"rb-006","input":"{\"deadlineAt\":10000,\"now\":2500,\"margin\":0}","expected":"7500"}
+{"id":"rb-007","input":"{\"deadlineAt\":1728691200000,\"now\":1728691195000,\"margin\":500}","expected":"4500"}
+{"id":"rb-008","input":"{\"deadlineAt\":1760000000000,\"now\":1760000000000,\"margin\":0}","expected":"0"}
+{"id":"rb-009","input":"{\"deadlineAt\":8000,\"now\":1000,\"margin\":500}","expected":"6500"}
+{"id":"rb-010","input":"{\"deadlineAt\":null,\"now\":123456,\"margin\":500}","expected":"null"}
+{"id":"rb-011","input":"{\"deadlineAt\":1000,\"now\":0,\"margin\":999}","expected":"1"}
+{"id":"rb-012","input":"{\"deadlineAt\":0,\"now\":1760000000000,\"margin\":500}","expected":"0"}
+{"id":"rb-013","input":"{\"deadlineAt\":500,\"now\":0,\"margin\":500}","expected":"0"}
+{"id":"rb-014","input":"{\"deadlineAt\":2000000000000,\"now\":1760000000000,\"margin\":500}","expected":"239999999500"}

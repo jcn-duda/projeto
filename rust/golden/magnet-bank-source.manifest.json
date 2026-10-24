@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "magnet-bank-source/pickSource"
+  ],
+  "function": {
+    "name": "pickSource",
+    "sourcePath": "src/providers/magnet-bank-fallback.ts",
+    "sourceSha256": "7a5abd9d371ad6b4428f1264616d08331ec2c912c1f9878d3229c55e5c4938bd",
+    "artifactPath": "dist/src/providers/magnet-bank-fallback.js",
+    "artifactSha256": "12c463ee873d762010d5b3205b2ea8434501ebd9512e722014801b6f78419e6a"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-magnet-bank-source.json",
+    "sha256": "7b45c5e8bbac51ff3e098c262660d30c3973ee971b711df7112c669e0d4aa835",
+    "cases": 12
+  },
+  "output": {
+    "path": "rust/golden/magnet-bank-source.jsonl",
+    "sha256": "cd2c9cdd214137349126aee16bcd6d2a0ecc0fe6d43495185a4f09cb9c744cbf",
+    "lines": 12
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}

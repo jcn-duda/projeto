@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "magnet-display-name/magnetDisplayName"
+  ],
+  "function": {
+    "name": "magnetDisplayName",
+    "sourcePath": "src/utils/title-normalization.ts",
+    "sourceSha256": "6801c5a7d813aa0164883080e4f7c1cf2b91d5a501ce6f2c60a7e01d53d414b9",
+    "artifactPath": "dist/src/utils/title-normalization.js",
+    "artifactSha256": "814411ed4bfe4be7f8cffc95c40ec3051cc043fa9bb8649b5b279298687a7c7d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-magnet-display-name.json",
+    "sha256": "da96b874c2888c946c56d3d81b399abde6ad73b54044a13d25e60dedf84286a9",
+    "cases": 17
+  },
+  "output": {
+    "path": "rust/golden/magnet-display-name.jsonl",
+    "sha256": "768abcc930b1a0c32fdabd128b2de7140a64992f8d1757db97e1ff6836e423be",
+    "lines": 17
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "228181133ed005a17d79cacc7483c023931d5c2f"
+  }
+}

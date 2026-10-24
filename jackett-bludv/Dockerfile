@@ -6,3 +6,4 @@ COPY bludv-cardigann.yml /app/Jackett/Definitions/bludv-cardigann.yml
 COPY comandotorrents.yml /app/Jackett/Definitions/comandotorrents.yml
 COPY nerdfilmes.yml /app/Jackett/Definitions/nerdfilmes.yml
 COPY torrentdosfilmesv2.yml /app/Jackett/Definitions/torrentdosfilmesv2.yml
+COPY apachetorrent-cardigann.yml /app/Jackett/Definitions/apachetorrent-cardigann.yml

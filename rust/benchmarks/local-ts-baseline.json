@@ -1,0 +1,291 @@
+{
+  "schema": "adom.local-ts-baseline/1",
+  "status": "ok",
+  "kind": "observational",
+  "controlledBenchmark": false,
+  "forcesLoad": false,
+  "rustComparison": false,
+  "generatedAt": "2026-10-12T01:48:41.397Z",
+  "collector": {
+    "file": "scripts/bench/local-baseline.mjs",
+    "platform": "win32",
+    "durationRequestedMs": 60000,
+    "intervalMs": 5000,
+    "effectiveDurationMs": 61211,
+    "timeouts": {
+      "subprocessMs": 15000,
+      "probeMs": 15000
+    }
+  },
+  "target": {
+    "container": "stremio-adom",
+    "imageId": "sha256:5cc26b80f37aa3c63781c5035cb28dcc0ac15f592c9c717abebd48450b916856",
+    "containerCreatedAt": "2026-10-09T02:54:34.404571131Z",
+    "containerStartedAt": "2026-10-11T19:35:06.181266983Z",
+    "containerNodeVersion": "v22.23.2",
+    "revision": null
+  },
+  "host": {
+    "node": "v22.23.2",
+    "npm": "11.6.0",
+    "gitHead": "a6a26a337ef9a1a22cc502e3c873fcb7b927537b"
+  },
+  "fingerprints": {
+    "hostDistPresent": true,
+    "allMatchWithinSubset": true,
+    "comparisonScope": {
+      "scope": "selected-compiled-artifacts",
+      "artifactCount": 5,
+      "completeCheckoutParityProven": false
+    },
+    "files": [
+      {
+        "path": "dist/src/addon.js",
+        "containerSha256": "95bc5271c7807af359b18ae94bbe08e01fe5bff6131f4670bc2b47587c53ed58",
+        "hostSha256": "95bc5271c7807af359b18ae94bbe08e01fe5bff6131f4670bc2b47587c53ed58",
+        "match": true
+      },
+      {
+        "path": "dist/src/app.js",
+        "containerSha256": "25a7c7f6cb4df5ff16f0e6681686f3f280483a5a69dbd7301ee110f7b9f759dc",
+        "hostSha256": "25a7c7f6cb4df5ff16f0e6681686f3f280483a5a69dbd7301ee110f7b9f759dc",
+        "match": true
+      },
+      {
+        "path": "dist/src/utils/title-normalization.js",
+        "containerSha256": "87ecdf85babf0b8362877da7ae0ff1d2bd9fed706043ecdd029be61da5e9b412",
+        "hostSha256": "87ecdf85babf0b8362877da7ae0ff1d2bd9fed706043ecdd029be61da5e9b412",
+        "match": true
+      },
+      {
+        "path": "dist/src/providers/search-orchestrator.js",
+        "containerSha256": "92e2e247ae0278c686f326769e5b5274abe9c27027422d13b4308846d79ebaea",
+        "hostSha256": "92e2e247ae0278c686f326769e5b5274abe9c27027422d13b4308846d79ebaea",
+        "match": true
+      },
+      {
+        "path": "dist/src/providers/stream-builder.js",
+        "containerSha256": "8df2438c415b442f4683eff30492d4d620b3871531c86f0517b06b79af521ce2",
+        "hostSha256": "8df2438c415b442f4683eff30492d4d620b3871531c86f0517b06b79af521ce2",
+        "match": true
+      }
+    ]
+  },
+  "metrics": {
+    "endpoint": "/metrics.json",
+    "initial": {
+      "status": "ok",
+      "httpStatus": 200,
+      "windowSize": null,
+      "windowSizeSource": "not-reported-by-endpoint",
+      "configuredWindowSize": 256,
+      "configuredWindowSizeSource": "checkout-code-constant-not-reported-by-endpoint",
+      "uptimeS": 22353,
+      "timers": {
+        "search.first.total": null,
+        "search.response": null
+      },
+      "source": "server-memory-window",
+      "sessionSampled": false
+    },
+    "final": {
+      "status": "ok",
+      "httpStatus": 200,
+      "windowSize": null,
+      "windowSizeSource": "not-reported-by-endpoint",
+      "configuredWindowSize": 256,
+      "configuredWindowSizeSource": "checkout-code-constant-not-reported-by-endpoint",
+      "uptimeS": 22414,
+      "timers": {
+        "search.first.total": null,
+        "search.response": null
+      },
+      "source": "server-memory-window",
+      "sessionSampled": false
+    }
+  },
+  "samples": [
+    {
+      "index": 0,
+      "elapsedMs": 0,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475529216,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 57
+    },
+    {
+      "index": 1,
+      "elapsedMs": 5010,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475424358,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 57
+    },
+    {
+      "index": 2,
+      "elapsedMs": 10010,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.06,
+      "containerMemUsedBytes": 475319501,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 57
+    },
+    {
+      "index": 3,
+      "elapsedMs": 15014,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.07,
+      "containerMemUsedBytes": 475319501,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 52
+    },
+    {
+      "index": 4,
+      "elapsedMs": 20000,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475004928,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.75,
+      "containerPids": 52
+    },
+    {
+      "index": 5,
+      "elapsedMs": 25005,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 13.23,
+      "containerMemUsedBytes": 475948646,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.78,
+      "containerPids": 57
+    },
+    {
+      "index": 6,
+      "elapsedMs": 30009,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475529216,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 57
+    },
+    {
+      "index": 7,
+      "elapsedMs": 35010,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475424358,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 57
+    },
+    {
+      "index": 8,
+      "elapsedMs": 40010,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 474900070,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.74,
+      "containerPids": 57
+    },
+    {
+      "index": 9,
+      "elapsedMs": 45012,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.11,
+      "containerMemUsedBytes": 474795213,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.74,
+      "containerPids": 52
+    },
+    {
+      "index": 10,
+      "elapsedMs": 50009,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475214643,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.75,
+      "containerPids": 52
+    },
+    {
+      "index": 11,
+      "elapsedMs": 55003,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 10.36,
+      "containerMemUsedBytes": 501219328,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 15.56,
+      "containerPids": 62
+    },
+    {
+      "index": 12,
+      "elapsedMs": 60005,
+      "addonRssBytes": 132157440,
+      "containerCpuPercent": 0.02,
+      "containerMemUsedBytes": 475424358,
+      "containerMemLimitBytes": 3221225472,
+      "containerMemPercent": 14.76,
+      "containerPids": 56
+    }
+  ],
+  "summary": {
+    "sampleCount": 13,
+    "addonRssBytes": {
+      "samples": 13,
+      "min": 132157440,
+      "max": 132157440,
+      "avg": 132157440
+    },
+    "containerCpuPercent": {
+      "samples": 13,
+      "min": 0.02,
+      "max": 13.23,
+      "avg": 1.85
+    },
+    "containerMemUsedBytes": {
+      "samples": 13,
+      "min": 474795213,
+      "max": 501219328,
+      "avg": 477311795.08
+    },
+    "containerMemLimitBytes": {
+      "samples": 13,
+      "min": 3221225472,
+      "max": 3221225472,
+      "avg": 3221225472
+    },
+    "containerPids": {
+      "samples": 13,
+      "min": 52,
+      "max": 62,
+      "avg": 55.77
+    }
+  },
+  "coverage": {
+    "addonRss": true,
+    "containerStats": true,
+    "metricsInitial": "ok",
+    "metricsFinal": "ok",
+    "artifactHashes": true,
+    "hostDistComparison": true
+  },
+  "limits": [
+    "Observacional: coleta passiva, sem forçar busca ou play e sem HTTP externo; não é benchmark controlado.",
+    "Overhead do observador explícito: um python3 efêmero por amostra (docker exec) + docker stats a cada intervalo.",
+    "containerCpuPercent (docker stats) é do container inteiro, não do processo Node do addon — não é CPU do Node.",
+    "addonRssBytes é VmRSS (/proc/<pid>/status) do processo node dist/src/addon.js; containerMemUsedBytes é a memória cgroup do docker stats. Não são somas entre si.",
+    "p50/p95 vêm da janela em memória do servidor e são NULOS nesta amostra; nulo não é zero e não há série histórica desta sessão.",
+    "A janela configurada (256) é a constante SAMPLES do código do host (src/utils/metrics.ts); o endpoint /metrics.json deste checkout não publica windowSize, então o valor medido é null.",
+    "A comparação de artefatos cobre 5 arquivos compilados selecionados; NÃO prova paridade integral do checkout com a imagem em execução (completeCheckoutParityProven=false).",
+    "containerCreatedAt é anterior à data do HEAD git do host; timestamp anterior sozinho não prova divergência da imagem nem equivalência/divergência de Node — nenhuma das duas é afirmada.",
+    "Nenhum servidor Rust existe neste checkout: nenhuma comparação TS-vs-Rust é feita ou afirmada."
+  ]
+}

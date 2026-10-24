@@ -1,0 +1,27 @@
+{"id":"sqe-001","input":"{\"op\":\"quality\",\"title\":\"Movie 2024 1080p BluRay\"}","expected":"\"1080p\""}
+{"id":"sqe-002","input":"{\"op\":\"quality\",\"title\":\"Movie 720p WEB-DL\"}","expected":"\"720p\""}
+{"id":"sqe-003","input":"{\"op\":\"quality\",\"title\":\"Movie 2160p UHD BluRay\"}","expected":"\"2160p\""}
+{"id":"sqe-004","input":"{\"op\":\"quality\",\"title\":\"Movie 4K HDR\"}","expected":"\"2160p\""}
+{"id":"sqe-005","input":"{\"op\":\"quality\",\"title\":\"Movie 480p DVDRip\"}","expected":"\"480p\""}
+{"id":"sqe-006","input":"{\"op\":\"quality\",\"title\":\"Movie SDTV\"}","expected":"\"SD\""}
+{"id":"sqe-007","input":"{\"op\":\"quality\",\"title\":\"Movie DVD5\"}","expected":"\"SD\""}
+{"id":"sqe-008","input":"{\"op\":\"quality\",\"title\":\"Movie CAM\"}","expected":"\"SD\""}
+{"id":"sqe-009","input":"{\"op\":\"quality\",\"title\":\"Movie TS\"}","expected":"\"SD\""}
+{"id":"sqe-010","input":"{\"op\":\"quality\",\"title\":\"Movie 576P\"}","expected":"\"SD\""}
+{"id":"sqe-011","input":"{\"op\":\"quality\",\"title\":\"Movie 360P\"}","expected":"\"SD\""}
+{"id":"sqe-012","input":"{\"op\":\"quality\",\"title\":\"Filme BR\"}","expected":"\"sem resolução\""}
+{"id":"sqe-013","input":"{\"op\":\"quality\",\"title\":\"Nome qualquer\"}","expected":"\"sem resolução\""}
+{"id":"sqe-014","input":"{\"op\":\"quality\",\"title\":\"Movie WEB-DLRip1080p x264\"}","expected":"\"1080p\""}
+{"id":"sqe-015","input":"{\"op\":\"quality\",\"title\":\"Movie_2024_720P_BluRay\"}","expected":"\"720p\""}
+{"id":"sqe-016","input":"{\"op\":\"quality\",\"title\":\"UHD Movie 2024\"}","expected":"\"2160p\""}
+{"id":"sqe-017","input":"{\"op\":\"quality\",\"title\":\"Movie 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"\"sem resolução\""}
+{"id":"sqe-018","input":"{\"op\":\"quality\",\"title\":\"Movie 720P 1080p, 2160p, 720p, HD\"}","expected":"\"720p\""}
+{"id":"sqe-019","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{\"1080p\":2}}","expected":"[0,1,3,4]"}
+{"id":"sqe-020","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{\"1080p\":1,\"720p\":1}}","expected":"[0,3]"}
+{"id":"sqe-021","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{}}","expected":"[0,1,2,3,4]"}
+{"id":"sqe-022","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{\"1080p\":100}}","expected":"[0,1,2,3,4]"}
+{"id":"sqe-023","input":"{\"op\":\"limitQualityIndexer\",\"streams\":[{\"quality\":\"1080p\",\"indexer\":\"yts\"},{\"quality\":\"1080p\",\"indexer\":\"yts\"},{\"quality\":\"720p\",\"indexer\":\"rarbg\"},{\"quality\":\"1080p\",\"indexer\":\"bludv\"},{\"quality\":\"720p\",\"indexer\":\"yts\"}],\"qualityLimits\":{\"1080p\":2},\"maxPerIndexer\":1,\"exempt\":[],\"indexerLimits\":{},\"reservedBr\":[]}","expected":"[0,2,3]"}
+{"id":"sqe-024","input":"{\"op\":\"limitQualityIndexer\",\"streams\":[{\"quality\":\"1080p\",\"indexer\":\"yts\",\"isBr\":true},{\"quality\":\"1080p\",\"indexer\":\"yts\",\"isBr\":false},{\"quality\":\"1080p\",\"indexer\":\"yts\",\"isBr\":false},{\"quality\":\"720p\",\"indexer\":\"rarbg\",\"isBr\":false}],\"qualityLimits\":{\"1080p\":1},\"maxPerIndexer\":0,\"exempt\":[],\"indexerLimits\":{},\"reservedBr\":[0]}","expected":"[0,1,3]"}
+{"id":"sqe-025","input":"{\"op\":\"selectCandidates\",\"streams\":[{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"720p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"2160p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"1080p\",\"isBr\":true,\"isLied\":false}],\"maxResults\":3,\"qualityLimits\":{\"1080p\":2,\"720p\":1},\"brFirst\":false,\"brReservedSlots\":1}","expected":"[0,2,4]"}
+{"id":"sqe-026","input":"{\"op\":\"selectCandidates\",\"streams\":[{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"720p\",\"isBr\":true,\"isLied\":false},{\"quality\":\"1080p\",\"isBr\":true,\"isLied\":false},{\"quality\":\"2160p\",\"isBr\":false,\"isLied\":false}],\"maxResults\":3,\"qualityLimits\":{\"1080p\":2},\"brFirst\":true}","expected":"[0,1,2]"}
+{"id":"sqe-027","input":"{\"op\":\"selectCandidates\",\"streams\":[{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"1080p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"720p\",\"isBr\":false,\"isLied\":false},{\"quality\":\"720p\",\"isBr\":true,\"isLied\":false},{\"quality\":\"2160p\",\"isBr\":false,\"isLied\":false}],\"maxResults\":4,\"qualityLimits\":{\"1080p\":2,\"720p\":1},\"brFirst\":true,\"brReservedPerQuality\":1}","expected":"[0,1,4,5]"}

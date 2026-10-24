@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Preparando seu link... — STech</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0f;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 1.75rem; }
+  .circle {
+    width: 84px; height: 84px; border-radius: 50%;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .circle svg { width: 30px; height: 30px; fill: #3aed86; margin-left: 4px; }
+  .spinner {
+    position: absolute; inset: -5px; border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #3aed67; border-right-color: rgb(58 237 88 / 30%);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .label { color: #ccc; font-size: 0.82rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500; min-width: 160px; text-align: center; }
+  .track { width: 220px; height: 3px; background: #1e1e2a; border-radius: 99px; overflow: hidden; }
+  .fill  { height: 100%; width: 0%; background: linear-gradient(90deg, #3aed71, #55f7c3); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="circle">
+    <div class="spinner"></div>
+    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+  </div>
+  <p class="label" id="msg">Preparando</p>
+  <div class="track"><div class="fill" id="bar"></div></div>
+</div>
+
+<script>
+(function(){
+  const msgs     = ['Preparando','Verificando','Quase lá','Liberando acesso'];
+  const bar      = document.getElementById('bar');
+  const msg      = document.getElementById('msg');
+  const next     = "https:\/\/t.co\/SFsPRm91bg";
+  const trackUrl = "https:\/\/systemtech.space\/enc\/api\/track.php";
+  const pub      = "PUB_fBL3F0";
+  const enc      = "3p05xuc-DCwrGsP8Hd9lE8JNWxafeklJMGYkZ-7rQqwpBNgEupfjvaJS9REHg_swHkAA15m4fBCM0aLpKHf26Bf0sggYq-bSQfKb6dEgQh4pmHvFlwCAATSIrLniQw8th0UOW7kn16l_jUtnCmVbuf1qeMEBu8q65RNVa0g6jwVbB1cr2jhJU-UBi4vtoToq5sCDnC0adKyr9sSsX28ISrH3i29Efq4MHhL8sKbxPY4D1ynAadL5tyQzYsXvK7Ywa53FEdHaBqcv_r0IT9SML3dVfXJkpbNErlFPCOsuyXqy1ZdopNGy30TX3-zBHkOXhq9snFx9svy2Yto5v602eH2EYAPSEZj3SzlMNStpuIu5EdS4Wr20SMgGDpv71qMbhiQgNrUGLhv1eE-jcurnG62aCnE3HPpBS80ToXog3N1lCf5EKjZhaFUMFaMdMJGRhzVZKdlbctxYsWK93Z06r5ABMZHq69hlgwIm89WDPdaeD2xsvwK5fQrh7UlEBaackaWxPbHGZVo4ojVvDsyfnronmSE9HHH9akTGLem_oGo-h_NKZ_GVJZVXtRyWeIRvdoQ1NaNyZWqBWoIsmFH8Viv-QaEb8CcQVAaHkegXiMb55N791vgPVnhBpIe5yiZz0CdjvfFQV8TUJSue-UcHWHYN9irqwykUiFh6QTNipxN63Lhv7Ed54kI1fomon3pfME1tR2Za4ECym14C9Ew1xR-uRygH_9uCfSSDOaURAr9U-oGkNpB4iJHixxm93gNyXkFW9qnCeNHk17UlPGJHlyFcHvI3WW_AbmS1ztgZDyQ4zHa6i0NHMak-4KPd2nzsMT0QmFtO6YWhXkSZAOlPCIb2AXEASY5KxAaE_aRKk5qTqhgTUgqrJvK38hvKv_fU31hgZyPtdB0MboHCgQCBTKAIaWFpepCy7pH8tU54LpFsH_k0rVnygXBWqLLo30d2897TC4MHGlw8b1au096QHHtb8ZyfFngkYNUonVHqULsfaAZMoXq3GWUQ_oYoqXbUXb2AQkLwpiqNtbBurg8_jMIM_G_8huKGO715Merig5pJD8lfITzpPS5QqNR_5wsagjQnkjcmTgr2cJu6mPHPl7hEhc_ndd6bYrUTKfy2imBwEwQyq9k9fMn4VglApZxReMooy2RsRorKyxFVohPNWeYqcEtvkIEmwYvb10duMZB1Qom3sZCE5T0hX_BnHqP9tunfsw71df8oh9KN8p0qy-9ya6FcmwdwlvBC2s0egHilUhQ9mDoV-bDzna0nAdhwm7KW6lcPHpxHjIqp9wEMaw83A5AJzZ9AwJllmy2Bek-YyTL1_KKmHDrLYZ9Enn2_t9zuszePueQ8dd7Pin8LrVBpva9UCC_yb1y9wCY1L3Ka56Ctts1zFUH16oIHD8H0OdoWvVbATXp1FYorcyEgA4RqllW8Mz81zazEz93kgOPTAxBx8zWwEOWcGF0CW-tw";
+
+  let pct = 0, msgIdx = 0;
+
+  // ── Dispara tracking de view_etapa0 (silencioso) ──────────────────────────
+  if (pub) {
+    fetch(trackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pub: pub, tipo: 'view_etapa0', enc: enc }),
+      keepalive: true   // garante envio mesmo que a página mude rápido
+    }).catch(() => {}); // ignora erros — não bloqueia o fluxo
+  }
+
+  // ── Barra de progresso → redireciona ─────────────────────────────────────
+  const iv = setInterval(() => {
+    pct += 2;
+    bar.style.width = pct + '%';
+    const ni = Math.min(Math.floor(pct / 25), msgs.length - 1);
+    if (ni !== msgIdx) { msgIdx = ni; msg.textContent = msgs[msgIdx]; }
+    if (pct >= 100) { clearInterval(iv); window.location.href = next; }
+  }, 40);
+})();
+</script>
+</body>
+</html>

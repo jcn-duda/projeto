@@ -1,0 +1,858 @@
+{
+  "version": "corpus-crawl-store-rules/1",
+  "note": "Regras puras + codec do estado da raspagem (crawl-store-rules.ts). Saídas medidas no Node vivo: decimal para backoff; JSON canônico para progresso/linha/upsert; \"1\"/\"0\" para booleanos. O config é DOCUMENTAL (o módulo não lê config): declara os literais exportados que a medição confere.",
+  "config": {
+    "constants": {
+      "errorBackoffCapMs": 21600000,
+      "crawlGiveUpMs": 86400000,
+      "defaultRetryBaseMs": 60000
+    }
+  },
+  "cases": [
+    {
+      "id": "csr-001",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":1}",
+      "note": "base default, 1ª falha"
+    },
+    {
+      "id": "csr-002",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":2}",
+      "note": "dobra por tentativa"
+    },
+    {
+      "id": "csr-003",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":3}",
+      "note": "2^2"
+    },
+    {
+      "id": "csr-004",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":6}",
+      "note": "60000*32"
+    },
+    {
+      "id": "csr-005",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":9}",
+      "note": "abaixo do teto"
+    },
+    {
+      "id": "csr-006",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":10}",
+      "note": "bate no teto de 6h"
+    },
+    {
+      "id": "csr-007",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":20}",
+      "note": "teto segura"
+    },
+    {
+      "id": "csr-008",
+      "input": "{\"op\":\"backoff\",\"baseMs\":500,\"tries\":1}",
+      "note": "piso de 1s"
+    },
+    {
+      "id": "csr-009",
+      "input": "{\"op\":\"backoff\",\"baseMs\":0,\"tries\":5}",
+      "note": "base 0 cai no piso"
+    },
+    {
+      "id": "csr-010",
+      "input": "{\"op\":\"backoff\",\"baseMs\":1000,\"tries\":0}",
+      "note": "tries 0 não estoura expoente"
+    },
+    {
+      "id": "csr-011",
+      "input": "{\"op\":\"backoff\",\"baseMs\":1000,\"tries\":-3}",
+      "note": "tries negativo clampa em 0"
+    },
+    {
+      "id": "csr-012",
+      "input": "{\"op\":\"backoff\",\"baseMs\":120000,\"tries\":4}",
+      "note": "base 2min"
+    },
+    {
+      "id": "csr-013",
+      "input": "{\"op\":\"backoff\",\"baseMs\":21600000,\"tries\":2}",
+      "note": "base igual ao teto"
+    },
+    {
+      "id": "csr-014",
+      "input": "{\"op\":\"backoff\",\"baseMs\":\"60000\",\"tries\":3}",
+      "note": "base string numérica é coagida"
+    },
+    {
+      "id": "csr-015",
+      "input": "{\"op\":\"backoff\",\"baseMs\":null,\"tries\":2}",
+      "note": "base null cai no piso"
+    },
+    {
+      "id": "csr-016",
+      "input": "{\"op\":\"backoff\",\"baseMs\":60000,\"tries\":8}",
+      "note": "60000*128"
+    },
+    {
+      "id": "csr-017",
+      "input": "{\"op\":\"backoff\",\"baseMs\":3600000,\"tries\":4}",
+      "note": "1h*8 estoura o teto"
+    },
+    {
+      "id": "csr-018",
+      "input": "{\"op\":\"backoff\",\"baseMs\":1000,\"tries\":11}",
+      "note": "1000*1024"
+    },
+    {
+      "id": "csr-019",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\",\\\"u2\\\"],\\\"card\\\":{\\\"url\\\":\\\"u3\\\",\\\"skip\\\":5},\\\"totalCards\\\":10,\\\"seen\\\":[\\\"h:1\\\"],\\\"dry\\\":1}\"}",
+      "note": "progresso completo"
+    },
+    {
+      "id": "csr-020",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":0}\"}",
+      "note": "mínimo válido"
+    },
+    {
+      "id": "csr-021",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":2,\\\"doneCards\\\":[\\\"u1\\\"],\\\"totalCards\\\":1}\"}",
+      "note": "v != 1 recusa"
+    },
+    {
+      "id": "csr-022",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"doneCards\\\":[\\\"u1\\\"],\\\"totalCards\\\":1}\"}",
+      "note": "sem v recusa"
+    },
+    {
+      "id": "csr-023",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":\\\"x\\\",\\\"totalCards\\\":1}\"}",
+      "note": "doneCards não-array recusa"
+    },
+    {
+      "id": "csr-024",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\"}",
+      "note": "JSON ilegível"
+    },
+    {
+      "id": "csr-025",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"\"}",
+      "note": "string vazia"
+    },
+    {
+      "id": "csr-026",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"   \"}",
+      "note": "só espaços"
+    },
+    {
+      "id": "csr-027",
+      "input": "{\"op\":\"parseProgress\",\"raw\":null}",
+      "note": "null"
+    },
+    {
+      "id": "csr-028",
+      "input": "{\"op\":\"parseProgress\",\"raw\":5}",
+      "note": "número não é objeto"
+    },
+    {
+      "id": "csr-029",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"\\\",\\\"u1\\\",null,0],\\\"totalCards\\\":2}\"}",
+      "note": "doneCards filtra vazios"
+    },
+    {
+      "id": "csr-030",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"\\\",\\\"skip\\\":3},\\\"totalCards\\\":1}\"}",
+      "note": "card sem url é omitido"
+    },
+    {
+      "id": "csr-031",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":\\\"x\\\",\\\"totalCards\\\":1}\"}",
+      "note": "card não-objeto é omitido"
+    },
+    {
+      "id": "csr-032",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"u\\\",\\\"skip\\\":\\\"abc\\\"},\\\"totalCards\\\":1}\"}",
+      "note": "skip inválido vira 0"
+    },
+    {
+      "id": "csr-033",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"seen\\\":[]}\"}",
+      "note": "seen vazio é omitido"
+    },
+    {
+      "id": "csr-034",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"seen\\\":[\\\"\\\",\\\"h:1\\\",null]}\"}",
+      "note": "seen filtra vazios"
+    },
+    {
+      "id": "csr-035",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"dry\\\":1}\"}",
+      "note": "dry 1 preservado"
+    },
+    {
+      "id": "csr-036",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"dry\\\":2}\"}",
+      "note": "dry 2 omitido"
+    },
+    {
+      "id": "csr-037",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"dry\\\":true}\"}",
+      "note": "dry booleano omitido"
+    },
+    {
+      "id": "csr-038",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":\\\"abc\\\"}\"}",
+      "note": "totalCards inválido vira 0"
+    },
+    {
+      "id": "csr-039",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":-5}\"}",
+      "note": "parse preserva negativo"
+    },
+    {
+      "id": "csr-040",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":3.7}\"}",
+      "note": "parse preserva float"
+    },
+    {
+      "id": "csr-041",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"totalCards\\\":1,\\\"x\\\":9}\"}",
+      "note": "chave extra ignorada"
+    },
+    {
+      "id": "csr-042",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[1,2],\\\"totalCards\\\":2}\"}",
+      "note": "doneCards numérico é coagido"
+    },
+    {
+      "id": "csr-043",
+      "input": "{\"op\":\"parseProgress\",\"raw\":{\"v\":1,\"doneCards\":[]}}",
+      "note": "objeto cru vira [object Object]"
+    },
+    {
+      "id": "csr-044",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"﻿{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":0}\"}",
+      "note": "BOM é whitespace: o trim o remove e o parse dá certo"
+    },
+    {
+      "id": "csr-045",
+      "input": "{\"op\":\"parseProgress\",\"raw\":true}",
+      "note": "booleano não é objeto"
+    },
+    {
+      "id": "csr-046",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":123,\\\"skip\\\":1},\\\"totalCards\\\":1}\"}",
+      "note": "card.url numérico coagido"
+    },
+    {
+      "id": "csr-047",
+      "input": "{\"op\":\"parseProgress\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":1,\\\"seen\\\":[7,8]}\"}",
+      "note": "seen numérico coagido"
+    },
+    {
+      "id": "csr-048",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"totalCards\":10,\"seen\":[\"h:1\"],\"card\":{\"skip\":5,\"url\":\"u3\"},\"doneCards\":[\"u2\",\"u1\"],\"v\":1}}",
+      "note": "ordem de chaves canônica"
+    },
+    {
+      "id": "csr-049",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{\"url\":\"u\",\"skip\":-4},\"totalCards\":1}}",
+      "note": "skip negativo clampa em 0"
+    },
+    {
+      "id": "csr-050",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{\"url\":\"u\",\"skip\":2.9},\"totalCards\":1}}",
+      "note": "skip float truncado"
+    },
+    {
+      "id": "csr-051",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{\"url\":\"u\",\"skip\":\"abc\"},\"totalCards\":1}}",
+      "note": "skip inválido vira 0"
+    },
+    {
+      "id": "csr-052",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{\"url\":123,\"skip\":1},\"totalCards\":1}}",
+      "note": "card.url numérico coagido"
+    },
+    {
+      "id": "csr-053",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{},\"totalCards\":1}}",
+      "note": "card sem url é omitido"
+    },
+    {
+      "id": "csr-054",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"card\":{\"url\":\"\"},\"totalCards\":1}}",
+      "note": "card url vazio é omitido"
+    },
+    {
+      "id": "csr-055",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":\"x\",\"totalCards\":1}}",
+      "note": "doneCards não-array vira []"
+    },
+    {
+      "id": "csr-056",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[\"\",\"u1\",null],\"totalCards\":1}}",
+      "note": "doneCards filtra vazios"
+    },
+    {
+      "id": "csr-057",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":-5}}",
+      "note": "totalCards negativo clampa em 0"
+    },
+    {
+      "id": "csr-058",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":3.9}}",
+      "note": "totalCards float truncado"
+    },
+    {
+      "id": "csr-059",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":\"abc\"}}",
+      "note": "totalCards inválido vira 0"
+    },
+    {
+      "id": "csr-060",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":1,\"seen\":[\"\",\"h:1\",5]}}",
+      "note": "seen coagido e filtrado"
+    },
+    {
+      "id": "csr-061",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":1,\"seen\":[]}}",
+      "note": "seen vazio é omitido"
+    },
+    {
+      "id": "csr-062",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":1,\"dry\":1}}",
+      "note": "dry 1 preservado"
+    },
+    {
+      "id": "csr-063",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":1,\"doneCards\":[],\"totalCards\":1,\"dry\":true}}",
+      "note": "dry booleano omitido"
+    },
+    {
+      "id": "csr-064",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"totalCards\":2}}",
+      "note": "sem doneCards vira []"
+    },
+    {
+      "id": "csr-065",
+      "input": "{\"op\":\"renderProgress\",\"p\":{\"v\":2,\"doneCards\":[\"u1\"],\"totalCards\":1}}",
+      "note": "render sempre escreve v:1"
+    },
+    {
+      "id": "csr-066",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"lixo\",\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":1}}",
+      "note": "prev ilegível → avanço"
+    },
+    {
+      "id": "csr-067",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":null,\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":1}}",
+      "note": "prev nulo → avanço"
+    },
+    {
+      "id": "csr-068",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\",\"next\":\"{bad\"}",
+      "note": "next ilegível → não avança"
+    },
+    {
+      "id": "csr-069",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\",\"next\":null}",
+      "note": "next nulo → não avança"
+    },
+    {
+      "id": "csr-070",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\"}",
+      "note": "next ausente → não avança"
+    },
+    {
+      "id": "csr-071",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\",\"next\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\"}",
+      "note": "mesma forma → não avança"
+    },
+    {
+      "id": "csr-072",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\",\"u4\"],\"totalCards\":3}}",
+      "note": "doneCards novo → avança"
+    },
+    {
+      "id": "csr-073",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3,\"seen\":[\"h:1\"]},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3,\"seen\":[\"h:2\"]}}",
+      "note": "só seen muda → não avança"
+    },
+    {
+      "id": "csr-074",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3,\"dry\":1}}",
+      "note": "só dry muda → não avança"
+    },
+    {
+      "id": "csr-075",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"card\":{\"url\":\"u2\",\"skip\":1},\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"card\":{\"url\":\"u2\",\"skip\":2},\"totalCards\":3}}",
+      "note": "skip do card avança"
+    },
+    {
+      "id": "csr-076",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":4}}",
+      "note": "totalCards muda → avança"
+    },
+    {
+      "id": "csr-077",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3},\"next\":{}}",
+      "note": "next objeto vazio → avança"
+    },
+    {
+      "id": "csr-078",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"card\":{\"url\":\"u2\",\"skip\":1},\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":3}}",
+      "note": "card removido → avança"
+    },
+    {
+      "id": "csr-079",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":\"{\\\"v\\\":2,\\\"doneCards\\\":[]}\",\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"totalCards\":1}}",
+      "note": "prev v2 ilegível → avança"
+    },
+    {
+      "id": "csr-080",
+      "input": "{\"op\":\"progressAdvanced\",\"prev\":{\"v\":1,\"doneCards\":[\"u1\"],\"card\":{\"url\":\"u2\",\"skip\":1},\"totalCards\":3},\"next\":{\"v\":1,\"doneCards\":[\"u1\"],\"card\":{\"url\":\"u2\",\"skip\":1},\"totalCards\":3}}",
+      "note": "objetos idênticos → não avança"
+    },
+    {
+      "id": "csr-081",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\"}",
+      "note": "adiciona dry:1"
+    },
+    {
+      "id": "csr-082",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\",\\\"u2\\\"],\\\"card\\\":{\\\"url\\\":\\\"u3\\\",\\\"skip\\\":5},\\\"totalCards\\\":10,\\\"seen\\\":[\\\"h:1\\\"],\\\"dry\\\":1}\"}",
+      "note": "já seco permanece"
+    },
+    {
+      "id": "csr-083",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"nope\"}",
+      "note": "ilegível → vazio"
+    },
+    {
+      "id": "csr-084",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"\"}",
+      "note": "vazio → vazio"
+    },
+    {
+      "id": "csr-085",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"totalCards\\\":3,\\\"seen\\\":[\\\"h:1\\\"]}\"}",
+      "note": "preserva seen e marca seco"
+    },
+    {
+      "id": "csr-086",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"\\\",\\\"skip\\\":3},\\\"totalCards\\\":1}\"}",
+      "note": "card sem url cai e marca seco"
+    },
+    {
+      "id": "csr-087",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":null,\"entry\":{\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-05-05\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "URL nova nasce pending"
+    },
+    {
+      "id": "csr-088",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":null,\"entry\":{\"url\":\"https://a.example/serie/1\",\"lastmod\":\"2024-05-05\",\"kind\":\"tv_show\"},\"now\":1700000000000}",
+      "note": "kind tv_show preservado"
+    },
+    {
+      "id": "csr-089",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":null,\"entry\":{\"url\":\"https://a.example/serie/2\",\"lastmod\":\"2024-05-05\",\"kind\":\"series\"},\"now\":1700000000000}",
+      "note": "kind desconhecido vira movie"
+    },
+    {
+      "id": "csr-090",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":null,\"entry\":{\"lastmod\":\"2024-05-05\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "sem url grava vazio"
+    },
+    {
+      "id": "csr-091",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "lastmod igual → unchanged, host atualizado"
+    },
+    {
+      "id": "csr-092",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"\",\"kind\":\"movie\",\"status\":\"error\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "lastmod vazio igual → unchanged"
+    },
+    {
+      "id": "csr-093",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"tv_show\"},\"now\":1700000000000}",
+      "note": "unchanged preserva kind antigo"
+    },
+    {
+      "id": "csr-094",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"lastmod\":\"2024-01-01\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "unchanged sem url zera a url"
+    },
+    {
+      "id": "csr-095",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2025-02-02\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "lastmod novo → refreshed do zero"
+    },
+    {
+      "id": "csr-096",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://host.novo/obra/x\",\"lastmod\":\"2025-02-02\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "refreshed herda a url antiga, não a do entry"
+    },
+    {
+      "id": "csr-097",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"partial\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2025-02-02\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "refreshed limpa progresso"
+    },
+    {
+      "id": "csr-098",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2025-02-02\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "refreshed zera releases/imdb e marca addedAt novo"
+    },
+    {
+      "id": "csr-099",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"error\",\"imdb\":\"tt1\",\"tries\":3,\"nextAt\":999,\"checkedAt\":222,\"releases\":5,\"error\":\"x\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"lastmod\":\"2025-02-02\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "refreshed zera tries/erro/inflight"
+    },
+    {
+      "id": "csr-100",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://old.example/obra/x\",\"lastmod\":\"zzz\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":2,\"nextAt\":111,\"checkedAt\":222,\"releases\":5,\"error\":\"\",\"progress\":\"\",\"addedAt\":100},\"entry\":{\"url\":\"https://new.example/obra/x\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "entry sem lastmod → refreshed com lastmod vazio"
+    },
+    {
+      "id": "csr-101",
+      "input": "{\"op\":\"decideUpsert\",\"site\":\"site-a\",\"existing\":null,\"entry\":{\"url\":\"https://a.example/filme/3\",\"kind\":\"movie\"},\"now\":1700000000000}",
+      "note": "added sem lastmod"
+    },
+    {
+      "id": "csr-102",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000}",
+      "note": "error incrementa tries e aplica backoff default"
+    },
+    {
+      "id": "csr-103",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":1,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000,\"opts\":{\"retryBaseMs\":5000}}",
+      "note": "error usa retryBaseMs do operador"
+    },
+    {
+      "id": "csr-104",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000,\"opts\":{\"maxTries\":3}}",
+      "note": "error antes do teto → backoff"
+    },
+    {
+      "id": "csr-105",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":2,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000,\"opts\":{\"maxTries\":3}}",
+      "note": "error atinge maxTries → dorme 24h"
+    },
+    {
+      "id": "csr-106",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000,\"opts\":{\"maxTries\":1}}",
+      "note": "maxTries 1 esgota logo"
+    },
+    {
+      "id": "csr-107",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000,\"opts\":{\"maxTries\":null}}",
+      "note": "maxTries null é tratado como declarado (edge)"
+    },
+    {
+      "id": "csr-108",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"\"},\"now\":1700000000000}",
+      "note": "erro vazio vira \"erro\""
+    },
+    {
+      "id": "csr-109",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\"},\"now\":1700000000000}",
+      "note": "erro ausente vira \"erro\""
+    },
+    {
+      "id": "csr-110",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":4,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000}",
+      "note": "tries 4 → 5, backoff 60000*16"
+    },
+    {
+      "id": "csr-111",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\",\"releases\":3,\"imdb\":\"tt7\",\"error\":\"series_truncated\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"u1\\\"],\\\"card\\\":{\\\"url\\\":\\\"u2\\\",\\\"skip\\\":1},\\\"totalCards\\\":3}\"},\"now\":1700000000000}",
+      "note": "partial grava progresso e retry curto"
+    },
+    {
+      "id": "csr-112",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\"},\"now\":1700000000000}",
+      "note": "partial sem releases → 0"
+    },
+    {
+      "id": "csr-113",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\",\"imdb\":null},\"now\":1700000000000}",
+      "note": "partial com imdb null explícito"
+    },
+    {
+      "id": "csr-114",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\"},\"now\":1700000000000}",
+      "note": "partial herda imdb existente"
+    },
+    {
+      "id": "csr-115",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\"},\"now\":1700000000000}",
+      "note": "partial herda progresso existente"
+    },
+    {
+      "id": "csr-116",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\",\"progress\":null},\"now\":1700000000000}",
+      "note": "partial com progresso null herda"
+    },
+    {
+      "id": "csr-117",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\"},\"now\":1700000000000,\"opts\":{\"retryBaseMs\":10000}}",
+      "note": "partial usa retryBaseMs do operador"
+    },
+    {
+      "id": "csr-118",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"partial\"},\"now\":1700000000000}",
+      "note": "partial sem erro limpa o campo"
+    },
+    {
+      "id": "csr-119",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\"},\"now\":1700000000000}",
+      "note": "done sem releases preserva a contagem"
+    },
+    {
+      "id": "csr-120",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\",\"releases\":0},\"now\":1700000000000}",
+      "note": "done com 0 zera de propósito"
+    },
+    {
+      "id": "csr-121",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\",\"releases\":7},\"now\":1700000000000}",
+      "note": "done com contagem nova"
+    },
+    {
+      "id": "csr-122",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\",\"imdb\":null},\"now\":1700000000000}",
+      "note": "done com imdb null explícito"
+    },
+    {
+      "id": "csr-123",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\"},\"now\":1700000000000}",
+      "note": "done herda imdb existente"
+    },
+    {
+      "id": "csr-124",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"no-torrent\"},\"now\":1700000000000}",
+      "note": "no-torrent zera releases"
+    },
+    {
+      "id": "csr-125",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"no-work\",\"releases\":3},\"now\":1700000000000}",
+      "note": "no-work grava releases declaradas"
+    },
+    {
+      "id": "csr-126",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"simulated\",\"releases\":2},\"now\":1700000000000}",
+      "note": "simulated limpa progresso e marca releases"
+    },
+    {
+      "id": "csr-127",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"pending\"},\"now\":1700000000000}",
+      "note": "status inesperado cai no ramo terminal"
+    },
+    {
+      "id": "csr-128",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\",\"releases\":1},\"now\":1700000000000}",
+      "note": "terminal preserva identidade da linha"
+    },
+    {
+      "id": "csr-129",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000}",
+      "note": "error toca checkedAt"
+    },
+    {
+      "id": "csr-130",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"done\"},\"now\":1700000000000}",
+      "note": "terminal toca checkedAt"
+    },
+    {
+      "id": "csr-131",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"boom\"},\"now\":1700000000000}",
+      "note": "error preserva releases e imdb"
+    },
+    {
+      "id": "csr-132",
+      "input": "{\"op\":\"applyResult\",\"existing\":{\"site\":\"site-a\",\"url\":\"https://a.example/filme/1\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"pending\",\"imdb\":\"tt9\",\"tries\":0,\"nextAt\":0,\"checkedAt\":0,\"releases\":4,\"error\":\"velho\",\"progress\":\"{\\\"v\\\":1,\\\"doneCards\\\":[\\\"a\\\"],\\\"totalCards\\\":2}\",\"addedAt\":50},\"result\":{\"status\":\"error\",\"error\":\"series_stall\"},\"now\":1700000000000,\"opts\":{\"retryBaseMs\":500,\"maxTries\":10}}",
+      "note": "error com base abaixo do piso"
+    },
+    {
+      "id": "csr-133",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"https://site-a.example/series/obra/?p=2\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "corta query e barra final"
+    },
+    {
+      "id": "csr-134",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"/filme/x\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "caminho puro"
+    },
+    {
+      "id": "csr-135",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"https://host\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "sem caminho vira raiz"
+    },
+    {
+      "id": "csr-136",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"/\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "raiz"
+    },
+    {
+      "id": "csr-137",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "url vazia"
+    },
+    {
+      "id": "csr-138",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"https://h//a//b/\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "colapsa barras duplas"
+    },
+    {
+      "id": "csr-139",
+      "input": "{\"op\":\"renderUrl\",\"row\":{\"site\":\"site-a\",\"url\":\"https://h/a/b#frag\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"nextAt\":2,\"checkedAt\":3,\"releases\":4,\"error\":\"\",\"progress\":\"\",\"addedAt\":5}}",
+      "note": "corta fragmento"
+    },
+    {
+      "id": "csr-140",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"inflight\"}",
+      "note": "inflight conhecido"
+    },
+    {
+      "id": "csr-141",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"done\"}",
+      "note": "done conhecido"
+    },
+    {
+      "id": "csr-142",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"no-torrent\"}",
+      "note": "no-torrent conhecido"
+    },
+    {
+      "id": "csr-143",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"no-work\"}",
+      "note": "no-work conhecido"
+    },
+    {
+      "id": "csr-144",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"error\"}",
+      "note": "error conhecido"
+    },
+    {
+      "id": "csr-145",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"simulated\"}",
+      "note": "simulated conhecido"
+    },
+    {
+      "id": "csr-146",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"partial\"}",
+      "note": "partial conhecido"
+    },
+    {
+      "id": "csr-147",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"pending\"}",
+      "note": "pending explicitado"
+    },
+    {
+      "id": "csr-148",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"unknown\"}",
+      "note": "desconhecido vira pending"
+    },
+    {
+      "id": "csr-149",
+      "input": "{\"op\":\"parseStatus\"}",
+      "note": "ausente vira pending"
+    },
+    {
+      "id": "csr-150",
+      "input": "{\"op\":\"parseStatus\",\"value\":null}",
+      "note": "null vira pending"
+    },
+    {
+      "id": "csr-151",
+      "input": "{\"op\":\"parseStatus\",\"value\":7}",
+      "note": "número vira pending"
+    },
+    {
+      "id": "csr-152",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"DONE\"}",
+      "note": "caixa alta vira pending"
+    },
+    {
+      "id": "csr-153",
+      "input": "{\"op\":\"parseStatus\",\"value\":\"\"}",
+      "note": "vazio vira pending"
+    },
+    {
+      "id": "csr-154",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"site\":\"site-a\",\"url\":\"https://h/a\",\"url_key\":\"/a\",\"lastmod\":\"2024-01-01\",\"kind\":\"movie\",\"status\":\"done\",\"imdb\":\"tt1\",\"tries\":1,\"next_at\":2,\"checked_at\":3,\"releases\":4,\"error\":\"e\",\"progress\":\"p\",\"added_at\":5}}",
+      "note": "linha completa"
+    },
+    {
+      "id": "csr-155",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{}}",
+      "note": "linha vazia usa defaults"
+    },
+    {
+      "id": "csr-156",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"kind\":\"tv_show\"}}",
+      "note": "kind tv_show"
+    },
+    {
+      "id": "csr-157",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"kind\":\"x\"}}",
+      "note": "kind desconhecido vira movie"
+    },
+    {
+      "id": "csr-158",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"imdb\":0}}",
+      "note": "imdb 0 é coagido"
+    },
+    {
+      "id": "csr-159",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"imdb\":\"\"}}",
+      "note": "imdb vazio é preservado"
+    },
+    {
+      "id": "csr-160",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"imdb\":null}}",
+      "note": "imdb null"
+    },
+    {
+      "id": "csr-161",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"status\":\"wat\"}}",
+      "note": "status desconhecido vira pending"
+    },
+    {
+      "id": "csr-162",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"tries\":\"3\",\"next_at\":\"4\",\"checked_at\":\"5\",\"releases\":\"6\",\"added_at\":\"7\"}}",
+      "note": "colunas numéricas como string"
+    },
+    {
+      "id": "csr-163",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"url_key\":\"/z\"}}",
+      "note": "url_key é ignorado"
+    },
+    {
+      "id": "csr-164",
+      "input": "{\"op\":\"parseUrlRow\",\"r\":{\"error\":null,\"progress\":null}}",
+      "note": "error/progress nulos viram vazio"
+    },
+    {
+      "id": "csr-165",
+      "input": "{\"op\":\"emptyCounters\"}",
+      "note": "contadores zerados com todos os status"
+    },
+    {
+      "id": "csr-166",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"u\\\",\\\"skip\\\":-4},\\\"totalCards\\\":1}\"}",
+      "note": "dry reusa render: clampa skip negativo do card"
+    },
+    {
+      "id": "csr-167",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"u\\\",\\\"skip\\\":2.9},\\\"totalCards\\\":1}\"}",
+      "note": "dry reusa render: trunca skip float do card"
+    },
+    {
+      "id": "csr-168",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":-5}\"}",
+      "note": "dry reusa render: clampa totalCards negativo"
+    },
+    {
+      "id": "csr-169",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":3.9}\"}",
+      "note": "dry reusa render: trunca totalCards float"
+    }
+  ]
+}

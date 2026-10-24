@@ -13,12 +13,13 @@ import 'dotenv/config';
 
 import { server } from './config/server.js';
 import { jackett } from './config/jackett.js';
-import { prowlarr, torrentio, tmdb, cinemeta, bludv } from './config/providers.js';
+import { prowlarr, torrentio, mico, tmdb, cinemeta, bludv } from './config/providers.js';
 import { resolvers } from './config/resolvers.js';
 import { searchSettings, budgets, search } from './config/search.js';
-import { cacheBase, rawCache, cache, catalog } from './config/cache.js';
+import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
 import { debrid } from './config/debrid.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
+import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
 
 const config = {
@@ -31,6 +32,7 @@ const config = {
   harvest: harvest(),
   prowlarr: prowlarr(),
   torrentio: torrentio(),
+  mico: mico(),
   tmdb: tmdb(),
   cinemeta: cinemeta(),
   resolvers: resolvers(),
@@ -44,6 +46,7 @@ const config = {
   rawCache: rawCache(),
   cache: cache(),
   catalog: catalog(),
+  magnetBank: magnetBank(),
   debrid: debrid(),
   // searchTimeout, replyDeadline, debridReserve, debridCheckFloor
   ...budgets(),
@@ -53,6 +56,8 @@ const config = {
   audioAudit: audioAudit(),
   notify: notify(),
   f3: f3(),
+  // Raspagem total dos sites BR (desligada por padrão; ver config/crawl.ts).
+  crawl: crawl(),
 };
 
 export default config;

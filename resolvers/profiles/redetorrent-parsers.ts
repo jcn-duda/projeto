@@ -1,0 +1,323 @@
+// Rede Torrent (www.redetorrent.xyz) — parsers puros do perfil. O site é um
+// WordPress com tema próprio: a busca devolve cards em div.listagem e o post
+// publica os magnets DIRETOS no HTML cru, em tabelas tbl-mv-list (uma por
+// bloco de áudio: Dual Áudio / Legendado). Quando a página passa pelo
+// FlareSolverr, o DOM renderizado troca as âncoras por tokens systemads
+// (base64 do magnet) — o parser aceita as duas formas e nunca costura
+// /resolve: o magnet é o próprio link da release.
+
+import { decodeEntities, escapeXml, stripTags as stripTagsShared } from '../text.js';
+import {
+  matchesResolverQuery,
+  normalizeSeasonValue,
+} from '../matching.js';
+import { createQualityRules, createSourceRules } from '../release-rules.js';
+import { createReleaseTitle, createNormalizeQuery } from '../release-format.js';
+import type { ReleaseTitleInput, ReleaseTitlePost } from '../release-format.js';
+// Validação do magnet reusa o helper canônico do bludv-parsers: só vale
+// magnet com xt=urn:btih: de hash válido (40 hex) em QUALQUER posição —
+// startsWith('magnet:') é fraco demais para HTML de terceiro.
+import { isValidMagnetUri } from './bludv-parsers.js';
+import type { ParsedResolverLink } from '../types.js';
+
+// Mirrors ativos do site: viram candidato do seletor E allowlist (o
+// site-profile aceita o host de qualquer candidato sem restart).
+const FALLBACK_SITE_SUFFIXES = ['redetorrent.xyz', 'redetorrent.com'];
+
+// Hosts de protetor que aparecem nos anchors do DOM renderizado (o JS do tema
+// reescreve o magnet para systemads). O token é decodificado no parse — nenhum
+// fetch toca esses hosts; entram na allowlist por defesa, não por consumo.
+const PROTECTOR_SUFFIXES = ['systemads.free.nf', 'systemads1.com', 'temreceita.com'];
+
+const { normalizeQuality } = createQualityRules();
+const { normalizeSource } = createSourceRules();
+
+const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
+
+// O buscador WP do site zera com QUALQUER token extra ("Coringa 2019" → 0,
+// medido na definição stock): o ano sai junto do SxxEyy.
+const normalizeQuery = createNormalizeQuery({ dropYear: true });
+
+function requestedSeasonFromQuery(value: string | null | undefined): RegExpMatchArray | null {
+  return String(value || '').match(/\b[Ss](\d{1,2})(?:[Ee]\d{1,2})?\b/i);
+}
+
+// Áudio pelo conjunto header + células de idioma/legenda. "Legendado" no
+// header do bloco vence a legenda ptbr da linha (legenda PT em release
+// legendada é o formato do site); sem header, ptbr na linha de idioma é dublado
+// ou dual conforme haja outro idioma junto.
+function classifyAudio(context: string | null | undefined): 'legendado' | 'dual' | 'dublado' | null {
+  const text = String(context || '').toUpperCase();
+  if (/LEGENDAD/.test(text)) return 'legendado';
+  const hasPt = /PTBR|PT-BR|PORTUGU[ÊE]S|DUBLAD|DUAL/.test(text);
+  if (!hasPt) return null;
+  const hasForeign = /\bENG\b|INGL[ÊE]S|ESPANHOL|JAPON[ÊE]S|LATINO|MULTI/.test(text);
+  return hasForeign ? 'dual' : 'dublado';
+}
+
+// Temporada pedida casa com QUALQUER temporada do título: o post da série
+// agrega "1ª 2ª Temporada" e casar só o último ordinal perderia a 1ª. Colete
+// TODOS os ordinais (1ª/2ª/1º...) e todos os Sxx soltos.
+function matchesSeasonSeason(
+  post: { title?: string | null } | null | undefined,
+  requestedSeason: RegExpMatchArray | readonly string[] | string | number | null | undefined,
+): boolean {
+  const wanted = normalizeSeasonValue(requestedSeason);
+  if (wanted == null) return true;
+  const title = String(post?.title || '');
+  const seasons: number[] = [];
+  for (const m of title.matchAll(/(\d{1,2})\s*[ªº°]/g)) seasons.push(Number(m[1]));
+  for (const m of title.matchAll(/\bS(\d{1,2})\b/gi)) seasons.push(Number(m[1]));
+  return !seasons.length || seasons.includes(wanted);
+}
+
+/** Card da busca do Rede Torrent. */
+export interface RedeWork {
+  url: string;
+  title: string;
+  year: number | null;
+  poster: string | null;
+  type: 'Filme' | 'Série' | null;
+}
+
+// Cards da busca: div.listagem > div.item > a[href][title], com ano no título.
+// baseUrl resolve href relativo (o site publica absoluto; o parâmetro cobre
+// HTML sintético e mudanças futuras do tema). `type` sai do PATH do post:
+// /filmes/ → Filme, /series/ → Série.
+function parseSearchHtml(html: string | null | undefined, baseUrl?: string): RedeWork[] {
+  if (!html) return [];
+  const out: RedeWork[] = [];
+  const seen = new Set<string>();
+  const anchorRe = /<div class="item">\s*<a\s+href=["']([^"']+)["']\s+title=["']([^"']*)["']/gi;
+  let match: RegExpExecArray | null;
+  while ((match = anchorRe.exec(String(html))) !== null) {
+    let resolved: string;
+    try { resolved = new URL(decodeEntities(match[1]), baseUrl || undefined).href; } catch { continue; }
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    const title = decodeEntities(match[2]).replace(/\s+/g, ' ').trim();
+    if (!title) continue;
+    const yearMatch = title.match(/\((\d{4})\)/);
+    const year = yearMatch ? Number(yearMatch[1]) : null;
+    out.push({ url: resolved, title, year, poster: null, type: workTypeFromPath(resolved) });
+  }
+  return out;
+}
+
+function workTypeFromPath(url: string): 'Filme' | 'Série' | null {
+  try {
+    const path = new URL(url).pathname;
+    if (/^\/filmes\//.test(path)) return 'Filme';
+    if (/^\/series\//.test(path)) return 'Série';
+  } catch {}
+  return null;
+}
+
+// Token systemads: ?token=<base64> decodifica para o magnet (ou para um
+// https de legenda, que não serve e é descartado).
+function magnetFromSystemadsToken(href: string | null | undefined): string | null {
+  const raw = String(href || '');
+  if (!/systemads/i.test(raw)) return null;
+  const token = raw.match(/[?&]token=([^&"']+)/)?.[1];
+  if (!token) return null;
+  try {
+    const decoded = Buffer.from(decodeURIComponent(token), 'base64').toString('utf8').trim();
+    return isValidMagnetUri(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+// Âncora do post → magnet validado: magnet direto no href OU token systemads
+// decodificado. Tudo que não passa no isValidMagnetUri é descartado.
+function extractMagnetHref(href: string | null | undefined): string | null {
+  const value = decodeEntities(String(href || '').trim());
+  if (isValidMagnetUri(value)) return value;
+  return magnetFromSystemadsToken(value);
+}
+
+function magnetParams(magnet: string): { dn: string; xl: number | null } {
+  try {
+    const url = new URL(magnet);
+    return {
+      dn: decodeURIComponent(url.searchParams.get('dn') || ''),
+      xl: Number(url.searchParams.get('xl') || 0) || null,
+    };
+  } catch {
+    return { dn: '', xl: null };
+  }
+}
+
+function fmtSize(bytes: number | null): string | null {
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes <= 0) return null;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 'B';
+  for (const next of units) {
+    if (value < 1024) break;
+    value /= 1024;
+    unit = next;
+  }
+  return `${value.toFixed(2).replace(/\.?0+$/, '')} ${unit}`;
+}
+
+function cellText(row: string, className: string): string {
+  const cell = row.match(new RegExp(`<td class="${className}[^"]*"[^>]*>([\\s\\S]*?)</td>`, 'i'));
+  if (!cell) return '';
+  return stripTags(cell[1]);
+}
+
+function qualityFromText(text: string | null | undefined): number | null {
+  const match = String(text || '').match(/\b(\d{3,4})\s*p\b/i);
+  return match ? normalizeQuality(match[0]) : null;
+}
+
+// Uma tabela tbl-mv-list por bloco de áudio; cada tr.tr-mv-list é uma release.
+// `post` dá o contexto (contrato do perfil): url resolve href relativo — a
+// tabela pode carregar âncora de legenda (opensubtitles) ANTES da do magnet,
+// então TODAS as âncoras da linha são varridas até uma virar magnet.
+function parsePostLinks(
+  html: string | null | undefined,
+  post: string | { url?: string } | null | undefined,
+): ParsedResolverLink[] {
+  if (!html) return [];
+  const baseUrl = typeof post === 'string' ? post : post?.url;
+  const links: ParsedResolverLink[] = [];
+  const tableRe = /<table class="tbl-mv-list">[\s\S]*?<\/table>/gi;
+  let table: RegExpExecArray | null;
+  while ((table = tableRe.exec(String(html))) !== null) {
+    // Header do bloco: classes extras do tema ("tfs theme-dark") não podem
+    // quebrar o casamento — qualquer class="tf..." serve.
+    const headerText = stripTags(table[0].match(/<div class="tf[^"]*">([\s\S]*?)<\/div>/i)?.[1] || '');
+    // Regex de linha NASCE por tabela: um /g reaproveitado carrega lastIndex
+    // da tabela anterior e silencia a segunda (bug do post com 2+ blocos).
+    const rowRe = /<tr class="tr-mv-list">([\s\S]*?)<\/tr>/gi;
+    let row: RegExpExecArray | null;
+    while ((row = rowRe.exec(table[0])) !== null) {
+      const body = row[1];
+      let magnet: string | null = null;
+      const hrefRe = /<a\s+[^>]*?href\s*=\s*["']([^"']+)["']/gi;
+      let hrefMatch: RegExpExecArray | null;
+      while ((hrefMatch = hrefRe.exec(body)) !== null) {
+        let href = hrefMatch[1];
+        if (baseUrl && !/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+          try { href = new URL(href, baseUrl).href; } catch {}
+        }
+        magnet = extractMagnetHref(href);
+        if (magnet) break;
+      }
+      if (!magnet) continue;
+      const { dn, xl } = magnetParams(magnet);
+      const qua = cellText(body, 'td-mv-qua');
+      const res = cellText(body, 'td-mv-res');
+      const tam = cellText(body, 'td-mv-tam');
+      const idi = cellText(body, 'td-mv-idi');
+      const leg = cellText(body, 'td-mv-leg');
+      const seasonMatch = qua.match(/^S(\d{1,2})$/i);
+      const size = /\d/.test(tam) ? tam : fmtSize(xl);
+      links.push({
+        url: magnet,
+        quality: (res && /\d/.test(res) ? normalizeQuality(res) : null) ?? qualityFromText(dn),
+        size: size && /kb/i.test(size) ? null : size,
+        audio: classifyAudio(`${headerText} ${idi} ${leg}`),
+        source: seasonMatch ? null : normalizeSource(`${qua} ${dn}`),
+        episode: null,
+        season: seasonMatch ? Number(seasonMatch[1]) : null,
+        realTitle: null,
+      });
+    }
+  }
+  return links;
+}
+
+// Título limpo do post: o tema prefixa "Filme "/"Série " e sufixa
+// "Torrent Download"; o sufixo " - Rede Torrent" é do <title>, não do post.
+function cleanPostTitle(title: string | null | undefined = ''): string {
+  let clean = decodeEntities(String(title || ''));
+  clean = clean.replace(/\s*Torrent(?:s)?\s*(?:Download)?\s*/gi, ' ');
+  clean = clean.replace(/^\s*(?:Filme|S[ée]rie|Baixar|Download)\s+/i, '');
+  clean = clean.replace(/\s*[-–|]\s*Rede Torrent\s*$/i, '');
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
+const releaseTitle = createReleaseTitle({
+  cleanTitle: cleanPostTitle,
+  titleOf: (post: ReleaseTitlePost, link: ReleaseTitleInput) =>
+    link?.realTitle || (typeof post === 'string' ? post : post?.title) || '',
+  audioTagOf: (link: ReleaseTitleInput) =>
+    link?.audio === 'dublado' ? 'DUBLADO'
+      : link?.audio === 'dual' ? 'DUAL'
+        : link?.audio === 'legendado' ? 'LEGENDADO' : null,
+  withSize: true,
+  seasonOf: (post: ReleaseTitlePost, link: ReleaseTitleInput) => (!link?.realTitle && link?.season != null)
+    ? `S${String(link.season).padStart(2, '0')}` : '',
+});
+
+// Ordem de preferência: áudio PT primeiro, depois resolução.
+function scoreLink(link: ParsedResolverLink): number {
+  const audio = link.audio === 'dual' || link.audio === 'dublado' ? 100_000
+    : link.audio === 'legendado' ? 0 : 50_000;
+  return audio + Number(link.quality || 0);
+}
+
+/** Item da página sintética do Rede Torrent. */
+export interface RedePageItem {
+  post: { url?: string; title?: string | null; date?: string | null };
+  link: ParsedResolverLink;
+  index: number;
+}
+
+/** Opções da factory da página sintética do Rede Torrent. */
+export interface RedeSearchPageOptions {
+  escape?: (value: string | null | undefined) => string;
+  releaseTitle?: (post: ReleaseTitlePost, link: ReleaseTitleInput, index?: number | null) => string;
+}
+
+// Página sintética do card Cardigann: o href de cada linha É o magnet do post
+// (magnet direto no HTML sintético, sem /resolve e sem download.before).
+function createRedeSearchPageHtml(options: RedeSearchPageOptions = {}) {
+  const escape = options.escape || escapeXml;
+  const relTitle = options.releaseTitle || releaseTitle;
+  return function searchPageHtml(items: RedePageItem[]): string {
+    const rows = items.map(({ post, link, index }) => {
+      const title = relTitle(post, link, index);
+      // O post.url tem elemento PRÓPRIO com href: o details do cardigann lê
+      // o atributo em vez de colar o magnet/texto — URL do post nunca sai
+      // quebrada no Jackett. O magnet continua no href do título (download).
+      return `<div class="release"><div class="title"><a href="${escape(link.url)}">${escape(title)}</a></div><div class="size">${escape(link.size || '1 KB')}</div><div class="post"><a href="${escape(post.url || '')}">${escape(post.url || '')}</a></div><div class="description">${escape(post.title || '')}</div><div class="seeders">1</div></div>`;
+    }).join('');
+    return `<!doctype html><html><body><div class="posts">${rows}</div></body></html>`;
+  };
+}
+
+/** Item do feed torznab do Rede Torrent. */
+export interface RedeRssItem {
+  post: { url: string; title: string; date?: string | null };
+  link: ParsedResolverLink;
+}
+
+// Feed torznab: o link é o magnet do post (sem /dl do perfil).
+function rssXml(items: RedeRssItem[], category: number): string {
+  const body = items.map(({ post, link }) => {
+    const size = (() => {
+      const match = String(link.size || '').match(/([\d.,]+)\s*(TB|GB|MB|KB)/i);
+      if (!match) return 0;
+      const value = Number(match[1].replace(',', '.'));
+      const units: Record<string, number> = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
+      const multiplier = units[match[2].toUpperCase()];
+      return Number.isFinite(value) ? Math.round(value * multiplier) : 0;
+    })();
+    return `<item><title>${escapeXml(releaseTitle(post, link))}</title><guid isPermaLink="false">${escapeXml(link.url)}</guid><link>${escapeXml(link.url)}</link><comments>${escapeXml(post.url)}</comments><pubDate>${escapeXml(post.date || new Date().toUTCString())}</pubDate><size>${size}</size><category>${category}</category><torznab:attr name="category" value="${category}"/><torznab:attr name="size" value="${size}"/><torznab:attr name="seeders" value="1"/><torznab:attr name="peers" value="1"/><torznab:attr name="downloadvolumefactor" value="0"/><torznab:attr name="uploadvolumefactor" value="1"/></item>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>Rede Torrent</title>${body}</channel></rss>`;
+}
+
+export {
+  FALLBACK_SITE_SUFFIXES, PROTECTOR_SUFFIXES,
+  normalizeQuery, requestedSeasonFromQuery, classifyAudio,
+  matchesSeasonSeason, matchesResolverQuery, normalizeQuality, normalizeSource,
+  parseSearchHtml, extractMagnetHref, parsePostLinks,
+  isValidMagnetUri,
+  cleanPostTitle, releaseTitle, scoreLink, createRedeSearchPageHtml, rssXml,
+  stripTags, decodeEntities, escapeXml,
+};

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "indexer-priority/priorityMap"
+  ],
+  "function": {
+    "name": "priorityMap",
+    "sourcePath": "src/utils/indexer-priority.ts",
+    "sourceSha256": "1fd84f19d47ed10518632e98c42ec906db0d4777f1a59d502e59f068313d3fa5",
+    "artifactPath": "dist/src/utils/indexer-priority.js",
+    "artifactSha256": "77bb4f554dac9b46220dd84ca3d4001c47835430e060ab4e67e5a15c1abfbd91"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-indexer-priority.json",
+    "sha256": "1f5292bade7b78494469dbf6adaae5974642a410b8c0355a55411d30ea639554",
+    "cases": 70
+  },
+  "output": {
+    "path": "rust/golden/indexer-priority.jsonl",
+    "sha256": "5fd95d4509fbb45f60d11bf256132d2449342cfc0621a409c2a175b78d9629e9",
+    "lines": 70
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "9fb915dfa0c10b8ffe770fd2ce1791d808ced841"
+  }
+}

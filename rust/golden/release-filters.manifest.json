@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "release-filters/filterRelevantRaw"
+  ],
+  "function": {
+    "name": "releaseFilters",
+    "sourcePath": "src/utils/release-filters.ts",
+    "sourceSha256": "12aca2be02a3b18521d0be849081d9890b06aa8fd1faaf89f0f2b8617e4f61fb",
+    "artifactPath": "dist/src/utils/release-filters.js",
+    "artifactSha256": "caa356d3387f36d2ccfa9d76c41a09bd8804a03ef49333a121f3777ef071b439"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-release-filters.json",
+    "sha256": "8434495fb90596b51aeaea86f7660589b0201c774dd879bbc83e9a9ec77166ee",
+    "cases": 175
+  },
+  "output": {
+    "path": "rust/golden/release-filters.jsonl",
+    "sha256": "0b9517ba53990f192cda606cbfac7e2f94fc52943026278fea06b7b362d90046",
+    "lines": 175
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "96316cefdeaaead28701498b8c1bfe422ed1b5f0"
+  }
+}

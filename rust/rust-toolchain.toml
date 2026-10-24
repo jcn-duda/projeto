@@ -1,0 +1,9 @@
+# Pina a toolchain verificada nesta fatia (imagem oficial `rust:1.92.0`).
+# 1.92.0 é a PRIMEIRA estável com `char::UNICODE_VERSION = (17, 0, 0)` — o mesmo
+# Unicode do `toLowerCase` do Node do oráculo (v22.23.2, unicode=17.0 / ICU 78.2).
+# Medido nos containers oficiais: 1.90.0=(16,0,0), 1.91.0=(16,0,0),
+# 1.92.0=(17,0,0). Sem isto, a caixa baixa de letras novas (ex.: U+A7CE) divergiria.
+# Evita também que "stable" desloque o Cargo.lock entre máquinas/execuções.
+[toolchain]
+channel = "1.92.0"
+components = ["clippy", "rustfmt"]

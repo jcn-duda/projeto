@@ -1,0 +1,23 @@
+{
+  "version": "corpus-magnet-display-name/1",
+  "note": "Casos de magnetDisplayName (title-normalization.ts). Entrada: magnet, magnetUri e guid, null ou string. Saída do golden: o dn= em texto cru; vazio é string vazia.",
+  "cases": [
+    {"id":"md-001","input":"{\"magnet\":null,\"magnetUri\":null,\"guid\":null}","note":"três campos ausentes"},
+    {"id":"md-002","input":"{\"magnet\":\"https://protetor.example/go?url=abc&dn=Resident.Evil.2026\",\"magnetUri\":null,\"guid\":null}","note":"URL https de protetor, mesmo com dn= na query"},
+    {"id":"md-003","input":"{\"magnet\":\"http://protetor.example/dl/arquivo\",\"magnetUri\":null,\"guid\":null}","note":"URL http de protetor"},
+    {"id":"md-004","input":"{\"magnet\":\"magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567\",\"magnetUri\":null,\"guid\":null}","note":"magnet sem parâmetro dn"},
+    {"id":"md-005","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident.Evil.2026.1080p\",\"magnetUri\":null,\"guid\":null}","note":"dn com pontos, sem escape"},
+    {"id":"md-006","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident+Evil+2026\",\"magnetUri\":null,\"guid\":null}","note":"+ do magnet vira espaço"},
+    {"id":"md-007","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident%20Evil%202026\",\"magnetUri\":null,\"guid\":null}","note":"%20 vira espaço"},
+    {"id":"md-008","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident%20Evil%ZZ\",\"magnetUri\":null,\"guid\":null}","note":"%ZZ depois de %20: o decode inteiro falha e o %20 fica cru"},
+    {"id":"md-009","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Ok%20Bad%\",\"magnetUri\":null,\"guid\":null}","note":"% truncado: o %20 anterior também fica cru"},
+    {"id":"md-010","input":"{\"magnet\":\"\",\"magnetUri\":\"magnet:?xt=urn:btih:HASH&dn=Pelo+MagnetUri\",\"guid\":\"magnet:?dn=Nao+Guid\"}","note":"magnet vazio cai no MagnetUri"},
+    {"id":"md-011","input":"{\"magnet\":null,\"magnetUri\":\"\",\"guid\":\"magnet:?xt=urn:btih:HASH&dn=Pelo+Guid\"}","note":"magnet e MagnetUri vazios: usa o Guid"},
+    {"id":"md-012","input":"{\"magnet\":\"magnet:?xt=urn:btih:AAA&dn=Do+Magnet\",\"magnetUri\":\"magnet:?xt=urn:btih:BBB&dn=Do+Uri\",\"guid\":\"magnet:?dn=Do+Guid\"}","note":"magnet preenchido vence MagnetUri e Guid"},
+    {"id":"md-013","input":"{\"magnet\":\"magnet:?dn=Inicio+Da+Query&xt=urn:btih:HASH\",\"magnetUri\":null,\"guid\":null}","note":"dn logo depois da interrogação"},
+    {"id":"md-014","input":"{\"magnet\":\"MAGNET:?xt=urn:btih:HASH&dn=Esquema+Maiusculo\",\"magnetUri\":null,\"guid\":null}","note":"esquema MAGNET em maiúsculas"},
+    {"id":"md-015","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=A%C3%A7%C3%A3o.2024.1080p\",\"magnetUri\":null,\"guid\":null}","note":"acento UTF-8 percent-encoded"},
+    {"id":"md-016","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&DN=Caixa+Alta\",\"magnetUri\":null,\"guid\":null}","note":"parâmetro DN em maiúsculas"},
+    {"id":"md-017","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=A+B%ZZ\",\"magnetUri\":null,\"guid\":null}","note":"+ vira espaço e o %ZZ permanece"}
+  ]
+}

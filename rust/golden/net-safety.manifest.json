@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "net-safety/isSafeDownloadUrl"
+  ],
+  "function": {
+    "name": "isSafeDownloadUrl",
+    "sourcePath": "src/utils/net-safety.ts",
+    "sourceSha256": "be99d337248cb87dc1ad27a39e3d724dbad62bf5869c3dcf555071e4febea4c1",
+    "artifactPath": "dist/src/utils/net-safety.js",
+    "artifactSha256": "5ed118fe1d984079d777441057f1a4562639793291f3ff383bae75ea14fe1d00"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-net-safety.json",
+    "sha256": "90a4faab333494e781bdfff82d86f063a126f40ab2692ba1c0d40b47a2469b51",
+    "cases": 28
+  },
+  "output": {
+    "path": "rust/golden/net-safety.jsonl",
+    "sha256": "3445359b7c5a06deab5a9ef2d9985ecc71c61fdc48e0876052818f5a4d0f4cfb",
+    "lines": 28
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "18a03d7c643429af3564b0d586327f7be18b3c1c"
+  }
+}

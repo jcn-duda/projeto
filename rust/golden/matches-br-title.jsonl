@@ -1,0 +1,50 @@
+{"id":"mbt-001","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"1"}
+{"id":"mbt-002","input":"{\"op\":\"brTitle\",\"title\":\"Coringa (2019) BluRay [1080p DUBLADO]\",\"name\":\"Coringa\",\"year\":\"2019\"}","expected":"1"}
+{"id":"mbt-003","input":"{\"op\":\"brTitle\",\"title\":\"Missão: Impossível – Efeito Fallout BluRay [720p DUBLADO]\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"0"}
+{"id":"mbt-004","input":"{\"op\":\"brTitle\",\"title\":\"Cesium Fallout (2024) [LEGENDADO opção 1]\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"0"}
+{"id":"mbt-005","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 4 (PC) [2015] – Download Torrent [opção 2]\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"0"}
+{"id":"mbt-006","input":"{\"op\":\"brTitle\",\"title\":\"Coringa 2 (2024) [1080p DUBLADO]\",\"name\":\"Coringa\",\"year\":\"2019\"}","expected":"0"}
+{"id":"mbt-007","input":"{\"op\":\"brTitle\",\"title\":\"Blade Runner 2049 (2017) [1080p DUBLADO]\",\"name\":\"Blade Runner 2049\",\"year\":\"2017\"}","expected":"1"}
+{"id":"mbt-008","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 1ª Temporada Torrent WEB-DL Dual Áudio\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"1"}
+{"id":"mbt-009","input":"{\"op\":\"brTitle\",\"title\":\"O Senhor dos Anéis: A Sociedade do Anel (2001) [1080p DUBLADO]\",\"name\":\"O Senhor dos Anéis\",\"year\":\"2001\"}","expected":"1"}
+{"id":"mbt-010","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 1ª Temporada [2015] – Download Torrent\",\"name\":\"Fallout\",\"year\":\"\"}","expected":"1"}
+{"id":"mbt-011","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 4 (PC) [2015] – Download Torrent\",\"name\":\"Fallout\",\"year\":\"\"}","expected":"0"}
+{"id":"mbt-012","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]\",\"name\":\"Fallout\",\"year\":\"2024–\"}","expected":"1"}
+{"id":"mbt-013","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 2ª Temporada (2025) WEB-DL [1080p DUBLADO]\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true}","expected":"1"}
+{"id":"mbt-014","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 4 (PC) [2015] – Download Torrent\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true}","expected":"0"}
+{"id":"mbt-015","input":"{\"op\":\"brTitle\",\"title\":\"Filme Novo (2020) [1080p DUBLADO]\",\"name\":\"Filme Novo\",\"year\":\"2019\"}","expected":"1"}
+{"id":"mbt-016","input":"{\"op\":\"brTitle\",\"title\":\"Filme Novo (2024) [1080p DUBLADO]\",\"name\":\"Filme Novo\",\"year\":\"2019\"}","expected":"0"}
+{"id":"mbt-017","input":"{\"op\":\"brTitle\",\"title\":\"Fallouts e derivados (2024)\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"0"}
+{"id":"mbt-018","input":"{\"op\":\"brTitle\",\"title\":\"Deadpool 2 (2018) BluRay DUBLADO\",\"name\":\"Deadpool\",\"year\":\"2016\"}","expected":"0"}
+{"id":"mbt-019","input":"{\"op\":\"brTitle\",\"title\":\"Deadpool 2 (2018) BluRay DUBLADO\",\"name\":\"Deadpool 2\",\"year\":\"2018\"}","expected":"1"}
+{"id":"mbt-020","input":"{\"op\":\"brTitle\",\"title\":\"Coringa (2020) 5.1 / BluRay – [2160p BLURAY DUBLADO 13 GB]\",\"name\":\"Coringa\",\"year\":\"2019\"}","expected":"1"}
+{"id":"mbt-021","input":"{\"op\":\"brTitle\",\"title\":\"Round 6 2ª Temporada (2024) DUBLADO\",\"name\":\"Round 6\",\"year\":\"2021\",\"isSeries\":true}","expected":"1"}
+{"id":"mbt-022","input":"{\"op\":\"brTitle\",\"title\":\"Rick e Morty: O Anime 1ª Temporada (2024) WEB-DL [1080p DUBLADO]\",\"name\":\"Rick and Morty\",\"year\":\"2024\",\"isSeries\":true,\"allNames\":[\"Rick and Morty\",\"Rick e Morty\"]}","expected":"0"}
+{"id":"mbt-023","input":"{\"op\":\"brTitle\",\"title\":\"Rick And Morty The Anime S01E02 1080p\",\"name\":\"Rick and Morty\",\"year\":\"2024\",\"isSeries\":true,\"allNames\":[\"Rick and Morty\",\"Rick e Morty\"]}","expected":"0"}
+{"id":"mbt-024","input":"{\"op\":\"brTitle\",\"title\":\"House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p\",\"name\":\"House of the Dragon\",\"year\":\"2022\",\"isSeries\":true,\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"1"}
+{"id":"mbt-025","input":"{\"op\":\"brTitle\",\"title\":\"S02E01   A Casa do Dragão S02E01 x264 DUAL 5.1 1080p\",\"name\":\"A Casa do Dragão\",\"year\":\"2022\",\"isSeries\":true,\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"1"}
+{"id":"mbt-026","input":"{\"op\":\"brTitle\",\"title\":\"1A TEMPORADA COMPLETA      House of the Dragon S01. HMAX  DDP5.1.Atmos x264 SMURF 1080p\",\"name\":\"House of the Dragon\",\"year\":\"2022\",\"isSeries\":true,\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"1"}
+{"id":"mbt-027","input":"{\"op\":\"brTitle\",\"title\":\"Gladiador II (2024) [1080p DUBLADO]\",\"name\":\"Gladiador II\",\"year\":\"2024\"}","expected":"1"}
+{"id":"mbt-028","input":"{\"op\":\"brTitle\",\"title\":\"Gladiador II (2024) [1080p DUBLADO]\",\"name\":\"Gladiador\",\"year\":\"2000\"}","expected":"0"}
+{"id":"mbt-029","input":"{\"op\":\"brTitle\",\"title\":\"Gladiador 2 (2024) [1080p DUBLADO]\",\"name\":\"Gladiador 2\",\"year\":\"2024\"}","expected":"1"}
+{"id":"mbt-030","input":"{\"op\":\"brTitle\",\"title\":\"Duna Parte Dois (2024) DUBLADO\",\"name\":\"Duna\",\"year\":\"2021\"}","expected":"0"}
+{"id":"mbt-031","input":"{\"op\":\"brTitle\",\"title\":\"Zumbilândia BDRip derew 720p\",\"name\":\"Zumbilândia\",\"year\":\"2009\",\"allNames\":[\"Zumbilândia\"]}","expected":"1"}
+{"id":"mbt-032","input":"{\"op\":\"brTitle\",\"title\":\"Zumbilândia Atire Duas Vezes (2020) DUBLADO\",\"name\":\"Zumbilândia\",\"year\":\"2009\",\"allNames\":[\"Zumbilândia\"]}","expected":"0"}
+{"id":"mbt-033","input":"{\"op\":\"brTitle\",\"title\":\"A Rocha (1996) BDRip BluRay 720p dublado - FB\",\"name\":\"A Rocha\",\"year\":\"1996\",\"allNames\":[\"A Rocha\"]}","expected":"1"}
+{"id":"mbt-034","input":"{\"op\":\"brTitle\",\"title\":\"A Rocha Ilha do Medo (2010) BDRip 720p dublado\",\"name\":\"A Rocha\",\"year\":\"1996\",\"allNames\":[\"A Rocha\"]}","expected":"0"}
+{"id":"mbt-035","input":"{\"op\":\"brTitle\",\"title\":\"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR\",\"name\":\"A Viagem de Chihiro\",\"year\":\"2001\",\"isSeries\":false,\"allNames\":[\"Spirited Away\",\"A Viagem de Chihiro\"]}","expected":"1"}
+{"id":"mbt-036","input":"{\"op\":\"brTitle\",\"title\":\"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]\",\"name\":\"Apocalypse Now\",\"year\":\"1979\",\"isSeries\":false,\"allNames\":[\"Apocalypse Now\"]}","expected":"1"}
+{"id":"mbt-037","input":"{\"op\":\"brTitle\",\"title\":\"Apocalypse Now Extended (1979) 1080p Dublado\",\"name\":\"Apocalypse Now\",\"year\":\"1979\",\"isSeries\":false,\"allNames\":[\"Apocalypse Now\"]}","expected":"1"}
+{"id":"mbt-038","input":"{\"op\":\"brTitle\",\"title\":\"Scary Movie 2 Extended (2001) Dublado\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"allNames\":[\"Scary Movie\"]}","expected":"0"}
+{"id":"mbt-039","input":"{\"op\":\"brTitle\",\"title\":\"À Prova de Balas (2020) WEB-DL [1080p DUBLADO]\",\"name\":\"A Prova de Balas\",\"year\":\"2020\"}","expected":"1"}
+{"id":"mbt-040","input":"{\"op\":\"brTitle\",\"title\":\"Band of Brothers (2001-2002) Minissérie [1080p DUBLADO]\",\"name\":\"Band of Brothers\",\"year\":\"2001\",\"isSeries\":true}","expected":"1"}
+{"id":"mbt-041","input":"{\"op\":\"brTitle\",\"title\":\"Série Teste S01 (2024) [1080p DUBLADO]\",\"name\":\"Série Teste\",\"year\":\"2024–\",\"isSeries\":true}","expected":"1"}
+{"id":"mbt-042","input":"{\"op\":\"brTitle\",\"title\":\"Filme Teste (2024) [1080p DUBLADO]\",\"name\":\"Filme Teste\",\"year\":\"\"}","expected":"1"}
+{"id":"mbt-043","input":"{\"op\":\"brTitle\",\"title\":\"Coringa (2019) [1080p DUBLADO]\",\"name\":\"Coringa\",\"year\":\"2019\",\"allNames\":[]}","expected":"1"}
+{"id":"mbt-044","input":"{\"op\":\"brTitle\",\"title\":\"Suzume (2022) BluRay [1080p DUBLADO]\",\"name\":\"Suzume\",\"year\":\"2022\",\"allNames\":[\"Suzume\",\"すずめの戸締まり\"]}","expected":"1"}
+{"id":"mbt-045","input":"{\"op\":\"brTitle\",\"title\":\"Um Mundo Estranho (2022) [1080p DUBLADO]\",\"name\":\"Suzume\",\"year\":\"2022\",\"allNames\":[\"Suzume\",\"すずめの戸締まり\"]}","expected":"0"}
+{"id":"mbt-046","input":"{\"op\":\"brTitle\",\"title\":\"Suzume (2022) BluRay [1080p DUBLADO]\",\"name\":\"すずめの戸締まり\",\"year\":\"2022\",\"allNames\":[\"Suzume\",\"すずめの戸締まり\"]}","expected":"0"}
+{"id":"mbt-047","input":"{\"op\":\"brTitle\",\"title\":\"Toy Story (1995) 720p Dublado pt-BR Brazilian Pt\",\"name\":\"Toy Story 4\",\"year\":\"2019\",\"isSeries\":false,\"allNames\":[\"Toy Story 4\",\"Toy Story 4\"]}","expected":"0"}
+{"id":"mbt-048","input":"{\"op\":\"brTitle\",\"title\":\"Toy Story 4 (2019) 720p Dublado pt-BR\",\"name\":\"Toy Story 4\",\"year\":\"2019\",\"isSeries\":false,\"allNames\":[\"Toy Story 4\",\"Toy Story 4\"]}","expected":"1"}
+{"id":"mbt-049","input":"{\"op\":\"brTitle\",\"title\":\"Missão: Impossível – Efeito Fallout Torrent (2018) Dual Áudio\",\"name\":\"Fallout\",\"year\":\"2024\"}","expected":"0"}
+{"id":"mbt-050","input":"{\"op\":\"brTitle\",\"title\":\"Fallout 2ª Temporada Torrent WEB-DL Dual Áudio\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true}","expected":"1"}

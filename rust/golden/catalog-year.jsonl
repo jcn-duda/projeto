@@ -1,0 +1,14 @@
+{"id":"cy-001","input":"{\"op\":\"catalog\",\"meta\":\"2010\",\"tmdb\":\"2010\"}","expected":"2010"}
+{"id":"cy-002","input":"{\"op\":\"catalog\",\"meta\":\"2011\",\"tmdb\":\"2010\"}","expected":"2011"}
+{"id":"cy-003","input":"{\"op\":\"catalog\",\"meta\":\"1967\",\"tmdb\":\"1964\"}","expected":"1964"}
+{"id":"cy-004","input":"{\"op\":\"catalog\",\"meta\":\"\",\"tmdb\":\"2010\"}","expected":"2010"}
+{"id":"cy-005","input":"{\"op\":\"catalog\",\"meta\":\"2010\",\"tmdb\":null}","expected":"2010"}
+{"id":"cy-006","input":"{\"op\":\"catalog\",\"meta\":null,\"tmdb\":null}","expected":"null"}
+{"id":"cy-007","input":"{\"op\":\"catalog\",\"meta\":\"2010–2012\",\"tmdb\":\"2010\"}","expected":"2010–2012"}
+{"id":"cy-008","input":"{\"op\":\"catalog\",\"meta\":\"sem ano\",\"tmdb\":\"2001\"}","expected":"sem ano"}
+{"id":"cy-009","input":"{\"op\":\"catalog\",\"meta\":\"2018\",\"tmdb\":\"2021\"}","expected":"2021"}
+{"id":"cy-010","input":"{\"op\":\"alt\",\"meta\":\"2018\",\"tmdb\":\"2021\"}","expected":"2018"}
+{"id":"cy-011","input":"{\"op\":\"alt\",\"meta\":\"2011\",\"tmdb\":\"2010\"}","expected":"null"}
+{"id":"cy-012","input":"{\"op\":\"alt\",\"meta\":\"2018\",\"tmdb\":null}","expected":"null"}
+{"id":"cy-013","input":"{\"op\":\"alt\",\"meta\":null,\"tmdb\":\"2001\"}","expected":"null"}
+{"id":"cy-014","input":"{\"op\":\"alt\",\"meta\":\"1967\",\"tmdb\":\"1964\"}","expected":"1967"}

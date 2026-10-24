@@ -1,0 +1,19 @@
+{"id":"ca-001","input":"{\"text\":\"G.O.R.A.\"}","expected":"GORA"}
+{"id":"ca-002","input":"{\"text\":\"S.W.A.T.\"}","expected":"SWAT"}
+{"id":"ca-003","input":"{\"text\":\"M.A.S.H\"}","expected":"MASH"}
+{"id":"ca-004","input":"{\"text\":\"H.264\"}","expected":"H.264"}
+{"id":"ca-005","input":"{\"text\":\"Once.Upon.a.Time\"}","expected":"Once.Upon.a.Time"}
+{"id":"ca-006","input":"{\"text\":\"V.for\"}","expected":"V.for"}
+{"id":"ca-007","input":"{\"text\":\"U.S.Marshals\"}","expected":"US Marshals"}
+{"id":"ca-008","input":"{\"text\":\"\"}","expected":""}
+{"id":"ca-009","input":"{\"text\":\"A.B\"}","expected":"A.B"}
+{"id":"ca-010","input":"{\"text\":\"A.B.C.\"}","expected":"ABC"}
+{"id":"ca-011","input":"{\"text\":\"s.w.a.t.\"}","expected":"swat"}
+{"id":"ca-012","input":"{\"text\":\"o filme S.W.A.T. dublado\"}","expected":"o filme SWAT dublado"}
+{"id":"ca-013","input":"{\"text\":\"G.O.R.A. 2004\"}","expected":"GORA 2004"}
+{"id":"ca-014","input":"{\"text\":\"A.B.\"}","expected":"AB"}
+{"id":"ca-015","input":"{\"text\":\"S.W.A.T.2\"}","expected":"SWAT 2"}
+{"id":"ca-016","input":"{\"text\":\"U.S.\\uD835\\uDC00X\"}","expected":"US𝐀X"}
+{"id":"ca-017","input":"{\"text\":\"U.S. Marshals\"}","expected":"US Marshals"}
+{"id":"ca-018","input":"{\"text\":\"(S.W.A.T.)\"}","expected":"(SWAT)"}
+{"id":"ca-019","input":"{\"text\":\"G.O.R.A. e S.W.A.T.\"}","expected":"GORA e SWAT"}

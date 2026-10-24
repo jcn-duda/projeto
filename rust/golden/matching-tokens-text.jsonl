@@ -1,0 +1,243 @@
+{"id":"mt-001","input":"","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-002","input":"Rick and Morty S01E02 From 1080p WEBRip x264-EVOLVE","expected":"seq= epi=rick and morty first=rick unm=rick nn=000101110 nl=000000000"}
+{"id":"mt-003","input":"S01E02 A Casa do Dragão","expected":"seq= epi=a casa do dragao first=casa unm=casa nn=11010 nl=00000"}
+{"id":"mt-004","input":"Deadpool 2 2018 1080p","expected":"seq=2 epi=- first=deadpool unm=deadpool nn=0111 nl=0110"}
+{"id":"mt-005","input":"Happy Death Day 2U 2017","expected":"seq=2 epi=- first=happy unm=happy nn=00011 nl=00001"}
+{"id":"mt-006","input":"Rocky II 1979","expected":"seq=2 epi=- first=rocky unm=rocky nn=011 nl=001"}
+{"id":"mt-007","input":"Rocky 2 1979","expected":"seq=2 epi=- first=rocky unm=rocky nn=011 nl=011"}
+{"id":"mt-008","input":"Duna Parte Dois 2024","expected":"seq=2 epi=- first=duna unm=duna nn=0001 nl=0001"}
+{"id":"mt-009","input":"Batman Begins 2005","expected":"seq=begins epi=- first=batman unm=batman nn=001 nl=001"}
+{"id":"mt-010","input":"Velozes e Furiosos 5 2011","expected":"seq=5 epi=- first=velozes unm=velozes nn=01011 nl=00011"}
+{"id":"mt-011","input":"Game of Thrones S02E01 1x04 2019","expected":"seq= epi=game of thrones first=game unm=game nn=010111 nl=000001"}
+{"id":"mt-012","input":"1x04 Ep final","expected":"seq= epi=ep final first=final unm=final nn=110 nl=000"}
+{"id":"mt-013","input":"t2 e3 pilot","expected":"seq= epi=e3 pilot first=pilot unm=pilot nn=110 nl=000"}
+{"id":"mt-014","input":"T2E3 Episodio","expected":"seq= epi=- first=episodio unm=episodio nn=10 nl=00"}
+{"id":"mt-015","input":"e1176 One Piece","expected":"seq= epi=- first=e1176 unm=e1176 nn=000 nl=000"}
+{"id":"mt-016","input":"s01e01e02 Intervalo","expected":"seq= epi=- first=intervalo unm=intervalo nn=10 nl=00"}
+{"id":"mt-017","input":"1280x720 Filme 2010","expected":"seq= epi=- first=filme unm=filme nn=101 nl=001"}
+{"id":"mt-018","input":"Filme 5.1 2010","expected":"seq=5 epi=- first=filme unm=filme nn=0111 nl=0111"}
+{"id":"mt-019","input":"Coleção Guerra nas Estrelas","expected":"seq= epi=- first=guerra unm=guerra nn=1000 nl=0000"}
+{"id":"mt-020","input":"Ressurge Batman","expected":"seq=ressurge epi=- first=ressurge unm=ressurge nn=00 nl=00"}
+{"id":"mt-021","input":"Todos os filmes 1979-2016","expected":"seq= epi=- first=- unm=- nn=11111 nl=00011"}
+{"id":"mt-022","input":"😀😀 Filme 2020","expected":"seq= epi=- first=filme unm=filme nn=01 nl=01"}
+{"id":"mt-023","input":"😀 Filme 2020","expected":"seq= epi=- first=filme unm=filme nn=01 nl=01"}
+{"id":"mt-024","input":"𝒜𝒷 Filme 2020","expected":"seq= epi=- first=filme unm=𝒜𝒷 nn=001 nl=101"}
+{"id":"mt-025","input":"光環 Halo S01E01","expected":"seq= epi=光環 halo first=halo unm=halo nn=101 nl=100"}
+{"id":"mt-026","input":"進撃の巨人 S02E03","expected":"seq= epi=進撃の巨人 first=- unm=進撃の巨人 nn=01 nl=10"}
+{"id":"mt-027","input":"Ünter Filme 2003","expected":"seq= epi=- first=unter unm=unter nn=001 nl=001"}
+{"id":"mt-028","input":"Ñandú 2010","expected":"seq= epi=- first=nandu unm=nandu nn=01 nl=01"}
+{"id":"mt-029","input":"constructor 2010","expected":"seq= epi=- first=constructor unm=constructor nn=01 nl=01"}
+{"id":"mt-030","input":"__proto__ 2010","expected":"seq= epi=- first=proto unm=proto nn=01 nl=01"}
+{"id":"mt-031","input":"toString 1999 720p","expected":"seq= epi=- first=tostring unm=tostring nn=011 nl=010"}
+{"id":"mt-032","input":"Filme 0002 2010","expected":"seq=2 epi=- first=filme unm=filme nn=011 nl=011"}
+{"id":"mt-033","input":"Filme 99999999999999999999 2010","expected":"seq= epi=- first=filme unm=filme nn=011 nl=011"}
+{"id":"mt-034","input":"Filme 1u 2010","expected":"seq= epi=- first=filme unm=filme nn=011 nl=001"}
+{"id":"mt-035","input":"Filme 19u 2010","expected":"seq=19 epi=- first=filme unm=filme nn=001 nl=001"}
+{"id":"mt-036","input":"Filme 20u 2010","expected":"seq= epi=- first=filme unm=filme nn=001 nl=001"}
+{"id":"mt-037","input":"The Office US S01E01","expected":"seq= epi=the office us first=office unm=office nn=1011 nl=0000"}
+{"id":"mt-038","input":"A Origem 2010 720p","expected":"seq= epi=- first=origem unm=origem nn=1011 nl=0010"}
+{"id":"mt-039","input":"Game of Thrones S03","expected":"seq= epi=- first=game unm=game nn=0101 nl=0000"}
+{"id":"mt-040","input":"Ö Ø Œ Ł 2011","expected":"seq= epi=- first=- unm=- nn=11111 nl=00001"}
+{"id":"mt-041","input":"","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-042","input":"   ","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-043","input":"Torrent (2019) Legendado WEB DL 720p","expected":"seq= epi=- first=- unm=- nn=111111 nl=010000"}
+{"id":"mt-044","input":"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]","expected":"seq= epi=- first=apocalypse unm=apocalypse nn=0011111 nl=0001000"}
+{"id":"mt-045","input":"Apocalypse Now V. Estendida (1979)","expected":"seq= epi=- first=apocalypse unm=apocalypse nn=0011 nl=0001"}
+{"id":"mt-046","input":"V de Vingança 2005 1080p","expected":"seq=5 epi=- first=vinganca unm=vinganca nn=11011 nl=00010"}
+{"id":"mt-047","input":"V 2009 720p","expected":"seq=5 epi=- first=- unm=- nn=111 nl=010"}
+{"id":"mt-048","input":"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR","expected":"seq= epi=- first=viagem unm=viagem nn=1010101111 nl=0000100000"}
+{"id":"mt-049","input":"A Rocha (1996) BDRip BluRay 720p dublado - FB","expected":"seq= epi=- first=rocha unm=rocha nn=10111111 nl=00100000"}
+{"id":"mt-050","input":"Zumbilândia BDRip derew 720p","expected":"seq= epi=- first=zumbilandia unm=zumbilandia nn=0111 nl=0000"}
+{"id":"mt-051","input":"Zumbilandia (www ThePirateFilms.com)","expected":"seq= epi=- first=zumbilandia unm=zumbilandia nn=0101 nl=0000"}
+{"id":"mt-052","input":"Atire Duas Vezes 1990 1080p","expected":"seq= epi=- first=atire unm=atire nn=00011 nl=00010"}
+{"id":"mt-053","input":"Todos os filmes 1979-2016","expected":"seq= epi=- first=- unm=- nn=11111 nl=00011"}
+{"id":"mt-054","input":"Todos os filmes 1979 2016","expected":"seq= epi=- first=- unm=- nn=11111 nl=00011"}
+{"id":"mt-055","input":"Coleção Guerra nas Estrelas","expected":"seq= epi=- first=guerra unm=guerra nn=1000 nl=0000"}
+{"id":"mt-056","input":"Game of Thrones Todas as Temporadas","expected":"seq= epi=- first=game unm=game nn=010111 nl=000000"}
+{"id":"mt-057","input":"Velozes e Furiosos 5 2011 1080p","expected":"seq=5 epi=- first=velozes unm=velozes nn=010111 nl=000110"}
+{"id":"mt-058","input":"The Hulk 2003 1080p","expected":"seq= epi=- first=hulk unm=hulk nn=1011 nl=0010"}
+{"id":"mt-059","input":"Para Sempre 2010 720p","expected":"seq= epi=- first=sempre unm=sempre nn=1011 nl=0010"}
+{"id":"mt-060","input":"S01E01 A Casa do Dragão S01E01 x264 DUAL","expected":"seq= epi=a casa do dragao first=casa unm=casa nn=11010111 nl=00000000"}
+{"id":"mt-061","input":"1A TEMPORADA COMPLETA House of the Dragon S01","expected":"seq= epi=- first=house unm=house nn=11101101 nl=00000000"}
+{"id":"mt-062","input":"Rocky II 1979 1080p","expected":"seq=2 epi=- first=rocky unm=rocky nn=0111 nl=0010"}
+{"id":"mt-063","input":"Duna Parte Dois 2024 1080p","expected":"seq=2 epi=- first=duna unm=duna nn=00011 nl=00010"}
+{"id":"mt-064","input":"Batman Begins 2005 1080p BluRay","expected":"seq=begins epi=- first=batman unm=batman nn=00111 nl=00100"}
+{"id":"mt-065","input":"Dublado Legendado","expected":"seq= epi=- first=- unm=- nn=11 nl=00"}
+{"id":"mt-066","input":"I Am Legend 2007 1080p","expected":"seq= epi=- first=legend unm=legend nn=11011 nl=00010"}
+{"id":"mt-067","input":"Monster Hunter 2021 720p","expected":"seq= epi=- first=monster unm=monster nn=0011 nl=0010"}
+{"id":"mt-068","input":"Trilogia Matrix 1080p","expected":"seq= epi=- first=matrix unm=matrix nn=101 nl=000"}
+{"id":"mt-069","input":"Histórias de Um Casamento: 2ª Temporada","expected":"seq=2 epi=- first=historias unm=historias nn=011011 nl=000010"}
+{"id":"mt-070","input":"Stranger Things 4 1080p WEB-DL DUAL","expected":"seq=4 epi=- first=stranger unm=stranger nn=0011111 nl=0010000"}
+{"id":"mt-071","input":"","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-072","input":"   \t \n ","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-073","input":"G.O.R.A.","expected":"seq= epi=- first=gora unm=gora nn=0 nl=0"}
+{"id":"mt-074","input":"S.W.A.T. 2003 Dual Áudio 1080p","expected":"seq= epi=- first=swat unm=swat nn=01111 nl=01000"}
+{"id":"mt-075","input":"M.A.S.H","expected":"seq= epi=- first=mash unm=mash nn=0 nl=0"}
+{"id":"mt-076","input":"U.S.Marshals","expected":"seq= epi=- first=marshals unm=marshals nn=10 nl=00"}
+{"id":"mt-077","input":"Once.Upon.a.Time.in.America","expected":"seq= epi=- first=once unm=once nn=001010 nl=000000"}
+{"id":"mt-078","input":"H.264 x264","expected":"seq= epi=- first=- unm=- nn=111 nl=010"}
+{"id":"mt-079","input":"Resident.Evil.2026.1080p.TELESYNC","expected":"seq= epi=- first=resident unm=resident nn=00110 nl=00100"}
+{"id":"mt-080","input":"Poção do Avô","expected":"seq= epi=- first=pocao unm=pocao nn=010 nl=000"}
+{"id":"mt-081","input":"Poção do Avô","expected":"seq= epi=- first=pocao unm=pocao nn=010 nl=000"}
+{"id":"mt-082","input":"Histórias de Um Casamento: 2ª Temporada","expected":"seq=2 epi=- first=historias unm=historias nn=011011 nl=000010"}
+{"id":"mt-083","input":"Volume¹²³ Remux","expected":"seq= epi=- first=volume unm=volume nn=01 nl=00"}
+{"id":"mt-084","input":"Adım Farah","expected":"seq= epi=- first=adim unm=adim nn=00 nl=00"}
+{"id":"mt-085","input":"Straße ẞ","expected":"seq= epi=- first=strasse unm=strasse nn=01 nl=00"}
+{"id":"mt-086","input":"Cœurs Déchirés","expected":"seq= epi=- first=coeurs unm=coeurs nn=00 nl=00"}
+{"id":"mt-087","input":"Søren Łukasz Đoković","expected":"seq= epi=- first=soren unm=soren nn=000 nl=000"}
+{"id":"mt-088","input":"すずめの戸締まり","expected":"seq= epi=- first=すずめの戸締まり unm=すずめの戸締まり nn=0 nl=0"}
+{"id":"mt-089","input":"Ну, погоди!","expected":"seq= epi=- first=- unm=погоди nn=10 nl=11"}
+{"id":"mt-090","input":"!!! --- ___ ??? ***","expected":"seq= epi=- first=- unm=- nn= nl="}
+{"id":"mt-091","input":"Se7en   Dual\tÁudio","expected":"seq= epi=- first=se7en unm=se7en nn=011 nl=000"}
+{"id":"mt-092","input":"&amp; Filmes","expected":"seq= epi=- first=amp unm=amp nn=01 nl=00"}
+{"id":"mt-093","input":"DUAL ÁUDIO 4K","expected":"seq= epi=- first=- unm=- nn=111 nl=000"}
+{"id":"mt-094","input":"A 2024 Dublado 1080p","expected":"seq= epi=- first=- unm=- nn=1111 nl=0100"}
+{"id":"mt-095","input":"A Casa Do Dragao Dublado 1080p","expected":"seq= epi=- first=casa unm=casa nn=101011 nl=000000"}
+{"id":"mt-096","input":"A Rocha LEGENDADO DUAL","expected":"seq= epi=- first=rocha unm=rocha nn=1011 nl=0000"}
+{"id":"mt-097","input":"A viagem de chihiro dublado pt-pt","expected":"seq= epi=- first=viagem unm=viagem nn=1010111 nl=0000000"}
+{"id":"mt-098","input":"A.Rocha.1996.1080p.BluRay.DUAL-SF","expected":"seq= epi=- first=rocha unm=rocha nn=1011111 nl=0010000"}
+{"id":"mt-099","input":"A.Rocha.1996.1080p.BluRay.DUAL.MULTi","expected":"seq= epi=- first=rocha unm=rocha nn=1011111 nl=0010000"}
+{"id":"mt-100","input":"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES","expected":"seq= epi=- first=rocha unm=rocha nn=1011111110 nl=0010000110"}
+{"id":"mt-101","input":"A.Rocha.1996.DUAL.ESP.ENG","expected":"seq= epi=- first=rocha unm=rocha nn=101100 nl=001000"}
+{"id":"mt-102","input":"Acervo Dublado","expected":"seq= epi=- first=acervo unm=acervo nn=01 nl=00"}
+{"id":"mt-103","input":"Ativa.DUAL","expected":"seq= epi=- first=ativa unm=ativa nn=01 nl=00"}
+{"id":"mt-104","input":"BR Dublado","expected":"seq= epi=- first=- unm=- nn=11 nl=00"}
+{"id":"mt-105","input":"BR dublado recebe score 80","expected":"seq= epi=- first=recebe unm=recebe nn=11001 nl=00001"}
+{"id":"mt-106","input":"Cidade de Deus 2002 1080p BluRay","expected":"seq= epi=- first=cidade unm=cidade nn=010111 nl=000100"}
+{"id":"mt-107","input":"Cold 720p","expected":"seq= epi=- first=cold unm=cold nn=01 nl=00"}
+{"id":"mt-108","input":"Corvo 1994 1080p BluRay DUAL","expected":"seq= epi=- first=corvo unm=corvo nn=01111 nl=01000"}
+{"id":"mt-109","input":"Cult Film 2010 BluRay 1080p","expected":"seq= epi=- first=cult unm=cult nn=00111 nl=00100"}
+{"id":"mt-110","input":"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P","expected":"seq= epi=- first=- unm=- nn=1111111 nl=0001100"}
+{"id":"mt-111","input":"DUB BR 720p","expected":"seq= epi=- first=dub unm=dub nn=011 nl=000"}
+{"id":"mt-112","input":"Dedupe Case 1988 DVDrip","expected":"seq= epi=- first=dedupe unm=dedupe nn=0010 nl=0010"}
+{"id":"mt-113","input":"Devoradores de Estrelas 2026 Dual 5.1","expected":"seq= epi=- first=devoradores unm=devoradores nn=0101111 nl=0001011"}
+{"id":"mt-114","input":"Dia D Dublado","expected":"seq= epi=- first=dia unm=dia nn=011 nl=000"}
+{"id":"mt-115","input":"Dublado global recebe score 40","expected":"seq= epi=- first=global unm=global nn=10001 nl=00001"}
+{"id":"mt-116","input":"Fallback.Seeds.1080p","expected":"seq= epi=- first=fallback unm=fallback nn=001 nl=000"}
+{"id":"mt-117","input":"Fallout S01 Complete Pack 1080p","expected":"seq= epi=- first=fallout unm=fallout nn=01101 nl=00000"}
+{"id":"mt-118","input":"Fallout S01E05 1080p Dual","expected":"seq= epi=fallout first=fallout unm=fallout nn=0111 nl=0000"}
+{"id":"mt-119","input":"Fallout.S01E01.1080p.WEBRip.x264","expected":"seq= epi=fallout first=fallout unm=fallout nn=01111 nl=00000"}
+{"id":"mt-120","input":"Fast Movie 1080p","expected":"seq= epi=- first=fast unm=fast nn=001 nl=000"}
+{"id":"mt-121","input":"Filme 1 1080p","expected":"seq= epi=- first=filme unm=filme nn=011 nl=010"}
+{"id":"mt-122","input":"Filme 1080p Dublado","expected":"seq= epi=- first=filme unm=filme nn=011 nl=000"}
+{"id":"mt-123","input":"Filme 1080p x265","expected":"seq= epi=- first=filme unm=filme nn=011 nl=000"}
+{"id":"mt-124","input":"Filme 2009 1080p BluRay","expected":"seq= epi=- first=filme unm=filme nn=0111 nl=0100"}
+{"id":"mt-125","input":"Filme 2019 IMAX 2160p","expected":"seq= epi=- first=filme unm=filme nn=0111 nl=0100"}
+{"id":"mt-126","input":"Filme 2024 1080p WEB-DL","expected":"seq= epi=- first=filme unm=filme nn=01111 nl=01000"}
+{"id":"mt-127","input":"Filme 480p SD","expected":"seq= epi=- first=filme unm=filme nn=011 nl=000"}
+{"id":"mt-128","input":"Filme 720p HD","expected":"seq= epi=- first=filme unm=filme nn=011 nl=000"}
+{"id":"mt-129","input":"Filme BR 1080p Dublado","expected":"seq= epi=- first=filme unm=filme nn=0111 nl=0000"}
+{"id":"mt-130","input":"Filme CAM Dublado 1080p","expected":"seq= epi=- first=filme unm=filme nn=0011 nl=0000"}
+{"id":"mt-131","input":"Filme Dublado 1080p","expected":"seq= epi=- first=filme unm=filme nn=011 nl=000"}
+{"id":"mt-132","input":"Filme HDTV","expected":"seq= epi=- first=filme unm=filme nn=01 nl=00"}
+{"id":"mt-133","input":"Filme Qualquer Dublado","expected":"seq= epi=- first=filme unm=filme nn=001 nl=000"}
+{"id":"mt-134","input":"Filme Stall Zero Dublado","expected":"seq= epi=- first=filme unm=filme nn=0001 nl=0000"}
+{"id":"mt-135","input":"Filme Teste 2024 1080p Dublado","expected":"seq= epi=- first=filme unm=filme nn=00111 nl=00100"}
+{"id":"mt-136","input":"Filme WEB-DL 1080p","expected":"seq= epi=- first=filme unm=filme nn=0111 nl=0000"}
+{"id":"mt-137","input":"Filme.2019.1080p.BluRay.x264.mkv","expected":"seq= epi=- first=filme unm=filme nn=011111 nl=010000"}
+{"id":"mt-138","input":"Filme.2019.1080p.x264-RARBG","expected":"seq= epi=- first=filme unm=filme nn=01110 nl=01000"}
+{"id":"mt-139","input":"Filme.2024.1080p.BTHD","expected":"seq= epi=- first=filme unm=filme nn=0110 nl=0100"}
+{"id":"mt-140","input":"Filme.2026.1080p.BluRay.x264","expected":"seq= epi=- first=filme unm=filme nn=01111 nl=01000"}
+{"id":"mt-141","input":"Filme.Rico.2024.1080p.mkv","expected":"seq= epi=- first=filme unm=filme nn=00111 nl=00100"}
+{"id":"mt-142","input":"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG","expected":"seq= epi=- first=gora unm=gora nn=01111111110 nl=01000001010"}
+{"id":"mt-143","input":"Global Dual 1080p","expected":"seq= epi=- first=global unm=global nn=011 nl=000"}
+{"id":"mt-144","input":"Goliath.S03.2160p","expected":"seq= epi=- first=goliath unm=goliath nn=011 nl=000"}
+{"id":"mt-145","input":"Grace.BR.Dublado.1080p","expected":"seq= epi=- first=grace unm=grace nn=0111 nl=0000"}
+{"id":"mt-146","input":"HINDI.HQ.DUB","expected":"seq= epi=- first=hindi unm=hindi nn=010 nl=000"}
+{"id":"mt-147","input":"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p","expected":"seq= epi=- first=harry unm=harry nn=001100111 nl=000000100"}
+{"id":"mt-148","input":"Hawaii Five O S01E01 1080p WEB-DL x264","expected":"seq=5 epi=hawaii five o first=hawaii unm=hawaii nn=00111111 nl=00000000"}
+{"id":"mt-149","input":"Healthy Case 2003 DVDRip","expected":"seq= epi=- first=healthy unm=healthy nn=0010 nl=0010"}
+{"id":"mt-150","input":"Idx Release 1080p","expected":"seq= epi=- first=idx unm=idx nn=001 nl=000"}
+{"id":"mt-151","input":"Joker 2019 1080p","expected":"seq= epi=- first=joker unm=joker nn=011 nl=010"}
+{"id":"mt-152","input":"Joker S01E01 1080p WEB-DL","expected":"seq= epi=joker first=joker unm=joker nn=01111 nl=00000"}
+{"id":"mt-153","input":"Joker.2019.2160p.WEB-DL.DUAL.5.1","expected":"seq= epi=- first=joker unm=joker nn=01111111 nl=01000011"}
+{"id":"mt-154","input":"Lost Girl S01 720p","expected":"seq= epi=- first=lost unm=lost nn=0011 nl=0000"}
+{"id":"mt-155","input":"Lost Girl S03 1080p","expected":"seq= epi=- first=lost unm=lost nn=0011 nl=0000"}
+{"id":"mt-156","input":"Lost.Girl.S01.720p.x265-ZMNT","expected":"seq= epi=- first=lost unm=lost nn=001110 nl=000000"}
+{"id":"mt-157","input":"Meu Release 1080p","expected":"seq= epi=- first=meu unm=meu nn=001 nl=000"}
+{"id":"mt-158","input":"Mortuary 1982 1080p DUBLADO","expected":"seq= epi=- first=mortuary unm=mortuary nn=0111 nl=0100"}
+{"id":"mt-159","input":"Mortuary 1983 1080p WEBRip","expected":"seq= epi=- first=mortuary unm=mortuary nn=0111 nl=0100"}
+{"id":"mt-160","input":"Mortuary 1983 720p DVDRip","expected":"seq= epi=- first=mortuary unm=mortuary nn=0110 nl=0100"}
+{"id":"mt-161","input":"Movie 1080p","expected":"seq= epi=- first=movie unm=movie nn=01 nl=00"}
+{"id":"mt-162","input":"Movie 1080p BluRay","expected":"seq= epi=- first=movie unm=movie nn=011 nl=000"}
+{"id":"mt-163","input":"Movie 1080p Dublado","expected":"seq= epi=- first=movie unm=movie nn=011 nl=000"}
+{"id":"mt-164","input":"Movie 2024 1080p","expected":"seq= epi=- first=movie unm=movie nn=011 nl=010"}
+{"id":"mt-165","input":"Movie 2026 1080p","expected":"seq= epi=- first=movie unm=movie nn=011 nl=010"}
+{"id":"mt-166","input":"Movie 2026 BluRay 1080p","expected":"seq= epi=- first=movie unm=movie nn=0111 nl=0100"}
+{"id":"mt-167","input":"Movie 2026 WEB-DL 1080p","expected":"seq= epi=- first=movie unm=movie nn=01111 nl=01000"}
+{"id":"mt-168","input":"Movie WEB-DL 720p","expected":"seq= epi=- first=movie unm=movie nn=0111 nl=0000"}
+{"id":"mt-169","input":"Movie.2020.TRUEFRENCH.1080p.x264","expected":"seq= epi=- first=movie unm=movie nn=01011 nl=01000"}
+{"id":"mt-170","input":"Movie.2024.1080p.BR.Seeds1","expected":"seq= epi=- first=movie unm=movie nn=01110 nl=01000"}
+{"id":"mt-171","input":"Movie.2024.1080p.DUBLADO","expected":"seq= epi=- first=movie unm=movie nn=0111 nl=0100"}
+{"id":"mt-172","input":"Movie.2024.1080p.Test","expected":"seq= epi=- first=movie unm=movie nn=0110 nl=0100"}
+{"id":"mt-173","input":"Movie.2024.2160p.UHD","expected":"seq= epi=- first=movie unm=movie nn=0111 nl=0100"}
+{"id":"mt-174","input":"Movie.2024.CAM.1080p.DUBLADO","expected":"seq= epi=- first=movie unm=movie nn=01011 nl=01000"}
+{"id":"mt-175","input":"Movie.2024.Dual.Audio.Telugu.1080p.BluRay","expected":"seq= epi=- first=movie unm=movie nn=0111011 nl=0100000"}
+{"id":"mt-176","input":"Movie.2026.1080p.mkv","expected":"seq= epi=- first=movie unm=movie nn=0111 nl=0100"}
+{"id":"mt-177","input":"Movie.Title.2024.2160p","expected":"seq= epi=- first=movie unm=movie nn=0011 nl=0010"}
+{"id":"mt-178","input":"My Name Is Farah S01E01 1080p WEB-DL","expected":"seq= epi=my name is farah first=name unm=name nn=10101111 nl=00000000"}
+{"id":"mt-179","input":"Nao.Tem.Temporada.1080p","expected":"seq= epi=- first=nao unm=nao nn=0011 nl=0000"}
+{"id":"mt-180","input":"NoDate2.Movie.2019.1080p","expected":"seq= epi=- first=nodate2 unm=nodate2 nn=0011 nl=0010"}
+{"id":"mt-181","input":"NoSub.Movie.2019.1080p","expected":"seq= epi=- first=nosub unm=nosub nn=0011 nl=0010"}
+{"id":"mt-182","input":"Nome 1080p, 2160p, 720p, HD, WEB-DL","expected":"seq= epi=- first=nome unm=nome nn=0111111 nl=0000000"}
+{"id":"mt-183","input":"Nome do Filme 2019 Dual Audio 1080p","expected":"seq= epi=- first=nome unm=nome nn=0101111 nl=0001000"}
+{"id":"mt-184","input":"Nome do Filme Dublado 2024 1080p","expected":"seq= epi=- first=nome unm=nome nn=010111 nl=000010"}
+{"id":"mt-185","input":"O Corvo 1994 1080p BluRay DUAL","expected":"seq= epi=- first=corvo unm=corvo nn=101111 nl=001000"}
+{"id":"mt-186","input":"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay","expected":"seq= epi=- first=corvo unm=corvo nn=10101110111111 nl=00000000000000"}
+{"id":"mt-187","input":"O.Corvo.1994.Dual.Audio.1080p","expected":"seq= epi=- first=corvo unm=corvo nn=101111 nl=001000"}
+{"id":"mt-188","input":"Obra.DUAL.mkv","expected":"seq= epi=- first=obra unm=obra nn=011 nl=000"}
+{"id":"mt-189","input":"ObraB.Seeds.1080p","expected":"seq= epi=- first=obrab unm=obrab nn=001 nl=000"}
+{"id":"mt-190","input":"Old Movie 1990 1080p BluRay x264","expected":"seq= epi=- first=old unm=old nn=001111 nl=001000"}
+{"id":"mt-191","input":"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0","expected":"seq= epi=- first=origem unm=origem nn=0111111111 nl=0010000011"}
+{"id":"mt-192","input":"OtherDigest.Movie.2019.1080p","expected":"seq= epi=- first=otherdigest unm=otherdigest nn=0011 nl=0010"}
+{"id":"mt-193","input":"Outro 720p","expected":"seq= epi=- first=outro unm=outro nn=01 nl=00"}
+{"id":"mt-194","input":"Parasita 2020 1080p BluRay DUBLADO","expected":"seq= epi=- first=parasita unm=parasita nn=01111 nl=01000"}
+{"id":"mt-195","input":"Partial Case 1988 DVDrip","expected":"seq= epi=- first=partial unm=partial nn=0010 nl=0010"}
+{"id":"mt-196","input":"Predador A 1080p DUBLADO","expected":"seq= epi=- first=predador unm=predador nn=0111 nl=0000"}
+{"id":"mt-197","input":"Probe Movie 2011 1080p LEGENDADO","expected":"seq= epi=- first=probe unm=probe nn=00111 nl=00100"}
+{"id":"mt-198","input":"Project Hail Mary 2026 1080p WEB.mkv","expected":"seq= epi=- first=project unm=project nn=0001111 nl=0001000"}
+{"id":"mt-199","input":"Prometheus Dual","expected":"seq= epi=- first=prometheus unm=prometheus nn=01 nl=00"}
+{"id":"mt-200","input":"Prot.Movie.2019.1080p","expected":"seq= epi=- first=prot unm=prot nn=0011 nl=0010"}
+{"id":"mt-201","input":"Qualquer.Coisa.1080p","expected":"seq= epi=- first=qualquer unm=qualquer nn=001 nl=000"}
+{"id":"mt-202","input":"Rare Case 1988 DVDRip","expected":"seq= epi=- first=rare unm=rare nn=0010 nl=0010"}
+{"id":"mt-203","input":"Reacher 2 Temporada Dual","expected":"seq=2 epi=- first=reacher unm=reacher nn=0111 nl=0100"}
+{"id":"mt-204","input":"Readd.Movie.2019.1080p","expected":"seq= epi=- first=readd unm=readd nn=0011 nl=0010"}
+{"id":"mt-205","input":"Release Qualquer 1080p","expected":"seq= epi=- first=release unm=release nn=001 nl=000"}
+{"id":"mt-206","input":"S01E01.1080p.DDP5.1.mkv","expected":"seq= epi= first=- unm=- nn=11111 nl=00010"}
+{"id":"mt-207","input":"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE","expected":"seq= epi=the bear first=bear unm=bear nn=1101110 nl=0000000"}
+{"id":"mt-208","input":"Saga Crepusculo 2008-2012 Dublado","expected":"seq= epi=- first=crepusculo unm=crepusculo nn=10111 nl=00110"}
+{"id":"mt-209","input":"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST","expected":"seq= epi=- first=scary unm=scary nn=001011111111110 nl=001000000110000"}
+{"id":"mt-210","input":"Scary Movie Part Two 1080p BluRay","expected":"seq=2 epi=- first=scary unm=scary nn=000011 nl=000000"}
+{"id":"mt-211","input":"Serie 1a ate 8a Temporada Completa DUAL","expected":"seq= epi=- first=- unm=- nn=1111111 nl=0000000"}
+{"id":"mt-212","input":"Serie S01E01 1080p","expected":"seq= epi=serie first=- unm=- nn=111 nl=000"}
+{"id":"mt-213","input":"Serie S01E02 Dublado","expected":"seq= epi=serie first=- unm=- nn=111 nl=000"}
+{"id":"mt-214","input":"Serie Sem Hash S02E01 1080p","expected":"seq= epi=serie sem hash first=sem unm=sem nn=10011 nl=00000"}
+{"id":"mt-215","input":"Serie T01 E001 e E002 720p","expected":"seq= epi=serie first=- unm=- nn=111111 nl=000000"}
+{"id":"mt-216","input":"Serie Teste 1080p","expected":"seq= epi=- first=teste unm=teste nn=101 nl=000"}
+{"id":"mt-217","input":"Serie Teste S01E02 1080p","expected":"seq= epi=serie teste first=teste unm=teste nn=1011 nl=0000"}
+{"id":"mt-218","input":"Serie Teste S02E05 DUBLADO","expected":"seq= epi=serie teste first=teste unm=teste nn=1011 nl=0000"}
+{"id":"mt-219","input":"Serie Todas as Temporadas DUAL","expected":"seq= epi=- first=- unm=- nn=11111 nl=00000"}
+{"id":"mt-220","input":"Serie.S01E01.DUAL","expected":"seq= epi=serie first=- unm=- nn=111 nl=000"}
+{"id":"mt-221","input":"Serie.S04E03.1080p.WEB-DL.DUBLADO","expected":"seq= epi=serie first=- unm=- nn=111111 nl=000000"}
+{"id":"mt-222","input":"Shes The Boss S01E01 1080p","expected":"seq= epi=shes the boss first=shes unm=shes nn=01011 nl=00000"}
+{"id":"mt-223","input":"Show S01 1080p EP","expected":"seq= epi=- first=show unm=show nn=0111 nl=0000"}
+{"id":"mt-224","input":"Show S01 Dublado","expected":"seq= epi=- first=show unm=show nn=011 nl=000"}
+{"id":"mt-225","input":"Show S01E01 Dual 1080p","expected":"seq= epi=show first=show unm=show nn=0111 nl=0000"}
+{"id":"mt-226","input":"Show S01E05 Dual 1080p","expected":"seq= epi=show first=show unm=show nn=0111 nl=0000"}
+{"id":"mt-227","input":"Show S01E1176-2160p","expected":"seq= epi=- first=show unm=show nn=011 nl=000"}
+{"id":"mt-228","input":"Show.3ordm.Temporada.Completa.1080p","expected":"seq= epi=- first=show unm=show nn=00111 nl=00000"}
+{"id":"mt-229","input":"Show.S01E01.1080p.mkv","expected":"seq= epi=show first=show unm=show nn=0111 nl=0000"}
+{"id":"mt-230","input":"Show.S02.1080p","expected":"seq= epi=- first=show unm=show nn=011 nl=000"}
+{"id":"mt-231","input":"Show.S02E05.1080p.mkv","expected":"seq= epi=show first=show unm=show nn=0111 nl=0000"}
+{"id":"mt-232","input":"Show.S03.1080p.DTS5.1.mkv","expected":"seq= epi=- first=show unm=show nn=011011 nl=000010"}
+{"id":"mt-233","input":"Some.Global.Dub.1080p","expected":"seq= epi=- first=some unm=some nn=0001 nl=0000"}
+{"id":"mt-234","input":"Some.Swarm.1080p","expected":"seq= epi=- first=some unm=some nn=001 nl=000"}
+{"id":"mt-235","input":"Star Wars Todos os filmes 1977-2019 Dublado","expected":"seq= epi=- first=star unm=star nn=00111111 nl=00000110"}
+{"id":"mt-236","input":"Strict Full 1988 DVDRip","expected":"seq= epi=- first=strict unm=strict nn=0010 nl=0010"}
+{"id":"mt-237","input":"Swarm.Movie.2019.1080p","expected":"seq= epi=- first=swarm unm=swarm nn=0011 nl=0010"}
+{"id":"mt-238","input":"Terrace House Boys S01E01 1080p","expected":"seq= epi=terrace house boys first=terrace unm=terrace nn=00011 nl=00000"}
+{"id":"mt-239","input":"Test Title 2024 1080p EN ONLY","expected":"seq= epi=- first=test unm=test nn=001110 nl=001000"}
+{"id":"mt-240","input":"Test Title 2024 720p DUBLADO","expected":"seq= epi=- first=test unm=test nn=00111 nl=00100"}
+{"id":"mt-241","input":"The Bear S01E01 1080p WEB-DL x264","expected":"seq= epi=the bear first=bear unm=bear nn=1011111 nl=0000000"}
+{"id":"mt-242","input":"The Boys S04 1080p AMZN WEB-DL","expected":"seq= epi=- first=boys unm=boys nn=1011111 nl=0000000"}
+{"id":"mt-243","input":"The Locals 2003 720p WEB-DL","expected":"seq= epi=- first=locals unm=locals nn=101111 nl=001000"}

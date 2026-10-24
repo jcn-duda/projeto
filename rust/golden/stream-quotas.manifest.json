@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "stream-quotas/indexer"
+  ],
+  "function": {
+    "name": "limitByIndexer",
+    "sourcePath": "src/utils/stream-quotas.ts",
+    "sourceSha256": "d926a1b4f4c81f334872e95109a0639288728a57bea80f19e91ae0dcfdbc8c9d",
+    "artifactPath": "dist/src/utils/stream-quotas.js",
+    "artifactSha256": "4c8da2cb95775958c80565e62cbfcb35625d6bf755259e38594665f4cd5b0bf6"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-stream-quotas.json",
+    "sha256": "5c4eb0df318cfbdeafcee61b43c14c8a1be23825b60961ac869601821399cd4d",
+    "cases": 87
+  },
+  "output": {
+    "path": "rust/golden/stream-quotas.jsonl",
+    "sha256": "dce5a58f5242214381c9cc4b95274deddfed0841f49c4d5a32fb275a2befd294",
+    "lines": 87
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "b22f041a4682d4d9da7dc844b4c8b48551193ef0"
+  }
+}

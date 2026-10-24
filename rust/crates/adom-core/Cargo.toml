@@ -1,0 +1,47 @@
+[package]
+name = "adom-core"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Núcleo Rust do Adom (fatias F0/F1): integridade do golden + porte de normalizeTitle."
+license = "UNLICENSED"
+
+# Deps de runtime: só o que o porte de `normalizeTitle` (F1) precisa, com as
+# tabelas Unicode 17.0.0 do oráculo Node. Versões pinadas EXATAS de propósito:
+# são os dados que garantem a paridade, não detalhe de build.
+[dependencies]
+# General_Category exato (\p{L}/\p{N}/\p{M}) — Unicode 17.0.0, sem deps.
+# Substitui o `regex`: as releases publicadas dele (1.13.1 / regex-syntax 0.8.11)
+# param no Unicode 16.0.0 e leem letras novas (U+1E6C0, U+10940) como não-letras.
+unicode-properties = "=0.1.4"
+# Decomposição NFD (o JS usa String.normalize('NFD')) — Unicode 17.0.0.
+unicode-normalization = "=0.1.25"
+# Regex sem lookaround para YEAR_RANGE/EPISODE_TOKEN. Versão exata; as classes
+# de \b, \s e \d são explícitas no código (ver matching_vocabulary.rs), então a
+# paridade não depende das tabelas Unicode do crate.
+regex = "=1.13.1"
+# Regex com lookbehind/lookahead (o `parseTitleSeasonEpisode` usa `(?<!…)` e
+# `(?!…)`, que o `regex` não aceita). Versão exata, como as demais.
+fancy-regex = "=0.19.2"
+# ── resolve_sign (HMAC-SHA256 da rota /resolve) ─────────────────────────
+# HMAC em cima do `sha2` (Sha256); o `sha2` também é dev-depend (golden sha).
+hmac = "0.12"
+sha2 = "0.10"
+# Comparação constant-time (verify_resolve): evita vazamento por timing.
+subtle = "2"
+# serde_json: usado por js_text (config encoding).
+# preserve_order: o encode_config depende da ordem de inserção do JSON (paridade com JS).
+serde_json = { version = "1", features = ["preserve_order"] }
+# ── config_encoding / dk_seal (selo AES da dk) ──────────────────────
+# AES-256-GCM para o selo da dk (paridade com crypto.createCipheriv do Node).
+aes-gcm = "0.10"
+# scrypt para derivar chave do segredo (paridade com crypto.scrypt do Node).
+scrypt = "0.11"
+# ── crawl_url_key (pathname WHATWG, paridade com `new URL` do Node) ──
+# Versão exata. `Url::path` nesta versão é percent-encoded (`%2F` não vira
+# barra). O caminho da chave não é decodificado.
+url = "=2.5.8"
+
+[dev-dependencies]
+# Só para os testes de integridade do golden (nunca entram no runtime):
+serde = { version = "1", features = ["derive"] } # desserializa manifest/casos

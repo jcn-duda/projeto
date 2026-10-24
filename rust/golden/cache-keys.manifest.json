@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "cache-keys/namespace-versions"
+  ],
+  "function": {
+    "name": "prefix",
+    "sourcePath": "src/utils/cache-keys.ts",
+    "sourceSha256": "f2e09827e144c5757bf6b34ebc46eb48fb40a1c4aa2f60691da53c9901bea936",
+    "artifactPath": "dist/src/utils/cache-keys.js",
+    "artifactSha256": "67380c222f38367e70889fcd60b9fc45aa5cf5bbb8afe5758bb560eacca54f9c"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-cache-keys.json",
+    "sha256": "c3dd6f0a3dc02736894a7370d92ca05fc7e7b130e75bf1d111767fba03c61997",
+    "cases": 54
+  },
+  "output": {
+    "path": "rust/golden/cache-keys.jsonl",
+    "sha256": "63f5a6d08a37695e4ab24ec427dbf1c66ea1d641c0f9c869197391af48a88b66",
+    "lines": 54
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "d8505b2be60288a0d6e31d976b3bb062b3763402"
+  }
+}

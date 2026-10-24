@@ -1,0 +1,17 @@
+---
+description: Banco de magnets (mag) — cota 50k, capacidade≠TTL, validação VPS pós-deploy
+alwaysApply: true
+---
+
+# MagnetDB / cota `mag`
+
+- Cota L1: **`mag = 50000`**, teto global **`MAX_ENTRIES = 84000`** (soma ~82550). Fonte: `src/utils/cache-quotas.ts`.
+- **Capacidade ≠ permanência.** Quem expira é o TTL (alive/lie 7d, bad 24h). **Veto:** não subir `MAGNET_*_TTL` “pra encher” a cota.
+- Painel: `magnetdb.l1Max` deve ser **50000** (via snapshot/`QUOTAS.mag`; fallback **0**, nunca literal 2000). `l1Entries` ≠ amostra `sizeAlive/Bad/Lie`.
+- Despejo por cota apaga L1 **e** L2; `loadFromDisk` descarta o que passa da cota no boot. Métrica: `cache.evicted.quota.mag` / `magnetdb.evictedQuota`.
+
+## VPS (powermovie.net)
+
+- Push em `origin/esm` = deploy (cron `*/5`). **Não** confiar só no `git HEAD` do host: checkout roda **antes** do build.
+- Prova ao vivo: log `~/adom-deploy.log` completo + `StartedAt` novo + `magnetdb.l1Max=50000` no `dashboard-status.json` (token só no header, lido no servidor).
+- Não `clear-cache` só por bump de cota. Volume `docker-data/addon` preserva o L2.

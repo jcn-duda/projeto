@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "stream-quotas-candidate/selectQualityCandidates"
+  ],
+  "function": {
+    "name": "streamQuotasCandidate",
+    "sourcePath": "src/utils/stream-quotas-candidate.ts",
+    "sourceSha256": "bbe99bff766f976bc22c66064df5f95f05c74b5be353be1051ea3883ba30431b",
+    "artifactPath": "dist/src/utils/stream-quotas-candidate.js",
+    "artifactSha256": "18f1bc9268f26421ace395c7e598f6e63e3d284c8eb2a1316582f4235d455cb3"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-stream-quotas-candidate.json",
+    "sha256": "270c8c8732efb8d9c17ee6528731f7ebeaee34da703e55734cb3011cb50c383b",
+    "cases": 124
+  },
+  "output": {
+    "path": "rust/golden/stream-quotas-candidate.jsonl",
+    "sha256": "acbc3f2a7b08e457e6271281ebfcb4946bcd08780c9f56f74997304eda8c63aa",
+    "lines": 124
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "96316cefdeaaead28701498b8c1bfe422ed1b5f0"
+  }
+}

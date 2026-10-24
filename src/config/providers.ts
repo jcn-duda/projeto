@@ -15,10 +15,56 @@ export const prowlarr = () => ({
 // o toggle na página. Nenhuma chave do usuário sai do processo.
 export const torrentio = () => ({
   enabled: String(process.env.TORRENTIO_ENABLED || 'true') === 'true',
+  // Só o PADRÃO da instalação: com false a fonte segue disponível (o toggle da
+  // página liga por instalação), mas instalação nova nasce sem ela. Decisão do
+  // operador (2026-09-24): lista padrão só com Jackett.
+  defaultOn: String(process.env.TORRENTIO_DEFAULT || 'false') === 'true',
   url: (process.env.TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
   timeout: Math.max(1, num(process.env.TORRENTIO_TIMEOUT_MS, 1500)),
   breakerFailures: Math.max(1, Math.trunc(num(process.env.TORRENTIO_BREAKER_FAILURES, 3))),
   breakerCooldown: Math.max(0, num(process.env.TORRENTIO_BREAKER_COOLDOWN_MS, 5 * 60_000)),
+});
+
+// Addon público "Mico Leão Dublado V2": card próprio na /configure (id `mico`,
+// fora do Jackett — consulta por IMDb) e, opcionalmente, fonte do colhedor.
+// Matching dele é fraco (medido: 5 de 48 hashes úteis em 5 obras), então todo
+// item passa pelo mesmo filtro de relevância das releases do Jackett.
+export const mico = () => ({
+  // Kill-switch da fonte inteira: sem ele o card some e nada consulta o Mico.
+  enabled: String(process.env.MICO_ENABLED || 'true') !== 'false',
+  // Instalação nova já nasce com o card marcado (entra no `ji` padrão).
+  default: String(process.env.MICO_DEFAULT || 'false') === 'true',
+  harvest: String(process.env.MICO_HARVEST || 'false') === 'true',
+  url: (process.env.MICO_URL || 'https://mico-leao-dublado-apiv-2.vercel.app').replace(/\/$/, ''),
+  timeout: Math.max(1, num(process.env.MICO_TIMEOUT_MS, 15000)),
+  breakerFailures: Math.max(1, Math.trunc(num(process.env.MICO_BREAKER_FAILURES, 3))),
+  breakerCooldown: Math.max(0, num(process.env.MICO_BREAKER_COOLDOWN_MS, 10 * 60_000)),
+  // Raspador (crawl-sites/mico.ts, Fase 1). Intervalo MÍNIMO entre chamadas do
+  // crawler ao Mico — throttle PRÓPRIO, independente do breaker da busca viva
+  // (o erro do raspador não pode abrir o circuito da resposta).
+  crawlMinGapMs: Math.max(0, num(process.env.MICO_CRAWL_MIN_GAP_MS, 1000)),
+  // Período do balde de releitura (`bucketLastmod`): a obra é relida a cada N
+  // dias, e ~1/N do catálogo "vira" por dia (espalhado pelo hash do IMDb).
+  crawlRereadDays: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_REREAD_DAYS, 14))),
+  // Séries (Fase 2): teto de TEMPORADAS mais recentes lidas por obra. Série
+  // explode em requisições (1 chamada de stream POR EPISÓDIO), então o raspador
+  // só percorre as N temporadas mais altas, da mais recente para trás, e só os
+  // episódios JÁ EXIBIDOS (data no Cinemeta ≤ agora). O progresso retomável
+  // (`SeriesWorkProgress`) fatia a obra em passes de `maxButtons` episódios.
+  crawlSeriesMaxSeasons: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_SERIES_MAX_SEASONS, 2))),
+  // Varredura do catálogo (`skip=N`): teto de páginas por rodada e por tipo (o
+  // catálogo tem ~20 mil obras por tipo ≈ 450 páginas; sair pelo teto marca a
+  // descoberta TRUNCADA), reconsultas de página vazia (a API devolve vazio
+  // intermitente) e quantas vazias seguidas, já reconsultadas, valem como fim.
+  crawlMaxPages: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_MAX_PAGES, 700))),
+  crawlEmptyRetries: Math.max(0, Math.trunc(num(process.env.MICO_CRAWL_EMPTY_RETRIES, 2))),
+  crawlEndAfterEmpties: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_END_AFTER_EMPTIES, 4))),
+  // Varredura COMPLETA por tipo no máximo a cada N horas; entre elas, a rodada
+  // é incremental (do topo, mais novos primeiro) e para depois de N páginas
+  // seguidas só com obras já na fila. A completa (~50 min na VPS) é o que
+  // reenfileira o balde de releitura, que vira por DIA — uma por dia basta.
+  crawlFullSweepHours: Math.max(1, num(process.env.MICO_CRAWL_FULL_SWEEP_HOURS, 24)),
+  crawlKnownPagesToStop: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_KNOWN_PAGES_TO_STOP, 2))),
 });
 
 export const tmdb = () => ({
@@ -29,6 +75,16 @@ export const tmdb = () => ({
   // desconhecido bate na API a cada busca; TTL curto porque falha pode ser
   // transitória. 0 desliga o cache de miss.
   missTtl: num(process.env.TMDB_MISS_TTL, 300),
+  // TTL do cache NEGATIVO para FALHA TRANSITÓRIA (rede/timeout/429/5xx),
+  // separado do miss autoritativo: um `fetch failed` isolado não pode congelar
+  // o título pt-BR por TMDB_MISS_TTL inteiro — nessa janela os indexadores BR
+  // são consultados em inglês e devolvem 0. 0 desliga o transitório (a busca
+  // seguinte consulta novamente a API).
+  transientMissTtl: num(process.env.TMDB_TRANSIENT_MISS_TTL, 30),
+  // Teto do bloco find→movie→collection (BR_MULTIWORK_PACKS). É um CAP (min
+  // com o deadline absoluto da requisição), não um timeout adicional; roda em
+  // paralelo com os metadados e é fail-open.
+  collectionTimeout: num(process.env.TMDB_COLLECTION_TIMEOUT_MS, 2500),
 });
 
 export const cinemeta = () => ({
@@ -39,6 +95,10 @@ export const cinemeta = () => ({
   // Cache negativo, mesmo racional do TMDB: id inexistente não pode custar
   // 2,5s de rede em toda busca. 0 desliga.
   missTtl: num(process.env.CINEMETA_MISS_TTL, 300),
+  // Cache negativo TRANSITÓRIO — mesma regra do TMDB_TRANSIENT_MISS_TTL: falha
+  // de rede/429/5xx não é "id desconhecido" e não pode congelar a meta (e, com
+  // ela, o ano) por minutos.
+  transientMissTtl: num(process.env.CINEMETA_TRANSIENT_MISS_TTL, 30),
 });
 
 export const bludv = () => ({

@@ -1,0 +1,171 @@
+# Portão de regressão do workspace Rust (fatias F0/F1 da migração TS→Rust).
+# Testa o crate `adom-core` — integridade do golden + paridade do `normalizeTitle`
+# — sem portar função nova e sem tocar no addon Node. Audita também as
+# dependências do Cargo.lock contra o RustSec advisory-db (cargo-audit).
+#
+# Workflow separado do ci.yml porque o filtro de caminho é por workflow: sem
+# ele, mudança em rust/ (ou no corpus/gerador que o golden consome) passaria sem
+# nenhum gate Rust, e o verde do CI Node não diria nada sobre a paridade.
+#
+# A toolchain NÃO é fixada aqui: quem manda é `rust/rust-toolchain.toml` (1.92.0,
+# a primeira estável com `char::UNICODE_VERSION = (17, 0, 0)`, o mesmo Unicode do
+# oráculo Node). Como os passos rodam com cwd em `rust/`, o proxy do rustup
+# pré-instalado no runner lê aquele arquivo e instala a toolchain E os
+# componentes declarados nele (clippy, rustfmt) — uma versão duplicada no YAML
+# desviaria em silêncio do pin.
+name: Rust
+
+on:
+  push:
+    paths:
+      # Workspace inteiro: Cargo.toml/lock, rust-toolchain.toml, crates e os
+      # goldens de rust/golden/**.
+      - 'rust/**'
+      # Corpus e gerador do golden: os testes os consomem por
+      # include_str!/include_bytes!, então mudança neles muda o contrato on-disk
+      # verificado (hash/contagem) e precisa passar pelo mesmo portão.
+      - 'scripts/golden/**'
+      - 'scripts/rust/**'
+      - 'src/**'
+      - 'resolvers/**'
+      - 'test/fixtures/**'
+      - 'package.json'
+      - 'package-lock.json'
+      # Auto-referência: editar este workflow precisa reexecutá-lo (PR incluído).
+      - '.github/workflows/rust.yml'
+  pull_request:
+    # Mesmos filtros do push, sem restrição de branch: um PR que mexe só em
+    # rust/ ou no golden precisa rodar aqui.
+    paths:
+      - 'rust/**'
+      - 'scripts/golden/**'
+      - 'scripts/rust/**'
+      - 'src/**'
+      - 'resolvers/**'
+      - 'test/fixtures/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/rust.yml'
+  workflow_dispatch:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    # Prazo finito: compilar de zero + clippy é mais caro que o job Node, mas
+    # não pode pendurar o runner indefinidamente.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        # A toolchain e o workspace vivem em rust/; o proxy do rustup resolve o
+        # rust-toolchain.toml a partir daqui.
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ativa a toolchain pinada no arquivo (e mostra no log qual entrou) antes
+      # dos gates, para um erro de toolchain não aparecer disfarçado de erro de
+      # teste. Sem versão hardcoded aqui.
+      - name: Toolchain pinada (rust/rust-toolchain.toml)
+        run: rustup show
+
+      # O oráculo é o TypeScript compilado, sem hooks Rust instalados.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+
+      - name: Compilar oráculo TypeScript
+        working-directory: .
+        run: npm ci && npm run build
+
+      - name: Goldens do raspador contra TypeScript puro
+        working-directory: .
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run golden:crawl-parsers:check && npm run golden:crawl-policy:check
+
+      # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
+      # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
+      - name: Testes
+        run: cargo test --workspace --locked
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Formatação
+        run: cargo fmt --all -- --check
+
+      # Carrega a ponte real no Node; compilar só o rlib não valida o NAPI.
+      - name: Compilar ponte NAPI
+        run: cargo build -p adom-napi --locked
+
+      - name: Preparar artefato NAPI
+        working-directory: .
+        run: mkdir -p dist/rust && cp rust/target/debug/libadom_napi.so dist/rust/adom_napi.node
+
+      - name: Paridade real dos parsers TS × Rust (NAPI)
+        working-directory: .
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run test:crawl-parity
+
+      # Catraca de 400 linhas por arquivo, par da de .ts (npm run lint:lines).
+      # O default do job é rust/, mas a régua é o caminho rust/crates/** — por
+      # isso este passo volta para a RAIZ do repo. Percorre só fontes .rs, fora
+      # de target/vendor: qualquer fonte acima do teto reprova e ZERO fontes
+      # também falha — "vazio" nunca é verde quando o glob deixa de casar.
+      - name: Catraca de 400 linhas (.rs)
+        working-directory: .
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import sys
+
+          LIMIT = 400
+          root = pathlib.Path("rust/crates")
+          files = sorted(
+              p for p in root.rglob("*.rs")
+              if not ({"target", "vendor"} & set(p.parts))
+          )
+          if not files:
+              print(f"catraca .rs: nenhuma fonte em {root} - falha (vazio nao e verde)")
+              sys.exit(1)
+          over = []
+          for p in files:
+              n = len(p.read_text(encoding="utf-8").splitlines())
+              print(f"{n:5d}  {p.as_posix()}")
+              if n > LIMIT:
+                  over.append((p, n))
+          print(f"catraca .rs: {len(files)} fonte(s), teto {LIMIT} linhas")
+          for p, n in over:
+              print(f"ACIMA DO TETO: {p.as_posix()} = {n} linhas (> {LIMIT})")
+          sys.exit(1 if over else 0)
+          PY
+
+      # ------------------------------------------------------------------
+      # Auditoria de dependências (RustSec advisory-db). Fica por ÚLTIMO de
+      # propósito: os gates acima falham rápido, este COMPILA uma ferramenta
+      # (~250 crates) e bate na rede (advisory-db + crates.io).
+      # ------------------------------------------------------------------
+
+      # cargo-audit 0.22.2 = versão fixa PUBLICADA e verificada (crates.io e
+      # release `cargo-audit/v0.22.2`, não pre-release, não yanked), MSRV 1.88 —
+      # compatível com a toolchain 1.92.0 pinada em rust/rust-toolchain.toml.
+      # `--locked` compila com o Cargo.lock do PRÓPRIO auditor (instalação
+      # reprodutível). O binário cai no `$CARGO_HOME/bin` já no PATH do runner:
+      # é ferramenta de CI, NÃO dependência do workspace — não entra no
+      # Cargo.lock do projeto.
+      - name: Instalar cargo-audit (0.22.2)
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      # Portão BLOQUEANTE: barra push/PR com vulnerabilidade no Cargo.lock. Sem
+      # `--ignore`, o default da ferramenta é o veredito — sai != 0 ao achar
+      # RUSTSEC e imprime também as advertências informativas
+      # (unmaintained/unsound/notice) sem escondê-las. Não passamos
+      # `--deny warnings` para não inventar política de bloqueio além do default.
+      - name: Auditoria Cargo.lock
+        run: cargo audit

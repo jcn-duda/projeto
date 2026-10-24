@@ -2,7 +2,7 @@ import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
 import { accountScope, streamsCacheKey } from '../utils/request-key.js';
-import { opts, capture, run } from '../runtime.js';
+import { opts, capture, run, replyDeadline } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { noteUserRequest } from './activity.js';
@@ -112,7 +112,10 @@ export async function findStreams({ type, id, background }: { type: string; id: 
   // a coleta não pode consumir tudo e deixar zero pro debrid. Passado adiante
   // como parte do input do builder, só o passo de resposta carrega — o passe
   // tardio (late/onBatch) chama finish sem deadlineAt e usa o timeout completo.
-  const deadlineAt = Date.now() + config.replyDeadline;
+  // Prazo do CLIENTE: o app Power Movie espera mais que o Stremio (`appReplyDeadline`).
+  const replyMs = replyDeadline();
+  if (replyMs !== config.replyDeadline) metrics.count('search.appDeadline');
+  const deadlineAt = Date.now() + replyMs;
 
   let task = inFlight.get(cacheKey);
   let progress = inFlightProgress.get(cacheKey);
@@ -154,7 +157,7 @@ export async function findStreams({ type, id, background }: { type: string; id: 
 
   // O cliente Stremio aborta em 10s. Devolvemos vazio antes disso em vez de
   // estourar o timeout dele — a busca continua e popula o cache pra próxima.
-  const res: any = await raceWithDeadline(task, config.replyDeadline, () => {
+  const res: any = await raceWithDeadline(task, replyMs, () => {
     // Contador separado do timer: a busca que estoura o prazo termina depois e
     // entra no p95 como sucesso lento. Só isto conta quantas vezes o CLIENTE
     // recebeu lista parcial.
@@ -162,7 +165,7 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     metrics.count(progress?.metadataDone && !progress.metadataConsumedProviderBudget
       ? 'search.deadline.providers'
       : 'search.deadline.metadata');
-    log.warn(`[search] deadline de ${config.replyDeadline}ms atingido para ${id}; segue em background`);
+    log.warn(`[search] deadline de ${replyMs}ms atingido para ${id}; segue em background`);
     // Quarto estado do aviso, e o único que NÃO sai do buildStreams: aqui a busca
     // nem terminou, enquanto os outros três explicam uma lista que ficou vazia
     // depois de buscar. Vale para filme também — a coleta segue para os dois, e a

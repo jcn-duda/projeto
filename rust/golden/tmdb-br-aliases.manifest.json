@@ -1,0 +1,31 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "tmdb-br-aliases/filterBrAliases"
+  ],
+  "function": {
+    "name": "filterBrAliases",
+    "sourcePath": "src/utils/tmdb-br-aliases.ts",
+    "sourceSha256": "b8f56a31cb2849d2dd2a4950f4b618fa3a60302771e6346488ad0565e20267dc",
+    "artifactPath": "dist/src/utils/tmdb-br-aliases.js",
+    "artifactSha256": "9fb889647c7e005a5961b97156e23475d2fae5f13a3f78566d4cc1bb97de344c"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-tmdb-br-aliases.json",
+    "sha256": "644f8038248ec5fedd4b678971d1ae41bfc5d7e28bce0a42a9a693b6734160ca",
+    "cases": 86
+  },
+  "output": {
+    "path": "rust/golden/tmdb-br-aliases.jsonl",
+    "sha256": "f36542d67908966c6ba3c3f5df7b4dac02b08ae73a1fce98f8e9d293f599543d",
+    "lines": 86
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "71dc68a26fe46dbe9f5c6ff0dc49b73b82433523"
+  }
+}

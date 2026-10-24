@@ -1,0 +1,355 @@
+{
+  "note": "Vetores de priorityMap/compareIndexerPriority (src/utils/indexer-priority.ts). Gerado a partir da lista de vetores; oráculo: dist/src/utils/indexer-priority.js (módulo puro, sem config/rede).",
+  "cases": [
+    {
+      "id": "ip-map-01",
+      "input": "{\"op\":\"map\"}",
+      "note": "default [] do TS (ids ausente)"
+    },
+    {
+      "id": "ip-map-02",
+      "input": "{\"op\":\"map\",\"ids\":[]}",
+      "note": "lista vazia"
+    },
+    {
+      "id": "ip-map-03",
+      "input": "{\"op\":\"map\",\"ids\":[\"NerdFilmes\"]}",
+      "note": "um id"
+    },
+    {
+      "id": "ip-map-04",
+      "input": "{\"op\":\"map\",\"ids\":[\"comandotorrents\",\"nerdfilmes\"]}",
+      "note": "ordem escolhida e preservada"
+    },
+    {
+      "id": "ip-map-05",
+      "input": "{\"op\":\"map\",\"ids\":[\"NerdFilmes\",\"nerdfilmes\",\"NERDFILMES\"]}",
+      "note": "duplicata por caixa: primeira posição"
+    },
+    {
+      "id": "ip-map-06",
+      "input": "{\"op\":\"map\",\"ids\":[\"a\",\"b\",\"a\",\"c\",\"b\"]}",
+      "note": "duplicatas no meio"
+    },
+    {
+      "id": "ip-map-07",
+      "input": "{\"op\":\"map\",\"ids\":[\"a\",\"\",\"a\",\"b\"]}",
+      "note": "string vazia ignorada sem recomprimir a posição"
+    },
+    {
+      "id": "ip-map-08",
+      "input": "{\"op\":\"map\",\"ids\":[\"a\",null,\"a\"]}",
+      "note": "null ignorado"
+    },
+    {
+      "id": "ip-map-09",
+      "input": "{\"op\":\"map\",\"ids\":[\"a\",\"   \",\"a\"]}",
+      "note": "só espaços ignorado"
+    },
+    {
+      "id": "ip-map-10",
+      "input": "{\"op\":\"map\",\"ids\":[\"\",null,\"  \",\"\\t\"]}",
+      "note": "todos os ids vazios: mapa vazio"
+    },
+    {
+      "id": "ip-map-11",
+      "input": "{\"op\":\"map\",\"ids\":[\" NerdFilmes \"]}",
+      "note": "trim das pontas"
+    },
+    {
+      "id": "ip-map-12",
+      "input": "{\"op\":\"map\",\"ids\":[\"﻿NerdFilmes\"]}",
+      "note": "BOM na frente é removido pelo trim"
+    },
+    {
+      "id": "ip-map-13",
+      "input": "{\"op\":\"map\",\"ids\":[\"ner﻿dfilmes\"]}",
+      "note": "BOM no meio é preservado"
+    },
+    {
+      "id": "ip-map-14",
+      "input": "{\"op\":\"map\",\"ids\":[\"\\nNerd\\r\"]}",
+      "note": "quebras de linha nas pontas"
+    },
+    {
+      "id": "ip-map-15",
+      "input": "{\"op\":\"map\",\"ids\":[\" Nerd \"]}",
+      "note": "NBSP nas pontas"
+    },
+    {
+      "id": "ip-map-16",
+      "input": "{\"op\":\"map\",\"ids\":[\"　Nerd　\"]}",
+      "note": "espaço ideográfico nas pontas"
+    },
+    {
+      "id": "ip-map-17",
+      "input": "{\"op\":\"map\",\"ids\":[\"_indexer\",\"indexer\"]}",
+      "note": "underscore distingue"
+    },
+    {
+      "id": "ip-map-18",
+      "input": "{\"op\":\"map\",\"ids\":[\"_Indexer\",\"_indexer\"]}",
+      "note": "underscore + caixa"
+    },
+    {
+      "id": "ip-map-19",
+      "input": "{\"op\":\"map\",\"ids\":[\"Ação\",\"acao\",\"ação\"]}",
+      "note": "acento não normaliza; caixa sim"
+    },
+    {
+      "id": "ip-map-20",
+      "input": "{\"op\":\"map\",\"ids\":[\"AÇÃO\"]}",
+      "note": "maiúsculas acentuadas"
+    },
+    {
+      "id": "ip-map-21",
+      "input": "{\"op\":\"map\",\"ids\":[\"꟎\"]}",
+      "note": "letra nova Unicode 17 (U+A7CE -> U+A7CF)"
+    },
+    {
+      "id": "ip-map-22",
+      "input": "{\"op\":\"map\",\"ids\":[\"𐐀\"]}",
+      "note": "astral Deseret (U+10400 -> U+10428)"
+    },
+    {
+      "id": "ip-map-23",
+      "input": "{\"op\":\"map\",\"ids\":[\"𐐀\",\"𐐨\"]}",
+      "note": "astral: par de caixa colide"
+    },
+    {
+      "id": "ip-map-24",
+      "input": "{\"op\":\"map\",\"ids\":[\"🎬\"]}",
+      "note": "emoji sem mapeamento de caixa"
+    },
+    {
+      "id": "ip-map-25",
+      "input": "{\"op\":\"map\",\"ids\":[\"🎬\",\"𐐀\",\"🎬\"]}",
+      "note": "emoji repetido + astral"
+    },
+    {
+      "id": "ip-map-26",
+      "input": "{\"op\":\"map\",\"ids\":[\"a\",\"b\",\"c\",\"\",\"d\",\"\",\"e\",\"a\"]}",
+      "note": "vazios no meio não deslocam posições"
+    },
+    {
+      "id": "ip-map-27",
+      "input": "{\"op\":\"map\",\"ids\":[\"x\",\"X\",\"x \",\" x\",\"x\\t\"]}",
+      "note": "cinco grafias da mesma chave"
+    },
+    {
+      "id": "ip-map-28",
+      "input": "{\"op\":\"map\",\"ids\":[\"1\",\"01\",\"1\"]}",
+      "note": "strings numéricas não coalescem"
+    },
+    {
+      "id": "ip-map-29",
+      "input": "{\"op\":\"map\",\"ids\":[\"a-b\",\"a.b\",\"a:b\"]}",
+      "note": "pontuação não é separador"
+    },
+    {
+      "id": "ip-map-30",
+      "input": "{\"op\":\"map\",\"ids\":[\"ẞ\"]}",
+      "note": "sharp s maiúsculo (U+1E9E -> U+00DF)"
+    },
+    {
+      "id": "ip-map-31",
+      "input": "{\"op\":\"map\",\"ids\":[\"İ\"]}",
+      "note": "I turco pontuado (U+0130)"
+    },
+    {
+      "id": "ip-map-32",
+      "input": "{\"op\":\"map\",\"ids\":[\"  A  \",\"a\"]}",
+      "note": "trim + duplicata"
+    },
+    {
+      "id": "ip-map-33",
+      "input": "{\"op\":\"map\",\"ids\":[\"Índice\",\"índice\"]}",
+      "note": "acento com caixa"
+    },
+    {
+      "id": "ip-map-34",
+      "input": "{\"op\":\"map\",\"ids\":[\"site:tv\",\"site tv\"]}",
+      "note": "dois-pontos não normaliza"
+    },
+    {
+      "id": "ip-map-35",
+      "input": "{\"op\":\"map\",\"ids\":[\"Baía\",\"BAÍA\",\"baia\"]}",
+      "note": "duplicata acentuada + forma sem acento"
+    },
+    {
+      "id": "ip-cmp-01",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"a\",\"b\":\"b\"}",
+      "note": "a antes de b: diff negativo"
+    },
+    {
+      "id": "ip-cmp-02",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"b\",\"b\":\"a\"}",
+      "note": "b antes de a: diff positivo"
+    },
+    {
+      "id": "ip-cmp-03",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"a\",\"b\":\"a\"}",
+      "note": "mesma fonte conhecida: 0"
+    },
+    {
+      "id": "ip-cmp-04",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"z\",\"b\":\"a\"}",
+      "note": "desconhecido depois de conhecido: +MAX"
+    },
+    {
+      "id": "ip-cmp-05",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"a\",\"b\":\"z\"}",
+      "note": "conhecido antes de desconhecido: -MAX"
+    },
+    {
+      "id": "ip-cmp-06",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\"],\"a\":\"z\",\"b\":\"z2\"}",
+      "note": "dois desconhecidos: 0"
+    },
+    {
+      "id": "ip-cmp-07",
+      "input": "{\"op\":\"compare\",\"ranks\":[],\"a\":\"a\",\"b\":\"b\"}",
+      "note": "ranking vazio: 0"
+    },
+    {
+      "id": "ip-cmp-08",
+      "input": "{\"op\":\"compare\",\"ranks\":null,\"a\":\"a\",\"b\":\"b\"}",
+      "note": "ranks null (o !ranks do TS): 0"
+    },
+    {
+      "id": "ip-cmp-09",
+      "input": "{\"op\":\"compare\",\"a\":\"a\",\"b\":\"b\"}",
+      "note": "ranks ausente: 0"
+    },
+    {
+      "id": "ip-cmp-10",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"b\":\"a\"}",
+      "note": "a ausente (_indexer vazio) fica por último"
+    },
+    {
+      "id": "ip-cmp-11",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"a\"}",
+      "note": "b ausente fica por último"
+    },
+    {
+      "id": "ip-cmp-12",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":null,\"b\":null}",
+      "note": "a e b null: mesma chave vazia, 0"
+    },
+    {
+      "id": "ip-cmp-13",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"\",\"b\":\"a\"}",
+      "note": "a string vazia é a chave vazia"
+    },
+    {
+      "id": "ip-cmp-14",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\",\"a\"],\"a\":\"b\",\"b\":\"a\"}",
+      "note": "duplicata no ranking mantém a primeira"
+    },
+    {
+      "id": "ip-cmp-15",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"NerdFilmes\"],\"a\":\"nerdfilmes\",\"b\":\"comando\"}",
+      "note": "casamento por caixa; desconhecido último"
+    },
+    {
+      "id": "ip-cmp-16",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"nerd\"],\"a\":\"  Nerd  \",\"b\":\"comando\"}",
+      "note": "trim + caixa em _indexer"
+    },
+    {
+      "id": "ip-cmp-17",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"_x\"],\"a\":\"_x\",\"b\":\"x\"}",
+      "note": "underscore distingue a fonte"
+    },
+    {
+      "id": "ip-cmp-18",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"𐐀\"],\"a\":\"𐐨\",\"b\":\"other\"}",
+      "note": "astral casa por caixa"
+    },
+    {
+      "id": "ip-cmp-19",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"꟎\"],\"a\":\"꟏\",\"b\":\"other\"}",
+      "note": "Unicode 17 casa por caixa"
+    },
+    {
+      "id": "ip-cmp-20",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"unknown1\",\"b\":\"unknown2\"}",
+      "note": "dois trackers desconhecidos: 0"
+    },
+    {
+      "id": "ip-cmp-21",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\",\"c\",\"d\",\"e\"],\"a\":\"a\",\"b\":\"e\"}",
+      "note": "diferença exata -4"
+    },
+    {
+      "id": "ip-cmp-22",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"\",\"b\"],\"a\":\"b\",\"b\":\"a\"}",
+      "note": "vazio no ranking não recomprime"
+    },
+    {
+      "id": "ip-cmp-23",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"\",null,\"  \"],\"a\":\"a\",\"b\":\"b\"}",
+      "note": "ranking só de vazios = Map vazio: 0"
+    },
+    {
+      "id": "ip-cmp-24",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"a\",\"b\":\"a\"}",
+      "note": "mesma fonte: 0"
+    },
+    {
+      "id": "ip-cmp-25",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"x\",\"b\":\"y\"}",
+      "note": "nenhuma no ranking: 0"
+    },
+    {
+      "id": "ip-cmp-26",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"ação\"],\"a\":\"AÇÃO\",\"b\":\"outra\"}",
+      "note": "acento + caixa no ranking"
+    },
+    {
+      "id": "ip-cmp-27",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"nerd\"],\"a\":\"nerd filmes\",\"b\":\"nerd\"}",
+      "note": "token a mais não casa"
+    },
+    {
+      "id": "ip-cmp-28",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"🎬\",\"b\":\"🎬\"}",
+      "note": "emoji desconhecido repetido: 0"
+    },
+    {
+      "id": "ip-cmp-29",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"x\",\"y\"],\"a\":\"y\",\"b\":\"x\"}",
+      "note": "inversão de posição: +1"
+    },
+    {
+      "id": "ip-cmp-30",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"a\",\"b\":\"desconhecido\"}",
+      "note": "conhecido antes do desconhecido"
+    },
+    {
+      "id": "ip-cmp-31",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"desconhecido\",\"b\":\"a\"}",
+      "note": "desconhecido antes do conhecido"
+    },
+    {
+      "id": "ip-cmp-32",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"𐐀\",\"b\"],\"a\":\"b\",\"b\":\"𐐀\"}",
+      "note": "astral no ranking: +1"
+    },
+    {
+      "id": "ip-cmp-33",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\",\"b\",\"c\"],\"a\":\"b\",\"b\":\"c\"}",
+      "note": "vizinhos: -1"
+    },
+    {
+      "id": "ip-cmp-34",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"a\"],\"a\":\"  \",\"b\":\"a\"}",
+      "note": "só espaços vira chave vazia"
+    },
+    {
+      "id": "ip-cmp-35",
+      "input": "{\"op\":\"compare\",\"ranks\":[\"z\",\"y\",\"x\"],\"a\":\"z\",\"b\":\"x\"}",
+      "note": "ordem z,y,x: -2"
+    }
+  ]
+}

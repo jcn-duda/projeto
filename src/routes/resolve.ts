@@ -4,6 +4,7 @@ import type express from 'express';
 import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
+import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as protectedApi from '../debrid/protected.js';
 
 // O 451 só aparece no play: a lista pronta foi construída quando o ledger
@@ -75,6 +76,18 @@ function makeResolveHandler(services: AppServices) {
       if (services.debridCommon.isNoVideoError(err)) {
         const adapter = services.debrid.current();
         if (adapter) services.magnetdb.markBad(adapter.id, services.runtime.opts().debridApiKey, infoHash);
+        // Lista pronta (e a via instantânea/fallback do banco) ainda oferece o
+        // hash com ⚡ até o TTL — mesmo buraco do lie. Só a obra da dica;
+        // sem `i` não há clearNamespace global.
+        if (hintedImdbId) {
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.bad');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após torrent sem vídeo`,
+            );
+          }
+        }
         return res.status(404).send('nenhum arquivo de vídeo no torrent');
       }
       // 429 nao e culpa do torrent: o debrid pediu para esperar. Sem isto virava
@@ -105,6 +118,15 @@ function makeResolveHandler(services: AppServices) {
             season: req.query.s ? Number(req.query.s) : null,
             episode: req.query.e ? Number(req.query.e) : null,
           }, infoHash);
+          // Lista pronta ainda oferece o hash mentiroso com ⚡/vaga BR até o TTL.
+          // Só a obra da dica — sem `i` não há clearNamespace global.
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.lie');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após mentira de áudio`,
+            );
+          }
         }
         services.metrics.count('debrid.audit.lie');
         services.log.warn(
@@ -122,12 +144,26 @@ function makeResolveHandler(services: AppServices) {
           `[resolve] torrent ${infoHash.slice(0, 8)} não contém o episódio pedido` +
           `${req.query.s != null && req.query.e != null ? ` (S${req.query.s}E${req.query.e})` : ''}` +
           `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}` +
-          `${!err.evidence && err.context ? ` — ${err.context.videoCount} vídeo(s), nenhum identificável: ${err.context.samples.join(' | ')}` : ''}`,
+          `${err.context ? ` — ${err.context.videoCount} vídeo(s)${err.evidence ? '' : ', nenhum identificável'}: ${err.context.samples.join(' | ')}` : ''}`,
         );
         const sNum = Number(req.query.s);
         const eNum = Number(req.query.e);
+        // Sem evidence: 404 só — clear cego apagaria streams bons da série
+        // quando o pack só não nomeou o episódio (EpisodePickError sem prova).
         if (err.evidence && hintedImdbId && Number.isFinite(sNum) && Number.isFinite(eNum)) {
           services.releaseIndex.markMissing(hintedImdbId, { season: sNum, episode: eNum }, infoHash);
+          if (err.evidence.declaredEpisodes.length === 0) {
+            services.releaseIndex.markMissingSeason(hintedImdbId, sNum, infoHash);
+          }
+          // Lista pronta ainda oferece o pack sem o episódio até o TTL — mesmo
+          // buraco do lie: markMissing sozinho não invalida streams.
+          const cleared = invalidateStreamsForObra(hintedImdbId);
+          if (cleared > 0) {
+            services.metrics.count('resolve.streamsInvalidated.missing');
+            services.log.info(
+              `[resolve] invalidou ${cleared} entrada(s) de streams da obra ${hintedImdbId} após episódio ausente no pack`,
+            );
+          }
         }
         return res.status(404).send('este episódio não foi encontrado no pack');
       }

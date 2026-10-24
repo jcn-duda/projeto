@@ -50,6 +50,9 @@ export const accountFastPath = () => ({
 // deslizante — colher só enquanto ninguém usa há N minutos.
 export const harvest = () => ({
   enabled: String(process.env.HARVEST_ENABLED || 'true') === 'true',
+  // Varredura "<título> dublado" nos globais quando o título pt é igual ao
+  // original (sem ela a varredura pt não roda nesses títulos). false desliga.
+  dubbedQuery: String(process.env.HARVEST_DUBBED_QUERY || 'true') !== 'false',
   intervalMs: num(process.env.HARVEST_INTERVAL_MS, 60_000),
   idleWindowMs: num(process.env.HARVEST_IDLE_WINDOW_MS, 10 * 60_000),
   queueMax: num(process.env.HARVEST_QUEUE_MAX, 200),

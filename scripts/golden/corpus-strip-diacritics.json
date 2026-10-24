@@ -1,0 +1,26 @@
+{
+  "version": "corpus-strip-diacritics/1",
+  "note": "Casos de stripDiacritics em title-normalization.ts. Entrada: {\"text\":\"...\"}. Saída: string crua do Node (caixa, pontuação e ordinais ficam). sd-013 guarda o combinante U+0301 como escape JSON.",
+  "cases": [
+    {"id":"sd-001","input":"{\"text\":\"Extermínio\"}","note":"query acentuada que o WordPress dos sites BR zera"},
+    {"id":"sd-002","input":"{\"text\":\"Exterminio\"}","note":"a mesma query sem acento"},
+    {"id":"sd-003","input":"{\"text\":\"Adım Farah\"}","note":"ı turco (U+0131) é letra própria: o fold troca, o NFD não separa"},
+    {"id":"sd-004","input":"{\"text\":\"Łódź\"}","note":"Ł vira L no fold; ó e ź perdem o diacrítico"},
+    {"id":"sd-005","input":"{\"text\":\"CAFÉ\"}","note":"caixa alta preservada: É vira E"},
+    {"id":"sd-006","input":"{\"text\":\"café\"}","note":"caixa baixa preservada"},
+    {"id":"sd-007","input":"{\"text\":\"\"}","note":"vazio"},
+    {"id":"sd-008","input":"{\"text\":\"2ª Temporada\"}","note":"ordinal ª permanece"},
+    {"id":"sd-009","input":"{\"text\":\"S.W.A.T.\"}","note":"pontos permanecem"},
+    {"id":"sd-010","input":"{\"text\":\"ß\"}","note":"ß do fold vira ss"},
+    {"id":"sd-011","input":"{\"text\":\"ẞ\"}","note":"ẞ do fold vira SS"},
+    {"id":"sd-012","input":"{\"text\":\"Dublado\"}","note":"texto sem acento sai igual"},
+    {"id":"sd-013","input":"{\"text\":\"e\\u0301\"}","note":"e + U+0301, acento combinante explícito"},
+    {"id":"sd-014","input":"{\"text\":\"Æ\"}","note":"Æ do fold vira AE"},
+    {"id":"sd-015","input":"{\"text\":\"Poção do Avô\"}","note":"vários diacríticos PT, caixa preservada"},
+    {"id":"sd-016","input":"{\"text\":\"São Paulo: 1080p\"}","note":"dois-pontos e espaço permanecem"},
+    {"id":"sd-017","input":"{\"text\":\"1º Lugar\"}","note":"ordinal º permanece"},
+    {"id":"sd-018","input":"{\"text\":\"Straße\"}","note":"ß do fold vira ss: Strasse"},
+    {"id":"sd-019","input":"{\"text\":\"Cœur\"}","note":"œ do fold vira oe"},
+    {"id":"sd-020","input":"{\"text\":\"Đoković\"}","note":"Đ do fold vira D; ć perde o acento"}
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "br-pool-selection/brDubbedPool"
+  ],
+  "function": {
+    "name": "brPoolSelection"
+  },
+  "functions": [
+    {
+      "name": "brDubbedPool/anyDubbedPool/topSeededPool",
+      "sourcePath": "src/utils/autofetch-pools.ts",
+      "sourceSha256": "669d014e341594d4bee04d4b1e2b61c543a36a0ec564bb1629cc487042d33e4f",
+      "artifactPath": "dist/src/utils/autofetch-pools.js",
+      "artifactSha256": "f9a6b40aa4a71a8af834566f4cddd0095e74879803b7cb55e41b14240f3792ba"
+    },
+    {
+      "name": "pickBrDubbedByTargetQualities",
+      "sourcePath": "src/utils/autofetch-picks.ts",
+      "sourceSha256": "c1eabaffb7b7dad6251fd28b0c068c78114d8f1c3c2d5ff57b285395998f408f",
+      "artifactPath": "dist/src/utils/autofetch-picks.js",
+      "artifactSha256": "242d06a3e194449ec39580b5d6829d45a36cc4dd41c28c6767b3a52a5e090175"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-br-pool-selection.json",
+    "sha256": "cde0efbbfb53cb17dd9bffc14a670b299c696db63d0aba288ac2f78ce1690f3f",
+    "cases": 96
+  },
+  "output": {
+    "path": "rust/golden/br-pool-selection.jsonl",
+    "sha256": "16b1875b72b04f0c08f3f20731c27555b84670247a02e68f6fb3fd60d66060a7",
+    "lines": 96
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "8b38c81ae06a01123de6dfd5a58a978dd0d29231"
+  }
+}

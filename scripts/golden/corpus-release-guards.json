@@ -1,0 +1,25 @@
+{
+  "version": "corpus-release-guards/1",
+  "note": "Casos de release-filters.ts: magnetYearContradicts (op year) e magnetSeasonContradicts (op season). textYearsContradict entra pelo dn= de magnetDisplayName. Saída: 1 contradiz, 0 não.",
+  "cases": [
+    {"id":"rg-001","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Collection+2002+2016\",\"magnetUri\":null,\"guid\":null,\"year\":2004}","note":"coleção 2002 2016 com catálogo 2004 passa"},
+    {"id":"rg-002","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Collection+2002+2016\",\"magnetUri\":null,\"guid\":null,\"year\":2026}","note":"coleção 2002 2016 com catálogo 2026 morre"},
+    {"id":"rg-003","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Collection+2002+2016\",\"magnetUri\":null,\"guid\":null,\"year\":2018}","note":"fora do intervalo, a ±2 de 2016, passa"},
+    {"id":"rg-004","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1920x1080\",\"magnetUri\":null,\"guid\":null,\"year\":2024}","note":"resolução 1920x1080 não é ano"},
+    {"id":"rg-005","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1920x1080.1994\",\"magnetUri\":null,\"guid\":null,\"year\":2024}","note":"resolução sai e o ano 1994 permanece"},
+    {"id":"rg-006","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&tr=http://tracker.example/1994\",\"magnetUri\":null,\"guid\":null,\"year\":2024}","note":"magnet sem dn= não lê o ano do tracker"},
+    {"id":"rg-007","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1994\",\"magnetUri\":null,\"guid\":null,\"year\":1994}","note":"ano igual ao catálogo"},
+    {"id":"rg-008","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1995\",\"magnetUri\":null,\"guid\":null,\"year\":1994}","note":"ano a ±1 não contradiz"},
+    {"id":"rg-009","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1997\",\"magnetUri\":null,\"guid\":null,\"year\":1994}","note":"ano a ±3 contradiz"},
+    {"id":"rg-010","input":"{\"op\":\"year\",\"magnet\":\"http://protetor.example/dl/The.Crow.1994\",\"magnetUri\":null,\"guid\":null,\"year\":2024}","note":"http sem dn= não carrega ano"},
+    {"id":"rg-011","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Saga+2000+2010\",\"magnetUri\":null,\"guid\":null,\"year\":2005}","note":"catálogo dentro do intervalo, longe dos extremos"},
+    {"id":"rg-012","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Filme.1996\",\"magnetUri\":null,\"guid\":null,\"year\":1994}","note":"limite ±2 não contradiz"},
+    {"id":"rg-013","input":"{\"op\":\"year\",\"magnet\":null,\"magnetUri\":null,\"guid\":null,\"year\":2004}","note":"sem magnet não há ano"},
+    {"id":"rg-014","input":"{\"op\":\"year\",\"magnet\":\"\",\"magnetUri\":\"magnet:?xt=urn:btih:HASH&dn=The+Crow+(2024)\",\"guid\":\"magnet:?xt=urn:btih:HASH&dn=The+Crow+(1994)\",\"year\":1994}","note":"magnet vazio cai no MagnetUri, não no Guid"},
+    {"id":"rg-015","input":"{\"op\":\"season\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Serie.S02E01.Dublado\",\"magnetUri\":null,\"guid\":null,\"season\":2,\"episode\":1}","note":"S02E01 contra temporada 2 episódio 1 não contradiz"},
+    {"id":"rg-016","input":"{\"op\":\"season\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Serie.S02E01.Dublado\",\"magnetUri\":null,\"guid\":null,\"season\":1,\"episode\":null}","note":"S02E01 contra temporada 1 contradiz"},
+    {"id":"rg-017","input":"{\"op\":\"season\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Serie.S02E01.Dublado\",\"magnetUri\":null,\"guid\":null,\"season\":2,\"episode\":5}","note":"S02E01 contra episódio 5 da temporada 2 contradiz"},
+    {"id":"rg-018","input":"{\"op\":\"season\",\"magnet\":\"magnet:?xt=urn:btih:HASH&tr=Serie.S01E01\",\"magnetUri\":null,\"guid\":null,\"season\":2,\"episode\":1}","note":"magnet sem dn= não lê temporada do tracker"},
+    {"id":"rg-019","input":"{\"op\":\"year\",\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Collection+2002+2016\",\"magnetUri\":null,\"guid\":null,\"year\":2019}","note":"um ano além do ±2 do extremo morre"}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "version": "corpus-matching-latin-ranges/1",
+  "note": "Caso único: a varredura exaustiva de code points da classe de LATIN_LETTER_RE. A entrada é ignorada; o oracle devolve todos os intervalos.",
+  "cases": [
+    { "id": "lr-001", "input": "latin-ranges", "note": "varredura completa 0..10FFFF sem surrogates" }
+  ]
+}

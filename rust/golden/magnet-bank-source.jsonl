@@ -1,0 +1,12 @@
+{"id":"pick/sem-fontes","input":"{\"op\":\"pickSource\",\"sources\":[],\"failed\":[\"bludv\"],\"allFailed\":false}","expected":"null"}
+{"id":"pick/failed-vazio-sem-allfailed","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"bludv\",\"lastSeen\":100}],\"failed\":[],\"allFailed\":false}","expected":"null"}
+{"id":"pick/uma-casa","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"nerd\",\"lastSeen\":50},{\"indexer\":\"bludv\",\"lastSeen\":100}],\"failed\":[\"bludv\"],\"allFailed\":false}","expected":"1"}
+{"id":"pick/duas-casas-maior-lastseen","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"bludv\",\"lastSeen\":100},{\"indexer\":\"nerd\",\"lastSeen\":300}],\"failed\":[\"bludv\",\"nerd\"],\"allFailed\":false}","expected":"1"}
+{"id":"pick/empate-fica-a-primeira","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"bludv\",\"lastSeen\":100},{\"indexer\":\"nerd\",\"lastSeen\":100}],\"failed\":[\"bludv\",\"nerd\"],\"allFailed\":false}","expected":"0"}
+{"id":"pick/allfailed-ignora-o-conjunto","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"bludv\",\"lastSeen\":100},{\"indexer\":\"vaca\",\"lastSeen\":900}],\"failed\":[\"bludv\"],\"allFailed\":true}","expected":"1"}
+{"id":"pick/allfailed-sem-fontes","input":"{\"op\":\"pickSource\",\"sources\":[],\"failed\":[],\"allFailed\":true}","expected":"null"}
+{"id":"pick/normaliza-caixa-e-espaco","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"  BLUDV \",\"lastSeen\":100}],\"failed\":[\"bludv\"],\"allFailed\":false}","expected":"0"}
+{"id":"pick/indexer-vazio-casa-com-failed-vazio","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"\",\"lastSeen\":100}],\"failed\":[\"\"],\"allFailed\":false}","expected":"0"}
+{"id":"pick/tres-failed-ultima-ganha","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"a\",\"lastSeen\":10},{\"indexer\":\"b\",\"lastSeen\":20},{\"indexer\":\"c\",\"lastSeen\":30}],\"failed\":[\"a\",\"b\",\"c\"],\"allFailed\":false}","expected":"2"}
+{"id":"pick/todos-iguais-fica-a-primeira","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"a\",\"lastSeen\":5},{\"indexer\":\"b\",\"lastSeen\":5},{\"indexer\":\"c\",\"lastSeen\":5}],\"failed\":[\"a\",\"b\",\"c\"],\"allFailed\":false}","expected":"0"}
+{"id":"pick/failed-com-caixa-casa-fonte-minuscula","input":"{\"op\":\"pickSource\",\"sources\":[{\"indexer\":\"vaca\",\"lastSeen\":10},{\"indexer\":\"nerd\",\"lastSeen\":20}],\"failed\":[\"NERD\"],\"allFailed\":false}","expected":"null"}

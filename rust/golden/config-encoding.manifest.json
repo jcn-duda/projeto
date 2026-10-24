@@ -1,0 +1,89 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "config-encoding/encode",
+    "config-encoding/normalize",
+    "config-encoding/decode",
+    "config-encoding/sealSegment",
+    "config-encoding/seal",
+    "config-encoding/open",
+    "config-encoding/isSealed"
+  ],
+  "functions": [
+    {
+      "id": "config-encoding/encode",
+      "name": "encode",
+      "sourcePath": "src/runtime.ts",
+      "sourceSha256": "d44929c50dff1ac8d77e0dc8fae5ba3ca5181f60552501a6955e70b8d2907f22",
+      "artifactPath": "dist/src/runtime.js",
+      "artifactSha256": "48858853a24b28abdadd2ccd5d3b47a1a55f8a4770e7f78abdfc8bb909458ba3"
+    },
+    {
+      "id": "config-encoding/normalize",
+      "name": "normalize",
+      "sourcePath": "src/runtime.ts",
+      "sourceSha256": "d44929c50dff1ac8d77e0dc8fae5ba3ca5181f60552501a6955e70b8d2907f22",
+      "artifactPath": "dist/src/runtime.js",
+      "artifactSha256": "48858853a24b28abdadd2ccd5d3b47a1a55f8a4770e7f78abdfc8bb909458ba3"
+    },
+    {
+      "id": "config-encoding/decode",
+      "name": "decode",
+      "sourcePath": "src/runtime.ts",
+      "sourceSha256": "d44929c50dff1ac8d77e0dc8fae5ba3ca5181f60552501a6955e70b8d2907f22",
+      "artifactPath": "dist/src/runtime.js",
+      "artifactSha256": "48858853a24b28abdadd2ccd5d3b47a1a55f8a4770e7f78abdfc8bb909458ba3"
+    },
+    {
+      "id": "config-encoding/sealSegment",
+      "name": "sealSegment",
+      "sourcePath": "src/runtime.ts",
+      "sourceSha256": "d44929c50dff1ac8d77e0dc8fae5ba3ca5181f60552501a6955e70b8d2907f22",
+      "artifactPath": "dist/src/runtime.js",
+      "artifactSha256": "48858853a24b28abdadd2ccd5d3b47a1a55f8a4770e7f78abdfc8bb909458ba3"
+    },
+    {
+      "id": "config-encoding/seal",
+      "name": "seal",
+      "sourcePath": "src/utils/secret-box.ts",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
+      "artifactPath": "dist/src/utils/secret-box.js",
+      "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
+    },
+    {
+      "id": "config-encoding/open",
+      "name": "open",
+      "sourcePath": "src/utils/secret-box.ts",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
+      "artifactPath": "dist/src/utils/secret-box.js",
+      "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
+    },
+    {
+      "id": "config-encoding/isSealed",
+      "name": "isSealed",
+      "sourcePath": "src/utils/secret-box.ts",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
+      "artifactPath": "dist/src/utils/secret-box.js",
+      "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-config-encoding.json",
+    "sha256": "7ba01ea0072062e574eb32b91c723fcf8e64ff5841b78e5d182a2df20a31b598",
+    "cases": 48
+  },
+  "output": {
+    "path": "rust/golden/config-encoding.jsonl",
+    "sha256": "65901721a8fa983fe430b0f8b6a2d2062cc50a46e31dcf5f65e3ad0a208b4533",
+    "lines": 48
+  },
+  "notes": "seal/sealSegment gravam blob com nonce fixo (as primitivas do secret-box); os blobs de entrada de open são selos reais do Node com IV aleatório.",
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "b414a519b17f11fe83429251168b0fe4a227ed6d"
+  }
+}

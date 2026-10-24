@@ -1,0 +1,20 @@
+{"id":"bt-001","input":"{\"bytes\":1}","expected":"1 B"}
+{"id":"bt-002","input":"{\"bytes\":512}","expected":"512 B"}
+{"id":"bt-003","input":"{\"bytes\":1023}","expected":"1023 B"}
+{"id":"bt-004","input":"{\"bytes\":1024}","expected":"1.00 KB"}
+{"id":"bt-005","input":"{\"bytes\":1536}","expected":"1.50 KB"}
+{"id":"bt-006","input":"{\"bytes\":1048576}","expected":"1.00 MB"}
+{"id":"bt-007","input":"{\"bytes\":1073741824}","expected":"1.00 GB"}
+{"id":"bt-008","input":"{\"bytes\":1099511627776}","expected":"1.00 TB"}
+{"id":"bt-009","input":"{\"bytes\":1125899906842624}","expected":"1024.00 TB"}
+{"id":"bt-010","input":"{\"bytes\":0}","expected":"null"}
+{"id":"bt-011","input":"{\"bytes\":-1}","expected":"null"}
+{"id":"bt-012","input":"{\"bytes\":1500}","expected":"1.46 KB"}
+{"id":"bt-013","input":"{\"bytes\":2.5}","expected":"3 B"}
+{"id":"bt-014","input":"{\"bytes\":0.5}","expected":"1 B"}
+{"id":"bt-015","input":"{\"bytes\":1029.12}","expected":"1.00 KB"}
+{"id":"bt-016","input":"{\"bytes\":1023.5}","expected":"1024 B"}
+{"id":"bt-017","input":"{\"bytes\":1073741823}","expected":"1024.00 MB"}
+{"id":"bt-018","input":"{\"bytes\":0.4}","expected":"0 B"}
+{"id":"bt-019","input":"{\"bytes\":1.005}","expected":"1 B"}
+{"id":"bt-020","input":"{\"bytes\":1.099511627776e+33}","expected":"1e+21 TB"}

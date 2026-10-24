@@ -1,0 +1,40 @@
+{
+  "metas": [
+    {
+      "_id": "68f000000000000000000006",
+      "id": "tt1745960",
+      "type": "movie",
+      "name": "Top Gun: Maverick",
+      "genres": ["Action", "Drama"],
+      "releaseInfo": "2022",
+      "imdbRating": 8.2,
+      "runtime": "130 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000003",
+      "id": "tt0133093",
+      "type": "movie",
+      "name": "The Matrix",
+      "genres": ["Action", "Sci-Fi"],
+      "releaseInfo": "1999",
+      "imdbRating": 8.7,
+      "runtime": "136 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000007",
+      "id": "tt1375666",
+      "type": "movie",
+      "name": "Inception",
+      "genres": ["Action", "Adventure", "Sci-Fi"],
+      "releaseInfo": "2010",
+      "imdbRating": 8.8,
+      "runtime": "148 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    }
+  ]
+}

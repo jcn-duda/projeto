@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "catalog-classify/catalogClassify"
+  ],
+  "function": {
+    "name": "catalogClassify",
+    "sourcePath": "src/utils/catalog-classify.ts",
+    "sourceSha256": "d1b85d9dcc4388afdbbfe3ff57fe4c580369943cd1baa049b06d657812cd4fac",
+    "artifactPath": "dist/src/utils/catalog-classify.js",
+    "artifactSha256": "62f5e57e83f1b36fb3595ad4da00cf2ada1aa82b398129841823f4247ac79a6c"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-catalog-classify.json",
+    "sha256": "529b3661bcad05f4ee9dc3dcf8d2c416c6083e86260468e7775674e56ee81bc4",
+    "cases": 50
+  },
+  "output": {
+    "path": "rust/golden/catalog-classify.jsonl",
+    "sha256": "8a4f1ab1213583e763c8032dbafc6a62627dc684eddaa8e40f042483b89d9b8c",
+    "lines": 50
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "790bfacffa5f14461a10d09cc16e2fa4e324b677"
+  }
+}

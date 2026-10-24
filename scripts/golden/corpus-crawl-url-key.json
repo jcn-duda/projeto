@@ -1,0 +1,30 @@
+{
+  "version": "corpus-crawl-url-key/1",
+  "note": "Casos de crawlUrlKey: a chave é o caminho, sem host, query ou fragmento. Saída: a string crua do Node.",
+  "cases": [
+    {"id":"cu-001","input":"{\"raw\":\"\"}","note":"vazio"},
+    {"id":"cu-002","input":"{\"raw\":\"   \"}","note":"só espaço é entrada vazia"},
+    {"id":"cu-003","input":"{\"raw\":\"/\"}","note":"raiz permanece /"},
+    {"id":"cu-004","input":"{\"raw\":\"/filme/foo/\"}","note":"caminho com barra final"},
+    {"id":"cu-005","input":"{\"raw\":\"https://x.com/a/b?utm_source=wp&nocache=1#anexo\"}","note":"query e fragmento ignorados"},
+    {"id":"cu-006","input":"{\"raw\":\"https://host/filme/foo/\"}","note":"https absoluta com barra final"},
+    {"id":"cu-007","input":"{\"raw\":\"https://xnerdfilmes.net/filme/tard-season-1-dublado/\"}","note":"host antigo, mesmo caminho"},
+    {"id":"cu-008","input":"{\"raw\":\"https://www.filmesviatorrenthd.net/filme/tard-season-1-dublado/\"}","note":"host novo, mesmo caminho e mesma chave"},
+    {"id":"cu-009","input":"{\"raw\":\"https://x.com/a//b\"}","note":"// colapsado"},
+    {"id":"cu-010","input":"{\"raw\":\"::::\"}","note":"URL malformada não vira chave vazia"},
+    {"id":"cu-011","input":"{\"raw\":\"a/b\"}","note":"caminho relativo sem esquema"},
+    {"id":"cu-012","input":"{\"raw\":\"https://x.com\"}","note":"scheme://host sem path vira /"},
+    {"id":"cu-013","input":"{\"raw\":\"foo://host\"}","note":"scheme://host sem path, esquema não especial, vira /"},
+    {"id":"cu-014","input":"{\"raw\":\"?x=1\"}","note":"só query não pode virar chave vazia"},
+    {"id":"cu-015","input":"{\"raw\":\"https://x.com/a%2Fb\"}","note":"percent-encoding de barra permanece"},
+    {"id":"cu-016","input":"{\"raw\":\"https://x.com/a/b/../c\"}","note":"segmento .. resolvido pelo parser"},
+    {"id":"cu-017","input":"{\"raw\":\"https://x.com//\"}","note":"barras colapsadas na raiz"},
+    {"id":"cu-018","input":"{\"raw\":\"  /a  \"}","note":"espaço em volta é aparado"},
+    {"id":"cu-019","input":"{\"raw\":\"/a//b/\"}","note":"relativo com // e barra final"},
+    {"id":"cu-020","input":"{\"raw\":\"https://x.com/a b\"}","note":"espaço no caminho vira %20"},
+    {"id":"cu-021","input":"{\"raw\":\"https://x.com/filme/10\"}","note":"caminho diferente continua página diferente"},
+    {"id":"cu-022","input":"{\"raw\":\"http://\"}","note":"scheme:// sem host vira /"},
+    {"id":"cu-023","input":"{\"raw\":\"https://user:pass@host:8080/pt/filmes/x/\"}","note":"userinfo e porta não entram na chave"},
+    {"id":"cu-024","input":"{\"raw\":\"https://x.com/café/\"}","note":"caminho unicode percent-encoded"}
+  ]
+}

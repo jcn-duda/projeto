@@ -1,0 +1,65 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "stream-trace/create",
+    "stream-trace/clone",
+    "stream-trace/stage",
+    "stream-trace/setStage",
+    "stream-trace/drop",
+    "stream-trace/finalize",
+    "stream-trace/setChupim",
+    "stream-trace/sanitizeLabel",
+    "stream-trace/serialize"
+  ],
+  "function": {
+    "name": "streamTraceStateful",
+    "sourcePath": "src/utils/stream-trace.ts",
+    "sourceSha256": "efc3fc309dfc3e45054fc366f9e9d76e19776a1ce05cb239fbb7d475063cf75c",
+    "artifactPath": "staging:src/utils/stream-trace.js",
+    "artifactSha256": "bb89b00387d33a9355c016667de7c75a59e6871499ba8ba7751d07339a8d16b3"
+  },
+  "isolation": {
+    "dotenv": "empty (DOTENV_CONFIG_PATH)",
+    "cachePersist": "false",
+    "rustCore": "off",
+    "cwd": "temp staging",
+    "hostEnvAllow": [
+      "PATH",
+      "SystemRoot",
+      "windir",
+      "TEMP",
+      "TMP",
+      "ComSpec",
+      "PATHEXT",
+      "NUMBER_OF_PROCESSORS",
+      "OS"
+    ],
+    "envVariants": [
+      "true",
+      "false",
+      "0"
+    ],
+    "graphBareAllow": [
+      "dotenv"
+    ],
+    "network": "fetch armado para explodir no child"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-stream-trace.json",
+    "sha256": "9fb734e661970dc6442b684479d32ee5f667fd50c708d87877c0cf208cdc35b1",
+    "cases": 138
+  },
+  "output": {
+    "path": "rust/golden/stream-trace.jsonl",
+    "sha256": "7450a6c9b93426293aa2eed4a1aafc62cd6026bee698d0da970f9d25e4d5df9d",
+    "lines": 138
+  },
+  "notes": "Relógio fake (Date.now) por caso; kill-switch observável em create/drop (ignoram) vs setChupim/serialize (gated). Redação <hash>/<magnet> e corte UTF-16 nas bordas 59/159. repeat é expandido só pelo driver.",
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "b133bd13a3fafe06f59c5169310a723761511d51"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "magnet-bank-instant/instantWindow"
+  ],
+  "function": {
+    "name": "instantWindow",
+    "sourcePath": "src/providers/magnet-bank-instant.ts",
+    "sourceSha256": "e9ae2053f0d907c8c1dcb7bf3fe41bede1e291aa148aa51dbf6bf491e3e634b3",
+    "artifactPath": "dist/src/providers/magnet-bank-instant.js",
+    "artifactSha256": "93c3b4b899426ddfe3875ccd1345abf195965b201e04c1541770f0cc85bb8c72"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-magnet-bank-instant.json",
+    "sha256": "4ef49b5f3c0e69e7aee3996a594e82f0a84a488f40f2d310c3fa8c84cea3630f",
+    "cases": 27
+  },
+  "output": {
+    "path": "rust/golden/magnet-bank-instant.jsonl",
+    "sha256": "20bdc329aacba3b27eb27673817956b378931828ad787cf061320fa32c1fdd6e",
+    "lines": 27
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}

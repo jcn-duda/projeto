@@ -1,0 +1,35 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "stream-relabel/relabel"
+  ],
+  "functions": [
+    {
+      "id": "stream-relabel/relabel",
+      "name": "relabel",
+      "signature": "relabel(stream: any, { isBr?: boolean; dubbedFrom?: any }): string",
+      "sourcePath": "src/utils/stream-relabel.ts",
+      "sourceSha256": "a4a54520c134bf94822f64b86af8babfdca94f803479014b150408d61912527d",
+      "artifactPath": "dist/src/utils/stream-relabel.js",
+      "artifactSha256": "c1686142b31ab5a97d04134aae081d5efcc2c4710a195d3d92c543ecd75513d9"
+    }
+  ],
+  "sourceHashLineEndings": "LF",
+  "corpus": {
+    "path": "scripts/golden/corpus-stream-relabel.json",
+    "sha256": "ee9dbc7d4866578e32391467ae14ad7d5cc7028563aa49e263e4445d050b6dab",
+    "cases": 129
+  },
+  "output": {
+    "path": "rust/golden/stream-relabel.jsonl",
+    "sha256": "dbe0c8faf3b4f4153058d1ad5c47a319a68eeb0a1939086da8d5940c2d7fb5e0",
+    "lines": 129
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "b133bd13a3fafe06f59c5169310a723761511d51"
+  }
+}

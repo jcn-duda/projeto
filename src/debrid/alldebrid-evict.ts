@@ -151,7 +151,7 @@ async function runEvict(apiKey: string, account: string, consultados: string[]):
   let marcados = 0;
   for (const rid of removedIds || []) {
     const m = porId.get(String(rid));
-    if (m && markReuploadBlocked(account, m.hash, m.filename)) marcados += 1;
+    if (m && markReuploadBlocked(account, m.hash, m.filename, apiKey)) marcados += 1;
   }
 
   log.info(

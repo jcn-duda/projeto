@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "franchise/guards"
+  ],
+  "function": {
+    "name": "franchiseGuards",
+    "sourcePath": "src/utils/franchise-base.ts",
+    "sourceSha256": "32d013b96cec1517848a60fac63d1e5dc683a0149876c4fc2817c5a9ace361fd",
+    "artifactPath": "dist/src/utils/franchise-base.js",
+    "artifactSha256": "635039fec99f63985fbcec3a711b1bf188b1f4c25a9f4dacf74aa30b4c89cdf3"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-franchise.json",
+    "sha256": "e182feb1da3b0759c1d6626bf934e8960437c80ab31c1253dc3aff3788567f9f",
+    "cases": 415
+  },
+  "output": {
+    "path": "rust/golden/franchise.jsonl",
+    "sha256": "a1305b94894b4e3459d509b313191fb48946ad6fd8accd13076fd65bba1c19a5",
+    "lines": 415
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "cb4d28d17d406e2cfc5c6e004571eaa09126bad7"
+  }
+}

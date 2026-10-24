@@ -27,20 +27,21 @@ const PT_STOP_TWO = (t: string) => (t.match(/\b(das?|de|dos?|n[ao]s?|umas?|para|
 // que carimbava dezenas de releases da conta como sinal PT (medido: 122 linhas
 // casando `www.UIndex.org -`, nenhuma delas BR). A marca do site BR já casa
 // pelo token próprio (`www.nerdfilmes.org -` continua coberto por `nerdfilmes`).
-// DEFEITO CONHECIDO, ainda NÃO corrigido de propósito: `bthd` não tem fronteira
-// e casa DENTRO de outras palavras — `www.HDBTHD.com` (tracker chinês) vira
-// "sinal PT". É a mesma forma do bug do `www.UIndex.org` descrito acima, e foi
-// o único falso positivo entre os 42 duals que o `looksPtBr` passou a
-// reconhecer (medido na conta do operador, 853 magnets).
 //
-// Por que não está consertado aqui: apertar este predicado tira proteção de
-// itens hoje protegidos da limpeza (`audioBucket` devolveria `lixo` em vez de
-// `pt`), ou seja, anda na direção DESTRUTIVA — exatamente o que a Fase 8 exige
-// medir e autorizar antes, não corrigir de passagem. O custo de deixar como
-// está é uma vaga BR ocupada por engano na lista; o custo de errar o conserto
-// é acervo apagado. Ao consertar: exigir fronteira (`(?:^|[^a-z0-9])bthd`) e
-// medir quantos itens saem do balde `pt` ANTES de qualquer `--apply`.
-const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd)/i;
+// `bthd` tem FRONTEIRA dos dois lados (`(?:^|[^a-z0-9])bthd(?:$|[^a-z0-9])`):
+// sem ela casava DENTRO de `www.HDBTHD.com` (tracker chinês) — o único falso
+// positivo entre os 42 duals que o `looksPtBr` passou a reconhecer (medido na
+// conta do operador, 853 magnets). A correção anda na direção DESTRUTIVA (tira
+// proteção do balde `pt`), então foi medida pelo corpus antes de entrar: o
+// custo medido foi EXATAMENTE 1 item no perfil HDBTHD (corpus
+// test/fixtures/br-corpus.json), nenhum caso legítimo de BTHD delimitado saiu.
+// Qualquer aperto NOVO nesta lista segue o mesmo ritual: corpus verde antes,
+// medição do que sai do balde `pt` depois, `--apply` só com autorização.
+// Tokens restantes a auditar pelo mesmo critério (com risco de substring):
+// `hdtorrent` (casaria dentro de "hdtorrents") e `torrentbr` — SEM evidência
+// de falso positivo real medido na conta, NÃO aperte: falso negativo aqui
+// destrói acervo BR.
+const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|(?:^|[^a-z0-9])bthd(?:$|[^a-z0-9]))/i;
 
 /** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */
 function hasPtSigns(title = ''): boolean {
@@ -63,8 +64,11 @@ function hasPtSigns(title = ''): boolean {
 // MAIS thepiratefilmes. A marca nova fica FORA do BR_MARK de propósito:
 // hasPtSigns alimenta a rede de segurança do ranking (stream-ranking) e
 // crescer lá muda o que o autofetch prioriza — a blindagem da limpeza não
-// pode recalibrar a busca de carona.
-const BR_SITE_MARKS = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|bthd|thepiratefilmes|piratefilmes)/i;
+// pode recalibrar a busca de carona. O `bthd` carrega a MESMA fronteira do
+// BR_MARK: mexer numa lista e não na outra deixaria busca e limpeza divergindo
+// sobre o mesmo título (a busca perde a vaga e a limpeza continua protegendo —
+// ou vice-versa).
+const BR_SITE_MARKS = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|andretpf|lapumia|megatorrents|hdtorrent|torrentbr|(?:^|[^a-z0-9])bthd(?:$|[^a-z0-9])|thepiratefilmes|piratefilmes)/i;
 
 /**
  * Origem BR pelo nome, para NÃO apagar: marca de site BR, a palavra

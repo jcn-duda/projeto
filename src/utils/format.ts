@@ -19,16 +19,21 @@ export {
 
 export {
   matchesName,
+  nameCoverageTokens,
+  matchesShortNameIdentity,
+  shortNameIdentity,
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
+  endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,
   filterRelevantRaw,
   magnetYearContradicts,
+  magnetSeasonContradicts,
 } from './release-matching.js';
 
 export {
@@ -48,6 +53,7 @@ export {
 
 export {
   QUALITY_KEYS,
+  streamQuality,
   selectQualityCandidates,
   limitByIndexer,
   limitByQuality,
@@ -62,6 +68,7 @@ export {
   passesQualityFilter,
   toStremioStream,
   resolveSearchNames,
+  resolveOriginalStepName,
   parseStremioId,
   buildSearchQuery,
   numeralSearchVariant,
@@ -72,10 +79,15 @@ export {
   sortAndLimit,
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
+  pickBrDubbedByTargetQualities,
+  cachedBrDubbedTargetQualities,
+  isAutofetchTargetQuality,
+  AUTOFETCH_TARGET_QUALITIES,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
   topSeededPool,
   hasCachedBrDubbed,
+  hasCachedAnyDubbed,
   canAutoFetchBr,
   uncachedBrHashes,
   filterKnownCache,

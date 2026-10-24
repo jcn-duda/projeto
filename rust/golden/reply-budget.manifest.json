@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "reply-budget/remainingCheckBudget"
+  ],
+  "function": {
+    "name": "remainingCheckBudget",
+    "sourcePath": "src/utils/deadline.ts",
+    "sourceSha256": "f216cd4c870dfc64a296ea49490f4643368a890bd97004bd5f638287270e08de",
+    "artifactPath": "dist/src/utils/deadline.js",
+    "artifactSha256": "994e5f87662f5b8a16fbfa302a2924b46a98999d59ba79e17d38cad82d05469d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-reply-budget.json",
+    "sha256": "44fe02ea9729ed2f3ef50351e57f0aed36c420fcd6a6e23834769f580b9aea39",
+    "cases": 14
+  },
+  "output": {
+    "path": "rust/golden/reply-budget.jsonl",
+    "sha256": "ab4ccdefa3560c1d654b594f9bae5f58df16afee9d477a2cf7cc3c8322b9949e",
+    "lines": 14
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "5bad2df84bd169a83b9600bc0007a6c39029288d"
+  }
+}

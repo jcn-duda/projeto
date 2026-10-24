@@ -1,13 +1,13 @@
 # TEAM — Adom Power-Movie
 
-Time **default** de 12 subagentes para auditoria e trabalho neste repositório.
+Time **default** de 13 subagentes para auditoria e trabalho neste repositório.
 Fonte de verdade (máquina): `team/adom-team.json` — é ele que eu releio para
 gerar o orquestrador (`workflow`) quando você pede o time. Este arquivo é a
 leitura humana (roster + papéis + peculiaridades).
 
 ## Como está "default"
 
-- O manifesto `team/adom-team.json` (rastreável, não ignorado) define os 12.
+- O manifesto `team/adom-team.json` (rastreável, não ignorado) define os 13.
 - Ao pedir "roda o time / auditoria", o orquestrador é **regenerado a partir dele**
   (os agentes são efêmeros por design — o `workflow` os cria, roda e descarta;
   o que persiste é o **manifesto**, não as execuções).
@@ -29,6 +29,7 @@ leitura humana (roster + papéis + peculiaridades).
 | 10 | Sentinela | Auditor de Segurança | SSRF de hostname, token só no header, HMAC do `/resolve`, ordem das rotas. |
 | 11 | O Juiz | Mestre do Teste | Portão do `npm test`; tipe o que a função **produz**; caça falso-verde. |
 | 12 | O Vigia | Sentinela de Implantação | Container único, loopback, healthcheck triplo, `ServerConfig.json` no volume. |
+| 13 | O Julgador | Julgador do System One | Probabilidades e calibração: zero texto livre, zero alucinação, micro-decisões tipadas (`noul`/`choice`/`score`). |
 
 ## Guardrails transversais (todos os agentes)
 
@@ -48,4 +49,4 @@ composição, se quiser que sessões futuras carreguem com `skill`).
 ## Como invocar
 
 "Roda a auditoria com o time default" → eu leio `team/adom-team.json` e gero o
-`workflow` com os 12 em paralelo, cada um no seu recorte, e consolido riscos por área.
+`workflow` com os 13 em paralelo, cada um no seu recorte, e consolido riscos por área.

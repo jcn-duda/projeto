@@ -1,0 +1,72 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "resolve-sign/signResolve",
+    "resolve-sign/verifyResolve"
+  ],
+  "functions": [
+    {
+      "id": "resolve-sign/signResolve",
+      "name": "signResolve",
+      "sourcePath": "src/utils/sign.ts",
+      "sourceSha256": "3b92baafabdbab55e08391a9254dd4b1286c1a82ded12e4bf05b85e9eae110fb",
+      "artifactPath": "dist/src/utils/sign.js",
+      "artifactSha256": "a1bd779c926e36e37c9f2773631285a25dcc188791445ad1f7a1aed60b71d8ea"
+    },
+    {
+      "id": "resolve-sign/verifyResolve",
+      "name": "verifyResolve",
+      "sourcePath": "src/utils/sign.ts",
+      "sourceSha256": "3b92baafabdbab55e08391a9254dd4b1286c1a82ded12e4bf05b85e9eae110fb",
+      "artifactPath": "dist/src/utils/sign.js",
+      "artifactSha256": "a1bd779c926e36e37c9f2773631285a25dcc188791445ad1f7a1aed60b71d8ea"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-resolve-sign.json",
+    "sha256": "2543de8a7a8094323659863693d9980c77dcb0d873e450c936a21f33a355dc45",
+    "cases": 24
+  },
+  "output": {
+    "path": "rust/golden/resolve-sign.jsonl",
+    "sha256": "515a22a1271fce60dd730bfe2e981d4b7ed576ec88e10b7751a7dbf2afd06932",
+    "lines": 24
+  },
+  "keys": [
+    {
+      "id": "primary",
+      "keySource": "resolveSecret",
+      "kind": "fictitious-test-key",
+      "source": "config.debrid.resolveSecret",
+      "env": "RESOLVE_SECRET",
+      "sha256": "8aa96dd789ee6dbd3174c5ced80d42d7663ad21ffd073dfae1a0d0b53529ec98",
+      "value": "adom-golden-resolve-sign-FAKE-primary-v1-NOT-A-REAL-SECRET"
+    },
+    {
+      "id": "fallback",
+      "keySource": "opts.debridApiKey",
+      "kind": "fictitious-test-key",
+      "source": "opts().debridApiKey (config.debrid.apiKey via defaults(); DEBRID_ALLOW_ENV_KEY=true de fábrica)",
+      "env": "DEBRID_API_KEY",
+      "sha256": "9407912d8e71bd65ea5f84b8f82b5ea059e4bacc9f008fb674e0692cf30c44a3",
+      "value": "adom-golden-resolve-sign-FAKE-fallback-v1-NOT-A-REAL-SECRET"
+    },
+    {
+      "id": "nokey",
+      "keySource": "none",
+      "kind": "empty",
+      "source": "none (sem RESOLVE_SECRET e sem DEBRID_API_KEY)",
+      "env": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "value": ""
+    }
+  ],
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "022ae03d8edcaff65d3b659760672e0d02d50012"
+  }
+}

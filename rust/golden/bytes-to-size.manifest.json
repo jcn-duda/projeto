@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "bytes-to-size/bytesToSize"
+  ],
+  "function": {
+    "name": "bytesToSize",
+    "sourcePath": "src/utils/title-normalization.ts",
+    "sourceSha256": "6801c5a7d813aa0164883080e4f7c1cf2b91d5a501ce6f2c60a7e01d53d414b9",
+    "artifactPath": "dist/src/utils/title-normalization.js",
+    "artifactSha256": "814411ed4bfe4be7f8cffc95c40ec3051cc043fa9bb8649b5b279298687a7c7d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-bytes-to-size.json",
+    "sha256": "713dded4a41e59d6e9cf6f6612f5e5b3f149701221cabefc77d7b2e94429ade1",
+    "cases": 20
+  },
+  "output": {
+    "path": "rust/golden/bytes-to-size.jsonl",
+    "sha256": "ffe661c6796f610dc391e07e527691699715509c01225724dbd0c3014bb5e019",
+    "lines": 20
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "228181133ed005a17d79cacc7483c023931d5c2f"
+  }
+}

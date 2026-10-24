@@ -1,0 +1,486 @@
+{
+  "version": "corpus-br-pool-selection/1",
+  "note": "Seleção de pool do autofetch BR: brDubbedPool/anyDubbedPool/topSeededPool (src/utils/autofetch-pools.ts) e pickBrDubbedByTargetQualities (src/utils/autofetch-picks.ts), medidos no dist vivo pelo oráculo isolado. Saída por caso: {\"ids\":[...],\"stable\":true}. Cobre ordenação/estabilidade, baldes por qualidade, pack vs avulso, candidatos vazios/ausentes e ausência de fallback fraco.",
+  "cases": [
+    {
+      "id": "target-001",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":1}",
+      "note": "limit 1"
+    },
+    {
+      "id": "target-002",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":2}",
+      "note": "limit 2"
+    },
+    {
+      "id": "target-003",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "limit 3"
+    },
+    {
+      "id": "target-004",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":4}",
+      "note": "limit 4"
+    },
+    {
+      "id": "target-005",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":5}",
+      "note": "limit 5"
+    },
+    {
+      "id": "target-006",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":6}",
+      "note": "limit 6"
+    },
+    {
+      "id": "target-007",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":7,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":6,\"br\":true,\"dubbed\":true},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"f\",\"infoHash\":\"hash-f\",\"quality\":\"720p\",\"seeders\":4,\"br\":true,\"dubbed\":true},{\"id\":\"g\",\"infoHash\":\"hash-g\",\"quality\":\"2160p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"h\",\"infoHash\":\"hash-h\",\"quality\":\"2160p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"i\",\"infoHash\":\"hash-i\",\"quality\":\"2160p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":7}",
+      "note": "limit 7"
+    },
+    {
+      "id": "target-008",
+      "input": "{\"op\":\"target\",\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "target-009",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}],\"limit\":0}",
+      "note": "limit 0"
+    },
+    {
+      "id": "target-010",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme Dublado\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Outro Dublado\",\"seeders\":2,\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "sem faixa-alvo cai no pick clássico"
+    },
+    {
+      "id": "target-011",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "um por faixa"
+    },
+    {
+      "id": "target-012",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":8,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"720p\",\"seeders\":9,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":8,\"br\":true,\"dubbed\":true}],\"limit\":4}",
+      "note": "primários + alternates"
+    },
+    {
+      "id": "target-013",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}],\"limit\":3,\"cached\":[\"hash-a\"]}",
+      "note": "cached pula primário"
+    },
+    {
+      "id": "target-014",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"ABC\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"abc\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "dedupe de hash case-insensitive"
+    },
+    {
+      "id": "target-015",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "filtro BR aplica"
+    },
+    {
+      "id": "target-016",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubClaim\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"bankDub\":true}],\"limit\":3}",
+      "note": "claim e banco participam"
+    },
+    {
+      "id": "target-017",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}],\"limit\":2}",
+      "note": "limit 2 corta a 3ª faixa"
+    },
+    {
+      "id": "target-018",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}],\"limit\":1}",
+      "note": "limit 1 pega só 1080p"
+    },
+    {
+      "id": "target-019",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":2,\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "ordem do pool BR preservada"
+    },
+    {
+      "id": "target-020",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"ABC\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"abc\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}],\"limit\":5}",
+      "note": "estabilidade com hash duplicado"
+    },
+    {
+      "id": "br-021",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 1080p vence 720p"
+    },
+    {
+      "id": "br-022",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"2160p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 1080p vence 2160p"
+    },
+    {
+      "id": "br-023",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"sem resolução\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 1080p vence sem resolução"
+    },
+    {
+      "id": "br-024",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"480p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 1080p vence 480p"
+    },
+    {
+      "id": "br-025",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"SD\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 1080p vence SD"
+    },
+    {
+      "id": "br-026",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"2160p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 720p vence 2160p"
+    },
+    {
+      "id": "br-027",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"sem resolução\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 720p vence sem resolução"
+    },
+    {
+      "id": "br-028",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"480p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 720p vence 480p"
+    },
+    {
+      "id": "br-029",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"SD\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 720p vence SD"
+    },
+    {
+      "id": "br-030",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"sem resolução\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"2160p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 2160p vence sem resolução"
+    },
+    {
+      "id": "br-031",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"480p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"2160p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 2160p vence 480p"
+    },
+    {
+      "id": "br-032",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"SD\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"2160p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 2160p vence SD"
+    },
+    {
+      "id": "br-033",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"480p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"sem resolução\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade sem resolução vence 480p"
+    },
+    {
+      "id": "br-034",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"SD\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"sem resolução\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade sem resolução vence SD"
+    },
+    {
+      "id": "br-035",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"SD\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"480p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade 480p vence SD"
+    },
+    {
+      "id": "br-036",
+      "input": "{\"op\":\"br\",\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "br-037",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":10,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":50,\"br\":true,\"dubbed\":true}]}",
+      "note": "seeders desempatam mesma faixa"
+    },
+    {
+      "id": "br-038",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":999,\"br\":true,\"dubbed\":true}]}",
+      "note": "resolução vence seeders"
+    },
+    {
+      "id": "br-039",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":99,\"br\":true,\"dubClaim\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubbed\":true}]}",
+      "note": "prova de arquivo vence promessa"
+    },
+    {
+      "id": "br-040",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubClaim\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"bankDub\":true}]}",
+      "note": "claim vs banco empatados (estável)"
+    },
+    {
+      "id": "br-041",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"bankDub\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"dubClaim\":true}]}",
+      "note": "banco vs claim (estável)"
+    },
+    {
+      "id": "br-042",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "um só"
+    },
+    {
+      "id": "br-043",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "não-BR cortado"
+    },
+    {
+      "id": "br-044",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true}]}",
+      "note": "sem marca de dublado"
+    },
+    {
+      "id": "br-045",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"lied\":true}]}",
+      "note": "lied cortado"
+    },
+    {
+      "id": "br-046",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie CAM 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "CAM cortado"
+    },
+    {
+      "id": "br-047",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"fromFallback\":true}]}",
+      "note": "fallback não aprovado cortado"
+    },
+    {
+      "id": "br-048",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"fromFallback\":true,\"fallbackFetchable\":true}]}",
+      "note": "fallback aprovado entra"
+    },
+    {
+      "id": "br-049",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":null,\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "infoHash null cortado"
+    },
+    {
+      "id": "br-050",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "infoHash vazio cortado"
+    },
+    {
+      "id": "br-051",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "ausente + presente"
+    },
+    {
+      "id": "br-052",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme 1080p Dublado\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "qualidade pelo título"
+    },
+    {
+      "id": "br-053",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme 4K Dublado\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "4K pelo título"
+    },
+    {
+      "id": "br-054",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme Dublado SD\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "SD pelo título"
+    },
+    {
+      "id": "br-055",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme Dublado\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "sem resolução pelo título"
+    },
+    {
+      "id": "br-056",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme 720p Dublado\",\"quality\":\"1080p\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "quality explícito vence título"
+    },
+    {
+      "id": "br-057",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"name\":\"Filme 1080p Dublado\",\"seeders\":3,\"br\":true,\"dubbed\":true}]}",
+      "note": "title ausente usa name"
+    },
+    {
+      "id": "br-058",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie S02E01 Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa Dublado 720p\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}],\"season\":2}",
+      "note": "pack vence avulso mesmo em 720p"
+    },
+    {
+      "id": "br-059",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie S02E01 Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa Dublado 720p\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}],\"season\":null}",
+      "note": "sem season não há bônus de pack"
+    },
+    {
+      "id": "br-060",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie 3ª Temporada Completa Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa Dublado 720p\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}],\"season\":2}",
+      "note": "pack de outra temporada não conta"
+    },
+    {
+      "id": "br-061",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie 2ª Temporada Completa Dublado 720p\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}],\"season\":2}",
+      "note": "dois packs: resolução decide"
+    },
+    {
+      "id": "br-062",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie S01E05 Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 1ª Temporada Completa Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}],\"season\":1}",
+      "note": "pack S1 vs avulso S1"
+    },
+    {
+      "id": "any-063",
+      "input": "{\"op\":\"any\",\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "any-064",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "dublado global aceito"
+    },
+    {
+      "id": "any-065",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubClaim\":true}]}",
+      "note": "claim sem prova rejeitado"
+    },
+    {
+      "id": "any-066",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"bankDub\":true}]}",
+      "note": "banco sem prova rejeitado"
+    },
+    {
+      "id": "any-067",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubbed\":true,\"lied\":true}]}",
+      "note": "lied ainda entra no any"
+    },
+    {
+      "id": "any-068",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie CAM 1080p\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "CAM cortado"
+    },
+    {
+      "id": "any-069",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"dubbed\":true,\"fromFallback\":true}]}",
+      "note": "fallback bloqueado cortado"
+    },
+    {
+      "id": "any-070",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":null,\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "hash ausente cortado"
+    },
+    {
+      "id": "any-071",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":1,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"720p\",\"seeders\":9,\"dubbed\":true}]}",
+      "note": "qualidade vence seeders"
+    },
+    {
+      "id": "any-072",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":9,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":2,\"dubbed\":true}]}",
+      "note": "seeders desempatam"
+    },
+    {
+      "id": "any-073",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie S02E01 1080p\",\"quality\":\"1080p\",\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa 720p\",\"quality\":\"720p\",\"dubbed\":true}],\"season\":2}",
+      "note": "pack vence no any"
+    },
+    {
+      "id": "top-074",
+      "input": "{\"op\":\"top\",\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "top-075",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie 1080p\",\"seeders\":1},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Movie2 1080p\",\"seeders\":20}]}",
+      "note": "sem minSeeders ordena por seeders"
+    },
+    {
+      "id": "top-076",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie 1080p\",\"seeders\":1},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Movie2 1080p\",\"seeders\":20}],\"minSeeders\":10}",
+      "note": "minSeeders corta o fraco"
+    },
+    {
+      "id": "top-077",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"name\":\"Movie 👤 42\"}]}",
+      "note": "seeders do name (👤)"
+    },
+    {
+      "id": "top-078",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"name\":\"Movie 👤 42\",\"seeders\":7}]}",
+      "note": "_seeders vence o name"
+    },
+    {
+      "id": "top-079",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"name\":\"Movie 👤 42\",\"seeders\":0}]}",
+      "note": "_seeders 0 não cai no name"
+    },
+    {
+      "id": "top-080",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie FRENCH 1080p\",\"seeders\":9}]}",
+      "note": "áudio estrangeiro cortado"
+    },
+    {
+      "id": "top-081",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie UKRAINIAN 1080p\",\"seeders\":9}]}",
+      "note": "áudio ucraniano cortado"
+    },
+    {
+      "id": "top-082",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme Dublado 720p\",\"seeders\":5},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Movie 1080p\",\"seeders\":50}]}",
+      "note": "ptFirst prefere o PT"
+    },
+    {
+      "id": "top-083",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Filme Dublado 720p\",\"seeders\":5},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Movie 1080p\",\"seeders\":50}],\"ptFirst\":false}",
+      "note": "ptFirst off: seeders mandam"
+    },
+    {
+      "id": "top-084",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie 720p\",\"seeders\":10},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Outro 1080p\",\"seeders\":10}]}",
+      "note": "empate de seeders: qualidade"
+    },
+    {
+      "id": "top-085",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie 1080p\",\"seeders\":9,\"fromFallback\":true}]}",
+      "note": "fallback bloqueado cortado"
+    },
+    {
+      "id": "top-086",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Movie CAM 1080p\",\"seeders\":9}]}",
+      "note": "CAM cortado"
+    },
+    {
+      "id": "top-087",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":null,\"title\":\"Movie 1080p\",\"seeders\":9}]}",
+      "note": "hash ausente cortado"
+    },
+    {
+      "id": "top-088",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"title\":\"Serie S02E01 1080p\",\"seeders\":3},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"title\":\"Serie 2ª Temporada Completa 720p\",\"seeders\":3}],\"season\":2}",
+      "note": "pack vence no top"
+    },
+    {
+      "id": "br-089",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "três empatados mantêm a ordem"
+    },
+    {
+      "id": "target-090",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubbed\":true}],\"limit\":9}",
+      "note": "alternates estáveis por faixa"
+    },
+    {
+      "id": "br-091",
+      "input": "{\"op\":\"br\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"name\":\"Release A 👤 99\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}]}",
+      "note": "br: seeders ausente não cai no 👤 do name (5 vence 0)"
+    },
+    {
+      "id": "any-092",
+      "input": "{\"op\":\"any\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"name\":\"Release A 👤 99\",\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"dubbed\":true}]}",
+      "note": "any: seeders ausente não cai no 👤 do name (5 vence 0)"
+    },
+    {
+      "id": "target-093",
+      "input": "{\"op\":\"target\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"name\":\"Release A 👤 99\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true}],\"limit\":3}",
+      "note": "target (pool BR): idem br, o 👤 do name não desempata"
+    },
+    {
+      "id": "top-094",
+      "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"name\":\"Release A 👤 99\"},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5}]}",
+      "note": "controle: o top É o único que lê o 👤 do name"
+    },
+    {
+      "id": "target-095",
+      "input": "{\"op\":\"target\",\"limit\":6,\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true}]}",
+      "note": "vivo Shawshank: primário 720p entra ANTES dos alternates 1080 (pick por faixa-alvo, seeders ausentes)"
+    },
+    {
+      "id": "target-096",
+      "input": "{\"op\":\"target\",\"limit\":9,\"season\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true,\"title\":\"Serie 2008 - 1a Temporada Completa [4k]\"},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"title\":\"Serie 2008 - 1a Temporada Completa [1080p]\"},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true,\"title\":\"Serie 1a Temporada (2008) 720p Dual\"},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true,\"title\":\"Serie 1a Temporada [720p BLU-RAY DUBLADO]\"},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"\",\"br\":true,\"dubClaim\":true,\"title\":\"1a Temporada - Serie - Dublado - T3GP\"}]}",
+      "note": "vivo Breaking Bad S01: 3 faixas viram primários; pack de temporada e unknown não viram imediato"
+    }
+  ]
+}

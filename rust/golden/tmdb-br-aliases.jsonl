@@ -1,0 +1,86 @@
+{"id":"tba-001","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação: Lioness\"]}","expected":"[\"Operação: Lioness\"]"}
+{"id":"tba-002","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Lioness\"]}","expected":"[]"}
+{"id":"tba-003","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"LIONESS\"]}","expected":"[]"}
+{"id":"tba-004","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"  Operação: Lioness  \"]}","expected":"[\"Operação: Lioness\"]"}
+{"id":"tba-005","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação-Lioness\",\"Operação Lioness\"]}","expected":"[\"Operação-Lioness\"]"}
+{"id":"tba-006","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação Lioness\",\"A Leoa\",\"Lioness: O Legado\"]}","expected":"[\"Operação Lioness\",\"Lioness: O Legado\"]"}
+{"id":"tba-007","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação Lioness\",\"A Leoa Lioness\",\"Lioness: O Legado\",\"A Leoa\"]}","expected":"[\"Operação Lioness\",\"A Leoa Lioness\"]"}
+{"id":"tba-008","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[]}","expected":"[]"}
+{"id":"tba-009","input":"{\"op\":\"filter\",\"canonical\":[],\"candidates\":[\"Operação Lioness\"]}","expected":"[]"}
+{"id":"tba-010","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"]}","expected":"[]"}
+{"id":"tba-011","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"\",\"Operação Lioness\"]}","expected":"[\"Operação Lioness\"]"}
+{"id":"tba-012","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[null,\"Operação Lioness\"]}","expected":"[\"Operação Lioness\"]"}
+{"id":"tba-013","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\",null,\"\"],\"candidates\":[\"Operação Lioness\"]}","expected":"[\"Operação Lioness\"]"}
+{"id":"tba-014","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"   \"]}","expected":"[]"}
+{"id":"tba-015","input":"{\"op\":\"filter\",\"canonical\":[\"   \"],\"candidates\":[\"Algo Qualquer\"]}","expected":"[]"}
+{"id":"tba-016","input":"{\"op\":\"filter\",\"canonical\":[null],\"candidates\":[\"Operação Lioness\"]}","expected":"[]"}
+{"id":"tba-017","input":"{\"op\":\"filter\",\"canonical\":[\"A Origem\"],\"candidates\":[\"Origem\"]}","expected":"[\"Origem\"]"}
+{"id":"tba-018","input":"{\"op\":\"filter\",\"canonical\":[\"A Origem\"],\"candidates\":[\"A Origem\"]}","expected":"[]"}
+{"id":"tba-019","input":"{\"op\":\"filter\",\"canonical\":[\"The Last of Us\"],\"candidates\":[\"The Last of Us: Parte II\"]}","expected":"[\"The Last of Us: Parte II\"]"}
+{"id":"tba-020","input":"{\"op\":\"filter\",\"canonical\":[\"The Last of Us\"],\"candidates\":[\"Last\"]}","expected":"[\"Last\"]"}
+{"id":"tba-021","input":"{\"op\":\"filter\",\"canonical\":[\"The Boys\"],\"candidates\":[\"Os Garotos\"]}","expected":"[]"}
+{"id":"tba-022","input":"{\"op\":\"filter\",\"canonical\":[\"The Boys\"],\"candidates\":[\"The Boys: Diabolical\"]}","expected":"[\"The Boys: Diabolical\"]"}
+{"id":"tba-023","input":"{\"op\":\"filter\",\"canonical\":[\"1917\"],\"candidates\":[\"1917\"]}","expected":"[]"}
+{"id":"tba-024","input":"{\"op\":\"filter\",\"canonical\":[\"1917\"],\"candidates\":[\"1917 Guerra\"]}","expected":"[]"}
+{"id":"tba-025","input":"{\"op\":\"filter\",\"canonical\":[\"Se7en\"],\"candidates\":[\"Seven\"]}","expected":"[]"}
+{"id":"tba-026","input":"{\"op\":\"filter\",\"canonical\":[\"Up\"],\"candidates\":[\"Up: Altas Aventuras\"]}","expected":"[]"}
+{"id":"tba-027","input":"{\"op\":\"filter\",\"canonical\":[\"It\"],\"candidates\":[\"It: A Coisa\"]}","expected":"[]"}
+{"id":"tba-028","input":"{\"op\":\"filter\",\"canonical\":[\"Cidade de Deus\"],\"candidates\":[\"Cidade De Deus\"]}","expected":"[]"}
+{"id":"tba-029","input":"{\"op\":\"filter\",\"canonical\":[\"Cidade de Deus\"],\"candidates\":[\"City of God\"]}","expected":"[]"}
+{"id":"tba-030","input":"{\"op\":\"filter\",\"canonical\":[\"Cidade de Deus\"],\"candidates\":[\"Cidade de Deus: 20 Anos\"]}","expected":"[\"Cidade de Deus: 20 Anos\"]"}
+{"id":"tba-031","input":"{\"op\":\"filter\",\"canonical\":[\"Élite\"],\"candidates\":[\"Elite\"]}","expected":"[]"}
+{"id":"tba-032","input":"{\"op\":\"filter\",\"canonical\":[\"Élite\"],\"candidates\":[\"Elite: Las Encinas\"]}","expected":"[\"Elite: Las Encinas\"]"}
+{"id":"tba-033","input":"{\"op\":\"filter\",\"canonical\":[\"Operação: Lioness\"],\"candidates\":[\"Operação: Lioness\"]}","expected":"[]"}
+{"id":"tba-034","input":"{\"op\":\"filter\",\"canonical\":[\"Amélie\"],\"candidates\":[\"O Fabuloso Destino de Amélie Poulain\"]}","expected":"[\"O Fabuloso Destino de Amélie Poulain\"]"}
+{"id":"tba-035","input":"{\"op\":\"filter\",\"canonical\":[\"Amélie\"],\"candidates\":[\"Amelie\"]}","expected":"[]"}
+{"id":"tba-036","input":"{\"op\":\"filter\",\"canonical\":[\"Bruxa de Blair\",\"The Blair Witch Project\"],\"candidates\":[\"A Bruxa de Blair\"]}","expected":"[\"A Bruxa de Blair\"]"}
+{"id":"tba-037","input":"{\"op\":\"filter\",\"canonical\":[\"Bruxa de Blair\",\"The Blair Witch Project\"],\"candidates\":[\"The Blair Witch Project\"]}","expected":"[]"}
+{"id":"tba-038","input":"{\"op\":\"filter\",\"canonical\":[\"Bruxa de Blair\"],\"candidates\":[\"Blair Witch\"]}","expected":"[]"}
+{"id":"tba-039","input":"{\"op\":\"filter\",\"canonical\":[\"Spider-Man\"],\"candidates\":[\"Spider-Man\"]}","expected":"[]"}
+{"id":"tba-040","input":"{\"op\":\"filter\",\"canonical\":[\"Spider-Man\"],\"candidates\":[\"Spider-Man: No Way Home\"]}","expected":"[\"Spider-Man: No Way Home\"]"}
+{"id":"tba-041","input":"{\"op\":\"filter\",\"canonical\":[\"Spider-Man\"],\"candidates\":[\"Homem-Aranha\"]}","expected":"[]"}
+{"id":"tba-042","input":"{\"op\":\"filter\",\"canonical\":[\"Grey's Anatomy\"],\"candidates\":[\"Grey's Anatomy\"]}","expected":"[]"}
+{"id":"tba-043","input":"{\"op\":\"filter\",\"canonical\":[\"Grey's Anatomy\"],\"candidates\":[\"Grey's Anatomy: Station 19\"]}","expected":"[\"Grey's Anatomy: Station 19\"]"}
+{"id":"tba-044","input":"{\"op\":\"filter\",\"canonical\":[\"Schindler's List\"],\"candidates\":[\"A Lista de Schindler\"]}","expected":"[]"}
+{"id":"tba-045","input":"{\"op\":\"filter\",\"canonical\":[\"Schindler's List\"],\"candidates\":[\"Schindler's List\"]}","expected":"[]"}
+{"id":"tba-046","input":"{\"op\":\"filter\",\"canonical\":[\"Don't Look Up\"],\"candidates\":[\"Não Olhe para Cima\"]}","expected":"[]"}
+{"id":"tba-047","input":"{\"op\":\"filter\",\"canonical\":[\"Don't Look Up\"],\"candidates\":[\"Don't Look Up: Recount\"]}","expected":"[\"Don't Look Up: Recount\"]"}
+{"id":"tba-048","input":"{\"op\":\"filter\",\"canonical\":[\"Only Murders in the Building\"],\"candidates\":[\"Assassinato em Cena\"]}","expected":"[]"}
+{"id":"tba-049","input":"{\"op\":\"filter\",\"canonical\":[\"Dexter\"],\"candidates\":[\"Dexter: New Blood\"]}","expected":"[\"Dexter: New Blood\"]"}
+{"id":"tba-050","input":"{\"op\":\"filter\",\"canonical\":[\"Dexter: New Blood\"],\"candidates\":[\"Dexter: Sangue Novo\"]}","expected":"[]"}
+{"id":"tba-051","input":"{\"op\":\"filter\",\"canonical\":[\"Dexter: New Blood\"],\"candidates\":[\"Dexter: New Blood\"]}","expected":"[]"}
+{"id":"tba-052","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação\\u00a0Lioness\"]}","expected":"[\"Operação Lioness\"]"}
+{"id":"tba-053","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"\\ufeffOperação: Lioness\"]}","expected":"[\"Operação: Lioness\"]"}
+{"id":"tba-054","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação\\tLioness\"]}","expected":"[\"Operação\\tLioness\"]"}
+{"id":"tba-055","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação  Lioness\"]}","expected":"[\"Operação  Lioness\"]"}
+{"id":"tba-056","input":"{\"op\":\"filter\",\"canonical\":[\"\\ua7cf\\ua7cf\\ua7cf\"],\"candidates\":[\"\\ua7ce\\ua7ce\\ua7ce Extra\"]}","expected":"[\"꟎꟎꟎ Extra\"]"}
+{"id":"tba-057","input":"{\"op\":\"filter\",\"canonical\":[\"\\ud801\\udc28\"],\"candidates\":[\"\\ud801\\udc00\"]}","expected":"[]"}
+{"id":"tba-058","input":"{\"op\":\"filter\",\"canonical\":[\"\\ud801\\udc28\\ud801\\udc28\"],\"candidates\":[\"\\ud801\\udc00\\ud801\\udc00 Extra\"]}","expected":"[\"𐐀𐐀 Extra\"]"}
+{"id":"tba-059","input":"{\"op\":\"filter\",\"canonical\":[\"\\ud801\\udc28\\ud801\\udc28\"],\"candidates\":[\"\\ud801\\udc00\"]}","expected":"[]"}
+{"id":"tba-060","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Lioness—Operação\"]}","expected":"[\"Lioness—Operação\"]"}
+{"id":"tba-061","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação Lioness\",\"Operação Lioness\"]}","expected":"[\"Operação Lioness\"]"}
+{"id":"tba-062","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação: Lioness\",\"Operação - Lioness\"]}","expected":"[\"Operação: Lioness\"]"}
+{"id":"tba-063","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\",\"Leoa\"],\"candidates\":[\"A Leoa\",\"Operação Lioness\"]}","expected":"[\"A Leoa\",\"Operação Lioness\"]"}
+{"id":"tba-064","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\",\"Leoa\"],\"candidates\":[\"Operação Lioness\",\"Operação Leoa\"]}","expected":"[\"Operação Lioness\",\"Operação Leoa\"]"}
+{"id":"tba-065","input":"{\"op\":\"filter\",\"canonical\":[\"Game of Thrones\"],\"candidates\":[\"Thrones\"]}","expected":"[]"}
+{"id":"tba-066","input":"{\"op\":\"filter\",\"canonical\":[\"Game of Thrones\"],\"candidates\":[\"Game\"]}","expected":"[]"}
+{"id":"tba-067","input":"{\"op\":\"filter\",\"canonical\":[\"Game of Thrones\"],\"candidates\":[\"Game of Thrones: House of the Dragon\"]}","expected":"[\"Game of Thrones: House of the Dragon\"]"}
+{"id":"tba-068","input":"{\"op\":\"filter\",\"canonical\":[\"Django Kill… If You Live, Shoot!\"],\"candidates\":[\"Kill\"]}","expected":"[]"}
+{"id":"tba-069","input":"{\"op\":\"filter\",\"canonical\":[\"Django Kill… If You Live, Shoot!\"],\"candidates\":[\"Django Kill\"]}","expected":"[]"}
+{"id":"tba-070","input":"{\"op\":\"filter\",\"canonical\":[\"Django Kill… If You Live, Shoot!\"],\"candidates\":[\"Django Kill… If You Live, Shoot!\"]}","expected":"[]"}
+{"id":"tba-071","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação: Lioness\",\"Operação Lioness\"]}","expected":"[\"Operação: Lioness\"]"}
+{"id":"tba-072","input":"{\"op\":\"filter\",\"canonical\":[\"A Rocha\"],\"candidates\":[\"Rocha\"]}","expected":"[\"Rocha\"]"}
+{"id":"tba-073","input":"{\"op\":\"filter\",\"canonical\":[\"A Rocha\"],\"candidates\":[\"A Rocha\"]}","expected":"[]"}
+{"id":"tba-074","input":"{\"op\":\"filter\",\"canonical\":[\"Velozes e Furiosos 5\"],\"candidates\":[\"Fast Five\"]}","expected":"[]"}
+{"id":"tba-075","input":"{\"op\":\"filter\",\"canonical\":[\"Velozes e Furiosos 5\"],\"candidates\":[\"Velozes e Furiosos 5\"]}","expected":"[]"}
+{"id":"tba-076","input":"{\"op\":\"filter\",\"canonical\":[\"Velozes e Furiosos 5\"],\"candidates\":[\"Velozes e Furiosos 5: Operação Rio\"]}","expected":"[\"Velozes e Furiosos 5: Operação Rio\"]"}
+{"id":"tba-077","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Leão\"]}","expected":"[]"}
+{"id":"tba-078","input":"{\"op\":\"filter\",\"canonical\":[\"Pânico\"],\"candidates\":[\"Pânico\"]}","expected":"[]"}
+{"id":"tba-079","input":"{\"op\":\"filter\",\"canonical\":[\"Pânico\"],\"candidates\":[\"Panico\"]}","expected":"[]"}
+{"id":"tba-080","input":"{\"op\":\"filter\",\"canonical\":[\"Pânico\"],\"candidates\":[\"Pânico 6\"]}","expected":"[\"Pânico 6\"]"}
+{"id":"tba-081","input":"{\"op\":\"filter\",\"canonical\":[\"The Office\"],\"candidates\":[\"The Office: An American Workplace\"]}","expected":"[\"The Office: An American Workplace\"]"}
+{"id":"tba-082","input":"{\"op\":\"filter\",\"canonical\":[\"The Office\"],\"candidates\":[\"Escritório\"]}","expected":"[]"}
+{"id":"tba-083","input":"{\"op\":\"filter\",\"canonical\":[\"The A O An\"],\"candidates\":[\"The A O An X\"]}","expected":"[]"}
+{"id":"tba-084","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"de do da das\"]}","expected":"[]"}
+{"id":"tba-085","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Lioness \",\" Lioness\"]}","expected":"[]"}
+{"id":"tba-086","input":"{\"op\":\"filter\",\"canonical\":[\"Lioness\"],\"candidates\":[\"Operação: Lioness\",\"Operação: Lioness\",\"Operação: Lioness\"]}","expected":"[\"Operação: Lioness\"]"}

@@ -1,0 +1,1128 @@
+{
+  "version": "corpus-stream-display/1",
+  "note": "Entradas de streamDisplayName (src/utils/stream-display.ts). config = env do grupo (default = variável AUSENTE). input = { opts, userOpts? }; userOpts usa as chaves curtas do SCHEMA do runtime. expectedJson do golden é o contrato para o leitor Rust (lone surrogate de compactTracker não entra no campo expected).",
+  "groups": [
+    "default|default",
+    "default|false",
+    "full|default",
+    "full|false"
+  ],
+  "cases": [
+    {
+      "id": "sd-001",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=undefined"
+    },
+    {
+      "id": "sd-002",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"\""
+    },
+    {
+      "id": "sd-003",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"sem resolução\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"sem resolução\""
+    },
+    {
+      "id": "sd-004",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"2160p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"2160p\""
+    },
+    {
+      "id": "sd-005",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"4K\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"4K\""
+    },
+    {
+      "id": "sd-006",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"1080p\""
+    },
+    {
+      "id": "sd-007",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"720p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"720p\""
+    },
+    {
+      "id": "sd-008",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"480p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"480p\""
+    },
+    {
+      "id": "sd-009",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"SD\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"SD\""
+    },
+    {
+      "id": "sd-010",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"576p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"576p\""
+    },
+    {
+      "id": "sd-011",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"UHD\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"UHD\""
+    },
+    {
+      "id": "sd-012",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"HD\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "quality=\"HD\""
+    },
+    {
+      "id": "sd-013",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Dublado\",\"seeders\":3}}",
+      "note": "audio=\"Dublado\" sem prova PT"
+    },
+    {
+      "id": "sd-014",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Legendado\",\"seeders\":3}}",
+      "note": "audio=\"Legendado\" sem prova PT"
+    },
+    {
+      "id": "sd-015",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Dual\",\"seeders\":3}}",
+      "note": "audio=\"Dual\" sem prova PT"
+    },
+    {
+      "id": "sd-016",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Nacional\",\"seeders\":3}}",
+      "note": "audio=\"Nacional\" sem prova PT"
+    },
+    {
+      "id": "sd-017",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"DUAL\",\"seeders\":3}}",
+      "note": "audio=\"DUAL\" sem prova PT"
+    },
+    {
+      "id": "sd-018",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Multi\",\"seeders\":3}}",
+      "note": "audio=\"Multi\" sem prova PT"
+    },
+    {
+      "id": "sd-019",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"Comentário\",\"seeders\":3}}",
+      "note": "audio=\"Comentário\" sem prova PT"
+    },
+    {
+      "id": "sd-020",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"audio\":\"\",\"seeders\":3}}",
+      "note": "audio=\"\" sem prova PT"
+    },
+    {
+      "id": "sd-021",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie 2020\",\"quality\":\"1080p\",\"audio\":\"Dublado\",\"isBr\":true,\"seeders\":4}}",
+      "note": "audio=\"Dublado\" isBr=true"
+    },
+    {
+      "id": "sd-022",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie 2020\",\"quality\":\"1080p\",\"audio\":\"Legendado\",\"isBr\":true,\"seeders\":4}}",
+      "note": "audio=\"Legendado\" isBr=true"
+    },
+    {
+      "id": "sd-023",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie 2020\",\"quality\":\"1080p\",\"audio\":\"Dual\",\"isBr\":true,\"seeders\":4}}",
+      "note": "audio=\"Dual\" isBr=true"
+    },
+    {
+      "id": "sd-024",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie 2020\",\"quality\":\"1080p\",\"audio\":\"Nacional\",\"isBr\":true,\"seeders\":4}}",
+      "note": "audio=\"Nacional\" isBr=true"
+    },
+    {
+      "id": "sd-025",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Ação Dublada 1080p\",\"audio\":\"Dual\",\"seeders\":5}}",
+      "note": "Dual com prova por título dublado"
+    },
+    {
+      "id": "sd-026",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Dublado 1080p\",\"audio\":\"Dual\",\"seeders\":5}}",
+      "note": "Dual com prova por título dublado (2)"
+    },
+    {
+      "id": "sd-027",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie Dual Audio YTS 1080p\",\"audio\":\"Dual\",\"seeders\":9}}",
+      "note": "Dual EN sem prova PT"
+    },
+    {
+      "id": "sd-028",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"O Filme DUAL ÁUDIO 1080p\",\"audio\":\"Dual\",\"seeders\":9}}",
+      "note": "Dual com sinal PT (áudio)"
+    },
+    {
+      "id": "sd-029",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Movie 2020\",\"quality\":\"1080p\",\"audio\":\"Dual\",\"isBr\":true,\"seeders\":2}}",
+      "note": "Dual + isBr prova"
+    },
+    {
+      "id": "sd-030",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"DC\",\"seeders\":1}}",
+      "note": "edition=\"DC\""
+    },
+    {
+      "id": "sd-031",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Extended\",\"seeders\":1}}",
+      "note": "edition=\"Extended\""
+    },
+    {
+      "id": "sd-032",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"IMAX\",\"seeders\":1}}",
+      "note": "edition=\"IMAX\""
+    },
+    {
+      "id": "sd-033",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Cinema\",\"seeders\":1}}",
+      "note": "edition=\"Cinema\""
+    },
+    {
+      "id": "sd-034",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Uncut\",\"seeders\":1}}",
+      "note": "edition=\"Uncut\""
+    },
+    {
+      "id": "sd-035",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Alt.Ver\",\"seeders\":1}}",
+      "note": "edition=\"Alt.Ver\""
+    },
+    {
+      "id": "sd-036",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Alt.End\",\"seeders\":1}}",
+      "note": "edition=\"Alt.End\""
+    },
+    {
+      "id": "sd-037",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Remaster\",\"seeders\":1}}",
+      "note": "edition=\"Remaster\""
+    },
+    {
+      "id": "sd-038",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"Versão Estendida\",\"seeders\":1}}",
+      "note": "edition=\"Versão Estendida\""
+    },
+    {
+      "id": "sd-039",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"edition\":\"\",\"seeders\":1}}",
+      "note": "edition=\"\""
+    },
+    {
+      "id": "sd-040",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"BluRay\",\"seeders\":1}}",
+      "note": "source=\"BluRay\""
+    },
+    {
+      "id": "sd-041",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"WEB-DL\",\"seeders\":1}}",
+      "note": "source=\"WEB-DL\""
+    },
+    {
+      "id": "sd-042",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"WEBRip\",\"seeders\":1}}",
+      "note": "source=\"WEBRip\""
+    },
+    {
+      "id": "sd-043",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"HDTV\",\"seeders\":1}}",
+      "note": "source=\"HDTV\""
+    },
+    {
+      "id": "sd-044",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"CAM\",\"seeders\":1}}",
+      "note": "source=\"CAM\""
+    },
+    {
+      "id": "sd-045",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"TV\",\"seeders\":1}}",
+      "note": "source=\"TV\""
+    },
+    {
+      "id": "sd-046",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste\",\"quality\":\"1080p\",\"source\":\"\",\"seeders\":1}}",
+      "note": "source=\"\""
+    },
+    {
+      "id": "sd-047",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme BR\",\"quality\":\"1080p\",\"isBr\":true,\"seeders\":6}}",
+      "note": "isBr true com nome informativo"
+    },
+    {
+      "id": "sd-048",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme BR\",\"quality\":\"1080p\",\"isBr\":false,\"seeders\":6}}",
+      "note": "isBr false com nome informativo"
+    },
+    {
+      "id": "sd-049",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme BR\",\"isBr\":true,\"seeders\":6}}",
+      "note": "isBr true sem qualidade (BR puro)"
+    },
+    {
+      "id": "sd-050",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme BR\",\"isBr\":false,\"seeders\":6}}",
+      "note": "isBr false sem qualidade"
+    },
+    {
+      "id": "sd-051",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":0}}",
+      "note": "seeders 0 sem chip"
+    },
+    {
+      "id": "sd-052",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":1}}",
+      "note": "seeders 1"
+    },
+    {
+      "id": "sd-053",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":42}}",
+      "note": "seeders 42"
+    },
+    {
+      "id": "sd-054",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":1000}}",
+      "note": "seeders 1000"
+    },
+    {
+      "id": "sd-055",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":\"7\"}}",
+      "note": "seeders string numérica"
+    },
+    {
+      "id": "sd-056",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"seeders\":-3}}",
+      "note": "seeders negativa"
+    },
+    {
+      "id": "sd-057",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":0,\"fromFallback\":true}}",
+      "note": "fromFallback sem seeders"
+    },
+    {
+      "id": "sd-058",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":8,\"fromFallback\":true}}",
+      "note": "fromFallback com seeders"
+    },
+    {
+      "id": "sd-059",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"seeders\":0,\"fromFallback\":true}}",
+      "note": "fromFallback sem detalhe nenhum"
+    },
+    {
+      "id": "sd-060",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"seeders\":4,\"fromFallback\":true}}",
+      "note": "fromFallback sem detalhe com seeders"
+    },
+    {
+      "id": "sd-061",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Meu Filme Sem Info\"}}",
+      "note": "só título"
+    },
+    {
+      "id": "sd-062",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Meu Filme Sem Info\",\"tracker\":\"TorrentDosFilmes\"}}",
+      "note": "só título + tracker"
+    },
+    {
+      "id": "sd-063",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Meu Filme Sem Info\",\"seeders\":5}}",
+      "note": "só título + seeders"
+    },
+    {
+      "id": "sd-064",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"quality\":\"1080p\",\"seeders\":5}}",
+      "note": "só detalhe sem título"
+    },
+    {
+      "id": "sd-065",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{}}",
+      "note": "nem título nem detalhe"
+    },
+    {
+      "id": "sd-066",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"audio\":\"Dublado\"}}",
+      "note": "detalhe sem título só áudio"
+    },
+    {
+      "id": "sd-067",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"\",\"seeders\":2}}",
+      "note": "tracker=\"\""
+    },
+    {
+      "id": "sd-068",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":2}}",
+      "note": "tracker=\"TorrentDosFilmes\""
+    },
+    {
+      "id": "sd-069",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"ComandoTorrents\",\"seeders\":2}}",
+      "note": "tracker=\"ComandoTorrents\""
+    },
+    {
+      "id": "sd-070",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"NerdFilmesTorrent\",\"seeders\":2}}",
+      "note": "tracker=\"NerdFilmesTorrent\""
+    },
+    {
+      "id": "sd-071",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"kickasstorrents.com\",\"seeders\":2}}",
+      "note": "tracker=\"kickasstorrents.com\""
+    },
+    {
+      "id": "sd-072",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"kickasstorrents.com.br\",\"seeders\":2}}",
+      "note": "tracker=\"kickasstorrents.com.br\""
+    },
+    {
+      "id": "sd-073",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"Torrent9\",\"seeders\":2}}",
+      "note": "tracker=\"Torrent9\""
+    },
+    {
+      "id": "sd-074",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"abcdefghijklmn\",\"seeders\":2}}",
+      "note": "tracker=\"abcdefghijklmn\""
+    },
+    {
+      "id": "sd-075",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"abcdefghijklmno\",\"seeders\":2}}",
+      "note": "tracker=\"abcdefghijklmno\""
+    },
+    {
+      "id": "sd-076",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"meusite_torrent\",\"seeders\":2}}",
+      "note": "tracker=\"meusite_torrent\""
+    },
+    {
+      "id": "sd-077",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"Site-Muito-Longo-Aqui\",\"seeders\":2}}",
+      "note": "tracker=\"Site-Muito-Longo-Aqui\""
+    },
+    {
+      "id": "sd-078",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"A_B_SiteSuperLongo\",\"seeders\":2}}",
+      "note": "tracker=\"A_B_SiteSuperLongo\""
+    },
+    {
+      "id": "sd-079",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"  FilmesTorrent  \",\"seeders\":2}}",
+      "note": "tracker=\"  FilmesTorrent  \""
+    },
+    {
+      "id": "sd-080",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"﻿NerdFilmesTorrent\",\"seeders\":2}}",
+      "note": "tracker=\"﻿NerdFilmesTorrent\""
+    },
+    {
+      "id": "sd-081",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"Curt😀\",\"seeders\":2}}",
+      "note": "tracker=\"Curt😀\""
+    },
+    {
+      "id": "sd-082",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"filme😀\",\"seeders\":2}}",
+      "note": "tracker=\"filme😀\""
+    },
+    {
+      "id": "sd-083",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"AAAAABBBBBCCC😀DD\",\"seeders\":2}}",
+      "note": "tracker=\"AAAAABBBBBCCC😀DD\""
+    },
+    {
+      "id": "sd-084",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"abcdefghijklm😀nop\",\"seeders\":2}}",
+      "note": "tracker=\"abcdefghijklm😀nop\""
+    },
+    {
+      "id": "sd-085",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"﻿AAAAABBBBBCCC😀.com\",\"seeders\":2}}",
+      "note": "tracker=\"﻿AAAAABBBBBCCC😀.com\""
+    },
+    {
+      "id": "sd-086",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"AAAAABBBBBCCC𪛠DD\",\"seeders\":2}}",
+      "note": "tracker=\"AAAAABBBBBCCC𪛠DD\""
+    },
+    {
+      "id": "sd-087",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"ThePirateFilmes\",\"seeders\":2}}",
+      "note": "tracker=\"ThePirateFilmes\""
+    },
+    {
+      "id": "sd-088",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"HDTorrents\",\"seeders\":2}}",
+      "note": "tracker=\"HDTorrents\""
+    },
+    {
+      "id": "sd-089",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"BluDV\",\"seeders\":2}}",
+      "note": "tracker=\"BluDV\""
+    },
+    {
+      "id": "sd-090",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"showSource\":false}}",
+      "note": "param showSource=false"
+    },
+    {
+      "id": "sd-091",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"showSource\":true}}",
+      "note": "param showSource=true"
+    },
+    {
+      "id": "sd-092",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"showSource\":null}}",
+      "note": "param showSource=null (false explícito)"
+    },
+    {
+      "id": "sd-093",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"style\":\"\"}}",
+      "note": "param style vazio cai no config"
+    },
+    {
+      "id": "sd-094",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"style\":null}}",
+      "note": "param style null cai no config"
+    },
+    {
+      "id": "sd-095",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5,\"style\":\"full\"}}",
+      "note": "param style=full compact override"
+    },
+    {
+      "id": "sd-096",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"quality\":\"1080p\",\"audio\":\"Dublado\",\"source\":\"WEB-DL\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "config full: kitchen sink"
+    },
+    {
+      "id": "sd-097",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"sem resolução\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":3}}",
+      "note": "config full: unknown quality"
+    },
+    {
+      "id": "sd-098",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Meu Filme\"}}",
+      "note": "config full: só título"
+    },
+    {
+      "id": "sd-099",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"quality\":\"2160p\"}}",
+      "note": "config full: título vazio com detalhe"
+    },
+    {
+      "id": "sd-100",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{}}",
+      "note": "config full: sem nada"
+    },
+    {
+      "id": "sd-101",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":6,\"fromFallback\":true}}",
+      "note": "config full: fallback"
+    },
+    {
+      "id": "sd-102",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme BR\",\"quality\":\"1080p\",\"isBr\":true,\"seeders\":2}}",
+      "note": "config full: isBr"
+    },
+    {
+      "id": "sd-103",
+      "config": {
+        "style": "default",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":5}}",
+      "note": "config hideSource: tracker + seeders"
+    },
+    {
+      "id": "sd-104",
+      "config": {
+        "style": "default",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\"}}",
+      "note": "config hideSource: só tracker"
+    },
+    {
+      "id": "sd-105",
+      "config": {
+        "style": "default",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"tracker\":\"TorrentDosFilmes\"}}",
+      "note": "config hideSource: tracker + título (detalhe vazio)"
+    },
+    {
+      "id": "sd-106",
+      "config": {
+        "style": "default",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":3,\"fromFallback\":true}}",
+      "note": "config hideSource: fallback"
+    },
+    {
+      "id": "sd-107",
+      "config": {
+        "style": "full",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme Teste 1080p\",\"quality\":\"1080p\",\"audio\":\"Dublado\",\"source\":\"WEB-DL\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":12}}",
+      "note": "config full+hideSource: kitchen sink"
+    },
+    {
+      "id": "sd-108",
+      "config": {
+        "style": "full",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"sem resolução\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":3}}",
+      "note": "config full+hideSource: unknown quality"
+    },
+    {
+      "id": "sd-109",
+      "config": {
+        "style": "full",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Meu Filme\"}}",
+      "note": "config full+hideSource: só título"
+    },
+    {
+      "id": "sd-110",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"full\"}}",
+      "note": "userOpts ns=full sobre default"
+    },
+    {
+      "id": "sd-111",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"compact\"}}",
+      "note": "userOpts ns=compact sobre default"
+    },
+    {
+      "id": "sd-112",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"full\",\"st\":false}}",
+      "note": "userOpts ns=full st=false"
+    },
+    {
+      "id": "sd-113",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"st\":false}}",
+      "note": "userOpts st=false"
+    },
+    {
+      "id": "sd-114",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"st\":true}}",
+      "note": "userOpts st=true"
+    },
+    {
+      "id": "sd-115",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"\"}}",
+      "note": "userOpts ns vazio cai no config"
+    },
+    {
+      "id": "sd-116",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9,\"style\":\"compact\"},\"userOpts\":{\"ns\":\"full\"}}",
+      "note": "userOpts ns=full + param style=compact (param vence)"
+    },
+    {
+      "id": "sd-117",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9,\"style\":\"\"},\"userOpts\":{\"ns\":\"full\"}}",
+      "note": "userOpts ns=full + param style vazio (userOpts vence)"
+    },
+    {
+      "id": "sd-118",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9,\"showSource\":true},\"userOpts\":{\"st\":false}}",
+      "note": "userOpts st=false + param showSource=true (param vence)"
+    },
+    {
+      "id": "sd-119",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9,\"showSource\":false},\"userOpts\":{\"st\":true}}",
+      "note": "userOpts st=true + param showSource=false (param vence)"
+    },
+    {
+      "id": "sd-120",
+      "config": {
+        "style": "default",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9,\"showSource\":null},\"userOpts\":{\"st\":true}}",
+      "note": "userOpts st=true + param showSource=null (null vence)"
+    },
+    {
+      "id": "sd-121",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"compact\"}}",
+      "note": "config full + userOpts ns=compact"
+    },
+    {
+      "id": "sd-122",
+      "config": {
+        "style": "full",
+        "showSource": "default"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"\"}}",
+      "note": "config full + userOpts ns vazio (config vence)"
+    },
+    {
+      "id": "sd-123",
+      "config": {
+        "style": "default",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"st\":true}}",
+      "note": "config hideSource + userOpts st=true"
+    },
+    {
+      "id": "sd-124",
+      "config": {
+        "style": "full",
+        "showSource": "false"
+      },
+      "input": "{\"opts\":{\"title\":\"Filme\",\"quality\":\"1080p\",\"tracker\":\"TorrentDosFilmes\",\"seeders\":9},\"userOpts\":{\"ns\":\"compact\",\"st\":true}}",
+      "note": "config full+hideSource + userOpts ns=compact st=true"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "metric-id/metricId"
+  ],
+  "function": {
+    "name": "metricId",
+    "sourcePath": "src/utils/metric-id.ts",
+    "sourceSha256": "b201c41d095aa1e6c396a637d60a30b9f2d2c714bcd8f0ea49cfc8a632c5e7c5",
+    "artifactPath": "dist/src/utils/metric-id.js",
+    "artifactSha256": "90ef07f1080b4cd952368a944dc4003d81bf5437bcb2ce61e6f451bddd76740f"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-metric-id.json",
+    "sha256": "3f839d1f430636d1a00d49756059e9d7efcbd21edf44e01e5b5f2cde19fe4dcb",
+    "cases": 71
+  },
+  "output": {
+    "path": "rust/golden/metric-id.jsonl",
+    "sha256": "1b855c64a97e9a7bd57680cbd906d5bcf071f391c1957f41076913f20936528f",
+    "lines": 71
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "a4ee15906bebe3e6816aa1d5fb612a400eba7c61"
+  }
+}

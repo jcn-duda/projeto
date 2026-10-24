@@ -1,0 +1,331 @@
+{
+  "version": "corpus-request-key/1",
+  "note": "Chaves de requisição de src/utils/request-key.ts: accountScope (op account), streamsCacheScope (op scope) e streamsCacheKey (op key). A saída é SEMPRE string e é comparada byte a byte. streamsCacheScope serializa o shape com JSON.stringify na ORDEM DE INSERÇÃO (chaves numéricas primeiro) — nada é canonicalizado. DEPENDÊNCIA: streamsCacheKey usa prefix(\"streams\") de cache-keys.ts (hoje streams:v21:); bump do namespace streams muda todas as saídas e exige regenerar. Todo valor é fictício/sintético: nenhuma credencial real.",
+  "cases": [
+    {
+      "id": "rk-account-none-omitted",
+      "input": "{\"op\":\"account\"}",
+      "note": "apiKey ausente → none"
+    },
+    {
+      "id": "rk-account-none-null",
+      "input": "{\"op\":\"account\",\"apiKey\":null}",
+      "note": "apiKey null → none"
+    },
+    {
+      "id": "rk-account-none-empty",
+      "input": "{\"op\":\"account\",\"apiKey\":\"\"}",
+      "note": "apiKey vazia → none"
+    },
+    {
+      "id": "rk-account-none-false",
+      "input": "{\"op\":\"account\",\"apiKey\":false}",
+      "note": "apiKey false → none (falsy)"
+    },
+    {
+      "id": "rk-account-none-zero",
+      "input": "{\"op\":\"account\",\"apiKey\":0}",
+      "note": "apiKey 0 → none (falsy)"
+    },
+    {
+      "id": "rk-account-space",
+      "input": "{\"op\":\"account\",\"apiKey\":\"   \"}",
+      "note": "apiKey só espaço é truthy → sha"
+    },
+    {
+      "id": "rk-account-ascii",
+      "input": "{\"op\":\"account\",\"apiKey\":\"fake-adom-key-0001\"}",
+      "note": "chave fictícia ASCII"
+    },
+    {
+      "id": "rk-account-b64url",
+      "input": "{\"op\":\"account\",\"apiKey\":\"ZmFrZS1hZG9tLWtleS0wMDAx\"}",
+      "note": "base64url fictício"
+    },
+    {
+      "id": "rk-account-long",
+      "input": "{\"op\":\"account\",\"apiKey\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "note": "chave longa de 160 chars"
+    },
+    {
+      "id": "rk-account-number",
+      "input": "{\"op\":\"account\",\"apiKey\":123456789}",
+      "note": "número → String() antes do sha"
+    },
+    {
+      "id": "rk-account-unicode",
+      "input": "{\"op\":\"account\",\"apiKey\":\"chave-fictícia-ção-🔑\"}",
+      "note": "unicode no segredo"
+    },
+    {
+      "id": "rk-account-control",
+      "input": "{\"op\":\"account\",\"apiKey\":\"linha1\\nlinha2\\ttab\\r\"}",
+      "note": "controle (LF/TAB/CR)"
+    },
+    {
+      "id": "rk-account-hexish",
+      "input": "{\"op\":\"account\",\"apiKey\":\"deadbeefcafe0123\"}",
+      "note": "forma de hash, valor fictício"
+    },
+    {
+      "id": "rk-account-object",
+      "input": "{\"op\":\"account\",\"apiKey\":{\"token\":\"fake\"}}",
+      "note": "objeto → String() = [object Object]"
+    },
+    {
+      "id": "rk-scope-default",
+      "input": "{\"op\":\"scope\"}",
+      "note": "options ausente → {}:account:none"
+    },
+    {
+      "id": "rk-scope-empty",
+      "input": "{\"op\":\"scope\",\"options\":{}}",
+      "note": "options vazio → {}:account:none"
+    },
+    {
+      "id": "rk-scope-only-key",
+      "input": "{\"op\":\"scope\",\"options\":{\"debridApiKey\":\"fake-key\"}}",
+      "note": "só debridApiKey sai do shape"
+    },
+    {
+      "id": "rk-scope-only-key-null",
+      "input": "{\"op\":\"scope\",\"options\":{\"debridApiKey\":null}}",
+      "note": "debridApiKey null"
+    },
+    {
+      "id": "rk-scope-base",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[\"jackett\",\"torrentio\"],\"maxResults\":40}}",
+      "note": "config base sem conta"
+    },
+    {
+      "id": "rk-scope-base-rev",
+      "input": "{\"op\":\"scope\",\"options\":{\"maxResults\":40,\"providers\":[\"jackett\",\"torrentio\"]}}",
+      "note": "mesmas chaves, ordem invertida"
+    },
+    {
+      "id": "rk-scope-key-middle",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[\"jackett\"],\"debridApiKey\":\"fake-key\",\"maxResults\":40}}",
+      "note": "debridApiKey no meio"
+    },
+    {
+      "id": "rk-scope-key-first",
+      "input": "{\"op\":\"scope\",\"options\":{\"debridApiKey\":\"fake-key\",\"providers\":[\"jackett\"],\"maxResults\":40}}",
+      "note": "debridApiKey primeiro"
+    },
+    {
+      "id": "rk-scope-key-last",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[\"jackett\"],\"maxResults\":40,\"debridApiKey\":\"fake-key\"}}",
+      "note": "debridApiKey por último"
+    },
+    {
+      "id": "rk-scope-nested",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[\"jackett\"],\"quality\":{\"target\":\"1080p\",\"max\":4},\"debridApiKey\":\"fake\"}}",
+      "note": "objeto aninhado"
+    },
+    {
+      "id": "rk-scope-unicode-values",
+      "input": "{\"op\":\"scope\",\"options\":{\"titulo\":\"Ação & Aventura – çãé\",\"debridApiKey\":\"x\"}}",
+      "note": "valores unicode"
+    },
+    {
+      "id": "rk-scope-escapes",
+      "input": "{\"op\":\"scope\",\"options\":{\"q\":\"a\\\"b\\\\c\",\"d\":\"linha\\nfim\"}}",
+      "note": "aspas, barra e quebra de linha"
+    },
+    {
+      "id": "rk-scope-scalars",
+      "input": "{\"op\":\"scope\",\"options\":{\"a\":null,\"b\":true,\"c\":false,\"d\":0,\"e\":1.5,\"f\":-3}}",
+      "note": "escalares diversos"
+    },
+    {
+      "id": "rk-scope-arrays",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[],\"tags\":[\"a\",\"b\"],\"nested\":[[1,2],[]]}}",
+      "note": "arrays vazios e aninhados"
+    },
+    {
+      "id": "rk-scope-numeric-keys",
+      "input": "{\"op\":\"scope\",\"options\":{\"2\":\"dois\",\"10\":\"dez\",\"a\":\"x\"}}",
+      "note": "chaves numéricas reordenam por índice"
+    },
+    {
+      "id": "rk-scope-deep",
+      "input": "{\"op\":\"scope\",\"options\":{\"a\":{\"b\":{\"c\":{\"d\":\"e\"}}},\"arr\":[{\"k\":1},{\"k\":2}]}}",
+      "note": "profundidade e lista de objetos"
+    },
+    {
+      "id": "rk-scope-userconfig-b64",
+      "input": "{\"op\":\"scope\",\"options\":{\"userConfig\":\"eyJwcm92aWRlcnMiOlsiSmFja2V0dCJdfQ\",\"debridApiKey\":\"fake\"}}",
+      "note": "userConfig base64url fictício como valor"
+    },
+    {
+      "id": "rk-scope-realistic",
+      "input": "{\"op\":\"scope\",\"options\":{\"providers\":[\"jackett\",\"prowlarr\"],\"maxResults\":40,\"max1080p\":4,\"indexerPriority\":[],\"indexerLimits\":{},\"resolveUncached\":true,\"excludeCam\":false,\"brMultiworkPacks\":true,\"debridApiKey\":\"fake-debrid-key\"}}",
+      "note": "config realista de usuário"
+    },
+    {
+      "id": "rk-scope-lowercase-apikey",
+      "input": "{\"op\":\"scope\",\"options\":{\"debridapikey\":\"not-extracted\",\"maxResults\":1}}",
+      "note": "nome em caixa baixa NÃO é extraído"
+    },
+    {
+      "id": "rk-scope-nested-apikey",
+      "input": "{\"op\":\"scope\",\"options\":{\"nested\":{\"debridApiKey\":\"inner\"},\"maxResults\":1}}",
+      "note": "apikey aninhada NÃO é extraída"
+    },
+    {
+      "id": "rk-scope-account-collision",
+      "input": "{\"op\":\"scope\",\"options\":{\"label\":\"account:none\",\"debridApiKey\":\"fake\"}}",
+      "note": "valor que imita a marca account"
+    },
+    {
+      "id": "rk-scope-unicode-keys",
+      "input": "{\"op\":\"scope\",\"options\":{\"título\":\"acentuado\",\"ação\":true,\"debridApiKey\":\"x\"}}",
+      "note": "chaves com acento"
+    },
+    {
+      "id": "rk-scope-special-keys",
+      "input": "{\"op\":\"scope\",\"options\":{\"a.b-c\":\"dot-dash\",\"with space\":\"s\",\"with:colon\":\"c\"}}",
+      "note": "chaves com ponto, espaço e dois-pontos"
+    },
+    {
+      "id": "rk-scope-many",
+      "input": "{\"op\":\"scope\",\"options\":{\"k01\":1,\"k02\":2,\"k03\":3,\"k04\":4,\"k05\":5,\"k06\":6,\"k07\":7,\"k08\":8,\"k09\":9,\"k10\":10,\"debridApiKey\":\"fake\"}}",
+      "note": "muitas chaves em ordem de inserção"
+    },
+    {
+      "id": "rk-scope-huge-number",
+      "input": "{\"op\":\"scope\",\"options\":{\"n\":1e+21,\"m\":0,\"o\":0.1}}",
+      "note": "formatação de número (1e+21, -0→0)"
+    },
+    {
+      "id": "rk-scope-emoji",
+      "input": "{\"op\":\"scope\",\"options\":{\"emoji\":\"🎬🍿\",\"debridApiKey\":\"x\"}}",
+      "note": "emoji no valor"
+    },
+    {
+      "id": "rk-key-movie-base",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"providers\":[\"jackett\",\"torrentio\"],\"maxResults\":40}}",
+      "note": "filme com opções"
+    },
+    {
+      "id": "rk-key-movie-nokeys",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\"}",
+      "note": "filme sem opções"
+    },
+    {
+      "id": "rk-key-series-ep",
+      "input": "{\"op\":\"key\",\"type\":\"series\",\"id\":\"tt0108778:5:14\",\"options\":{\"providers\":[\"jackett\",\"torrentio\"],\"maxResults\":40}}",
+      "note": "série S5E14"
+    },
+    {
+      "id": "rk-key-series-ep2",
+      "input": "{\"op\":\"key\",\"type\":\"series\",\"id\":\"tt0159256:1:2\",\"options\":{\"providers\":[\"jackett\",\"torrentio\"],\"maxResults\":40}}",
+      "note": "série S1E2"
+    },
+    {
+      "id": "rk-key-imdb-min",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0000001\"}",
+      "note": "imdb válido mínimo"
+    },
+    {
+      "id": "rk-key-imdb-8",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt11737520\"}",
+      "note": "imdb de 8 dígitos"
+    },
+    {
+      "id": "rk-key-imdb-anime",
+      "input": "{\"op\":\"key\",\"type\":\"series\",\"id\":\"tt0388629:1:1\"}",
+      "note": "anime S1E1"
+    },
+    {
+      "id": "rk-key-id-empty",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"\"}",
+      "note": "id vazio (malformado)"
+    },
+    {
+      "id": "rk-key-id-short",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt123\"}",
+      "note": "imdb curto (malformado)"
+    },
+    {
+      "id": "rk-key-id-nonnumeric",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"ttabc1234\"}",
+      "note": "imdb não numérico (malformado)"
+    },
+    {
+      "id": "rk-key-id-plain",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"0123456\"}",
+      "note": "id sem prefixo tt"
+    },
+    {
+      "id": "rk-key-id-long",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt1234567890123\"}",
+      "note": "imdb longo demais"
+    },
+    {
+      "id": "rk-key-id-spaces",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\" tt0111111 \"}",
+      "note": "id com espaços nas pontas"
+    },
+    {
+      "id": "rk-key-id-colon",
+      "input": "{\"op\":\"key\",\"type\":\"series\",\"id\":\"tt0000001:1:1:extra:çã\"}",
+      "note": "id com dois-pontos e acento"
+    },
+    {
+      "id": "rk-key-type-empty",
+      "input": "{\"op\":\"key\",\"type\":\"\",\"id\":\"tt0111111\"}",
+      "note": "type vazio"
+    },
+    {
+      "id": "rk-key-type-unknown",
+      "input": "{\"op\":\"key\",\"type\":\"tv\",\"id\":\"tt0111111\"}",
+      "note": "type fora de movie/series"
+    },
+    {
+      "id": "rk-key-with-debrid",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"providers\":[\"jackett\"],\"maxResults\":40,\"debridApiKey\":\"fake\"}}",
+      "note": "filme com conta debrid"
+    },
+    {
+      "id": "rk-key-unicode-option",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"titulo\":\"Ação\",\"debridApiKey\":\"fake\"}}",
+      "note": "opção unicode + conta"
+    },
+    {
+      "id": "rk-key-numeric-option-keys",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"2\":\"y\",\"10\":\"x\",\"b\":\"z\"}}",
+      "note": "chaves numéricas na opção"
+    },
+    {
+      "id": "rk-key-order-a",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"providers\":[\"jackett\"],\"maxResults\":40}}",
+      "note": "ordem A de opções"
+    },
+    {
+      "id": "rk-key-order-b",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"maxResults\":40,\"providers\":[\"jackett\"]}}",
+      "note": "ordem B: chave distinta da A"
+    },
+    {
+      "id": "rk-key-nested-option",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"quality\":{\"target\":\"2160p\"},\"maxResults\":20}}",
+      "note": "opção aninhada"
+    },
+    {
+      "id": "rk-key-escapes",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111\",\"options\":{\"q\":\"a\\\"b\\\\c\",\"path\":\"dir\\\\file\"}}",
+      "note": "escapes na opção"
+    },
+    {
+      "id": "rk-key-account-collision",
+      "input": "{\"op\":\"key\",\"type\":\"movie\",\"id\":\"tt0111111:account:none\",\"options\":{\"debridApiKey\":\"fake\"}}",
+      "note": "id que imita a marca account"
+    },
+    {
+      "id": "rk-key-big-config",
+      "input": "{\"op\":\"key\",\"type\":\"series\",\"id\":\"tt0898266:12:24\",\"options\":{\"providers\":[\"jackett\",\"prowlarr\",\"torrentio\"],\"maxResults\":60,\"max1080p\":8,\"indexerPriority\":[\"nerdfilmes\"],\"indexerLimits\":{\"yts\":0,\"bludv\":3},\"resolveUncached\":false,\"excludeCam\":true,\"brMultiworkPacks\":false,\"debridApiKey\":\"fake-debrid-key-9\"}}",
+      "note": "config grande de série com conta"
+    }
+  ]
+}

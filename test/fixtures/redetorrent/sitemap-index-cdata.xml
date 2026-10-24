@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FORMATO A do ÍNDICE — XML CRU do AIOSEO (`<sitemapindex>` com `<loc>` em
+  CDATA), o FORMATO B sendo `sitemap-index.html` (tabela do visualizador).
+  Mesmo endpoint (`/sitemap.xml`, o que o `robots.txt` declara), mesmas 96
+  entradas no site real; aqui só as linhas que os testes leem, na MESMA ordem
+  do arquivo em formato B, com a mesma data equivalente.
+
+  É este arquivo que fixa o bug: com o XML cru, o parser antigo (que só sabia
+  ler a tabela) devolvia `urls: []` com `complete: true` — zero URL com
+  descoberta declarada completa, que é o que faz o cursor do crawler avançar
+  por cima de 6.737 páginas nunca lidas.
+
+  Entradas: os 8 sitemaps DE OBRA entram; `post-sitemap*` (18 arquivos, posts
+  `baixar-<slug>-torrent` na RAIZ — zero em `/filmes/` ou `/series/`, medido),
+  `category`/`page`/`faq`/`genres`/`addl` e `dt*-sitemap*` (taxonomias do tema
+  de filmes) têm de ser REJEITADOS pelo filtro de nome; e a última linha é HOST
+  ALHEIO, que nem pode virar requisição.
+-->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:56:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap2.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:54:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap3.xml]]></loc>
+    <lastmod><![CDATA[2026-09-15T09:12:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap4.xml]]></loc>
+    <lastmod><![CDATA[2026-08-02T21:03:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap5.xml]]></loc>
+    <lastmod><![CDATA[2026-07-11T13:40:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap6.xml]]></loc>
+    <lastmod><![CDATA[2026-06-30T08:19:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/movies-sitemap7.xml]]></loc>
+    <lastmod><![CDATA[2026-05-18T16:47:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/tvshows-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:55:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/post-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:51:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/post-sitemap18.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:51:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/category-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:50:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/page-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2024-01-01T00:00:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/faq-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2025-03-03T12:00:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/genres-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2025-03-03T12:01:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/addl-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2025-03-03T12:02:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/dtcast-sitemap3.xml]]></loc>
+    <lastmod><![CDATA[2025-03-03T12:03:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://www.redetorrent.xyz/dtactor-sitemap12.xml]]></loc>
+    <lastmod><![CDATA[2025-03-03T12:04:00+00:00]]></lastmod>
+  </sitemap>
+  <sitemap>
+    <loc><![CDATA[https://filmes-exemplo-spam.test/movies-sitemap.xml]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:56:00+00:00]]></lastmod>
+  </sitemap>
+</sitemapindex>
