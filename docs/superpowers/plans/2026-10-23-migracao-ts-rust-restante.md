@@ -90,6 +90,22 @@ Gate local da rodada anterior: `typecheck` zero · `build` · `npm test` **2965 
 
 O WIP de `cache*`/`br-gap`/`rd-warmer`/`rd-probe` (e o teste novo de sonda) foi **preservado em dois stashes** antes da fatia 4.2(b) — `stash@{1}` (código) e `stash@{0}` (teste `debrid-rd-instant-probe`). O working tree de código está limpo; `.cursor/`, `.codex/`, `plugins/` e `docker-compose.override.yml` seguem intocados.
 
+---
+
+## Execução — Fase 5 fechada (working tree, sem commit)
+
+| fatia | onde | o que fechou |
+|---|---|---|
+| h1 async | `adom-harvest` | `TickPlan`/`plan` com as guardas; `HarvestDrainAsync` (`Pin<Box<dyn Future + Send>>`) + `tick_async`; testes em `worker_tests.rs` |
+| h2 ponte | `adom-search` | `harvest_support` público (`raw_items_from_jackett`, `release_entry_for`, `record_release`); `RawItem`/`ReleaseEntry` reexportados |
+| h3 worker | `adom-server` | `harvest/{mod,config,drain,status,routes,enqueue,traffic}.rs`; thread `adom-harvest`; rotas na admin 8711; `stream_traffic` marcado no `/stream` |
+| h4 Node | `src/` | `harvest-native.ts` (ponte), efeitos → `enqueueNativeHarvest`, `br-probe` → `pendingNativeHarvest`, `trace-recompute` lê `raw:v1` do napi, `/test-indexer.json` 410, `harvest` em `RUST_OWNED_PREFIXES` |
+| h5 painel | `src/routes`+`src/client` | bloco `harvest` e ações (pausa/drenar/limpar) pela ponte; `test-all-indexers` 410 |
+| h6 corte | `src/providers`, `test/` | 16 arquivos / **3.254 linhas** apagados; 33 testes + 1 helper (**7.299 linhas**); 21 testes adaptados; `harvest-native.test.ts` novo |
+
+Gate local: `typecheck` 0 · `build` · `npm test` **2.528 testes, 0 fail** · `test:complete` 283 arquivos + 2 harnesses · `lint:lines` 677 fontes, 0 acima · `check-rust-lines.mjs` 838 fontes, baseline 0 · `cargo fmt` · `cargo clippy --workspace --all-targets -D warnings` · `cargo test --workspace --locked` **0 falhas**.
+
+
 Ainda aberto, com o motivo real:
 
 - **Fase 3.1 (matriz)** — `/debrid/files` só Premiumize. `adapter.fileLink` **saiu** (`c7c505ee`):
@@ -112,10 +128,14 @@ Ainda aberto, com o motivo real:
   "pedido aceito pela ponte" (`invalidated: boolean`).
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
-- **Fases 5–7** — o `br-probe` já tem máquina de estado no crate (`adom-harvest::probe`, 17 testes)
-  e o Mico já roda no sidecar (`adom-crawl`, `rust: true`). No `adom-harvest` seguem fila/L2,
-  `BrEvidence`, tick (`take_probe` sob tráfego), dedupe 12h, balde horário e coalescing; faltam a
-  ponte do `BrEvidence` para o índice e a transferência da fila com consumidor parado.
+- **Fase 5 — FECHADA** (working tree, sem commit). O gateway consome o
+  `adom-harvest` com as fontes nativas: fila/L2 (`harvest:v1:q`), dedupe 12h,
+  balde horário, coalescing, `take_probe` sob tráfego e a máquina do `br-probe`
+  rodam no `adom-server`; a pilha TS (`jackett*`/`search-plan`/`bludv`/`harvest-*`/
+  `harvester*`) saiu. Contrato em `docs/harvest-native-contract.md`. Dívida: o
+  drain cobre Jackett (BLUDV nativo fora) e a ponte do `BrEvidence` para o
+  índice segue pendente.
+- **Fases 6–7** — o Mico já roda no sidecar (`adom-crawl`, `rust: true`);
   `dub-audit`/`rd-warmer` seguem no Node (Fase 7).
 
 Dívida residual declarada (medida, não silenciosa):
@@ -699,9 +719,26 @@ Antes de apagar `jackett*.ts`/`search-plan.ts`/`bludv.ts`/`harvest-*`/`harvester
 **Estado em `b8cace24`:** a coordenação da sonda virou máquina de estado no crate
 (`adom-harvest::probe`, alvo → tentativa → prazo → veredito, 17 testes) e o
 `peekRawFor` do trace lê o envelope `{ items }` do `raw:v1` sem rede (contrato
-`test/warm-cache-contract.test.ts`, 0 hit/0 miss no recompute). Falta apagar os
-corpos TS (`jackett*.ts`/`search-plan.ts`/`bludv.ts`/`harvest-*`), bloqueado pela
-transferência da fila.
+`test/warm-cache-contract.test.ts`, 0 hit/0 miss no recompute).
+
+**Fechada (working tree, sem commit).** O gateway usa o crate com as fontes
+nativas e a pilha TS saiu:
+
+- `tick_async` no crate (`HarvestDrainAsync`); a future **não é `Send`**, então o
+  worker roda em `std::thread` + runtime `current_thread` no `adom-server`;
+- drain com `MetaSources` → `JackettClient` → `filter_relevant_raw` →
+  `harvest_support::{release_entry_for, record_release}` (índice nativo);
+- fila/dedupe/balde no MESMO `data/cache.db` do Node (schema `cache` idêntico);
+  namespace `harvest` Rust-owned no Node;
+- contrato HTTP na admin do gateway (`GET /harvest`, `POST
+  /harvest/enqueue|pause|drain|clear`, `GET /harvest/pending`) — detalhe em
+  [`docs/harvest-native-contract.md`](../../harvest-native-contract.md);
+- apagados: `src/providers/{jackett*,bludv,search-plan,harvest-*,harvester*}`
+  (16 arquivos, 3.254 linhas) e 33 testes + 1 helper (7.299 linhas).
+
+Dívidas declaradas: o drain cobre Jackett (o coletor BLUDV nativo não entra na
+colheita); o overlay `cfg:v1:harvester` do Node não chega ao Rust; a captura
+assíncrona do banco de magnets continua no caminho do `/stream`.
 
 ## Fase 6 — Raspador do Mico no Rust
 

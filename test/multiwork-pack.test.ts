@@ -6,8 +6,7 @@
 // A feature é NATIVA por padrão (BR_MULTIWORK_PACKS default true; `false` é o
 // kill-switch explícito). Os testes fixam: default on, kill-switch off, outra
 // franquia, faixa sem o ano, sem ano/sem debrid/série, admissão no filtro antes
-// do magnet, query de franquia só na tarefa BR (sem fan-out), não-indexação do
-// pack e não-P2P (nunca torrent inteiro).
+// do magnet, não-indexação do pack e não-P2P (nunca torrent inteiro).
 import { test } from 'node:test';
 import assert from 'node:assert';
 
@@ -23,7 +22,6 @@ const { collectionRoot, collectionRootTokens, admitsMultiWorkPack, coversYear, p
   await import('../src/utils/multiwork-pack.js');
 const { filterRelevantRaw } = await import('../src/utils/format.js');
 const { limitReservingBr, dedupeByHash } = await import('./helpers/pipeline-oracle/format.js');
-const { planJackettQueries } = await import('../src/providers/search-plan.js');
 const { playDisposition } = await import('./helpers/pipeline-oracle/debrid-play-guard.js');
 const { resolveMultiWork, startMultiWorkDiscovery } = await import('../src/providers/tmdb-multiwork.js');
 const { getCollection } = await import('../src/utils/tmdb.js');
@@ -166,26 +164,6 @@ test('filtro pré-magnet: o pack só passa o filtro com o contexto multiWork', (
   const admitted = filterRelevantRaw([indyPack()], { ...ctx, multiWork: INDY });
   assert.equal(admitted.length, 1);
   assert.equal(admitted[0].infoHash, HASH);
-});
-
-test('plan: raiz multiobra só na tarefa BR, sem fan-out', () => {
-  const plan = planJackettQueries(
-    'Indiana Jones e os Caçadores da Arca Perdida 1981',
-    'Indiana Jones e os Caçadores da Arca Perdida 1981',
-    ['thepiratebay', 'bludv-cardigann'],
-    ['bludv-cardigann'],
-    [],
-    null,
-    null,
-    'indiana jones',
-  );
-  // Uma tarefa por indexer (global agrupado + BR isolado): NENHUMA tarefa extra
-  // de franquia — o degrau vive DENTRO da tarefa BR, sequencial.
-  assert.equal(plan.length, 2);
-  const global = plan.find((t) => t.indexers.includes('thepiratebay')) as any;
-  const br = plan.find((t) => t.indexers[0] === 'bludv-cardigann') as any;
-  assert.equal('multiWork' in global, false);
-  assert.equal(br.multiWork, 'indiana jones');
 });
 
 test('não-P2P: só o multiobra ADMITIDO nunca vira torrent P2P inteiro', () => {

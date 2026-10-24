@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 
 import { normalizeTitle, collapseAcronyms } from '../src/utils/title-normalization.js';
 import { buildSearchQuery } from '../src/utils/search-names.js';
-import { shapeSearchQuery } from '../src/providers/jackett-query.js';
 
 test('sigla com ponto vira uma palavra nos dois lados', () => {
   assert.equal(normalizeTitle('G.O.R.A.'), 'gora');
@@ -23,13 +22,7 @@ test('ponto que não é sigla fica como estava', () => {
   assert.equal(collapseAcronyms('Jornada nas Estrelas 2ª Temporada'), 'Jornada nas Estrelas 2ª Temporada');
 });
 
-test('global recebe a sigla sem pontos; BR, com pontos (o WordPress casa o literal)', () => {
+test('buildSearchQuery preserva a sigla com pontos (o resolvedor nativo molda depois)', () => {
   const gora = buildSearchQuery({ name: 'G.O.R.A.', year: 2004 });
   assert.equal(gora, 'G.O.R.A. 2004');
-  assert.equal(shapeSearchQuery('yts', gora, false), 'GORA 2004');
-  assert.equal(shapeSearchQuery('thepiratebay', 'A.I. Artificial Intelligence 2001', false), 'AI Artificial Intelligence 2001');
-  // BLUDV, 2026-10-04: "S.W.A.T." → 127 itens, "SWAT" → 0.
-  // O episódio vira temporada (S01E02 -> S01): a temporada fica na query BR
-  // para o resolver Rust filtrar antes do corte.
-  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S01E02', true), 'S.W.A.T. S01');
 });

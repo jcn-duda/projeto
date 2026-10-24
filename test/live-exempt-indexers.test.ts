@@ -5,30 +5,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import { jackett } from '../src/config/jackett.js';
-import { liveIndexers } from '../src/providers/search-plan.js';
 import { probeIndexers, probeEnabled } from '../src/providers/br-probe.js';
-
-test('liveIndexers com exempt mantem o apache e ainda remove o 1337x', () => {
-  const selecionados = ['thepiratebay', '1337x', 'apachetorrent-cardigann', 'redetorrent-cardigann'];
-  const indexOnly = config.jackett.indexOnlyIndexers;
-  const exempt = config.jackett.liveExemptIndexers;
-
-  const vivos = liveIndexers(selecionados, indexOnly, exempt);
-  assert.ok(vivos.includes('apachetorrent-cardigann'), 'apachetorrent-cardigann esta presente no plano ao vivo via exempt');
-  assert.ok(!vivos.includes('1337x'), '1337x continua removido');
-  assert.ok(!vivos.includes('redetorrent-cardigann'), 'redetorrent-cardigann continua removido');
-  assert.ok(vivos.includes('thepiratebay'), 'thepiratebay preservado');
-});
-
-test('liveIndexers: terceiro parametro ausente preserva o comportamento antigo', () => {
-  const selecionados = ['thepiratebay', '1337x', 'apachetorrent-cardigann'];
-  const indexOnly = config.jackett.indexOnlyIndexers;
-
-  const vivos = liveIndexers(selecionados, indexOnly);
-  assert.ok(!vivos.includes('1337x'), '1337x fica fora sem exempt');
-  assert.ok(!vivos.includes('apachetorrent-cardigann'), 'apachetorrent-cardigann fica fora sem exempt');
-  assert.deepEqual(vivos, ['thepiratebay']);
-});
 
 test('probeIndexers subtrai os isentos e continua nao-vazio, probeEnabled continua true', () => {
   const targets = probeIndexers();
@@ -51,7 +28,7 @@ test('trava regressao (2): a elegibilidade index-only do banco de magnets contin
   );
 });
 
-test('JACKETT_LIVE_EXEMPT_INDEXERS vazio restaura o comportamento anterior', () => {
+test('JACKETT_LIVE_EXEMPT_INDEXERS vazio zera a lista de isentos', () => {
   const prevEnv = process.env.JACKETT_LIVE_EXEMPT_INDEXERS;
   try {
     process.env.JACKETT_LIVE_EXEMPT_INDEXERS = '';
@@ -61,10 +38,6 @@ test('JACKETT_LIVE_EXEMPT_INDEXERS vazio restaura o comportamento anterior', () 
       [],
       'liveExemptIndexers fica vazio com env vazio',
     );
-    const selecionados = ['thepiratebay', '1337x', 'apachetorrent-cardigann'];
-    const vivos = liveIndexers(selecionados, config.jackett.indexOnlyIndexers, reloadedJackett.liveExemptIndexers);
-    assert.ok(!vivos.includes('apachetorrent-cardigann'), 'apache volta a ser excluido do plano ao vivo');
-    assert.deepEqual(vivos, ['thepiratebay']);
   } finally {
     if (prevEnv !== undefined) {
       process.env.JACKETT_LIVE_EXEMPT_INDEXERS = prevEnv;

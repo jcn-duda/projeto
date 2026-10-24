@@ -6,6 +6,7 @@
 //! do F4.7): não tem flag nem proxy de rollback.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -46,6 +47,9 @@ pub struct AppState {
     /// Store SWR + deps compartilhados entre requisições. `None` com a flag
     /// desligada (ou teste sem corte).
     pub orchestrator: Option<Orchestrator>,
+    /// Epoch ms da última requisição `/stream` NATIVA. O colhedor usa como
+    /// freio (`is_busy` = dentro de `HARVEST_IDLE_WINDOW_MS`).
+    pub stream_traffic: Arc<AtomicI64>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -91,8 +95,16 @@ pub async fn run(config: Config) -> Result<(), String> {
         .as_ref()
         .map(|stores| stream::build_orchestrator_from(stores.clone()))
         .transpose()?;
+    // Freio do colhedor: o `dispatch` marca AQUI (uma vez por requisição do
+    // `/stream` nativo); o worker lê via `TrafficSense`.
+    let stream_traffic = Arc::new(AtomicI64::new(0));
+    // Colhedor nativo (Fase 5): só existe com o corte nativo e orquestrador.
+    // `None` não impede o gateway — as rotas `/harvest*` respondem desligado.
+    let harvest = orchestrator
+        .as_ref()
+        .and_then(|orch| crate::harvest::spawn(orch, stream_traffic.clone()));
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
-        spawn_store_admin(stores, orch.config().stale_grace_seconds);
+        spawn_store_admin(stores, orch.config().stale_grace_seconds, harvest);
     }
     let state = AppState {
         client: client(),
@@ -104,6 +116,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         // O play é sempre nativo: a ponte com o Node é o caminho de produção.
         bridge: crate::resolve_bridge::from_env(),
         orchestrator,
+        stream_traffic,
     };
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -119,10 +132,14 @@ pub async fn run(config: Config) -> Result<(), String> {
         .map_err(|err| format!("servidor encerrou: {err}"))
 }
 
-/// Sobe a API administrativa do `streams.db` (loopback + token) em segundo
-/// plano. Falha de bind é só log: o `/stream` não depende dela, e as chamadas
-/// do Node degradam para "sem efeito" (o Node loga e segue).
-fn spawn_store_admin(stores: &stream::StreamStores, grace_seconds: u64) {
+/// Sobe a API administrativa do `streams.db` e do colhedor (loopback + token)
+/// em segundo plano. Falha de bind é só log: o `/stream` não depende dela, e as
+/// chamadas do Node degradam para "sem efeito" (o Node loga e segue).
+fn spawn_store_admin(
+    stores: &stream::StreamStores,
+    grace_seconds: u64,
+    harvest: Option<crate::harvest::HarvestHandle>,
+) {
     let Some(streams) = stores.streams.clone() else {
         eprintln!("[gateway] streams admin sem store SQLite (memória); invalidação indisponível");
         return;
@@ -135,7 +152,7 @@ fn spawn_store_admin(stores: &stream::StreamStores, grace_seconds: u64) {
         }
     };
     tokio::spawn(async move {
-        if let Err(err) = crate::store_admin::serve(cfg, streams, grace_seconds).await {
+        if let Err(err) = crate::store_admin::serve(cfg, streams, grace_seconds, harvest).await {
             eprintln!("[gateway] {err}");
         }
     });
@@ -162,6 +179,11 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
     }
     // Corte nativo: o `/stream` não passa pelo Node.
     if state.stream_native && stream::is_native_stream(req.method(), req.uri().path()) {
+        // Marca o uso ANTES de atender: o colhedor só trabalha na janela de
+        // idle. É a ÚNICA escrita que o colhedor faz neste caminho.
+        state
+            .stream_traffic
+            .store(adom_sources::now_ms(), Ordering::Relaxed);
         return match &state.orchestrator {
             Some(orch) => stream::handle(orch, req).await,
             None => (

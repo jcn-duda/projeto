@@ -200,10 +200,15 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // invalidação vão por ela.
 const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw']);
 
-// Dono por PREFIXO dentro de namespace compartilhado: `raw:v1` é do gateway no
-// BLUDV (chave e arquivo iguais) e do Node no Jackett. Sem esta guarda o
-// `forget` do Node apaga a linha fresca do Rust e o boot sobe cópia velha.
-const RUST_OWNED_PREFIXES = Object.freeze([`${prefix('raw')}bludv:`]);
+// Dono por PREFIXO dentro de namespace compartilhado:
+//
+// `harvest:v1` entra aqui pelo namespace INTEIRO (Fase 5): a fila
+// (`harvest:v1:q`), o balde horário e o dedupe de 12h são escritos pelo colhedor
+// do gateway. O Node não pode carregar essas linhas no L1 (`loadFromDisk`) nem
+// regravá-las no SQLite: o L1 nasceria com uma fila velha e o flush sobrescreveria
+// o trabalho do Rust. O namespace continua em `NAMESPACE_VERSIONS` porque quem
+// monta a chave precisa da versão — o dono é que mudou.
+const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest')]);
 
 const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
 

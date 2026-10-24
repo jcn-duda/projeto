@@ -56,15 +56,29 @@ pub(super) fn release_entry(
     entered: &[RawItem],
     survivors: &[RawItem],
 ) -> ReleaseEntry {
+    release_entry_parts(&meta.imdb_id, meta.season, meta.episode, entered, survivors)
+}
+
+/// Miolo de [`release_entry`] com os campos PRIMITIVOS da obra. Existe para o
+/// colhedor de fundo montar a MESMA entrada (sem `SearchMeta`, sem
+/// orquestrador): `orchestrator::harvest_support::release_entry_for` delega
+/// aqui. A régua é uma só — não duplique.
+pub(crate) fn release_entry_parts(
+    imdb: &str,
+    season: Option<i64>,
+    episode: Option<i64>,
+    entered: &[RawItem],
+    survivors: &[RawItem],
+) -> ReleaseEntry {
     // Zero auto-perpetuação (Etapa 4): a reserva 📦 NUNCA alimenta o índice de
     // releases nem o banco. No TS o `releaseIndex.record` recebe
     // `raw.filter(item => !item.fromFallback)`; aqui a reserva entra no build
     // para responder, mas sai antes da escrita.
     let recordable = |item: &&RawItem| !item.from_fallback;
     ReleaseEntry {
-        imdb: meta.imdb_id.clone(),
-        season: meta.season,
-        episode: meta.episode,
+        imdb: imdb.to_string(),
+        season,
+        episode,
         items: survivors
             .iter()
             .filter(recordable)

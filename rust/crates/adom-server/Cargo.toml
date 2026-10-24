@@ -9,6 +9,8 @@ license = "UNLICENSED"
 [dependencies]
 adom-core = { path = "../adom-core" }
 adom-debrid = { path = "../adom-debrid" }
+# Fila durável + worker do colhedor nativo (Fase 5).
+adom-harvest = { path = "../adom-harvest" }
 adom-search = { path = "../adom-search" }
 # Metadados nativos (C5): `MetaSources` + store do cache.db.
 adom-sources = { path = "../adom-sources" }
@@ -19,6 +21,8 @@ http = "1"
 http-body-util = "0.1"
 hyper = "1"
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+# Serialização do snapshot do colhedor (`harvest/status.rs`) e das rotas.
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 

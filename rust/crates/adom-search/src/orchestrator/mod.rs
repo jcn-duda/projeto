@@ -43,6 +43,10 @@ mod fallback;
 mod fast_path;
 mod finish;
 mod finish_build;
+// Reuso da coleta/gravação de índice FORA do `/stream` (colhedor de fundo do
+// `adom-server`): Jackett → `RawItem`, entrada do índice e `record` + marca do
+// filtro — sem orquestrador e sem rota HTTP interna.
+pub mod harvest_support;
 mod index_effects;
 mod index_metrics;
 mod index_source;
@@ -107,6 +111,10 @@ pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
 };
+// Tipos que o consumidor de `harvest_support` recebe/entrega, no MESMO caminho
+// dos módulos do orquestrador.
+pub use crate::internal_types::ReleaseEntry;
+pub use crate::raw_item::RawItem;
 pub use debrid_al_metrics::debrid_al_metrics_snapshot;
 pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;

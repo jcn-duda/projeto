@@ -48,7 +48,7 @@ async fn spawn(store: Arc<StreamsStore>, token: &str) -> std::net::SocketAddr {
         listen: DEFAULT_LISTEN.parse().unwrap(),
         token: token.to_string(),
     };
-    let app = router(&cfg, store, 300);
+    let app = router(&cfg, store, 300, None);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {

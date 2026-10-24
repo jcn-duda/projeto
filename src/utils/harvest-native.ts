@@ -1,0 +1,328 @@
+// Ponte do Node com o colhedor NATIVO (`adom-server::harvest`, API
+// administrativa do gateway em loopback).
+//
+// Desde a Fase 5 o colhedor roda no processo Rust: a fila `harvest:v1:q`, o
+// dedupe de 12h, o balde horário (`harvest:v1:hour`) e a sonda dirigida são do
+// gateway, que colhe com as MESMAS fontes nativas do `/stream` e grava no
+// índice/banco nativos. O Node deixou de ser dono do namespace `harvest` — não
+// escreve, não drena e não lê a fila do L2 (o L1 nasceria vazio e um flush
+// sobrescreveria o trabalho do Rust).
+//
+// O que sobra aqui é o que o painel e os efeitos precisam:
+//   - enfileirar (`POST /harvest/enqueue`) a partir dos efeitos da busca;
+//   - ler o estado (`GET /harvest`) para o bloco do painel;
+//   - pausar / drenar / limpar pelo painel.
+//
+// Contrato BEST-EFFORT, igual ao `streams-store-native`: falha de rede/tempo
+// vira "sem efeito" + backoff curto. Nenhuma dessas chamadas pode derrubar
+// busca, play ou boot. O status é espelhado em memória (`snapshot`) porque o
+// bloco do `/dashboard-status.json` é síncrono; quem atualiza é o poll de fundo
+// (`startHarvestPolling`) ou um `refreshHarvestStatus()` explícito.
+import config from '../config.js';
+import * as metrics from './metrics.js';
+import * as log from './logger.js';
+
+/** Entrada da fila como o gateway devolve (espelho de `HarvestEntry` do Rust). */
+export type NativeHarvestEntry = {
+  imdbId: string;
+  type: 'movie' | 'series';
+  season?: number;
+  episode?: number;
+  reason: string;
+  enqueuedAt: number;
+  priorityAt?: number;
+  resumed?: boolean;
+  brProbe?: boolean;
+  fullBase?: boolean;
+};
+
+export type NativeHarvestLast = {
+  imdbId: string;
+  type: string;
+  reason: string;
+  ok: boolean;
+  queries: number;
+  at: number;
+};
+
+/** Snapshot de `GET /harvest` (nomes camelCase, iguais ao contrato Rust). */
+export type NativeHarvestStatus = {
+  ok: boolean;
+  enabled: boolean;
+  paused: boolean;
+  intervalMs: number;
+  maxPerHour: number;
+  queriesThisHour: number;
+  depth: number;
+  inflight: boolean;
+  preview: NativeHarvestEntry[];
+  last: NativeHarvestLast[];
+  counters: { drained: number; failed: number };
+  store: string;
+};
+
+export type NativeHarvestEnqueue = {
+  imdbId: string;
+  type: 'movie' | 'series';
+  season?: number;
+  episode?: number;
+  reason: string;
+  brProbe?: boolean;
+};
+
+export type NativeHarvestEnqueueResult = {
+  /** `false` = a ponte nem tentou (backoff, IMDb inválido). */
+  attempted: boolean;
+  accepted: boolean;
+  reason: string;
+};
+
+const SEQUENTIAL_FAILURES_BEFORE_BACKOFF = 2;
+
+let failures = 0;
+let blockedUntil = 0;
+const pending = new Set<Promise<unknown>>();
+let snapshot: NativeHarvestStatus | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+function settings() {
+  return config.streamStore;
+}
+
+function available(now = Date.now()): boolean {
+  return now >= blockedUntil;
+}
+
+function baseUrl(): string {
+  return String(settings().url || '').replace(/\/+$/, '');
+}
+
+function token(): string {
+  return settings().token || config.jackett.testToken || '';
+}
+
+function noteFailure(where: string): void {
+  failures += 1;
+  metrics.count('harvest.bridge.errors');
+  if (failures >= SEQUENTIAL_FAILURES_BEFORE_BACKOFF) {
+    const backoff = Math.max(0, Number(settings().backoffMs) || 0);
+    if (backoff > 0 && Date.now() >= blockedUntil) {
+      blockedUntil = Date.now() + backoff;
+      metrics.count('harvest.bridge.backoff');
+      log.warn(
+        `[harvest] ${where} falhou; pausando a ponte com o colhedor nativo por ` +
+        `${Math.round(backoff / 1000)}s`,
+      );
+    }
+  }
+}
+
+function noteSuccess(): void {
+  failures = 0;
+  blockedUntil = 0;
+}
+
+async function request(path: string, init: { method?: string; body?: unknown } = {}): Promise<unknown> {
+  const opts = settings();
+  const headers: Record<string, string> = {
+    'x-indexer-test-token': token(),
+    accept: 'application/json',
+  };
+  if (init.body !== undefined) headers['content-type'] = 'application/json';
+  const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(Math.max(1, Number(opts.timeoutMs) || 2000))
+    : undefined;
+  const res = await fetch(`${baseUrl()}${path}`, {
+    method: init.method || 'POST',
+    headers,
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    signal,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function track<T>(promise: Promise<T>): Promise<T> {
+  pending.add(promise);
+  void promise.then(
+    () => pending.delete(promise),
+    () => pending.delete(promise),
+  );
+  return promise;
+}
+
+/** Último estado conhecido (sync — o bloco do painel não pode esperar rede). */
+export function harvestStatusSnapshot(): NativeHarvestStatus | null {
+  return snapshot;
+}
+
+/** `true` quando o último refresh trouxe um gateway vivo. */
+export function harvestNativeOnline(): boolean {
+  return snapshot?.ok === true && snapshot.enabled !== false;
+}
+
+/** Busca o estado no gateway. Nunca lança; em falha mantém o snapshot anterior. */
+export async function refreshHarvestStatus(): Promise<NativeHarvestStatus | null> {
+  if (!available()) return snapshot;
+  try {
+    const json = (await request('/harvest', { method: 'GET' })) as NativeHarvestStatus;
+    noteSuccess();
+    snapshot = {
+      ok: json?.ok === true,
+      enabled: json?.enabled === true,
+      paused: json?.paused === true,
+      intervalMs: Number(json?.intervalMs) || 0,
+      maxPerHour: Number(json?.maxPerHour) || 0,
+      queriesThisHour: Number(json?.queriesThisHour) || 0,
+      depth: Number(json?.depth) || 0,
+      inflight: json?.inflight === true,
+      preview: Array.isArray(json?.preview) ? json.preview : [],
+      last: Array.isArray(json?.last) ? json.last : [],
+      counters: {
+        drained: Number(json?.counters?.drained) || 0,
+        failed: Number(json?.counters?.failed) || 0,
+      },
+      store: String(json?.store || ''),
+    };
+    return snapshot;
+  } catch (err) {
+    noteFailure('status');
+    metrics.count('harvest.bridge.status_errors');
+    log.warn(`[harvest] status do colhedor nativo falhou: ${log.errorMessage(err)}`);
+    return snapshot;
+  }
+}
+
+/**
+ * Enfileira uma obra no colhedor nativo. Fire-and-forget por contrato: os
+ * efeitos da busca não esperam e o próximo `miss` reenfileira se este pedido
+ * se perder. Devolve só "o pedido saiu".
+ */
+export function enqueueNativeHarvest(req: NativeHarvestEnqueue): boolean {
+  const imdbId = String(req?.imdbId || '').trim().toLowerCase();
+  if (!/^tt\d+$/.test(imdbId) || (req.type !== 'movie' && req.type !== 'series')) return false;
+  if (!available()) return false;
+  const body: Record<string, unknown> = {
+    imdbId,
+    type: req.type,
+    reason: String(req.reason || 'miss'),
+  };
+  if (Number.isFinite(req.season)) body.season = req.season;
+  if (Number.isFinite(req.episode)) body.episode = req.episode;
+  if (req.brProbe === true) body.brProbe = true;
+  track(
+    request('/harvest/enqueue', { body })
+      .then((json) => {
+        noteSuccess();
+        const out = json as { accepted?: unknown; reason?: unknown };
+        if (out?.accepted === true) metrics.count('harvest.bridge.enqueued');
+        else metrics.count(`harvest.bridge.${String(out?.reason || 'rejected')}`);
+      })
+      .catch((err) => {
+        noteFailure('enqueue');
+        log.warn(`[harvest] enqueue nativo falhou (${imdbId}): ${log.errorMessage(err)}`);
+      }),
+  );
+  return true;
+}
+
+/** `requestBrProbe` do Node: a obra já está na fila nativa, e como sonda? */
+export async function pendingNativeHarvest(imdbId: string): Promise<{ queued: boolean; brProbe: boolean } | null> {
+  const target = String(imdbId || '').trim().toLowerCase();
+  if (!/^tt\d+$/.test(target) || !available()) return null;
+  try {
+    const json = (await request(`/harvest/pending?imdbId=${encodeURIComponent(target)}`, { method: 'GET' })) as {
+      queued?: unknown;
+      brProbe?: unknown;
+    };
+    noteSuccess();
+    return { queued: json?.queued === true, brProbe: json?.brProbe === true };
+  } catch (err) {
+    noteFailure('pending');
+    log.warn(`[harvest] pending nativo falhou (${target}): ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
+/** Pausa/retoma o worker. Devolve o estado efetivo (ou `null` se a ponte caiu). */
+export async function pauseNativeHarvest(paused: boolean): Promise<boolean | null> {
+  if (!available()) return null;
+  try {
+    const json = (await request('/harvest/pause', { body: { paused: paused === true } })) as { paused?: unknown };
+    noteSuccess();
+    const value = json?.paused === true;
+    if (snapshot) snapshot.paused = value;
+    return value;
+  } catch (err) {
+    noteFailure('pause');
+    log.warn(`[harvest] pause nativo falhou: ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
+/** Drena à mão até `max` obras. Devolve quantas saíram. */
+export async function drainNativeHarvest(max = 5): Promise<number> {
+  if (!available()) return 0;
+  try {
+    const json = (await request('/harvest/drain', { body: { max } })) as { drained?: unknown };
+    noteSuccess();
+    const drained = Number(json?.drained);
+    return Number.isFinite(drained) && drained > 0 ? drained : 0;
+  } catch (err) {
+    noteFailure('drain');
+    log.warn(`[harvest] drain nativo falhou: ${log.errorMessage(err)}`);
+    return 0;
+  }
+}
+
+/** Limpa a fila do colhedor nativo. Devolve quantas entradas saíram. */
+export async function clearNativeHarvest(): Promise<number> {
+  if (!available()) return 0;
+  try {
+    const json = (await request('/harvest/clear', { body: {} })) as { cleared?: unknown };
+    noteSuccess();
+    const cleared = Number(json?.cleared);
+    return Number.isFinite(cleared) && cleared > 0 ? Math.floor(cleared) : 0;
+  } catch (err) {
+    noteFailure('clear');
+    log.warn(`[harvest] clear nativo falhou: ${log.errorMessage(err)}`);
+    return 0;
+  }
+}
+
+/**
+ * Arma o poll do estado (idempotente). O painel lê o espelho sync; o timer é o
+ * único que fala com o gateway. Intervalo default 30s — o painel recarrega
+ * sozinho e o status não precisa ser tempo real como o do crawl.
+ */
+export function startHarvestPolling(intervalMs = 30000): void {
+  if (pollTimer) return;
+  const every = Number.isFinite(intervalMs) && intervalMs >= 5000 ? intervalMs : 30000;
+  void refreshHarvestStatus();
+  pollTimer = setInterval(() => void refreshHarvestStatus(), every);
+  // Não segura o processo no shutdown (mesma razão dos timers do painel).
+  if (typeof pollTimer === 'object' && pollTimer && 'unref' in pollTimer) {
+    (pollTimer as { unref?: () => void }).unref?.();
+  }
+}
+
+export function stopHarvestPolling(): void {
+  if (!pollTimer) return;
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+/** Drena os pedidos em voo (testes e shutdown). */
+export async function flushPendingHarvest(): Promise<void> {
+  while (pending.size > 0) {
+    await Promise.allSettled(Array.from(pending));
+  }
+}
+
+/** Só testes: esquece backoff/snapshot do processo. */
+export function resetHarvestBridgeForTests(): void {
+  failures = 0;
+  blockedUntil = 0;
+  snapshot = null;
+  stopHarvestPolling();
+}

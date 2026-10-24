@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use adom_core::PlayHint;
@@ -81,6 +81,7 @@ pub(super) fn gateway_state(upstream: SocketAddr, native_health: bool) -> AppSta
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: None,
+        stream_traffic: Arc::new(AtomicI64::new(0)),
     }
 }
 
@@ -103,6 +104,7 @@ pub(super) fn gateway_state_native(upstream: SocketAddr, orch: Orchestrator) -> 
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: Some(orch),
+        stream_traffic: Arc::new(AtomicI64::new(0)),
     }
 }
 
@@ -121,6 +123,7 @@ pub(super) fn gateway_state_resolve(
         resolver,
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: None,
+        stream_traffic: Arc::new(AtomicI64::new(0)),
     }
 }
 

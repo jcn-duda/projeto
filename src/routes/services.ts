@@ -4,7 +4,6 @@ import config from '../config.js';
 import * as runtime from '../runtime.js';
 import debrid from '../debrid/index.js';
 import * as jackettCatalog from '../providers/jackett-catalog.js';
-import jackett from '../providers/jackett.js';
 import * as secretBox from '../utils/secret-box.js';
 import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
@@ -15,7 +14,6 @@ import * as autofetchLive from '../utils/autofetch-live.js';
 import * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import * as releaseIndex from '../utils/release-index.js';
-import harvester from '../providers/harvester.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as magnetBank from '../utils/magnet-bank.js';
@@ -41,7 +39,6 @@ function buildServices(): AppServices {
     runtime,
     debrid,
     jackettCatalog,
-    jackett,
     secretBox,
     metrics,
     cache,
@@ -51,7 +48,6 @@ function buildServices(): AppServices {
     autofetchLive,
     autofetchSuppressed,
     releaseIndex,
-    harvester,
     harvesterLive,
     harvesterDebrid,
     magnetdb,

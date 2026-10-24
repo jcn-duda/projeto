@@ -68,6 +68,9 @@ export function ViewSonda({ harvest, f3, metrics }: ViewSondaProps) {
       </${Card}>
 
       <${Card} title="Sondas em Fila Ativa">
+        <p style="margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--font-floor);">
+          Fila e sondas vêm do colhedor nativo (gateway)${h.native === false ? ' — gateway indisponível' : ''}.
+        </p>
         ${probeItems.length === 0 ? html`
           <p style="color: var(--muted); font-size: var(--font-floor);">Nenhuma sonda dirigida pendente na fila.</p>
         ` : html`

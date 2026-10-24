@@ -1,9 +1,8 @@
-// Diagnóstico do card Mico (`mico-diag.ts` via `jackett.test` -> rota
-// `/test-indexer.json`): o alvo pedido é o alvo consultado. `query` aqui é
-// IMDb (`tt…` filme, `tt…:S:E` episódio), entrada inválida não consulta nem
-// repara o circuito, e o coringa sem query fica intacto (compat "testar
-// todos"). Inclui as métricas mínimas do Mico e o contrato da rota protegida.
-// Nada aqui toca rede real.
+// Diagnóstico do card Mico (`mico-diag.ts`): o alvo pedido é o alvo
+// consultado. `query` aqui é IMDb (`tt…` filme, `tt…:S:E` episódio), entrada
+// inválida não consulta nem repara o circuito, e o coringa sem query fica
+// intacto (compat "testar todos"). Inclui as métricas mínimas do Mico e o
+// contrato da rota aposentada (410). Nada aqui toca rede real.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -13,8 +12,6 @@ import config from '../src/config.js';
 config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
 import * as micoDiag from '../src/providers/mico-diag.js';
-import jackett from '../src/providers/jackett.js';
-import { resetCatalogCache } from '../src/providers/jackett-catalog.js';
 import { createApp } from '../src/app.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -49,12 +46,12 @@ test('diagnóstico: consulta explícita respeita o IMDb do filme e o S:E da sér
       return http(404);
     });
     try {
-      const filme: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const filme: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(filme.ok, true);
       assert.equal(filme.query, 'tt0133093', 'o payload reporta o alvo exato');
       assert.equal(filme.type, 'movie');
       assert.equal(filme.results, 2, 'results é o BRUTO da fonte (lixo de outra obra incluído)');
-      const serie: any = await jackett.test('mico', 'tt0944947:2:3', 'series');
+      const serie: any = await micoDiag.test('tt0944947:2:3', 'series');
       assert.equal(serie.ok, false);
       assert.equal(serie.error, undefined, 'vazio válido é SEM MAGNET, não erro');
       assert.equal(serie.query, 'tt0944947:2:3');
@@ -94,7 +91,7 @@ test('diagnóstico: entrada inválida devolve erro claro, não consulta e não r
       assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000003' }), []);
       assert.equal(stub.calls.length, calls, 'erro de entrada não reparou o circuito aberto');
       fail = false;
-      const bom: any = await jackett.test('mico', 'tt0944947:2:3', 'series');
+      const bom: any = await micoDiag.test('tt0944947:2:3', 'series');
       assert.equal(bom.error, undefined, 'consulta válida volta a medir');
     } finally {
       stub.restore();
@@ -113,12 +110,12 @@ test('diagnóstico: sem query mantém o coringa de filme (compat testar-todos e 
       assert.equal(direto.ok, true);
       assert.equal(direto.query, 'tt7286456');
       assert.equal(direto.type, 'movie');
-      const viaJackett: any = await jackett.test('mico', '', 'movie');
+      const viaJackett: any = await micoDiag.test('', 'movie');
       assert.equal(viaJackett.ok, true);
       assert.equal(viaJackett.query, 'tt7286456');
       // Sem alvo, o coringa é de filme MESMO com type=series — e o payload
       // reporta o tipo que REALMENTE foi consultado, não o pedido.
-      const semAlvoSerie: any = await jackett.test('mico', '', 'series');
+      const semAlvoSerie: any = await micoDiag.test('', 'series');
       assert.equal(semAlvoSerie.query, 'tt7286456');
       assert.equal(semAlvoSerie.type, 'movie');
       assert.equal(stub.calls.length, 3);
@@ -163,7 +160,7 @@ test('diagnóstico: S0:E1 (especiais) é consulta válida', async () => {
       return ok([]);
     });
     try {
-      const especiais: any = await jackett.test('mico', 'tt0944947:0:1', 'series');
+      const especiais: any = await micoDiag.test('tt0944947:0:1', 'series');
       assert.equal(especiais.ok, false);
       assert.equal(especiais.error, undefined, 'S0 é temporada legítima, não entrada inválida');
       assert.equal(especiais.query, 'tt0944947:0:1');
@@ -181,15 +178,15 @@ test('diagnóstico: falha da fonte (429/5xx/rede/timeout) é ERRO; 200 vazio é 
     const stub = stubFetch(() => (seq.shift()?.() ?? ok([])));
     try {
       seq.push(() => http(500));
-      const falha500: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const falha500: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(falha500.ok, false);
       assert.match(falha500.error, /fonte do Mico falhou/);
       seq.push(() => http(429));
-      const falha429: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const falha429: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(falha429.ok, false);
       assert.match(falha429.error, /fonte do Mico falhou/);
       seq.push(() => { throw new Error('boom de rede'); });
-      const rede: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const rede: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(rede.ok, false);
       assert.match(rede.error, /fonte do Mico falhou/);
       assert.doesNotMatch(rede.error, /boom/, 'erro sanitizado: texto cru de terceiro não vaza');
@@ -197,11 +194,11 @@ test('diagnóstico: falha da fonte (429/5xx/rede/timeout) é ERRO; 200 vazio é 
       // a rejeição que o AbortSignal.timeout produz no fetch real — o caminho
       // sob teste é o mesmo (rejeição no catch da busca → fail-open).
       seq.push(() => Promise.reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError')));
-      const lenta: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const lenta: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(lenta.ok, false);
       assert.match(lenta.error, /fonte do Mico falhou/);
       // 200 vazio: resposta válida sem magnet — SEM erro (estado 'empty' no painel).
-      const vazio: any = await jackett.test('mico', 'tt0133093', 'movie');
+      const vazio: any = await micoDiag.test('tt0133093', 'movie');
       assert.equal(vazio.ok, false);
       assert.equal(vazio.error, undefined);
       assert.equal(stub.calls.length, 5, 'cada veredito veio de UMA medição real');
@@ -216,10 +213,10 @@ test('diagnóstico: fonte desativada é veredito explícito, sem fetch', async (
   config.mico.enabled = false;
   const stub = stubFetch(() => ok([]));
   try {
-    const comAlvo: any = await jackett.test('mico', 'tt0133093', 'movie');
+    const comAlvo: any = await micoDiag.test('tt0133093', 'movie');
     assert.equal(comAlvo.ok, false);
     assert.match(comAlvo.error, /desativada/);
-    const semAlvo: any = await jackett.test('mico', '', 'movie');
+    const semAlvo: any = await micoDiag.test('', 'movie');
     assert.match(semAlvo.error, /desativada/);
     assert.equal(stub.calls.length, 0);
   } finally {
@@ -228,47 +225,23 @@ test('diagnóstico: fonte desativada é veredito explícito, sem fetch', async (
   }
 });
 
-test('rota /test-indexer.json: id=mico respeita q/type (provider -> jackett -> rota)', async () => {
-  await withMico(async () => {
-    const savedToken = config.jackett.testToken;
-    const savedKey = config.jackett.apiKey;
-    config.jackett.testToken = 'tok-teste-mico';
-    // Sem chave do Jackett o catálogo cai no fallback do .env e o card virtual
-    // do Mico entra — é o caminho da rota sem rede ao Jackett.
-    config.jackett.apiKey = '';
-    resetCatalogCache();
-    const { app } = createApp();
-    const server = await createTestServer(app);
-    const stub = stubFetch((url) => {
-      if (url.includes('/stream/series/tt0944947:2:3.json')) {
-        return ok([{ title: 'A Casa do Dragão S02E03 Dublado 👥 2', infoHash: H1 }]);
-      }
-      return http(404);
-    });
-    const headers = { 'X-Indexer-Test-Token': 'tok-teste-mico' };
-    try {
-      const serie = await server.request('GET', '/test-indexer.json?id=mico&q=tt0944947%3A2%3A3&type=series', { headers });
-      assert.equal(serie.status, 200);
-      assert.equal(serie.json.ok, true);
-      assert.equal(serie.json.query, 'tt0944947:2:3');
-      assert.equal(serie.json.type, 'series');
+test('rota /test-indexer.json responde 410: busca de teste é nativa', async () => {
+  const savedToken = config.jackett.testToken;
+  config.jackett.testToken = 'tok-teste-mico';
+  const { app } = createApp();
+  const server = await createTestServer(app);
+  const headers = { 'X-Indexer-Test-Token': 'tok-teste-mico' };
+  try {
+    const comAlvo = await server.request('GET', '/test-indexer.json?id=mico&q=tt0944947%3A2%3A3&type=series', { headers });
+    assert.equal(comAlvo.status, 410);
+    assert.equal(comAlvo.json.ok, false);
+    assert.match(comAlvo.json.error, /nativas/);
 
-      const invalida = await server.request('GET', '/test-indexer.json?id=mico&q=matrix&type=movie', { headers });
-      assert.equal(invalida.status, 200);
-      assert.equal(invalida.json.ok, false);
-      assert.match(invalida.json.error, /tt…/);
-
-      const compat = await server.request('GET', '/test-indexer.json?id=mico&type=movie', { headers });
-      assert.equal(compat.status, 200);
-      assert.equal(compat.json.query, 'tt7286456');
-      assert.equal(compat.json.type, 'movie');
-      assert.equal(stub.calls.length, 2, 'entrada inválida não chegou à fonte');
-    } finally {
-      stub.restore();
-      await server.close();
-      config.jackett.testToken = savedToken;
-      config.jackett.apiKey = savedKey;
-      resetCatalogCache();
-    }
-  });
+    // Sem alvo também 410: o veredito não depende do indexer pedido.
+    const semAlvo = await server.request('GET', '/test-indexer.json?id=1337x', { headers });
+    assert.equal(semAlvo.status, 410);
+  } finally {
+    await server.close();
+    config.jackett.testToken = savedToken;
+  }
 });

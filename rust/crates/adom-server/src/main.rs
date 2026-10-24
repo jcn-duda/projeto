@@ -1,4 +1,6 @@
 mod config;
+/// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
+mod harvest;
 mod proxy;
 mod resolve_bridge;
 mod resolve_hint;

@@ -1,16 +1,21 @@
-# `adom-harvest` — embrião Fase E (fila do colhedor)
+# `adom-harvest` — fila do colhedor (rodando no gateway)
 
-Crate **fora do caminho `/stream`**. Representa a fila persistente
-`harvest:v1:q` que no TypeScript vive em `src/providers/harvest-queue.ts`,
-orquestrada por `harvester.ts` / `harvest-worker.ts`.
+Crate **fora do caminho `/stream`**. É a fila persistente `harvest:v1:q`, o
+dedupe 12h, o balde horário, o coalescing em voo e a máquina do `br-probe`.
 
-Nesta fatia: **tipos + fila em memória + L2 SQLite (WAL) + ciclo `tick`
-(freio/teto/drain stub) + testes**. Sem Jackett real, sem índice, sem gateway,
-sem Docker.
+Desde a Fase 5 quem consome é o **gateway** (`adom-server::harvest`): uma thread
+própria drena com as fontes nativas do `adom-sources` e grava no índice nativo.
+O corpo TS que fazia isso (`src/providers/{harvester,harvest-*,jackett*,bludv,
+search-plan}.ts`) foi apagado — o Node só enfileira, lê o estado e manda
+pausar/drenar/limpar pela admin do gateway. Contrato em
+[`docs/harvest-native-contract.md`](../../../docs/harvest-native-contract.md).
+
+O crate segue **puro** (sem cliente Jackett, sem índice, sem HTTP): quem tem
+rede é o drain do `adom-server`.
 
 ## Contrato alinhado ao TS
 
-| Conceito | TS | Rust (este crate) |
+| Conceito | TS (histórico, branch `esm`) | Rust (este crate) |
 |---|---|---|
 | Chave da fila | `prefix('harvest') + 'q'` → `harvest:v1:q` | `QUEUE_KEY` / `queue_key()` |
 | Entrada | `HarvestEntry` | `HarvestEntry` |
@@ -25,8 +30,9 @@ sem Docker.
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
 | Ciclo | `harvester.tick` / `harvestWorker` | `HarvestWorker::tick` + `TrafficSense` + `HarvestDrain` |
+| Ciclo com rede | `harvester.tick` (await do Jackett) | `HarvestWorker::tick_async` + `HarvestDrainAsync` |
 
-### Ciclo tick (embrião)
+### Ciclo tick
 
 ```rust
 use adom_harvest::{
@@ -41,10 +47,58 @@ let mut drain = |_e| DrainOutcome::ok_with_queries(1);
 let out = worker.tick(&mut queue, &StubTraffic { busy: false }, &mut drain, now_ms);
 ```
 
+- Decisão ÚNICA (`plan`, privada): disabled → paused → in_flight → busy
+  (sem sonda ⇒ `SkippedBusy`) → vazio → teto horário → `take_next`. `tick` e
+  `tick_async` só diferem no `await` do drain — as guardas não podem divergir.
 - Freio: `TrafficSense::is_busy()` ⇒ só `take_next(true)` (`take_probe`);
   sem sonda na fila ⇒ `SkippedBusy` sem consumir nada.
 - Teto: `queries_this_hour` / `note_queries` por balde UTC; `>= max_per_hour` ⇒ skip.
-- Drain sync stub — async / Jackett ficam para depois.
+- Slot em voo: `open_slot` (`begin` + flag) antes do drain e `close_slot`
+  (`note_queries` + `end` + flag) depois — inclusive quando o drain falha.
+- Drain **sync** (`HarvestDrain`) para stub/teste; o cliente Jackett não mora
+  aqui.
+
+### Porta async (gateway)
+
+O gateway (`adom-server`) drena a fila com rede no meio: implementa
+`HarvestDrainAsync` (future **boxed** só para o trait continuar chamável por
+`&mut dyn`) e chama `tick_async`. A semântica é a do `tick`: skip devolve o
+mesmo `TickOutcome` **sem tocar na fila**; drenar abre o slot da obra em voo,
+debita `outcome.queries`, fecha o slot e devolve `Drained { entry, outcome }`.
+
+```rust
+use std::future::Future;
+use std::pin::Pin;
+
+use adom_harvest::{DrainOutcome, HarvestDrainAsync, HarvestEntry};
+
+struct Jackett(/* client + deadline */);
+
+impl HarvestDrainAsync for Jackett {
+    fn drain_one<'a>(
+        &'a mut self,
+        entry: &'a HarvestEntry,
+    ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
+        Box::pin(async move {
+            // fetch real; erro vira `DrainOutcome::failed()`, nunca panic.
+            DrainOutcome::ok_with_queries(1)
+        })
+    }
+}
+
+let out = worker
+    .tick_async(&mut queue, &traffic, &mut jackett, now_ms)
+    .await;
+```
+
+Cancelar o future no meio do drain deixa o slot aberto (o tick é serial por
+contrato): quem chama espera o ciclo terminar em vez de abortá-lo.
+
+O future do `tick_async` **não** é `Send` — `&dyn TrafficSense` e `&mut dyn
+HarvestDrainAsync` só seriam se os traits trouxessem `Sync`/`Send`. O loop do
+gateway roda em thread própria (runtime `current_thread`); `tokio::spawn`
+direto exigiria `HarvestDrainAsync: Send` **e** `&(dyn TrafficSense + Sync)`
+(não está no contrato desta fatia).
 
 Guardrails (iguais ao Arquivista):
 
@@ -53,7 +107,8 @@ Guardrails (iguais ao Arquivista):
 3. Contagem pura **nunca** decide cobertura do índice (`idxPoolCovered` —
    ainda não portado; mora no release-index).
 4. `fromAccount` **nunca** entra no índice (fora do escopo desta fila).
-5. Gateway **não** pluga este crate.
+5. Gateway **não** drena no caminho da resposta — só em fundo, via
+   `tick_async`.
 
 ## Persistência L2
 
@@ -152,7 +207,8 @@ queue.inflight().pending(&identity); // intenção efetiva após o drain
 ## O que NÃO está aqui (Fase E real)
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
-- Seed IMDb, sonda `brProbe` completa, Jackett, painel, gateway.
+- Seed IMDb, sonda `brProbe` completa, **cliente** Jackett (quem preenche
+  `HarvestDrainAsync` é o gateway), painel.
 
 ## Testes
 

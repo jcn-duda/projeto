@@ -32,7 +32,6 @@ import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
-import * as searchPlan from '../../src/providers/search-plan.js';
 import type { Stream } from '../../types/domain.js';
 
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
@@ -155,25 +154,6 @@ describe('Feature 12: Architecture & Invariants Preservation', () => {
 
     assert.equal(selected.length, 2);
     assert.ok(selected.some((s) => s.name === 'BR Dublado'), 'Fonte BR com 1 seeder deve ocupar a vaga reservada');
-  });
-
-  it('12.4: Invariante 4: Query planning dispara busca em português para indexadores BR e inglês para globais', () => {
-    const plan = searchPlan.planJackettQueries(
-      'Joker 2019',
-      'Coringa 2019',
-      ['1337x', 'bludv-cardigann'],
-      ['bludv-cardigann'],
-      ['bludv-cardigann']
-    );
-
-    const brQuery = plan.find((p) => p.indexers.includes('bludv-cardigann'));
-    const globalQuery = plan.find((p) => p.indexers.includes('1337x'));
-
-    assert.ok(brQuery);
-    assert.ok(globalQuery);
-    assert.equal(brQuery.query, 'Coringa 2019', 'Indexer BR deve receber query pt-BR');
-    assert.equal(brQuery.fallback, 'Joker 2019', 'Indexer BR deve receber query original como fallback');
-    assert.equal(globalQuery.query, 'Joker 2019', 'Indexer global deve receber query original em inglês');
   });
 
   it('12.5: Invariante 6: protected.js protege hashes de autofetch contra dropUncached', () => {

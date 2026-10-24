@@ -10,6 +10,7 @@ import { streamsCacheKey, streamsCacheScope } from '../src/utils/request-key.js'
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
+import { harvestDashboardRoutes } from './helpers/harvest-dashboard-mock.js';
 
 const SWEEP_ADAPTER = {
   id: 'sweepfake',
@@ -123,7 +124,6 @@ test('POST clear-cache por instalação apaga somente streams do segmento corren
     assert.equal(res.status, 200);
     assert.deepEqual(res.json.scope, { kind: 'installation' });
     assert.deepEqual(res.json.native, { attempted: true, ok: true, removed: 1 });
-    // Só a chave do segmento A saiu; a do segmento B continua servindo.
     assert.equal(bridge.has(keyA), false);
     assert.equal(bridge.has(keyB), true);
     const body = JSON.parse(String(bridge.calls.at(-1)?.options?.body)) as { suffix?: string };
@@ -155,7 +155,6 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
   config.debrid.service = 'sweepfake';
   config.debrid.apiKey = 'chave-operador';
   try {
-    // Sin rede: o sweepDead do adaptador falso responde de memoria.
     const com = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'sweep-dead', confirm: true },
@@ -165,7 +164,6 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
     assert.equal(com.json.action, 'sweep-dead');
     assert.deepEqual(com.json.result, { varridos: 2, falhas: 0 });
 
-    // Sem serviço: sweepDeadEnv devuelve null, ação reconocida mas no-op.
     config.debrid.service = '';
     const semConfig = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -200,7 +198,7 @@ test('POST /dashboard-action.json devolve 400 para ação desconocida', async ()
 test('ações operacionais do dashboard são idempotentes ou no-op seguro', async () => {
   config.jackett.testToken = TOKEN;
   try {
-    await withMockFetch([], async () => {
+    await withMockFetch(harvestDashboardRoutes(), async () => {
       const pause = await server.request('POST', '/dashboard-action.json', {
         headers: { 'X-Indexer-Test-Token': TOKEN },
         body: { action: 'harvester-pause', paused: true },
@@ -226,9 +224,10 @@ test('ações operacionais do dashboard são idempotentes ou no-op seguro', asyn
         headers: { 'X-Indexer-Test-Token': TOKEN },
         body: { action: 'test-all-indexers' },
       });
-      assert.equal(all.status, 200);
-      assert.equal(all.json.total, all.json.results.length);
-      assert.ok(all.json.total >= 0, 'catálogo pode usar o fallback local quando o mock não devolve XML');
+      // O probe por indexer saiu com a busca do Node: a ação devolve o MESMO 410 do `/test-indexer.json`.
+      assert.equal(all.status, 410);
+      assert.equal(all.json.ok, false);
+      assert.equal(all.json.reason, 'native-search');
 
       await server.request('POST', '/dashboard-action.json', {
         headers: { 'X-Indexer-Test-Token': TOKEN },

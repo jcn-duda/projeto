@@ -486,8 +486,8 @@ pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 
-**Estado:** F3.1 entregue (`idx:v14`); `raw:v1`, banco VIVO e `davail` ainda
-sem dono único. Alvo de cada namespace: um store Rust no padrão de
+**Estado:** F3.1 entregue (`idx:v14`); F3.2 entregue (`raw:v1`); banco VIVO e
+`davail` ainda sem dono único. Alvo de cada namespace: um store Rust no padrão de
 `adom-debrid/src/store.rs`, com importação única do `cache.db`; painel e
 `/stream-trace.json`/`/dashboard-status.json` lendo do Rust.
 
@@ -511,11 +511,34 @@ Commits `18bbc4dd` (F3.1a, provas no `adom-store`) → `62bdce6c` (crate
 - Contrato e diferenças em [`rust-index-bank-contract.md`](rust-index-bank-contract.md)
   (F3.1a/F3.1).
 
+### F3.2 — `raw:v1` com dono único (entregue)
+
+A escrita viva já era do Rust (coletor BLUDV nativo desde o R5, no mesmo
+`cache.db`); a fatia fecha o segundo escritor e a leitura que sobrava no Node.
+O store (`RawCacheStore`) saiu do `adom-store` para o `adom-index` (crate leve,
+sem rede) — o `.node` e o gateway compartilham o MESMO código, como o
+`ReleaseIndexStore`.
+
+- O escritor TS do Jackett (`jackett-query.ts`) saiu com a pilha TS; o `raw`
+  vira `RUST_OWNED` pelo namespace INTEIRO (`cache-keys.ts`) — sai o prefixo
+  `raw:v1:bludv:`. `cache.set`/`persist`/`forget` recusam qualquer linha `raw`;
+  o boot não carrega, não expira e não apaga (`ownedGuards` protege o
+  namespace da poda do L2).
+- A leitura do diagnóstico (`trace-recompute`, `/stream-trace.json` sem trace)
+  vai pela ponte napi `RawStore` (`raw-store-native.ts`, `peek_json` síncrono
+  sobre o mesmo `cache.db`) — leitura quiet, sem LRU e sem contador.
+- `cache.clear()` e `clearNamespace('raw')` chamam `RawStore::clear` (napi); a
+  ação `clear-cache {scope:{namespace:"raw"}}` do painel alcança o Rust por aí.
+- A cota de 800 é aplicada no Rust (`enforce_quota`, despejo do que expira
+  primeiro); a moldura de chave do Jackett (`rawKeyFor`) fica no
+  `trace-recompute` enquanto houver linha legada a explicar.
+- Perda consciente: `cache.hit.raw`/`cache.miss.raw` não existem mais (o L1 do
+  Node não vê o namespace). Rollback = commit/imagem anterior.
+
 ### O que falta
 
 | namespace | hoje | falta |
 |---|---|---|
-| `raw:v1` (cru por indexer) | Node é o dono no `cache.db`; o coletor BLUDV nativo (incondicional desde o R5) grava no MESMO arquivo via `RawStore` | um escritor só e store Rust; as outras fontes nativas não usam `raw` |
 | banco VIVO (`magnets.db`) | captura e escrita no Node (`magnet-bank*`); o Rust (nativo desde o R4) lê em lote e grava só o veredito do filtro (`MagnetBankSource`) | captura no Rust e os índices `magnet_last_seen`/`magnet_source_last_seen` sob o mesmo dono; painel lendo do Rust |
 | `davail` (⚡ por hash/conta) | o Node grava no `cache.db`; o `adom-debrid` copia uma vez na subida (`import.rs`, marcador `__debrid:import:v1`) | dono único — hoje são dois escritores que divergem depois do import |
 

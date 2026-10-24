@@ -16,7 +16,6 @@ import type { Stream, DebridAdapter } from '../types/domain.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as metrics from '../src/utils/metrics.js';
 import { createApp } from '../src/app.js';
-import jackett from '../src/providers/jackett.js';
 import { idxPoolCovered } from '../src/providers/search-pool-coverage.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 

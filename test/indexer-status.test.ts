@@ -2,8 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 
 import * as indexerStatus from '../src/providers/indexer-status.js';
-import jackett from '../src/providers/jackett.js';
-import config from '../src/config.js';
 
 test('status classifica online, lento, degradado e offline', () => {
   assert.equal(indexerStatus.stateFor({ ok: true, ms: 1000, budgetMs: 4000 }), 'online');
@@ -80,41 +78,21 @@ test('failStreak acumula falhas duras seguidas e zera com sucesso', () => {
   assert.equal(indexerStatus.get('idx-a').failStreak, 0);
 });
 
-test('slow e degraded não quebram o circuito', () => {
+test('slow e degraded não acumulam failStreak', () => {
   indexerStatus.clear();
   assert.equal(indexerStatus.record('idx-b', { ok: true, ms: 9000, budgetMs: 4000 })!.failStreak, 0);
   assert.equal(indexerStatus.record('idx-b', { ok: false, results: 5 })!.failStreak, 0);
-  assert.equal(jackett.breakerTripped('idx-b'), false);
 });
 
-test('circuit breaker pula indexer no limiar e meia-abre após o cooldown', () => {
+test('restart não perde o failStreak (vem do disco)', () => {
   indexerStatus.clear();
-  for (let i = 0; i < config.jackett.breakerFailures - 1; i += 1) {
-    indexerStatus.record('idx-c', { ok: false, ms: null, budgetMs: 4000 });
-  }
-  assert.equal(jackett.breakerTripped('idx-c'), false, 'abaixo do limiar o indexer segue na busca');
-  indexerStatus.record('idx-c', { ok: false, ms: null, budgetMs: 4000 }); // atinge o limiar
-  assert.equal(jackett.breakerTripped('idx-c'), true);
-
-  // Cooldown vencido: meia-abertura deixa a busca tentar de novo.
-  const last = indexerStatus.get('idx-c');
-  const afterCooldown = Date.parse(last.checkedAt) + config.jackett.breakerCooldown + 1;
-  assert.equal(jackett.breakerTripped('idx-c', afterCooldown), false);
-
-  // Sucesso na meia-abertura fecha o circuito de vez.
-  indexerStatus.record('idx-c', { ok: true, ms: 1200, budgetMs: 4000, results: 1 });
-  assert.equal(jackett.breakerTripped('idx-c'), false);
-});
-
-test('restart não perde o circuito aberto (failStreak vem do disco)', () => {
-  indexerStatus.clear();
-  for (let i = 0; i < config.jackett.breakerFailures; i += 1) {
+  const LIMIAR = 3;
+  for (let i = 0; i < LIMIAR; i += 1) {
     indexerStatus.record('idx-d', { ok: false, ms: null, budgetMs: 4000 });
   }
   indexerStatus.dropMemory();
-  assert.equal(indexerStatus.get('idx-d').failStreak, config.jackett.breakerFailures);
-  assert.equal(jackett.breakerTripped('idx-d'), true);
+  assert.equal(indexerStatus.get('idx-d').failStreak, LIMIAR);
   // E a próxima amostra dura continua o streak de onde parou.
   indexerStatus.record('idx-d', { ok: false, ms: null, budgetMs: 4000 });
-  assert.equal(indexerStatus.get('idx-d').failStreak, config.jackett.breakerFailures + 1);
+  assert.equal(indexerStatus.get('idx-d').failStreak, LIMIAR + 1);
 });

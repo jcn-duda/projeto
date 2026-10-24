@@ -1,12 +1,18 @@
-//! Ciclo `tick` do colhedor — embrião de `harvester.ts` / `harvest-worker.ts`.
+//! Ciclo `tick` do colhedor — espelho de `harvester.ts` / `harvest-worker.ts`.
 //!
 //! # Contrato
 //!
 //! - **Fora** do caminho `/stream`: só drena a fila em fundo.
 //! - Freio de tráfego injetável ([`TrafficSense`]): busy → só `take_probe`.
 //! - Teto horário: contador simples por balde UTC (`now_ms / 3_600_000`).
-//! - Trabalho real via [`HarvestDrain`] (sync stub; sem gateway / Jackett).
+//! - Trabalho real via [`HarvestDrain`] (sync) ou [`HarvestDrainAsync`]
+//!   (gateway/Jackett nativo, que pode esperar rede).
 //! - O tick abre/fecha o slot em voo ([`crate::inflight`]) em volta do drain.
+//! - A decisão do ciclo mora em `plan`, UMA vez: as duas portas não podem
+//!   divergir na ordem das guardas nem no consumo da cabeça.
+
+use std::future::Future;
+use std::pin::Pin;
 
 use crate::hour::HourMeter;
 use crate::inflight::HarvestIntent;
@@ -87,7 +93,7 @@ impl DrainOutcome {
     }
 }
 
-/// Callback do trabalho — sync stub. Async real fica quando houver runtime.
+/// Callback do trabalho — sync (stub local, testes, drain sem I/O).
 pub trait HarvestDrain {
     fn drain_one(&mut self, entry: &HarvestEntry) -> DrainOutcome;
 }
@@ -99,6 +105,18 @@ where
     fn drain_one(&mut self, entry: &HarvestEntry) -> DrainOutcome {
         (self)(entry)
     }
+}
+
+/// Callback do trabalho — async (gateway/Jackett nativo).
+///
+/// O future é **boxed** de propósito: é o que mantém o trait chamável por
+/// `&mut dyn HarvestDrainAsync`, como o [`HarvestWorker::tick_async`] recebe.
+/// A entrega boxeada é por entrada colhida, nunca por resposta HTTP.
+pub trait HarvestDrainAsync {
+    fn drain_one<'a>(
+        &'a mut self,
+        entry: &'a HarvestEntry,
+    ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>>;
 }
 
 /// Por que o tick não colheu (ou colheu).
@@ -121,6 +139,26 @@ impl TickOutcome {
     pub fn did_drain(&self) -> bool {
         matches!(self, Self::Drained { .. })
     }
+}
+
+/// Decisão do ciclo, antes de qualquer trabalho: ou o skip, ou a cabeça já
+/// retirada da fila.
+#[derive(Debug)]
+enum TickPlan {
+    Skip(TickOutcome),
+    Run(HarvestEntry),
+}
+
+/// Início do ciclo para quem precisa SOLTAR o lock da fila durante a rede
+/// (gateway): as guardas rodaram, a cabeça saiu e o slot em voo já está aberto.
+/// Fechar é [`HarvestWorker::finish`].
+#[derive(Debug)]
+pub enum TickStart {
+    Skip(TickOutcome),
+    Run {
+        entry: HarvestEntry,
+        identity: String,
+    },
 }
 
 /// Worker do ciclo: freio + teto + `take_head` + drain.
@@ -185,6 +223,97 @@ impl HarvestWorker {
         self.hour.clear();
     }
 
+    /// Decisão única do ciclo: guardas na ordem histórica e, no fim, a cabeça.
+    ///
+    /// O `take_next` está aqui (e não em cada porta) para que sync e async não
+    /// divirjam justamente no ponto em que a fila é consumida: um skip decidido
+    /// acima nunca tira nada; um `Run` já tirou.
+    fn plan(
+        &mut self,
+        queue: &mut HarvestQueue,
+        traffic: &dyn TrafficSense,
+        now_ms: i64,
+    ) -> TickPlan {
+        if !self.config.enabled {
+            return TickPlan::Skip(TickOutcome::SkippedDisabled);
+        }
+        if self.paused {
+            return TickPlan::Skip(TickOutcome::SkippedPaused);
+        }
+        if self.in_flight {
+            return TickPlan::Skip(TickOutcome::SkippedInFlight);
+        }
+        // Sob tráfego só a sonda dirigida sai (fora de turno); sem sonda na
+        // fila o freio vence e o tick não consome nada.
+        let busy = traffic.is_busy();
+        if busy && !queue.has_probe() {
+            return TickPlan::Skip(TickOutcome::SkippedBusy);
+        }
+        if queue.is_empty() {
+            return TickPlan::Skip(TickOutcome::SkippedEmpty);
+        }
+        if self.queries_this_hour(now_ms) >= self.config.max_per_hour {
+            return TickPlan::Skip(TickOutcome::SkippedHourlyCap);
+        }
+        match queue.take_next(busy) {
+            Some(entry) => TickPlan::Run(entry),
+            None => TickPlan::Skip(TickOutcome::SkippedEmpty),
+        }
+    }
+
+    /// Abre o slot da obra em voo e devolve a identidade que o fecha.
+    fn open_slot(&mut self, queue: &mut HarvestQueue, entry: &HarvestEntry) -> String {
+        self.in_flight = true;
+        let identity = entry_identity(entry);
+        queue
+            .inflight_mut()
+            .begin(&identity, HarvestIntent::from_entry(entry));
+        identity
+    }
+
+    /// Debita as consultas no balde e fecha o slot (obra diferente não casa).
+    fn close_slot(
+        &mut self,
+        queue: &mut HarvestQueue,
+        identity: &str,
+        outcome: DrainOutcome,
+        now_ms: i64,
+    ) {
+        self.note_queries(outcome.queries, now_ms);
+        queue.inflight_mut().end(identity);
+        self.in_flight = false;
+    }
+
+    /// Primeira metade do ciclo: guardas, `take_head` e slot em voo.
+    ///
+    /// O chamador pode soltar o lock da fila entre `begin` e `finish` — é o que
+    /// o gateway faz para o `enqueue`/`pending` não esperarem a rede. O slot em
+    /// voo já está aberto, então um pedido da mesma obra coalesce.
+    pub fn begin(
+        &mut self,
+        queue: &mut HarvestQueue,
+        traffic: &dyn TrafficSense,
+        now_ms: i64,
+    ) -> TickStart {
+        let entry = match self.plan(queue, traffic, now_ms) {
+            TickPlan::Skip(skip) => return TickStart::Skip(skip),
+            TickPlan::Run(entry) => entry,
+        };
+        let identity = self.open_slot(queue, &entry);
+        TickStart::Run { entry, identity }
+    }
+
+    /// Segunda metade do ciclo: debita as consultas e fecha o slot.
+    pub fn finish(
+        &mut self,
+        queue: &mut HarvestQueue,
+        identity: &str,
+        outcome: DrainOutcome,
+        now_ms: i64,
+    ) {
+        self.close_slot(queue, identity, outcome, now_ms);
+    }
+
     /// Um ciclo: freio → teto → `take_head` → [`HarvestDrain::drain_one`].
     /// A entrada consumida fica fora da fila (requeue é do caller); sem Jackett.
     pub fn tick(
@@ -194,202 +323,49 @@ impl HarvestWorker {
         drain: &mut dyn HarvestDrain,
         now_ms: i64,
     ) -> TickOutcome {
-        if !self.config.enabled {
-            return TickOutcome::SkippedDisabled;
-        }
-        if self.paused {
-            return TickOutcome::SkippedPaused;
-        }
-        if self.in_flight {
-            return TickOutcome::SkippedInFlight;
-        }
-        // Sob tráfego só a sonda dirigida sai (fora de turno); sem sonda na
-        // fila o freio vence e o tick não consome nada.
-        let busy = traffic.is_busy();
-        if busy && !queue.has_probe() {
-            return TickOutcome::SkippedBusy;
-        }
-        if queue.is_empty() {
-            return TickOutcome::SkippedEmpty;
-        }
-        if self.queries_this_hour(now_ms) >= self.config.max_per_hour {
-            return TickOutcome::SkippedHourlyCap;
-        }
-        let Some(entry) = queue.take_next(busy) else {
-            return TickOutcome::SkippedEmpty;
+        let (entry, identity) = match self.begin(queue, traffic, now_ms) {
+            TickStart::Skip(skip) => return skip,
+            TickStart::Run { entry, identity } => (entry, identity),
         };
 
-        self.in_flight = true;
-        let identity = entry_identity(&entry);
-        let inflight = queue.inflight_mut();
-        inflight.begin(&identity, HarvestIntent::from_entry(&entry));
         let outcome = drain.drain_one(&entry);
-        self.note_queries(outcome.queries, now_ms);
-        queue.inflight_mut().end(&identity);
-        self.in_flight = false;
+        self.finish(queue, &identity, outcome, now_ms);
+
+        TickOutcome::Drained { entry, outcome }
+    }
+
+    /// Um ciclo **assíncrono**: mesma decisão do [`tick`](Self::tick), com drain
+    /// que pode esperar rede (Jackett nativo no gateway).
+    ///
+    /// O slot em voo fica aberto durante o `await` — é ele que faz o coalescing
+    /// de um enqueue da mesma obra que chega enquanto o drain corre. Cancelar o
+    /// future no meio deixa o slot aberto (o tick é serial por contrato): quem
+    /// chama deve deixar o ciclo terminar, não abortá-lo.
+    ///
+    /// O future **não** é `Send`: `&dyn TrafficSense` e `&mut dyn
+    /// HarvestDrainAsync` só seriam se os traits trouxessem `Sync`/`Send`. O
+    /// gateway conduz o ciclo numa thread própria (runtime `current_thread`);
+    /// `tokio::spawn` direto exigiria `HarvestDrainAsync: Send` **e**
+    /// `&(dyn TrafficSense + Sync)` nas assinaturas.
+    pub async fn tick_async(
+        &mut self,
+        queue: &mut HarvestQueue,
+        traffic: &dyn TrafficSense,
+        drain: &mut dyn HarvestDrainAsync,
+        now_ms: i64,
+    ) -> TickOutcome {
+        let (entry, identity) = match self.begin(queue, traffic, now_ms) {
+            TickStart::Skip(skip) => return skip,
+            TickStart::Run { entry, identity } => (entry, identity),
+        };
+
+        let outcome = drain.drain_one(&entry).await;
+        self.finish(queue, &identity, outcome, now_ms);
 
         TickOutcome::Drained { entry, outcome }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::hour::HOUR_MS;
-    use crate::queue::{HarvestQueue, HarvestQueueConfig};
-    use crate::types::HarvestRequest;
-
-    const NOW: i64 = 1_700_000_000_000; // balde fixo
-
-    fn queue_with(ids: &[&str]) -> HarvestQueue {
-        let mut q = HarvestQueue::with_clock(HarvestQueueConfig::default(), || NOW);
-        for id in ids {
-            q.enqueue(HarvestRequest::movie(*id, "miss"));
-        }
-        q
-    }
-
-    fn worker_capped(max: u32) -> HarvestWorker {
-        HarvestWorker::new(HarvestWorkerConfig {
-            enabled: true,
-            max_per_hour: max,
-        })
-    }
-
-    #[test]
-    fn tick_take_head_chama_drain() {
-        let mut worker = worker_capped(120);
-        let mut queue = queue_with(&["tt0111161", "tt0068646"]);
-        let mut seen: Vec<String> = Vec::new();
-        let mut drain = |e: &HarvestEntry| {
-            seen.push(e.imdb_id.clone());
-            DrainOutcome::ok_with_queries(2)
-        };
-
-        let out = worker.tick(&mut queue, &false, &mut drain, NOW);
-        assert!(out.did_drain());
-        match out {
-            TickOutcome::Drained { entry, outcome } => {
-                assert_eq!(entry.imdb_id, "tt0111161");
-                assert!(outcome.ok);
-                assert_eq!(outcome.queries, 2);
-            }
-            other => panic!("esperado Drained, got {other:?}"),
-        }
-        assert_eq!(seen, vec!["tt0111161"]);
-        assert_eq!(queue.depth(), 1);
-        assert_eq!(worker.queries_this_hour(NOW), 2);
-        assert!(!worker.in_flight());
-    }
-
-    #[test]
-    fn freio_busy_skip_sem_consumir_fila() {
-        let mut worker = worker_capped(120);
-        let mut queue = queue_with(&["tt0111161"]);
-        let calls = std::cell::Cell::new(0u32);
-        let mut drain = |_e: &HarvestEntry| {
-            calls.set(calls.get() + 1);
-            DrainOutcome::ok_with_queries(1)
-        };
-
-        let out = worker.tick(&mut queue, &StubTraffic { busy: true }, &mut drain, NOW);
-        assert_eq!(out, TickOutcome::SkippedBusy);
-        assert_eq!(calls.get(), 0);
-        assert_eq!(queue.depth(), 1);
-        assert_eq!(worker.queries_this_hour(NOW), 0);
-
-        // Com sonda na fila, o tráfego deixa passar SÓ ela (fora de turno).
-        queue.enqueue(HarvestRequest::movie("tt0068646", "miss"));
-        let mut probe = HarvestRequest::movie("tt0111161", "miss");
-        probe.br_probe = true;
-        queue.enqueue(probe);
-        let out = worker.tick(&mut queue, &StubTraffic { busy: true }, &mut drain, NOW);
-        assert!(matches!(out, TickOutcome::Drained { entry, .. } if entry.br_probe));
-        assert_eq!(calls.get(), 1);
-        assert_eq!(queue.depth(), 1);
-        assert_eq!(queue.preview(1)[0].imdb_id, "tt0068646");
-    }
-
-    #[test]
-    fn teto_horario_bloqueia_apos_limite() {
-        let mut worker = worker_capped(2);
-        let mut queue = queue_with(&["tt0000001", "tt0000002"]);
-        let mut drain = |_e: &HarvestEntry| DrainOutcome::ok_with_queries(2);
-
-        let first = worker.tick(&mut queue, &false, &mut drain, NOW);
-        assert!(first.did_drain());
-        assert_eq!(worker.queries_this_hour(NOW), 2);
-
-        // Guard ANTES do take_head: count >= max ⇒ skip sem consumir.
-        let blocked = worker.tick(&mut queue, &false, &mut drain, NOW);
-        assert_eq!(blocked, TickOutcome::SkippedHourlyCap);
-        assert_eq!(queue.depth(), 1);
-        assert_eq!(queue.preview(1)[0].imdb_id, "tt0000002");
-    }
-
-    #[test]
-    fn teto_reseta_na_virada_de_hora() {
-        let mut worker = worker_capped(2);
-        worker.note_queries(2, NOW);
-        assert_eq!(worker.queries_this_hour(NOW), 2);
-
-        let next_hour = NOW + HOUR_MS;
-        assert_eq!(worker.queries_this_hour(next_hour), 0);
-
-        let mut queue = queue_with(&["tt0111161"]);
-        let mut drain = |_e: &HarvestEntry| DrainOutcome::ok_with_queries(1);
-        let out = worker.tick(&mut queue, &false, &mut drain, next_hour);
-        assert!(out.did_drain());
-        assert_eq!(worker.queries_this_hour(next_hour), 1);
-    }
-
-    #[test]
-    fn desligado_pausado_vazio_e_inflight() {
-        let mut worker = worker_capped(120);
-        let mut queue = queue_with(&["tt0111161"]);
-        let mut drain = |_e: &HarvestEntry| DrainOutcome::ok_with_queries(1);
-
-        worker.set_enabled(false);
-        assert_eq!(
-            worker.tick(&mut queue, &false, &mut drain, NOW),
-            TickOutcome::SkippedDisabled
-        );
-        worker.set_enabled(true);
-
-        worker.set_paused(true);
-        assert_eq!(
-            worker.tick(&mut queue, &false, &mut drain, NOW),
-            TickOutcome::SkippedPaused
-        );
-        worker.set_paused(false);
-
-        let mut empty = HarvestQueue::with_clock(HarvestQueueConfig::default(), || NOW);
-        assert_eq!(
-            worker.tick(&mut empty, &false, &mut drain, NOW),
-            TickOutcome::SkippedEmpty
-        );
-
-        // Flag privada: o submodule de teste acessa para cobrir o skip.
-        worker.in_flight = true;
-        assert_eq!(
-            worker.tick(&mut queue, &false, &mut drain, NOW),
-            TickOutcome::SkippedInFlight
-        );
-        assert_eq!(queue.depth(), 1);
-    }
-
-    #[test]
-    fn tick_encerra_o_slot_da_obra_colhida() {
-        let mut queue = queue_with(&["tt0111161"]);
-        let head = queue.preview(1)[0].clone();
-        let identity = entry_identity(&head);
-        let inflight = queue.inflight_mut();
-        inflight.begin(&identity, HarvestIntent::from_entry(&head));
-
-        let mut worker = worker_capped(120);
-        let mut drain = |_e: &HarvestEntry| DrainOutcome::ok_with_queries(1);
-        assert!(worker.tick(&mut queue, &false, &mut drain, NOW).did_drain());
-        // O `end` do tick casa a identidade da entrada colhida.
-        assert!(!queue.inflight().is_inflight(&identity));
-    }
-}
+#[path = "worker_tests.rs"]
+mod tests;

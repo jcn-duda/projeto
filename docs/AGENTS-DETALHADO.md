@@ -2995,20 +2995,20 @@ fire-and-forget) continua.
 | `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
 | `src/providers/autofetch-obra-summary.ts` | Resumo por obra do teto F2 para o painel (Fase 7): `keysMatching`+`peek` quiet sobre `autofetch:v3:o:`, digest de 12 chars, pools `{br, any, seeds}`, prova BR-ready e idade; nunca expõe identidade |
 | `src/providers/autofetch-chupim-trace.ts` | Resumo do Chupim no trace (Fase 7): monta `pool=…; seeds=…; probe=…` e grava via `setTraceChupim` nos pontos de decisão; enums fechados, sem hash/imdb/conta |
-| `src/providers/search-plan.ts` | Isola BR/slow; query da varredura pt-BR (`franchiseRoot`) |
+| `src/providers/search-plan.ts` | **APAGADO (Fase 5)**: o plano de queries mora no núcleo Rust (`adom-search::search_plan`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
-| `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |
+| `src/providers/harvester.ts` | **APAGADO (Fase 5)**: fila, freio de atividade, teto horário e drain são do gateway (`adom-harvest` + `adom-server::harvest`); o Node tem só a ponte `src/utils/harvest-native.ts` |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
 | `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): fachada sobre o `IdxStore` (Rust) — record/lookup/status; o que faz o addon responder sem Jackett |
 | `src/utils/release-index-store.ts` | Handle único do `IdxStore` (napi), criado sob demanda; `clearIdxStore()` para a limpeza do namespace |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
 | `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
-| `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
+| `src/providers/jackett.ts` | **APAGADO (Fase 5)**: consulta, cache `raw`, breaker e resolução Cardigann são nativos (`adom-sources::jackett`); `jackett-catalog.ts` e `indexer-status.ts` ficaram |
 | `src/providers/jackett-catalog.ts` | Catálogo de indexers (torznab) pra `/configure`, TTL e fallback do `.env` |
 | `src/providers/indexer-status.ts` | Card online/slow/offline + `failStreak` do breaker (não sonda ao abrir a página) |
 | `src/providers/prowlarr.ts` | Alternativa ao Jackett |
 | `src/providers/torrentio.ts` | Pool global público da API Torrentio (Fase 1): fail-open, breaker local, `fileIdx` preservado |
-| `src/providers/bludv.ts` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
+| `src/providers/bludv.ts` | **APAGADO (Fase 5)**: coletor BLUDV é nativo (`adom-sources::bludv`) |
 | `src/providers/crawl-sites/registry.ts` | Tabela FECHADA dos oito sites BR do motor de raspagem (`id` do card, rótulo, módulo lazy + export, `note`); `ensureSite(id)` memoiza por id e devolve `null` explícito |
 | `src/providers/crawl-sites/redetorrent.ts` / `redetorrent-discover.ts` / `redetorrent-discovery.ts` | Adaptador do RedeTorrent: leitura da página (`fetchWork`, 1 request, temporada POR LINHA), descoberta (índice AIOSEO → `movies-sitemap*`/`tvshows-sitemap`, DOIS formatos de resposta, "vazio" é falha) e as regras puras de sitemap/caminho/`<h1>` |
 | `src/providers/crawl-sites/season-page.ts` | As DUAS formas de página de série, ambas pela régua do Vaca: `seasonPageGroups` (post declara UMA temporada — NerdFilmes/TorrentDosFilmes/ComandoTorrents/BLUDV/HDRTorrent/ApacheTorrent) e `seriesRowGroups` (post AGREGA temporadas — RedeTorrent, `dn` > coluna `S0N`, `cardTitle` vazio) |

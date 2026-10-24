@@ -14,8 +14,8 @@ use crate::request::encoded_for_internal;
 
 use super::collect;
 use super::finish::{release_entry, FinishValue, SearchInput};
+use super::harvest_support;
 use super::index_metrics as metrics;
-use super::index_source::BankFilterCtx;
 use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
 use super::respond::{as_ms, now_ms};
@@ -179,20 +179,18 @@ impl Orchestrator {
     /// `releaseIndex.record` no `idx:v14` sem HTTP e a marca de `passed_filter`
     /// no `magnets.db`. Falha de UMA entrada não derruba o lote. Sem banco
     /// aberto, a gravação do índice segue e só a marca degrada (contada).
+    ///
+    /// A régua da entrada é a de [`harvest_support::write_entry`] (a mesma que
+    /// o colhedor de fundo usa); aqui ficam só métrica e log.
     fn write_native_index(&self, batch: IndexBatch) {
         let Some(index) = self.index.as_ref() else {
             return;
         };
         let now = now_ms();
-        let bank = self.bank.clone();
-        let lookup = move |hashes: &[String]| -> Vec<adom_core::BankRow> {
-            bank.as_ref()
-                .map(|bank| bank.bank_rows_many(hashes))
-                .unwrap_or_default()
-        };
-        let lookup_ref: &dyn Fn(&[String]) -> Vec<adom_core::BankRow> = &lookup;
         for entry in &batch.releases {
-            match index.record(entry, now, Some(lookup_ref)) {
+            let write =
+                harvest_support::write_entry(index.as_ref(), entry, self.bank.as_deref(), now);
+            match write.index {
                 Ok(recorded) => {
                     metrics::global_metrics().inc(metrics::RECORDED, recorded as u64);
                 }
@@ -201,18 +199,11 @@ impl Orchestrator {
                     eprintln!("[search] índice nativo {} falhou: {err}", entry.imdb);
                 }
             }
-            let Some(bank) = self.bank.as_ref() else {
+            if !write.bank_present {
                 metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
                 continue;
-            };
-            let entered = entry.entered.as_deref().unwrap_or(&entry.items);
-            let survivors = entry.survivors.as_deref().unwrap_or(&entry.items);
-            let ctx = BankFilterCtx {
-                imdb_id: entry.imdb.clone(),
-                season: entry.season,
-                episode: entry.episode,
-            };
-            if bank.mark_filter_outcome(entered, survivors, &ctx, now) {
+            }
+            if write.bank_marked {
                 metrics::global_metrics().inc(metrics::BANK_MARKED, 1);
             }
         }

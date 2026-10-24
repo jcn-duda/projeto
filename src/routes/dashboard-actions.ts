@@ -4,7 +4,6 @@
 
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
-import { errorMessage } from '../utils/logger.js';
 import { clearCache } from './dashboard-actions-cache.js';
 import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-debrid.js';
 import { autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset } from './dashboard-actions-autofetch.js';
@@ -15,6 +14,9 @@ import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReprocessNoWork, 
 // vira undefined (sem teto). Mora no módulo folha compartilhado para os dois
 // lados do despacho usarem a MESMA normalização, sem cópia que possa divergir.
 import { maxFromBody } from './dashboard-actions-shared.js';
+// Ações do colhedor NATIVO (pausa/drenagem/limpeza): a fila, o worker e o
+// balde horário vivem no gateway Rust e o Node só repassa pela ponte.
+import { harvestPause, harvestDrain, harvestClearQueue } from './dashboard-actions-harvest.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -61,26 +63,11 @@ const ACTIONS: Record<string, ActionHandler> = {
     });
   },
 
-  'harvester-pause': ({ services, req, res, action }) => {
-    const paused = services.harvester.setPaused(Boolean(req.body?.paused));
-    services.metrics.count(paused ? 'dashboard.harvest.pause' : 'dashboard.harvest.resume');
-    services.log.info(`[dashboard] colhedor ${paused ? 'pausado' : 'retomado'}`);
-    return res.json({ ok: true, action, paused });
-  },
-
-  'harvester-drain': async ({ services, res, action }) => {
-    const result = await services.harvester.drain();
-    services.metrics.count('dashboard.harvest.drain', result.drained);
-    services.log.info(`[dashboard] fila do colhedor drenada: ${result.drained} obra(s)`);
-    return res.json({ ok: true, action, ...result });
-  },
-
-  'harvester-clear-queue': ({ services, res, action }) => {
-    const result = services.harvester.clearQueue();
-    services.metrics.count('dashboard.harvest.clear_queue');
-    services.log.info(`[dashboard] fila do colhedor limpa: ${result.cleared} obra(s) removida(s)`);
-    return res.json({ ok: true, action, ...result });
-  },
+  // Colhedor NATIVO: handlers em dashboard-actions-harvest.js (`ok:false` com
+  // "colhedor nativo indisponível" quando a ponte não confirma o efeito).
+  'harvester-pause': harvestPause,
+  'harvester-drain': harvestDrain,
+  'harvester-clear-queue': harvestClearQueue,
 
   'harvest-config-get': ({ services, res, action }) => {
     return res.json({ ok: true, action, config: services.harvesterLive.snapshot() });
@@ -193,20 +180,23 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ...outcome, action });
   },
 
-  'test-all-indexers': async ({ services, res, action }) => {
-    const catalog = await services.jackettCatalog.load();
-    const results: any[] = [];
-    for (const indexer of catalog) {
-      try {
-        results.push({ id: indexer.id, ...(await services.jackett.test(indexer.id, '', 'movie')) });
-      } catch (err: unknown) {
-        results.push({ id: indexer.id, ok: false, error: errorMessage(err) });
-      }
-    }
-    const okCount = results.filter((result) => result.ok).length;
-    services.log.info(`[dashboard] teste sequencial de ${results.length} indexador(es) concluído`);
-    services.metrics.count('dashboard.indexers.test-all');
-    return res.json({ ok: true, action, results, total: results.length, okCount, downCount: results.length - okCount });
+  // O probe por indexer saiu junto com a busca do Node: `/test-indexer.json`
+  // responde 410 e esta ação devolve o MESMO veredito (200 com tabela vazia
+  // parecia "todos ok"). O painel mostra `error` no card, sem quebrar.
+  'test-all-indexers': ({ services, res, action }) => {
+    services.metrics.count('dashboard.indexers.test-all.native');
+    services.log.info('[dashboard] teste de indexers recusado: a busca/coleta é nativa');
+    return res.status(410).json({
+      ok: false,
+      action,
+      reason: 'native-search',
+      error: 'a busca e a coleta rodam no gateway nativo; o teste de indexers pelo Node foi aposentado (/test-indexer.json responde 410)',
+      fix: 'veja o estado de cada fonte no bloco `indexers` do painel (aba Saúde)',
+      results: [],
+      total: 0,
+      okCount: 0,
+      downCount: 0,
+    });
   },
 
   // Ações do Chupim: handlers em dashboard-actions-autofetch.js.

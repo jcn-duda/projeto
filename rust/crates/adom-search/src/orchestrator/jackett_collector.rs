@@ -327,7 +327,10 @@ impl Collector for JackettCollector {
     }
 }
 
-fn raw_from_jackett(item: JackettRawItem) -> RawItem {
+/// `JackettRawItem` → item cru do build. É a conversão de TODA fonte Jackett
+/// nativa; `orchestrator::harvest_support::raw_items_from_jackett` reusa esta
+/// função (o colhedor de fundo escreve o índice com a MESMA forma de item).
+pub(crate) fn raw_from_jackett(item: JackettRawItem) -> RawItem {
     let sources = item
         .tracker
         .as_deref()

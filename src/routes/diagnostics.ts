@@ -62,14 +62,12 @@ function makeDiagnosticHandlers(services: AppServices) {
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
-      const id = String(req.query.id || '');
-      const catalog = await services.jackettCatalog.load();
-      if (!catalog.some((indexer) => indexer.id === id)) {
-        return res.status(400).json({ ok: false, error: 'indexador desconhecido' });
-      }
-      const query = req.query.q ? String(req.query.q).slice(0, 80) : '';
-      const type = req.query.type === 'series' ? 'series' : 'movie';
-      return res.json(await services.jackett.test(id, query, type));
+      // A rota fazia uma busca Jackett REAL no Node. Desde a Fase 5 a coleta e a
+      // colheita são nativas (gateway): não existe mais caminho de busca Jackett
+      // aqui, e um "teste" local mediria outra coisa. 410 é definitivo — o
+      // painel não deve insistir; quem quer medir indexer fala com o `/harvest`
+      // administrativo do gateway.
+      return res.status(410).json({ ok: false, error: 'busca de teste desativada: coleta e colheita são nativas' });
     } finally {
       admission.release();
     }

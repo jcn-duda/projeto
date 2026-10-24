@@ -15,11 +15,17 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
   const { pending, run } = useAction();
 
   const paused = Boolean(h.paused);
+  // Desde a Fase 5 quem tem a fila é o gateway Rust. `native:false` (ou o
+  // `ok:false` do bloco neutro) é indisponibilidade da ponte, NÃO um colhedor
+  // desligado: pintar "DESLIGADO" com zeros esconderia a causa.
+  const offline = h.native === false || h.ok === false;
   const queueDepth = Number(h.queueDepth || 0);
-  const queueMax = Number(h.queueMax || 100);
+  // 0 = sem snapshot; nesse caso o alvo é omitido para não inventar teto.
+  const queueMax = Number(h.queueMax || 0);
   const queriesThisHour = Number(h.queriesThisHour || 0);
-  const maxPerHour = Number(h.maxPerHour || 20);
+  const maxPerHour = Number(h.maxPerHour || 0);
   const harvested = Number(h.harvested || 0);
+  const failures = Number(h.counters?.failed || 0);
 
   const preview = Array.isArray(h.queuePreview) ? h.queuePreview : [];
   const lastWorks = Array.isArray(h.lastWorks) ? h.lastWorks : [];
@@ -54,8 +60,8 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
         <${Card}
           title="Estado do Colhedor"
           badge=${{
-            text: paused ? 'PAUSADO' : h.enabled ? 'ATIVO' : 'DESLIGADO',
-            variant: paused ? 'warn' : h.enabled ? 'ok' : 'neutral',
+            text: offline ? 'SEM GATEWAY' : paused ? 'PAUSADO' : h.enabled ? 'ATIVO' : 'DESLIGADO',
+            variant: offline ? 'err' : paused ? 'warn' : h.enabled ? 'ok' : 'neutral',
           }}
         >
           <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
@@ -84,16 +90,19 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
         </${Card}>
 
         <${Card} title="Fila de Obras">
-          <${StatNumber} value=${queueDepth} target=${queueMax} label="em espera" />
+          <${StatNumber} value=${queueDepth} target=${queueMax > 0 ? queueMax : undefined} label="em espera" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
             Última colheita: ${h.lastRunAt ? new Date(h.lastRunAt).toLocaleTimeString() : '—'}
           </p>
+          <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
+            Fila do gateway: ${offline ? 'indisponível' : 'colhedor nativo'}${h.store ? ` · ${h.store}` : ''}
+          </p>
         </${Card}>
 
-        <${Card} title="Vazão Horária (Jackett)">
-          <${StatNumber} value=${queriesThisHour} target=${maxPerHour} label="consultas / h" />
+        <${Card} title="Vazão Horária (Gateway)">
+          <${StatNumber} value=${queriesThisHour} target=${maxPerHour > 0 ? maxPerHour : undefined} label="consultas / h" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Total colhido no processo: ${harvested} obras
+            Total colhido no gateway: ${harvested} obras${failures > 0 ? ` · ${failures} falha(s)` : ''}
           </p>
         </${Card}>
       </div>
@@ -138,7 +147,7 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
                 <tr>
                   <th>Horário</th>
                   <th>Obra</th>
-                  <th>Releases Gravadas</th>
+                  <th>Consultas</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +155,7 @@ export function ViewColhedor({ harvest, metrics }: ViewColhedorProps) {
                   <tr>
                     <td>${new Date(work.at).toLocaleTimeString()}</td>
                     <td>${work.imdbId}${work.season ? ` S${String(work.season).padStart(2, '0')}` : ''}${work.episode ? `E${String(work.episode).padStart(2, '0')}` : ''}</td>
-                    <td>${work.recorded}</td>
+                    <td>${work.queries ?? work.recorded ?? '—'}</td>
                   </tr>
                 `)}
               </tbody>

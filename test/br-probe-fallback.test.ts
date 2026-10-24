@@ -13,11 +13,11 @@ import * as runtime from '../src/runtime.js';
 import * as brProbe from '../src/providers/br-probe.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import * as harvestQueue from '../src/providers/harvest-queue.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { takeDrainCandidate } from '../src/providers/autofetch-drain.js';
 import { autoFetchCandidates } from '../src/providers/autofetch-candidates.js';
 import { autoFetchBrDubbed } from '../src/providers/autofetch-runner.js';
+import { enqueueCalls, settleProbe, stubHarvestBridge } from './helpers/harvest-bridge.js';
 
 const H = 'a'.repeat(40);
 const OBRA = 'tt0107953';
@@ -49,12 +49,10 @@ function setup() {
     indexOnly: config.jackett.indexOnlyIndexers,
     ptBr: config.jackett.ptBrIndexers,
     releaseIndex: config.releaseIndex.enabled,
-    harvestEnabled: config.harvest.enabled,
   };
   config.jackett.indexOnlyIndexers = ['f-idx'];
   config.jackett.ptBrIndexers = ['f-idx'];
   config.releaseIndex.enabled = true;
-  config.harvest.enabled = true;
   autofetchLive.reset();
   cache.clear();
   return saved;
@@ -64,7 +62,6 @@ function restore(saved: ReturnType<typeof setup>) {
   config.jackett.indexOnlyIndexers = saved.indexOnly;
   config.jackett.ptBrIndexers = saved.ptBr;
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.harvest.enabled = saved.harvestEnabled;
   autofetchLive.reset();
   cache.clear();
 }
@@ -87,6 +84,7 @@ const seedsStream = (hex = H) => ({
 
 test('dreno defere o pack pela identidade do EPISÓDIO solicitado (probeEpisode)', () => {
   const saved = setup();
+  const stub = stubHarvestBridge();
   try {
     const E5 = { ...workMovie, type: 'series' as const, season: 1, episode: 5 };
     setPending(E5); // pending do E5
@@ -108,6 +106,7 @@ test('dreno defere o pack pela identidade do EPISÓDIO solicitado (probeEpisode)
     assert.ok(depois.next, 'sem pending, o pack volta a drenar');
   } finally {
     autofetch.dropQueue('sk-pack');
+    stub.restore();
     restore(saved);
   }
 });
@@ -153,24 +152,24 @@ test('despacho de seeds (call site) defere sob pending sem purgar a fila', () =>
 
 test('gate de plausibilidade (C6): obra sem evidência isBr não enfileira nem sonda nem br-gap', () => {
   const saved = setup();
+  const stub = stubHarvestBridge();
   try {
-    harvestQueue.clearQueue();
     // Pool BR vazio + índice sem NENHUMA release BR: a sonda não é plausível
     // e um br-gap seria colheita completa prioritizada — nada sobe.
     runUser(() => autoFetchCandidates([seedsStream()], { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-noevid' }));
+    assert.equal(enqueueCalls(stub).length, 0, 'obra sem vestígio BR não entra no colhedor');
     assert.equal(brProbe.isBrProbePending(workMovie), false, 'sem evidência BR não grava pending');
     assert.equal(brProbe.probeBlocksSeeds(workMovie), false, 'e não bloqueia seeds');
-    const q = harvestQueue.findQueued({ imdbId: OBRA, season: null, episode: null });
-    assert.equal(q, undefined, 'obra sem vestígio BR não entra no colhedor');
   } finally {
-    harvestQueue.clearQueue();
     autofetch.dropQueue('sk-noevid');
+    stub.restore();
     restore(saved);
   }
 });
 
-test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolher sem ele', () => {
+test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolher sem ele', async () => {
   const saved = setup();
+  const stub = stubHarvestBridge();
   try {
     // Gate de plausibilidade (C6): a sonda só é pedida com evidência BR no
     // índice. Com ela, o pending bloqueia seeds; sem ela, nada sobe.
@@ -180,6 +179,9 @@ test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolhe
     const streams = [seedsStream()];
     const bloqueado = runUser(() => autoFetchCandidates(streams, { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-cand' }));
     assert.deepEqual(bloqueado, [], 'pending barra o pool seeds na seleção');
+    await settleProbe();
+    const sondaBodies = enqueueCalls(stub).map((call) => JSON.parse(String(call.options?.body)));
+    assert.equal(sondaBodies.filter((body) => body.brProbe === true).length, 1, 'o call site agendou UMA sonda na ponte');
     assert.equal(brProbe.isBrProbePending(workMovie), true, 'o call site realmente agendou a sonda');
 
     brProbe.finalizeBrProbe(workMovie, 'empty');
@@ -188,6 +190,7 @@ test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolhe
     assert.equal(liberado[0].pool, 'seeds');
   } finally {
     autofetch.dropQueue('sk-cand');
+    stub.restore();
     restore(saved);
   }
 });

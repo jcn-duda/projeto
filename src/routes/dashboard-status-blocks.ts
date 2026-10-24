@@ -3,6 +3,9 @@ import * as brCoverage from '../utils/br-coverage.js';
 import { releaseIndexStatus, jackettServiceFlag, panelMetrics, searchFirstBlock, type MetricSnapshot } from './dashboard-status-helpers.js';
 import { pullNativeMetrics, type NativeMetrics } from '../utils/native-metrics.js';
 import { crawlBlock } from './dashboard-crawl-block.js';
+// Bloco `harvest`: extraído pela catraca de 400 linhas e porque a fonte mudou
+// (snapshot do gateway nativo, leitura síncrona).
+import { harvestBlock } from './dashboard-harvest-block.js';
 
 export const ALL_BLOCKS = [
   'general',
@@ -268,13 +271,10 @@ export async function computeStatusPayload(
     out.releaseIndex = releaseIndexStatus(services, getMetrics().counters, await getNative());
   }
 
-  // Bloco: harvest
+  // Bloco: harvest — estado do colhedor NATIVO (gateway). Sem `await`: o bloco
+  // lê o espelho do poll; `null` vira o estado neutro com `ok:false`.
   if (isReq('harvest')) {
-    out.harvest = {
-      ...services.harvester.status(),
-      debridAccount: services.harvesterDebrid.snapshot(),
-      debridResolved: services.harvesterDebrid.resolveQuota()?.adapter?.id ?? null,
-    };
+    out.harvest = harvestBlock(services);
   }
 
   // Bloco: crawl (Fase 4). Um card por site + config ao vivo (o painel monta o
@@ -311,7 +311,10 @@ export async function computeStatusPayload(
     const indexers = await getIndexers();
     out.indexers = indexers.map((indexer: any) => ({
       ...indexer,
-      breaker: services.jackett.breakerSnapshot(indexer.id),
+      // O circuito por indexer é do coletor NATIVO (gateway). O Node não tem
+      // mais breaker local, então o painel recebe objeto vazio = "não medido"
+      // (a view lê `breaker.tripped` e mostra o neutro em vez de inventar 0).
+      breaker: {},
       flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
       // `fallbackServed` vinha do contador `fallback.indexer.<id>`, que não tem
       // produtor (o fallback 📦 é do gateway e não conta por indexer). Ausência

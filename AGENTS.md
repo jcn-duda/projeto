@@ -124,11 +124,13 @@ npm run docker:up / docker:logs
   antes de mexer em `test/`. O harness adversarial **muta o `dist/`** — mutação
   nova entra na lista de snapshot/restauração; ao mover símbolo entre arquivos,
   realinhe o `testFile` do mutante.
-- Diagnóstico: rotas `/debrid-status.json`, `/metrics.json`, `/test-indexer.json`,
+- Diagnóstico: rotas `/debrid-status.json`, `/metrics.json`,
   `/test-resolver.json`, `/dashboard-status.json`, `/dashboard-action.json`,
   `/stream-trace.json` exigem `X-Indexer-Test-Token` (só no header; sem
   `JACKETT_TEST_TOKEN` no `.env` ficam 503). Ação destrutiva exige
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
+  **`/test-indexer.json` responde 410** (busca de teste): coleta e colheita são
+  nativas — o estado do colhedor mora em `GET /harvest` na admin do gateway.
   **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process,
   resolve/facts e resolve/effects do play nativo e as rotas do sidecar:
   crawl-result e activity) só existe em loopback + token; a
@@ -184,8 +186,10 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, as rotas do sidecar (`/internal/crawl-result`,
-`/internal/activity`), painel/config, autofetch/colhedor/raspador (workers
-próprios). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
+`/internal/activity`), painel/config, autofetch e raspador (workers próprios).
+O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
+enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
+(§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
 Node só GRAVA os efeitos por `/internal/resolve/effects`, esperados antes da
 resposta de erro, e o hold da AllDebrid vem de `/internal/resolve/facts` (sem
 resposta o play não apaga o frio). As rotas
@@ -293,19 +297,40 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 
 - `streams:v21` (lista pronta, por config+conta, com HMAC), `raw:v1` (cru por
   indexer, sem credencial), `davail` (⚡ por hash/conta), `rdc:v2`/`rdt:v1`/`rdq:v1`
-  (RD), `idx:v14` (índice de releases; dono único: o núcleo Rust, `IdxStore`), `mag` (magnetdb). Versões e cotas em
+  (RD), `harvest:v1:*` (fila/seen/hour do colhedor nativo), `idx:v14` (índice de
+  releases; dono único: o núcleo Rust, `IdxStore`), `mag` (magnetdb). Versões e cotas em
   `cache-keys.ts` / `cache-quotas.ts`; **todo namespace versionado precisa de cota
   explícita** e a soma tem que ficar abaixo do teto global (93.000).
+- **`raw:v1` e `harvest:v1:*` também são do Rust.** O `RawCacheStore` mora no
+  `adom-index` (crate leve) e é usado pelo gateway e pelo `.node`; o Node não
+  guarda `raw`/`harvest` no L1 nem grava no SQLite — o `raw` é `RUST_OWNED` pelo
+  namespace inteiro (o escritor TS do Jackett saiu; `cache.clear()` e
+  `clearNamespace('raw')` chamam o Rust) e o `harvest` segue por prefixo; o Node
+  lê o `raw` pela ponte napi (`raw-store-native.ts`, diagnóstico) e o `harvest`
+  pela admin do gateway.
 - **`idx:v14` tem um dono só (o Rust).** O Node acessa por `IdxStore` (napi síncrono, `src/utils/release-index-store.ts`) e não grava o `idx:` no L1 nem no SQLite. O boot não carrega nem apaga linhas `idx`; `cache.clear()` e `clearNamespace('idx')` chamam o Rust. Não há `INDEX_OWNER=node`: rollback = commit/imagem anterior. Diagnóstico de chave exata: `idxHasKey` (no TS) e `hasKey` (napi).
 - SWR só serve lista completa, `debridKnown` e com stream **tocável** (aviso não
   conta). Hit de `raw` não pinta o card de status.
 - **Addon responde do próprio índice** quando ele cobre a obra (Jackett vira
   alimentador assíncrono); cobertura é por pool (BR dublado → dublado global →
-  swarm), nunca contagem pura. **Colhedor** (fila `harvest:v1:q`) e indexers
-  *index-only* (redetorrent, apache, hdr, 1337x) ficam fora do caminho da
-  resposta. O colhedor pula cards que o raspador já cobre. Resposta do índice
+  swarm), nunca contagem pura. **Colhedor nativo** e indexers *index-only*
+  (redetorrent, apache, hdr, 1337x) ficam fora do caminho da resposta. O
+  colhedor pula cards que o raspador já cobre. Resposta do índice
   sem NENHUM stream tocável (tudo fora do cache com cachedOnly) coleta ao vivo
   na hora se sobra `SEARCH_INDEX_RESCUE_MIN_MS` (`rescueEmptyIndexAnswer`).
+- **Colhedor nativo (`adom-harvest` no `adom-server`)**: thread própria
+  (`adom-harvest`, runtime `current_thread` — `tick_async` não é `Send`), que
+  drena a fila `harvest:v1:q` no MESMO `data/cache.db` do Node (schema `cache`
+  idêntico, zero migração) com Jackett, metadados, índice e banco nativos — as
+  mesmas fontes do `/stream`. Guardas no tick: desligado → pausado → inflight →
+  tráfego recente (só sonda) → fila vazia → teto `HARVEST_MAX_PER_HOUR`. Fila,
+  dedupe 12h (`harvest:v1:seen:<sha>`), balde horário (`harvest:v1:hour`) e
+  `br-probe` são do Rust; o namespace `harvest` é **RUST_OWNED** no Node (não
+  carrega no L1, não grava no SQLite). O painel e os efeitos falam pela admin do
+  gateway (`GET /harvest`, `POST /harvest/enqueue|pause|drain|clear`,
+  `GET /harvest/pending?imdbId=`, loopback `127.0.0.1:8711`, token no header) via
+  `src/utils/harvest-native.ts`. Rollback = commit/imagem anterior; não há
+  `HARVEST_OWNER=node`.
 - **Mico Leão Dublado** é card virtual de indexer (consultado por IMDb, fora do
   Jackett) e também o 9º site do raspador.
 
@@ -426,8 +451,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do `dub-audit` (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
-| Fontes | `jackett*.ts`, `prowlarr.ts`, `torrentio.ts`, `bludv.ts`, `mico.ts`, `account.ts` |
-| Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`, `harvester*.ts`, `harvest-*.ts` |
+| Fontes | `prowlarr.ts`, `torrentio.ts`, `mico.ts`, `account.ts` (Jackett/BLUDV nativos em `adom-sources`) |
+| Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`; fila e worker do colhedor são do gateway (`adom-harvest`), o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `sign.ts`, `deadline.ts`…) |
@@ -450,8 +475,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   `ADDON_LOG_LEVEL` (nunca `LOG_LEVEL`).
 - **Nada de config hardcoded**: número ajustável vai em `src/config.ts` + `.env.example`.
 - **Falha de rede nunca derruba a busca**: `Promise.allSettled`, `try/catch` → `[]` + log.
-- Circuit breaker (`JACKETT_BREAKER_*`) só abre em `offline`; `/test-indexer.json`
-  o ignora.
+- Circuit breaker (`JACKETT_BREAKER_*`) só abre em `offline`; a antiga
+  `/test-indexer.json` (410) o ignorava.
 - Rota async no Express 4 precisa de `asyncRoute`.
 - Metadado em `inFlight` usa `fetchJsonWithin` (prazo duro), nunca `fetch` cru.
 

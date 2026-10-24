@@ -3,7 +3,6 @@ import type config from '../config.js';
 import type * as runtime from '../runtime.js';
 import type debrid from '../debrid/index.js';
 import type * as jackettCatalog from '../providers/jackett-catalog.js';
-import type jackett from '../providers/jackett.js';
 import type * as secretBox from '../utils/secret-box.js';
 import type * as metrics from '../utils/metrics.js';
 import type * as cache from '../utils/cache.js';
@@ -13,7 +12,6 @@ import type * as autofetchRunner from '../providers/autofetch-runner.js';
 import type * as autofetchLive from '../utils/autofetch-live.js';
 import type * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import type * as releaseIndex from '../utils/release-index.js';
-import type harvester from '../providers/harvester.js';
 import type * as harvesterLive from '../utils/harvester-live.js';
 import type * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import type * as magnetdb from '../utils/magnetdb.js';
@@ -45,7 +43,6 @@ export interface AppServices {
   runtime: typeof runtime;
   debrid: typeof debrid;
   jackettCatalog: typeof jackettCatalog;
-  jackett: typeof jackett;
   secretBox: typeof secretBox;
   metrics: typeof metrics;
   cache: typeof cache;
@@ -55,7 +52,10 @@ export interface AppServices {
   autofetchLive: typeof autofetchLive;
   autofetchSuppressed: typeof autofetchSuppressed;
   releaseIndex: typeof releaseIndex;
-  harvester: typeof harvester;
+  // `harvester` SAIU do contrato (Fase 5): a fila `harvest:v1` é do gateway e o
+  // painel lê o estado por `utils/harvest-native.ts` (`harvestStatusSnapshot`,
+  // `pauseNativeHarvest`, `drainNativeHarvest`, `clearNativeHarvest`). Não
+  // reintroduza um serviço de colhedor aqui: o Node não tem mais worker.
   harvesterLive: typeof harvesterLive;
   harvesterDebrid: typeof harvesterDebrid;
   magnetdb: typeof magnetdb;

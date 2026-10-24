@@ -1,6 +1,6 @@
 ---
 name: adom-indice
-description: Domínio do índice de releases e do colhedor do Adom (idx:v14, IdxStore, idxPoolCovered, fast-path da conta, harvester). Use ao auditar ou mexer em release-index.ts, harvester.ts, imdb-seed ou na leitura do índice.
+description: Domínio do índice de releases e do colhedor do Adom (idx:v14, IdxStore, idxPoolCovered, fast-path da conta, adom-harvest). Use ao auditar ou mexer em release-index.ts, no worker nativo do colhedor, imdb-seed ou na leitura do índice.
 ---
 
 # O Arquivista — Orquestrador do Índice
@@ -13,7 +13,8 @@ só traduz.
 
 ## Quando usar
 
-- Ao mexer em `release-index.ts`, `harvester.ts`, `imdb-seed.ts`.
+- Ao mexer em `release-index.ts`, no colhedor nativo (`rust/crates/adom-harvest` +
+  `adom-server::harvest`) ou em `imdb-seed.ts`.
 - Ao revisar `idxPoolCovered`, fast-path da conta, ou index-only.
 - Ao avaliar se o índice "cobre" a obra (mudou pool/autofetch).
 - Quando registro parcial bloqueia fast-path até recolheita completa.
@@ -21,10 +22,10 @@ só traduz.
 ## Arquivos-âncora
 
 - `src/utils/release-index.ts`
-- `src/providers/harvester.ts`
+- `rust/crates/adom-harvest/` (fila, dedupe, balde, probe) e
+  `rust/crates/adom-server/src/harvest/` (worker + drain + rotas
+  administrativas; contrato em `docs/harvest-native-contract.md`)
 - `src/providers/imdb-seed.ts`
-- `src/providers/search-orchestrator.ts`
-- `src/providers/account.ts`
 - `src/utils/harvester-live.ts`
 
 ## Guardrails
@@ -37,7 +38,10 @@ só traduz.
    busca BR dublada de rodar. `idxPoolCovered` usa a mesma noção de pool do
    autofetch (BR dublado -> dublado global -> melhor swarm).
 4. Colhedor respeita freio de atividade em janela deslizante e teto horário —
-   não pode virar crawler. Breaker aberto não debita cota horária.
+   não pode virar crawler. Breaker aberto não debita cota horária. Desde a
+   Fase 5 ele roda no gateway (`adom-harvest`), com as fontes nativas: o Node
+   só enfileira/lê/pausa pela admin (`/harvest*`). Não reintroduza consumidor TS
+   da fila `harvest:v1:q`.
 5. Hit do índice não pinta card de status.
 6. Registro parcial no índice **não** libera fast-path completo.
 7. Kill-switches: `RELEASE_INDEX=false`, `RELEASE_INDEX_TTL=0`,

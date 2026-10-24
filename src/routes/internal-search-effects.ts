@@ -18,7 +18,8 @@ import { enqueueAutofetch } from '../providers/autofetch-runner.js';
 import { queueRdWarmForRelevant } from '../providers/harvest-warmer.js';
 import { queueDubAudit } from '../providers/dub-audit.js';
 import { requestBrProbe } from '../providers/br-probe.js';
-import * as harvestQueue from '../providers/harvest-queue.js';
+import { enqueueNativeHarvest } from '../utils/harvest-native.js';
+import type { NativeHarvestEnqueue } from '../utils/harvest-native.js';
 import { registerSeasonSearchKey } from '../providers/autofetch-season-index.js';
 import { runAutofetchBatch } from '../providers/autofetch-batch.js';
 import type { AutofetchBatchPayload } from '../providers/autofetch-batch.js';
@@ -55,8 +56,8 @@ export interface InternalSearchEffectsCollaborators {
   queueDubAudit: typeof queueDubAudit;
   /** Sonda dirigida BR (colheita com `brProbe: true`). */
   requestBrProbe: typeof requestBrProbe;
-  /** Enfileira obra no colhedor (fila `harvest:v1:q`). */
-  harvestEnqueue: typeof harvestQueue.enqueue;
+  /** Enfileira obra no colhedor NATIVO (`POST /harvest/enqueue` do gateway). */
+  harvestEnqueue: (req: NativeHarvestEnqueue) => void;
   /** LRU de temporadas com pack pronto (Season Pack Fill). */
   registerSeasonSearchKey: typeof registerSeasonSearchKey;
   /** Lote pós-debrid do Chupim: reconstrói os streams e roda a cascata do Node. */
@@ -67,6 +68,27 @@ export interface InternalSearchEffectsCollaborators {
 
 /** Efeito conhecido: `kind` discriminado + payload já validado por tipo. */
 type Effect = { kind: string; payload: Record<string, unknown> };
+
+/**
+ * Payload do efeito → pedido do colhedor NATIVO. O contrato do gateway não
+ * aceita `null` em S/E (ausente = obra inteira) e recusa `type` fora de
+ * `movie|series` — pedido sem tipo é descartado aqui, nunca convertido em
+ * filme por omissão.
+ */
+function nativeHarvestRequest(
+  p: Record<string, unknown>,
+  reason: string,
+): NativeHarvestEnqueue | null {
+  const type = p.type === 'series' ? 'series' : p.type === 'movie' ? 'movie' : null;
+  if (!type) return null;
+  return {
+    imdbId: String(p.imdbId),
+    type,
+    reason,
+    ...(typeof p.season === 'number' ? { season: p.season } : {}),
+    ...(typeof p.episode === 'number' ? { episode: p.episode } : {}),
+  };
+}
 
 /**
  * Valida o lote de efeitos. Cada `kind` tem forma própria de payload — validar
@@ -165,21 +187,24 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
       // Sonda INELEGÍVEL (kill-switch/retry/estado) devolve `fallbackBrGap`:
       // o follow-up do índice (agora nativo, no Rust) manda a obra ao colhedor
       // (`br-gap`), preservando a rede de segurança. Sonda agendada já
-      // enfileirou por dentro do `requestBrProbe` — aqui não duplica.
+      // enfileirou por dentro do `requestBrProbe` (com `brProbe: true`) — aqui
+      // não duplica, e o fallback NÃO leva a flag: sonda inelegível não vira
+      // sonda dirigida no gateway.
       if (result?.fallbackBrGap) {
-        deps.harvestEnqueue({
-          imdbId: String(p.imdbId),
-          type: p.type === 'series' ? 'series' : 'movie',
-          season: typeof p.season === 'number' ? p.season : null,
-          episode: typeof p.episode === 'number' ? p.episode : null,
-          reason: 'br-gap',
-        });
+        const req = nativeHarvestRequest(p, 'br-gap');
+        if (req) deps.harvestEnqueue(req);
       }
       return;
     }
-    case 'harvester_enqueue':
-      deps.harvestEnqueue(p as any);
+    case 'harvester_enqueue': {
+      // `next-episode`/`miss`/`gap`/`br-gap` do Rust: o enfileiramento é do
+      // gateway (fila, dedupe de 12h e prioridade são dele). A flag `brProbe`
+      // só viaja quando o pedido veio como sonda dirigida — o Rust hoje não a
+      // manda, mas o contrato do gateway a preserva.
+      const req = nativeHarvestRequest(p, String(p.reason));
+      if (req) deps.harvestEnqueue(p.brProbe === true ? { ...req, brProbe: true } : req);
       return;
+    }
     case 'season_key':
       deps.registerSeasonSearchKey(
         String(p.adapter_id), String(p.account), String(p.imdb),
@@ -265,7 +290,7 @@ export function registerInternalSearchEffects(
     queueRdWarmForRelevant: overrides.queueRdWarmForRelevant ?? queueRdWarmForRelevant,
     queueDubAudit: overrides.queueDubAudit ?? queueDubAudit,
     requestBrProbe: overrides.requestBrProbe ?? requestBrProbe,
-    harvestEnqueue: overrides.harvestEnqueue ?? harvestQueue.enqueue,
+    harvestEnqueue: overrides.harvestEnqueue ?? enqueueNativeHarvest,
     registerSeasonSearchKey: overrides.registerSeasonSearchKey ?? registerSeasonSearchKey,
     runAutofetchBatch: overrides.runAutofetchBatch ?? runAutofetchBatch,
     captureItems: overrides.captureItems ?? captureItems,

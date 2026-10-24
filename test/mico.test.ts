@@ -1,20 +1,16 @@
-// Mico Leão Dublado V2: card virtual da /configure + fonte opcional do
-// colhedor. Parse do `title`, fail-open, breaker local, id inválido, o card no
-// catálogo, a separação do Jackett e a garantia de que o lixo de outra obra
-// morre no filtro de relevância antes do índice. Nada aqui toca rede.
+// Mico Leão Dublado V2: card virtual da /configure e fonte opcional do acervo.
+// Parse do `title`, fail-open, breaker local, id inválido, o card no catálogo e
+// a separação do Jackett. Nada aqui toca rede.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
-import jackett, { effectiveJackettIndexers } from '../src/providers/jackett.js';
+import * as micoDiag from '../src/providers/mico-diag.js';
 import * as indexerStatus from '../src/providers/indexer-status.js';
-import * as harvestWorker from '../src/providers/harvest-worker.js';
-import * as releaseIndex from '../src/utils/release-index.js';
 import { stubFetch } from './helpers/stub.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import fs from 'node:fs';
@@ -189,22 +185,10 @@ test('MICO_ENABLED=false: nenhum fetch e o card some do catálogo', async () => 
   }
 });
 
-test('card: entra no catálogo como BR e nunca vira consulta ao Jackett', async () => {
+test('card: entra no catálogo como BR e fora da lista do Jackett', async () => {
   await withMico(async () => {
     assert.deepEqual(mico.catalogEntry(), { id: 'mico', label: 'Mico Leão Dublado', language: 'pt-BR', isBr: true, virtual: true });
     assert.deepEqual(mico.jackettOnly(['bludv-cardigann', 'MICO', 'yts']), ['bludv-cardigann', 'yts']);
-    assert.deepEqual(effectiveJackettIndexers(['mico']), []);
-    const savedKey = config.jackett.apiKey;
-    config.jackett.apiKey = 'test-key';
-    const stub = stubFetch(() => ok([]));
-    try {
-      // Lista explícita só com o card: nenhuma chamada ao Jackett (nem /all).
-      assert.deepEqual(await jackett.search('Coringa', 'movie', ['mico']), []);
-      assert.equal(stub.calls.length, 0);
-    } finally {
-      stub.restore();
-      config.jackett.apiKey = savedKey;
-    }
   });
 });
 
@@ -217,42 +201,12 @@ test('card: busca viva pinta o status; a do colhedor não', async () => {
       assert.equal(indexerStatus.get('mico'), null);
       await mico.search({ type: 'movie', imdbId: 'tt7286456' });
       assert.equal(indexerStatus.get('mico')?.state, 'online');
-      const diag = await jackett.test('mico', '', 'movie');
+      const diag = await micoDiag.test('', 'movie');
       assert.equal(diag.ok, true);
-      assert.equal((diag as any).results, 1);
+      assert.equal(diag.results, 1);
     } finally {
       stub.restore();
       indexerStatus.clear();
-    }
-  });
-});
-
-test('colhedor: item do Mico da obra entra no índice, lixo de outra obra é cortado', async () => {
-  const saved = { indexers: config.jackett.indexers, tmdb: config.tmdb.apiKey, bludv: config.bludv.enabled };
-  config.jackett.indexers = [];
-  config.tmdb.apiKey = '';
-  config.bludv.enabled = false;
-  cache.set('meta:movie:tt9600001', { name: 'Coringa', year: '2019', type: 'movie' }, 3600);
-  await withMico(async () => {
-    const stub = stubFetch((url) => {
-      if (url.includes('mico-leao')) {
-        return ok([
-          { title: 'Coringa 2019 1080p Dublado (brazilian) 👥 5', infoHash: H1 },
-          { title: 'Harley Quinn S01E01 1080p (brazilian) 👥 9', infoHash: H2 },
-        ]);
-      }
-      return { ok: false, status: 404, json: async () => ({}) };
-    });
-    try {
-      await harvestWorker.harvestOne({ imdbId: 'tt9600001', type: 'movie', reason: `mico-${Date.now()}` } as any);
-      const hashes = releaseIndex.lookupQuiet('tt9600001', {}).map((r: any) => r.hash);
-      assert.ok(hashes.includes(H1), 'release da obra entrou');
-      assert.ok(!hashes.includes(H2), 'lixo de outra obra cortado pelo filtro');
-    } finally {
-      stub.restore();
-      config.jackett.indexers = saved.indexers;
-      config.tmdb.apiKey = saved.tmdb;
-      config.bludv.enabled = saved.bludv;
     }
   });
 });

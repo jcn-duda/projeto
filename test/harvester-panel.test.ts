@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
-import harvester from '../src/providers/harvester.js';
 import * as metrics from '../src/utils/metrics.js';
+import { refreshHarvestStatus, resetHarvestBridgeForTests } from '../src/utils/harvest-native.js';
+import { stubFetch } from './helpers/stub.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 
 const TOKEN = 'tok-harvester-test';
@@ -24,7 +25,7 @@ after(async () => {
 
 beforeEach(() => {
   harvesterLive.reset();
-  harvester.setPaused(false);
+  resetHarvestBridgeForTests();
 });
 
 test('GET /harvester redireciona 302 para /painel#colhedor', async () => {
@@ -55,8 +56,13 @@ test('POST /dashboard-action.json com harvest-config-get exige token', async () 
   }
 });
 
-test('POST /dashboard-action.json harvester-pause comuta estado de pausa', async () => {
+test('POST /dashboard-action.json harvester-pause comuta estado de pausa no gateway', async () => {
   config.jackett.testToken = TOKEN;
+  // A ordem vai pela ponte (`POST /harvest/pause`); o gateway devolve o efetivo.
+  const stub = stubFetch((url, init) => {
+    const body = JSON.parse(String(init?.body || '{}'));
+    return { ok: true, status: 200, json: async () => ({ paused: body.paused === true }) };
+  });
   try {
     const resPause = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -65,7 +71,6 @@ test('POST /dashboard-action.json harvester-pause comuta estado de pausa', async
     assert.equal(resPause.status, 200);
     assert.equal(resPause.json.ok, true);
     assert.equal(resPause.json.paused, true);
-    assert.equal(harvesterLive.isPaused(), true);
 
     const resResume = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -74,17 +79,31 @@ test('POST /dashboard-action.json harvester-pause comuta estado de pausa', async
     assert.equal(resResume.status, 200);
     assert.equal(resResume.json.ok, true);
     assert.equal(resResume.json.paused, false);
-    assert.equal(harvesterLive.isPaused(), false);
+    assert.equal(stub.calls.length, 2, 'as duas ordens foram ao gateway');
   } finally {
+    stub.restore();
     config.jackett.testToken = '';
   }
 });
 
-test('POST /dashboard-action.json harvester-clear-queue exige confirm e esvazia a fila', async () => {
+test('POST /dashboard-action.json harvester-clear-queue exige confirm e limpa a fila do gateway', async () => {
   config.jackett.testToken = TOKEN;
+  const stub = stubFetch((url) => {
+    if (url.endsWith('/harvest/clear')) {
+      return { ok: true, status: 200, json: async () => ({ cleared: 2 }) };
+    }
+    // O refresh pós-limpeza lê o estado; não interessa ao veredito aqui.
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true, enabled: true, paused: false, intervalMs: 30000, maxPerHour: 100,
+        queriesThisHour: 0, depth: 0, inflight: false, preview: [], last: [],
+        counters: { drained: 0, failed: 0 }, store: 'harvest.db',
+      }),
+    };
+  });
   try {
-    harvester.enqueue({ imdbId: 'tt0111161', type: 'movie', reason: 'test' });
-
     const semConfirm = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'harvester-clear-queue' },
@@ -97,11 +116,10 @@ test('POST /dashboard-action.json harvester-clear-queue exige confirm e esvazia 
     });
     assert.equal(comConfirm.status, 200);
     assert.equal(comConfirm.json.ok, true);
-    assert.ok(typeof comConfirm.json.cleared === 'number');
-
-    const st = harvester.status();
-    assert.equal(st.queueDepth, 0);
+    assert.equal(comConfirm.json.cleared, 2, 'o número vem do gateway, não de uma fila local');
+    assert.ok(stub.calls.some((c) => c.url.endsWith('/harvest/clear')), 'a ordem chegou à ponte');
   } finally {
+    stub.restore();
     config.jackett.testToken = '';
   }
 });
@@ -161,17 +179,43 @@ test('POST /dashboard-action.json harvest-config-reset exige confirm e restaura 
   }
 });
 
-test('harvester.status: _origem marca queriesThisHour e queueDepth duravel', () => {
-  const st = harvester.status() as any;
-  assert.ok(st._origem, '_origem presente');
-  assert.equal(st._origem.queriesThisHour, 'duravel');
-  assert.equal(st._origem.queueDepth, 'duravel');
-  assert.equal(st._origem.enabled, 'amostra');
-  assert.equal(st._origem.lastRunAt, 'amostra');
-  assert.equal(st._origem.paused, 'amostra');
-  assert.equal(typeof st.queriesThisHour, 'number');
-  assert.equal(typeof st.queueDepth, 'number');
-  assert.equal(typeof st.enabled, 'boolean');
+test('dashboard-status: harvest._origem marca fila durável e enabled amostra', async () => {
+  config.jackett.testToken = TOKEN;
+  const stub = stubFetch((url) => {
+    if (url.endsWith('/harvest')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true, enabled: true, paused: false, intervalMs: 30000, maxPerHour: 100,
+          queriesThisHour: 7, depth: 3, inflight: false, preview: [], last: [],
+          counters: { drained: 2, failed: 0 }, store: 'harvest.db',
+        }),
+      };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    await refreshHarvestStatus();
+    const res = await server.request('GET', '/dashboard-status.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+    });
+    assert.equal(res.status, 200);
+    const h = res.json.harvest as any;
+    assert.ok(h._origem, '_origem presente');
+    assert.equal(h._origem.queriesThisHour, 'duravel');
+    assert.equal(h._origem.queueDepth, 'duravel');
+    assert.equal(h._origem.enabled, 'amostra');
+    assert.equal(h._origem.lastRunAt, 'amostra');
+    assert.equal(h._origem.paused, 'amostra');
+    assert.equal(h.queriesThisHour, 7);
+    assert.equal(h.queueDepth, 3);
+    assert.equal(h.enabled, true);
+  } finally {
+    stub.restore();
+    resetHarvestBridgeForTests();
+    config.jackett.testToken = '';
+  }
 });
 
 test('rotas escopadas /:userConfig/harvester, status e action suportam Colhedor', async () => {

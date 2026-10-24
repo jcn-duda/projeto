@@ -21,6 +21,11 @@
 //! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) |
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) |
 //! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
+//! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
+//!
+//! O colhedor nativo monta as rotas `/harvest*` neste MESMO roteador —
+//! loopback e token são os mesmos, sem segundo servidor. Sem colhedor
+//! (`harvest: None`) o contrato continua valendo com `enabled:false`.
 //!
 //! A superfície sobe SEMPRE que o corte nativo está de pé: não há rollback por
 //! env. Desligá-la exigiria o Node voltar a ser o dono único de invalidação e o
@@ -38,6 +43,8 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 use adom_store::StreamsStore;
+
+use crate::harvest::HarvestHandle;
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
@@ -89,15 +96,24 @@ pub fn token_from_env() -> String {
     String::new()
 }
 
-struct AdminState {
+pub(crate) struct AdminState {
     token: String,
     store: Arc<StreamsStore>,
     /// Graça do SWR — o mesmo `STREAM_STALE_GRACE_SECONDS` da busca: o trace
     /// enxerga exatamente o que a busca enxergaria (inclusive stale).
     grace_seconds: u64,
+    /// Colhedor nativo; `None` = desligado (`HARVEST_ENABLED=false`), store
+    /// indisponível ou corte nativo desligado. As rotas `/harvest*` respondem
+    /// o contrato com `enabled:false`.
+    pub(crate) harvest: Option<HarvestHandle>,
 }
 
-pub fn router(cfg: &AdminConfig, store: Arc<StreamsStore>, grace_seconds: u64) -> Router {
+pub fn router(
+    cfg: &AdminConfig,
+    store: Arc<StreamsStore>,
+    grace_seconds: u64,
+    harvest: Option<HarvestHandle>,
+) -> Router {
     if cfg.token.is_empty() {
         eprintln!("[gateway] streams admin sem token; responde 503");
     }
@@ -105,12 +121,14 @@ pub fn router(cfg: &AdminConfig, store: Arc<StreamsStore>, grace_seconds: u64) -
         token: cfg.token.clone(),
         store,
         grace_seconds,
+        harvest,
     });
     Router::new()
         .route("/streams/invalidate", post(invalidate))
         .route("/streams/clear", post(clear))
         .route("/streams/trace", get(trace))
         .route("/streams/stats", get(stats))
+        .merge(crate::harvest::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -121,9 +139,10 @@ pub async fn serve(
     cfg: AdminConfig,
     store: Arc<StreamsStore>,
     grace_seconds: u64,
+    harvest: Option<HarvestHandle>,
 ) -> Result<(), String> {
     let listen = cfg.listen;
-    let app = router(&cfg, store, grace_seconds);
+    let app = router(&cfg, store, grace_seconds, harvest);
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|err| format!("nao escutei {listen}: {err}"))?;

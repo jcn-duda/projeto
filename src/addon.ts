@@ -7,7 +7,7 @@ import * as log from './utils/logger.js';
 import * as metrics from './utils/metrics.js';
 import debrid from './debrid/index.js';
 import { createApp } from './app.js';
-import harvester from './providers/harvester.js';
+import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
@@ -51,7 +51,7 @@ if (secretBox.enabled()) secretBox.seal('warmup');
 // evita uma chamada inútil para instalações em modo demo/P2P.
 // Também é quem preenche a lista automática de indexers (sem JACKETT_INDEXERS),
 // com nova tentativa a cada 30s até o Jackett responder.
-const catalogReady = jackettCatalog.startAutoRefresh();
+jackettCatalog.startAutoRefresh();
 // Antes do primeiro /magnet/upload, para a conta do operador não classificar
 // os uploads da primeira busca como magnets que já eram do usuário.
 debrid.warmupEnv();
@@ -93,12 +93,12 @@ const server = app.listen(config.port, config.host, () => {
     log.info('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
     log.info('');
   }
-  // Lista automática: o colhedor lê `config.jackett.indexers`, que só existe
-  // depois do primeiro catálogo vivo (espera limitada a 60s).
-  const afterIndexers = config.jackett.indexersAuto ? catalogReady : Promise.resolve();
-  afterIndexers.then(() => {
-    harvester.start();
-  });
+  // Colhedor NATIVO (Fase 5): o Node não drena mais fila nenhuma — a
+  // `harvest:v1` (fila, balde horário, dedupe) é do gateway, que colhe com as
+  // mesmas fontes do `/stream`. Aqui só se arma o espelho de estado que o
+  // bloco do painel lê sem esperar rede. Idempotente e best-effort: gateway
+  // fora do ar vira backoff, nunca erro de boot.
+  startHarvestPolling();
   rdWarmer.start();
   brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
@@ -115,6 +115,10 @@ function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info(`[shutdown] ${signal} recebido; drenando conexões`);
+  // Primeiro passo: para o poll do colhedor para nenhum refresh novo sair
+  // enquanto o processo fecha (a ponte já é best-effort, mas o timer também
+  // não deve sobreviver ao desarme).
+  stopHarvestPolling();
   server.closeIdleConnections?.();
   const force = setTimeout(() => process.exit(0), 5000);
   force.unref();

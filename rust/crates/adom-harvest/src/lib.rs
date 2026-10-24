@@ -11,7 +11,8 @@
 //! - **Não** roda no caminho de `/stream`. Quem responde a busca usa o índice
 //!   já preenchido; o colhedor só enfileira / drena fora da resposta.
 //! - **Não** pluga Jackett nem gateway — o [`HarvestWorker`] só orquestra
-//!   freio/teto/`take_head` e delega ao callback [`HarvestDrain`].
+//!   freio/teto/`take_head` e delega ao callback ([`HarvestDrain`] sync ou
+//!   [`HarvestDrainAsync`]); quem fala rede é o chamador.
 //! - **Não** decide cobertura do índice — contagem pura nunca decide;
 //!   `idxPoolCovered` continua no release-index.
 //!
@@ -30,6 +31,7 @@
 //! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
 //! | [`BrProbe`] / [`probe_key`] | Sonda BR: estados, lease e `pending` a partir da fila |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
+//! | [`HarvestDrainAsync`] / [`tick_async`](HarvestWorker::tick_async) | Mesma decisão, drain que espera rede (gateway) |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
 //! Ponte do `BrEvidence`, seed IMDb e o resto da Fase E: **ainda não** — ver
@@ -74,6 +76,6 @@ pub use types::{
     HarvestMediaType, HarvestRequest, ProbeConfig, ProbeFinal, RequestProbeResult,
 };
 pub use worker::{
-    DrainOutcome, HarvestDrain, HarvestWorker, HarvestWorkerConfig, StubTraffic, TickOutcome,
-    TrafficSense,
+    DrainOutcome, HarvestDrain, HarvestDrainAsync, HarvestWorker, HarvestWorkerConfig, StubTraffic,
+    TickOutcome, TickStart, TrafficSense,
 };
