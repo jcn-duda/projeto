@@ -324,21 +324,6 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       return accountStatus(apiKey);
     };
   }
-  if (typeof adapter.fileLink === 'function') {
-    const fileLink = adapter.fileLink.bind(adapter);
-    out.fileLink = async (apiKey, hash, path) => {
-      const remote = await post(opts, '/debrid/files', { service: adapter.id, apiKey, hash, path });
-      if (!remote.ok) {
-        // Mesma régua da conta: recusa do serviço sobe; 501/rede usam o TS.
-        if (isAccountRefusal(remote)) throw playError(remote, [apiKey, opts.token]);
-        if (remote.status !== 501) metrics.count('rust.debrid.files.unreachable');
-        return fileLink(apiKey, hash, path);
-      }
-      const body = remote.json as { url?: unknown; size?: unknown } | null;
-      if (!body || typeof body.url !== 'string') return null;
-      return { url: body.url, size: Number(body.size) || 0 };
-    };
-  }
   // HMAC (infoHash + S/E + dica w) fica na rota, antes deste POST.
   out.resolveLink = async (apiKey, hash, episode) => {
     // held true = não apagar. Ausente no Rust protege; aqui o Node diz a verdade.

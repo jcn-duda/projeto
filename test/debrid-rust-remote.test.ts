@@ -348,18 +348,18 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
   }
 });
 
-// Fase 3.1: conta e arquivos não repetem a pergunta quando o serviço já recusou.
-test('conta e arquivos: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async () => {
+// Fase 3.1: a conta não repete a pergunta quando o serviço já recusou.
+// `fileLink` saiu: não tinha chamador vivo (a medição do cabeçalho por arquivo
+// não existe mais no Node) e a rota `/debrid/files` ficou sem consumidor.
+test('conta: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async () => {
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
-  const saved = { services: config.debrid.rustServices.slice(), account: adapter.accountStatus, fileLink: adapter.fileLink, fetch: globalThis.fetch };
+  const saved = { services: config.debrid.rustServices.slice(), account: adapter.accountStatus, fetch: globalThis.fetch };
   const counter = (name: string) => metrics.snapshot().counters[name] || 0;
   let tsAccount = 0;
-  let tsFiles = 0;
   try {
     config.debrid.rustServices = ['premiumize'];
     adapter.accountStatus = async () => { tsAccount += 1; return { magnets: 3 }; };
-    adapter.fileLink = async () => { tsFiles += 1; return { url: 'http://ts.example/f', size: 9 }; };
     const reply = (status: number, body: unknown) =>
       (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
     const current = (tag: string) => {
@@ -369,23 +369,17 @@ test('conta e arquivos: recusa sobe sem segunda pergunta; 501 e queda caem no TS
     };
     globalThis.fetch = reply(403, { kind: 'auth', message: 'invalid key' });
     await assert.rejects(() => current('a').accountStatus!('k-a'), (err: unknown) => err instanceof AuthError);
-    await assert.rejects(() => current('b').fileLink!('k-b', 'hash', 'a.mp4'), (err: unknown) => err instanceof AuthError);
-    assert.deepEqual([tsAccount, tsFiles], [0, 0], 'recusa do serviço não vira segunda pergunta');
+    assert.equal(tsAccount, 0, 'recusa do serviço não vira segunda pergunta');
     globalThis.fetch = reply(501, { error: 'service_not_ported' });
     assert.deepEqual(await current('c').accountStatus!('k-c'), { magnets: 3 });
-    assert.deepEqual(await current('d').fileLink!('k-d', 'hash', 'a.mp4'), { url: 'http://ts.example/f', size: 9 });
-    assert.deepEqual([tsAccount, tsFiles], [1, 1], '501 continua caindo no TS');
+    assert.equal(tsAccount, 1, '501 continua caindo no TS');
     globalThis.fetch = reply(502, { error: 'other' });
     const accountBefore = counter('rust.debrid.account.unreachable');
-    const filesBefore = counter('rust.debrid.files.unreachable');
     await current('e').accountStatus!('k-e');
-    await current('f').fileLink!('k-f', 'hash', 'a.mp4');
     assert.equal(counter('rust.debrid.account.unreachable') - accountBefore, 1, 'queda da conta é medida');
-    assert.equal(counter('rust.debrid.files.unreachable') - filesBefore, 1, 'queda dos arquivos é medida');
-    assert.deepEqual([tsAccount, tsFiles], [2, 2], 'sem veredito o TS responde uma vez');
+    assert.equal(tsAccount, 2, 'sem veredito o TS responde uma vez');
   } finally {
     adapter.accountStatus = saved.account;
-    adapter.fileLink = saved.fileLink;
     globalThis.fetch = saved.fetch;
     config.debrid.rustServices = saved.services;
   }

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import { packHashesMissingFiles } from '../src/providers/episode-size.js';
 import { clearFileSizes, peekFileSizes } from '../src/debrid/file-sizes.js';
-import { scheduleFileLists, freshFileLink } from '../src/debrid/premiumize-files.js';
+import { scheduleFileLists } from '../src/debrid/premiumize-files.js';
 import type { Stream } from '../types/domain.js';
 
 const DUB = 'd4'.repeat(20);
@@ -46,18 +46,6 @@ test('premiumize: lê os arquivos só dos pedidos que estão prontos, com teto',
   // Já conhecido não é pedido de novo.
   assert.equal(scheduleFileLists(call, 'key', [hashes[0]], wanted), 0);
   clearFileSizes();
-});
-
-test('premiumize: link fresco do arquivo pedido, pelo caminho exato', async () => {
-  const call = async () => ({
-    content: [
-      { path: "Pasta/O.Segredo.de.Widow's Bay.S01.Dub.EP-1.mp4", size: 1.48 * GB, link: 'https://cdn.test/ep1' },
-      { path: "Pasta/O.Segredo.de.Widow's Bay.S01.Dub.EP-2.mp4", size: 1.32 * GB, link: 'https://cdn.test/ep2' },
-    ],
-  });
-  const got = await freshFileLink(call, 'key', DUB, "Pasta/O.Segredo.de.Widow's Bay.S01.Dub.EP-2.mp4");
-  assert.equal(got?.url, 'https://cdn.test/ep2');
-  assert.equal(await freshFileLink(call, 'key', DUB, 'Pasta/outro.mp4'), null);
 });
 
 test('premiumize: falha da leitura não derruba nada', async () => {

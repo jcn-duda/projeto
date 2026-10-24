@@ -3562,9 +3562,11 @@ o orçamento com a resposta.
   (`premiumize-files.ts`, 2 por checagem, desliga com `DEBRID_QUALITY_PROBE`);
   a busca seguinte já mostra a resolução. Medido em Widow's Bay (2026-10-04):
   "S01.Dub E01-E08", 10 GB, ⚡ e sem resolução. Os arquivos também não diziam
-  ("…S01.Dub.EP-1.mp4"), então a medição do cabeçalho (`video-quality.ts`),
-  antes só AllDebrid, vale para quem implementa `adapter.fileLink`: a
-  Premiumize pede um link fresco por `directdl` (o do `fsz` expira em horas).
+  ("…S01.Dub.EP-1.mp4"), a medição do cabeçalho (`video-quality.ts`) chegou a
+  existir só para a AllDebrid (`/link/unlock`) e foi removida do Node: não
+  restou chamador vivo de `adapter.fileLink` (o método saiu do tipo e da
+  Premiumize em 2026-10-23). A rota `/debrid/files` do gateway ficou sem
+  consumidor e só sai no corte da Fase 3.4.
   Conferido em produção: a leitura não cria transferência na conta.
 - **⚡ não prova que há filme.** A AllDebrid guarda em cache o que qualquer um
   sobe: release FALSA de filme ainda no cinema ganha ⚡ e só o play descobre
