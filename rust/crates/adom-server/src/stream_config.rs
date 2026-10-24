@@ -148,7 +148,7 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     );
     cfg.index_only_indexers = indexer_list(
         std::env::var("JACKETT_INDEX_ONLY_INDEXERS").ok().as_deref(),
-        "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x",
+        "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws",
     );
     cfg
 }

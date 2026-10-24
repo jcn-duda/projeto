@@ -129,7 +129,10 @@ trabalho de código é em `src/`.
   (`enlacito.com`): sem browser não há magnet, e o FlareSolverr não resolve o
   desafio. O card fica estacionado e o id **continua listado** (aparece offline,
   religável) — por isso ele NÃO entra no mapa de aposentados (lá o id seria
-  renomeado, e o rename sumiria com o id que o operador quer manter).
+  renomeado, e o rename sumiria com o id que o operador quer manter). Desde o
+  Jackett v0.24.2903 (2026-10-24) o indexer C# `wolfmax4k` **não existe mais**
+  no Jackett (ele apaga o card e responde "Unknown indexer"): religar não é
+  opção, e o `park_stock_indexer wolfmax4k` só age em instalação antiga.
 
 ## Comandos
 
@@ -345,7 +348,7 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - **Addon responde do próprio índice** quando ele cobre a obra (Jackett vira
   alimentador assíncrono); cobertura é por pool (BR dublado → dublado global →
   swarm), nunca contagem pura. **Colhedor nativo** e indexers *index-only*
-  (redetorrent, apache, hdr, 1337x) ficam fora do caminho da resposta. O
+  (redetorrent, apache, hdr, 1337x, kickasstorrents-ws) ficam fora do caminho da resposta. O
   colhedor nativo NÃO pula os cards que o raspador já cobre (o skip era do
   colhedor TS, `crawl-coverage.ts`, apagado; a régua segue no `esm` se um dia
   for portada). Resposta do índice

@@ -331,11 +331,19 @@ describe('entrypoint: core dump não pode encher o disco', () => {
 // SERIAL. Tirar do .env não bastava: a lista efetiva vem do `ji` da config
 // selada na URL, então instalação antiga continuava pedindo os dois.
 describe('entrypoint: indexers que derrubam o Chromium ficam estacionados', () => {
-  test('rutor e kickasstorrents-ws saem do diretório ativo', () => {
+  test('rutor sai do diretório ativo; kickasstorrents-ws volta como index-only', () => {
     assert.ok(script.includes('park_stock_indexer rutor'), 'rutor precisa ser estacionado');
+    // Jackett v0.24.2903 (2026-10-24): o -ws voltou a entregar, mas segue no
+    // FlareSolverr — volta ao diretório ativo e fica fora da busca ao vivo.
     assert.ok(
-      script.includes('park_stock_indexer kickasstorrents-ws'),
-      'kickasstorrents-ws precisa ser estacionado',
+      !/park_stock_indexer kickasstorrents-ws\b/.test(script),
+      'kickasstorrents-ws não pode ser reestacionado',
+    );
+    assert.ok(script.includes('reactivate_parked_card kickasstorrents-ws'), 'o card estacionado é devolvido');
+    assert.match(
+      jackettConfig,
+      /JACKETT_INDEX_ONLY_INDEXERS \|\| '[^']*\bkickasstorrents-ws\b/,
+      'index-only: nunca disputa a fila serial do Flare dentro do /stream',
     );
   });
 

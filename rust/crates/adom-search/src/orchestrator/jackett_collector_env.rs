@@ -4,7 +4,7 @@
 /// Defaults alinhados a `src/config/jackett.ts` (`JACKETT_INDEX_ONLY_INDEXERS`).
 pub(super) fn default_index_only_indexers() -> Vec<String> {
     split_csv(
-        "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x",
+        "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws",
     )
 }
 

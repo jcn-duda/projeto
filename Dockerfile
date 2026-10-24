@@ -7,7 +7,7 @@
 
 FROM caddy:2-alpine AS caddy
 
-# Pin deliberado: v0.24.2748-ls45 (build 2026-10-01; antes v0.24.2531-ls19). O auto-update fica
+# Pin deliberado: v0.24.2903-ls15 (build 2026-10-24; antes v0.24.2748-ls45). O auto-update fica
 # desligado em runtime (--NoUpdates no entrypoint), então subir de versão é
 # trocar este digest e rebuildar — nunca deixar o `latest` mudar o deploy
 # sozinho. Depois do rebuild confira no log que as definitions BR ainda
@@ -15,7 +15,7 @@ FROM caddy:2-alpine AS caddy
 # (bludv-cardigann, comandotorrents, nerdfilmes, torrentdosfilmesv2, vacatorrent,
 # redetorrent-cardigann, apachetorrent-cardigann, hdrtorrent-cardigann,
 # torrentgalaxy-cardigann).
-FROM lscr.io/linuxserver/jackett@sha256:099e895abbeb4564f8c5cb5f2def66462d73dffa39728a1a106af79ff1b04e65 AS jackett
+FROM lscr.io/linuxserver/jackett@sha256:047a28f2493d04a95d5a6bc5670a68c9bce99159e6a9ddf8ff9d564fc0b27bd7 AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
 # o deploy sem revisão, como já fazemos com o Jackett acima. Pin: v3.5.2

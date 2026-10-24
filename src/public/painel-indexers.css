@@ -5,6 +5,14 @@
    várias linhas desalinhava a lista e os cabeçalhos dos cards. */
 .painel-badge { white-space: nowrap; }
 
+/* Aba Saúde: três cards por igual na primeira linha (Veredito · Primeira
+   Resposta · Serviços) e os indexadores na linha inteira. O auto-fit genérico
+   deixava um buraco à direita com quatro colunas de largura. */
+.painel-grid-saude { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .painel-grid-saude { grid-template-columns: 1fr; }
+}
+
 /* Card que ocupa a linha inteira da grade (a lista de indexadores precisa de
    largura: em 1/4 da tela cada badge quebrava em três linhas). */
 .painel-card-full { grid-column: 1 / -1; }

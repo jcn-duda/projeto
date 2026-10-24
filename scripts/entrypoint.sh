@@ -220,7 +220,14 @@ bootstrap_jackett_indexers() {
   # `kickasstorrents-to` fica FORA desta lista de proposito: foi revalidado e
   # esta entregando (commit d218548).
   park_stock_indexer rutor
-  park_stock_indexer kickasstorrents-ws
+
+  # `kickasstorrents-ws` VOLTOU (Jackett v0.24.2903, medido em 2026-10-24: 84
+  # releases, 13 s com o Flare frio e 1 s com a sessao quente). Continua
+  # passando pelo FlareSolverr, entao entra como INDEX-ONLY
+  # (JACKETT_INDEX_ONLY_INDEXERS): alimenta o indice pelo colhedor, com prazo
+  # proprio, e nunca disputa a fila serial do Flare dentro do /stream. O card
+  # estacionado e devolvido ao diretorio ativo (instalacao nova nao tem card).
+  reactivate_parked_card kickasstorrents-ws
 }
 
 # Estaciona `<id>.json` do diretório ativo no irmão `-disabled` (senão o

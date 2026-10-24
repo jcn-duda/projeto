@@ -138,7 +138,7 @@ export const jackett = () => ({
   // colhedor o consulta individualmente com orçamento dedicado
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
   indexOnlyIndexers: indexerList(
-    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x',
+    process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws',
   ),
   // Exceção de PRESENÇA no plano ao vivo: indexers que continuam sendo
   // index-only para todos os outros fins (allowedSourceIndexer não filtra por ji,
