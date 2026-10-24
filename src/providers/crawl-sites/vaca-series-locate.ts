@@ -27,8 +27,22 @@ import { parseTitleSeasonEpisode } from '../../utils/episode-matching.js';
 import { releaseWorkTargets } from '../../utils/release-work.js';
 import { decodeEntities, magnetDisplayName } from '../../utils/title-normalization.js';
 import { liveActionYearContradicts } from '../../utils/matching-tokens.js';
-import { repairMangledEntities } from '../../../resolvers/text.js';
 import type { CrawlReleaseGroup } from '../crawl-types.js';
+
+/**
+ * Ordinal com entidade DESTRUÍDA ("4ordf", "4#170") de volta a "4ª"/"4º".
+ * Morava em `resolvers/text.ts`, apagado quando o último consumidor de
+ * produção saiu; a régua do raspador é o `repair_mangled_entities` do
+ * `adom-crawl` (`br_core/vaca_formas.rs`), e esta cópia serve só ao script de
+ * reparo. Não é um decodificador genérico.
+ */
+function repairMangledEntities(value: string): string {
+  return value
+    .replace(/(?<![a-z])(\d{1,2})\s*ordf(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*ordm(?![a-z0-9])/gi, '$1º')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:170|xaa|x00aa)(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:186|xba|x00ba)(?![a-z0-9])/gi, '$1º');
+}
 
 /**
  * Decodifica ENTIDADES HTML da evidência ANTES de inferir temporada/agrupar.
@@ -47,8 +61,7 @@ import type { CrawlReleaseGroup } from '../crawl-types.js';
  *
  * EXPORTADA de propósito: o reparo (`scripts/crawl-repair-plan.ts`) usa a
  * MESMA decodificação ao avaliar título×dn — régua única, sem cópia (uma
- * segunda implementação divergiria em silêncio). Dependência numa via só
- * (src → resolvers; `resolvers/text.ts` não importa nada de `src/`).
+ * segunda implementação divergiria em silêncio).
  */
 export function decodeEvidence(text: string): string {
   // Entidades DESTRUÍDAS primeiro ("4ordf" = "4ª" sem o "&", dn real do TWD):

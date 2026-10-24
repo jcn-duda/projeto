@@ -1,10 +1,9 @@
-# O Dockerfile copia o núcleo resolvers/, todos os *-resolver/ e definitions. A
+# O Dockerfile copia src/, types/, scripts/, rust/ e as definitions. A
 # suíte Node não percebe um caminho quebrado: renomear um arquivo passa verde no
 # CI e só falha no deploy. Este workflow existe só para quebrar antes disso.
 #
 # Os filtros de caminho espelham a lista de COPY do Dockerfile: src/, types/ e
-# scripts/ alimentam o builder (tsc), e os diretórios de resolvers
-# entram na imagem de runtime. .dockerignore também afeta esses COPYs.
+# scripts/ alimentam o builder (tsc), e o rust/ os binários nativos. .dockerignore também afeta esses COPYs.
 # Mudança em qualquer um deles sem estar aqui é alteração de imagem que o
 # workflow nunca vê.
 #
@@ -23,7 +22,6 @@ on:
       - 'src/**'
       - 'types/**'
       - 'jackett-bludv/**'
-      - 'resolvers/**'
       - 'rust/Cargo.toml'
       - 'rust/Cargo.lock'
       - 'rust/crates/**'
@@ -42,7 +40,6 @@ on:
       - 'src/**'
       - 'types/**'
       - 'jackett-bludv/**'
-      - 'resolvers/**'
       - 'rust/Cargo.toml'
       - 'rust/Cargo.lock'
       - 'rust/crates/**'

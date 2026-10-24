@@ -128,18 +128,6 @@ const mutations = [
     testFile: 'dist/test/e2e/tier2-providers-debrid.test.js'
   },
   {
-    // A guarda executável da allowlist segue em resolvers/protector.js — NÃO
-    // migrou para o Rust (o sidecar é que faz o crawl dos 8 cards; o protetor
-    // de link em processo fica no TS). O escape antigo era vácuo de teste: o
-    // tier2-boundary-corner não alcançava assertAllowedUrl. A cobertura agora
-    // existe (F01-BND-06), e o mutante é capturado pelo mesmo arquivo.
-    name: 'MUT-06: Break resolver host security allowlist (protector.js)',
-    file: 'dist/resolvers/protector.js',
-    target: 'if (!hasAllowedHost(url.hostname, suffixes)) {',
-    replacement: 'if (false) { // MUTATED: allow any evil host',
-    testFile: 'dist/test/e2e/tier2-boundary-corner.test.js'
-  },
-  {
     name: 'MUT-07: Disable secretBox encryption tag check (secret-box.js)',
     file: 'dist/src/utils/secret-box.js',
     target: 'decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));',

@@ -19,7 +19,7 @@ trabalho de código é em `src/`.
 
 ## Stack
 
-- **Node ≥ 20, TypeScript + ESM**. `tsc` compila `src/`, `test/` e `resolvers/`
+- **Node ≥ 20, TypeScript + ESM**. `tsc` compila `src/`, `test/` e `scripts/`
   para `dist/`, e **é `dist/` que roda** (`npm start` =
   `node dist/src/addon.js`). Produção: `node:22-alpine` (tem `node:sqlite`;
   Node 20 cai em memória — mantenha o `require` lazy).
@@ -96,8 +96,9 @@ trabalho de código é em `src/`.
   `adom-sidecar`, que o entrypoint sempre sobe. O loop TS do crawl, o adaptador
   TS do Mico, a sonda CLI de 40 e o knob `CRAWL_ENGINE` saíram; o `crawler.ts` é
   só fachada do painel (status, pausa, "reprocessar sem obra"; "reprocessar
-  erros" e "zerar" vão ao sidecar). Em `resolvers/` ficou só o que o provider do
-  BLUDV e o Mico usam.
+  erros" e "zerar" vão ao sidecar). O diretório TS `resolvers/` saiu inteiro
+  (último consumidor era o provider BLUDV); o oráculo dos goldens de resolver
+  roda com `--dist=../adom-esm/dist`.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;
   `FlareSolverrUrl` tem que ser `http://127.0.0.1:8191`. Definitions Cardigann
   vêm da imagem; nunca monte volume sobre elas. Cache do addon persiste em
@@ -340,7 +341,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   alimentador assíncrono); cobertura é por pool (BR dublado → dublado global →
   swarm), nunca contagem pura. **Colhedor nativo** e indexers *index-only*
   (redetorrent, apache, hdr, 1337x) ficam fora do caminho da resposta. O
-  colhedor pula cards que o raspador já cobre. Resposta do índice
+  colhedor nativo NÃO pula os cards que o raspador já cobre (o skip era do
+  colhedor TS, `crawl-coverage.ts`, apagado; a régua segue no `esm` se um dia
+  for portada). Resposta do índice
   sem NENHUM stream tocável (tudo fora do cache com cachedOnly) coleta ao vivo
   na hora se sobra `SEARCH_INDEX_RESCUE_MIN_MS` (`rescueEmptyIndexAnswer`).
 - **Colhedor nativo (`adom-harvest` no `adom-server`)**: thread própria
@@ -484,7 +487,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
-| Resolvers BR | `rust/crates/adom-resolvers` (Rust); `resolvers/` só helpers do BLUDV e tipos |
+| Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |
 | Infra | `Dockerfile`, `docker-compose.yml`, `scripts/entrypoint.sh`, `jackett-bludv/*.yml` |
 

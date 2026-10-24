@@ -60,7 +60,6 @@ COPY tsconfig.client.test.json ./
 COPY src ./src
 COPY types ./types
 COPY scripts ./scripts
-COPY resolvers ./resolvers
 # `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
 # não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
 # nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
@@ -114,9 +113,8 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
 
-# --- Addon compilado. Os resolvedores BR (8700-8707, chamados pelo Jackett)
-# são o binário Rust adom-resolvers, copiado abaixo; o que sobrou em resolvers/
-# (helpers do provider do BLUDV e tipos) o tsc emite em dist/resolvers/.
+# --- Addon compilado. Os resolvedores (8700-8708, chamados pelo Jackett) são
+# o binário Rust adom-resolvers, copiado abaixo; não há mais resolver em TS.
 COPY package.json package-lock.json ./
 # O FlareSolverr procura package.json no diretório PAI (/app/package.json),
 # que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM
@@ -126,9 +124,7 @@ RUN python3 -c "p='/app/package.json';b=open(p,'rb').read();open(p,'wb').write(b
 RUN npm ci --omit=dev
 
 # Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
-# dist/test: a suíte não vai para a imagem (ver o builder). O núcleo dos
-# resolvedores vive SÓ em dist/resolvers (é o que o br-resolvers resolve a
-# partir de dist/src/); não há cópia crua em /app/resolvers.
+# dist/test: a suíte não vai para a imagem (ver o builder).
 COPY --from=builder /app/dist ./dist
 # Ponte Rust: caminho default do src/utils/rust-core.ts (dist/rust/).
 COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node

@@ -9,7 +9,6 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
-import * as micoDiag from '../src/providers/mico-diag.js';
 import * as indexerStatus from '../src/providers/indexer-status.js';
 import { stubFetch } from './helpers/stub.js';
 import * as bank from '../src/utils/magnet-bank.js';
@@ -201,9 +200,6 @@ test('card: busca viva pinta o status; a do colhedor não', async () => {
       assert.equal(indexerStatus.get('mico'), null);
       await mico.search({ type: 'movie', imdbId: 'tt7286456' });
       assert.equal(indexerStatus.get('mico')?.state, 'online');
-      const diag = await micoDiag.test('', 'movie');
-      assert.equal(diag.ok, true);
-      assert.equal(diag.results, 1);
     } finally {
       stub.restore();
       indexerStatus.clear();

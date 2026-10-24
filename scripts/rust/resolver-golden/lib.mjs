@@ -23,6 +23,10 @@ export const fixture = (name) => fs.readFileSync(path.join(FIXTURES, name), 'utf
 /**
  * Importa um módulo do `dist/` (build do TS). `--dist=<caminho>` aponta para o
  * `dist/` de outro checkout — um worktree não tem build próprio.
+ *
+ * O oráculo TS dos resolvers (`resolvers/`) só existe no branch `esm`: daqui,
+ * rode com `--dist=../adom-esm/dist` (o `dist/` local não tem mais
+ * `resolvers/`, e o import falha alto em vez de gerar golden vazio).
  */
 export async function distImport(rel) {
   const flag = process.argv.find((a) => a.startsWith('--dist='));

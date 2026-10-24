@@ -10,7 +10,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { audioFromTitle } from '../src/utils/audio-quality.js';
-import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
 import { record, lookup, clearIdxStore } from '../src/utils/release-index.js';
 import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
@@ -35,30 +34,6 @@ test('audioFromTitle: DUAL colado no `_` vira Dual; LEGENDADO_Misso vira Legenda
     audioFromTitle('A Hora Da Zona Morta 1983 720p BluRay x264 LEGENDADO_Misso'),
     'Legendado',
   );
-});
-
-// ─── 2. applyPtTitleDual: contracção pt-BR e guardas ────────────────────────
-
-test('applyPtTitleDual: contracção "Na" do TMDB marca o post "A Hora Da …" DUAL', () => {
-  // pt "Na Hora da Zona Morta" × post "A Hora Da Zona Morta": o strip de
-  // artigo/contracção dos DOIS lados casa o título — é o caso medido.
-  const [out] = applyPtTitleDual([raw(TITLE_DUAL)], { titles: TITLES });
-  assert.equal(out.ptTitleDual, true);
-});
-
-test('applyPtTitleDual: pt largo, LEGENDADO DUAL e MULTI ficam de fora', () => {
-  // Guarda de 2+ tokens: "A Rocha" (2 tokens) não herda "A Rocha Queimada".
-  const [broad] = applyPtTitleDual([raw('A Rocha Queimada Dual')], { titles: { pt: 'A Rocha' } });
-  assert.equal(broad.ptTitleDual, undefined, 'título curto do TMDB não marca post mais largo');
-  // Botão legendado não ganha vaga BR, mesmo com DUAL colado.
-  const [sub] = applyPtTitleDual(
-    [raw('A Hora Da Zona Morta 1983 1080p LEGENDADO DUAL')],
-    { titles: TITLES },
-  );
-  assert.equal(sub.ptTitleDual, undefined, 'LEGENDADO derruba a marca');
-  // MULTI sozinho é faixa multiidioma, não dublagem BR.
-  const [multi] = applyPtTitleDual([raw('A Hora Da Zona Morta 1983 1080p MULTI')], { titles: TITLES });
-  assert.equal(multi.ptTitleDual, undefined, 'MULTI sozinho não marca');
 });
 
 // ─── 3. release-index: proteção BR/dublado no corte do teto (7f5d5ef; cap 2/3) ───

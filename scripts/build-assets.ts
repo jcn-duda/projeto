@@ -7,11 +7,9 @@
  * - test/fixtures -> dist/test/fixtures (fixtures de teste)
  * - jackett-bludv -> dist/jackett-bludv (definições cardigann)
  *
- * `resolvers/` e os seis `*-resolver/` NÃO são mais copiados: o próprio tsc
- * compila a ilha inteira (include `resolvers/**` e `*-resolver/**`) e emite os
- * .js em dist/. Copiar fontes aqui sobrescrevia o emit e vazava `.ts` para
- * dentro da imagem. O filtro de `.ts` permanece como guarda-corpo para assets
- * que um dia carreguem tipo.
+ * Fonte `.ts` nunca é copiada: o tsc emite os .js em dist/, e copiar fontes
+ * aqui sobrescrevia o emit e vazava `.ts` para dentro da imagem. O filtro de
+ * `.ts` permanece como guarda-corpo para assets que um dia carreguem tipo.
  *
  * Falha em voz alta caso qualquer diretório essencial falhe ao ser copiado ou não exista.
  */

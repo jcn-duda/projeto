@@ -19,7 +19,6 @@ import * as protectedHashes from '../../src/debrid/protected.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
-import { assertAllowedUrl, BASE_PROTECTOR_SUFFIXES } from '../../resolvers/protector.js';
 import type { Stream } from '../../types/domain.js';
 
 // Helper to run code with temporary config modifications
@@ -56,29 +55,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.deepEqual(parseProtectors('   , ,  '), []);
     });
 
-    it('F01-BND-06: A allowlist de host do protetor rejeita host estranho e aceita o protetor real', () => {
-      // A guarda executável vive em resolvers/protector.js (o shim é o mesmo
-      // arquivo; a decisão NÃO migrou para o Rust). Sem esta asserção o
-      // mutante que desliga a guarda passava vácuo — nenhum teste alcançava a
-      // função.
-      const allowed = assertAllowedUrl('https://systemads1.com/go/aaa111', BASE_PROTECTOR_SUFFIXES);
-      assert.equal(allowed.protocol, 'https:');
-
-      let err: any = null;
-      try {
-        assertAllowedUrl('http://evil.example/torrent', BASE_PROTECTOR_SUFFIXES, true);
-      } catch (e) {
-        err = e;
-      }
-      assert.ok(err, 'host fora da allowlist deveria ser bloqueado');
-      assert.equal(err.message, 'blocked_host:evil.example');
-
-      assert.throws(
-        () => assertAllowedUrl('ftp://systemads1.com/go/aaa111', BASE_PROTECTOR_SUFFIXES),
-        /unsupported_protocol/,
-        'protocolo não-HTTP também é bloqueado'
-      );
-    });
 
   });
 

@@ -24,14 +24,9 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts",
-    "types/**/*.d.ts",
-    // A ilha dos resolvers (núcleo + os sete *-resolver) é compilada pelo
-    // PRÓPRIO tsc: os .ts viram .js em dist/ e os *-resolver/ entram por glob
-    // explícito (server/test/smoke-test). Só fontes .ts — os globs de .js
-    // saíram (não há mais fonte JS na ilha) para não haver dupla fonte de emit.
-    // O build-assets só copia assets não-compiláveis e nunca sobrescreve emit.
-    "resolvers/**/*.ts",
-    "*-resolver/**/*.ts"
+    // A ilha TS dos resolvers (`resolvers/`) saiu: os resolvedores são o
+    // binário Rust `adom-resolvers` e a versão TS segue no branch `esm`.
+    "types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
