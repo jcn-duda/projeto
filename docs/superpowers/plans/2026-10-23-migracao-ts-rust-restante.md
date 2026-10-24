@@ -150,6 +150,40 @@ Dívida residual declarada (medida, não silenciosa):
 
 ---
 
+## Atualização 2026-10-24 — fechamento funcional do colhedor
+
+Plano detalhado: [`2026-10-24-fechamento-funcional-colhedor-rust.md`](2026-10-24-fechamento-funcional-colhedor-rust.md).
+O retrato de 2026-10-23 acima permanece **histórico** (partida `e0fe72eb`, 14
+falhas Node, 45 `.rs` acima do teto, dois escritores `raw`, motor TS do Mico
+ainda citado como dívida de runtime). Não repetir esses números como estado
+atual: a suíte e a catraca já zeraram depois; `raw` tem dono Rust; o Mico de
+produção é o sidecar.
+
+**Status atual do colhedor (commit local, sem push/deploy):** 5A–5G
+entregues; gates da seção 6 do plano 2026-10-24 em exit 0. Aceite do recorte
+funcional, não paridade operacional 5H.
+
+| fatia | o que fechou |
+|---|---|
+| 5A | Intenção FULL simétrica; envelope persistido sem truncar |
+| 5B | Settlement devolve FULL remanescente; snapshot do slot antes do `finish` |
+| 5C | Escrita suplementar; sonda/FULL incompleto não certificam |
+| 5D | Found via delta do índice; invalidação nativa só da obra |
+| 5E | `EvidenceSnapshot` + prioridade real; evicção BR-first/FIFO |
+| 5F | BLUDV só FULL, nunca certifica, não debita Jackett |
+| 5G | `run_iteration` testável; loop com barreira; `NetworkDrain` contra stubs locais; restart após save; contrato e docs |
+
+Contrato vivo: `docs/harvest-native-contract.md`. Dívida antiga de config ao
+vivo **já entregue** (`POST /harvest/config` + overlay). Dívida antiga
+"BLUDV fora / BrEvidence pendente" **já entregue** em 5E–5F.
+
+**Ainda fora deste recorte (5H e o resto da migração):** crash no meio do
+drain, inflight durável, exactly-once, fencing SWR, preempção intradrain, teto
+rígido por consulta; fases 3/4 (adapters/estado), fallback de metadados,
+ingestão `crawl-result`, autofetch/recheck e demais workers.
+
+---
+
 ## Fase 0 — Base confiável (executar agora)
 
 ### Task 0.1: destravar o job Rust no CI — ✅ feito (`89bdc467`)

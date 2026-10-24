@@ -243,6 +243,7 @@ fn coalescing_em_voo_grava_pending_sem_entrada_nova() {
         resumed: false,
         br_probe: false,
         full_base: false,
+        full_intent: None,
     };
     queue.inflight_mut().begin(
         &obra_identity("tt0111161", None, None),

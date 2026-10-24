@@ -85,6 +85,7 @@ mod tests {
             resumed: false,
             br_probe: false,
             full_base: false,
+            full_intent: None,
         };
         assert!(is_recent_br_gap(
             &entry,

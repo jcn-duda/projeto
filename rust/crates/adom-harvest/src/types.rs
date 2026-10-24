@@ -29,6 +29,16 @@ impl HarvestMediaType {
     }
 }
 
+/// Obrigação FULL guardada à parte da execução (sonda pode promover sem
+/// consumir a colheita completa). Fora do JSON público do preview.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingFull {
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority_at: Option<i64>,
+}
+
 /// Uma obra a colher. Espelho de `HarvestEntry` no TS.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +65,9 @@ pub struct HarvestEntry {
     /// Nasceu FULL e ganhou flag probe por promoção.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub full_base: bool,
+    /// Snapshot da obrigação FULL. Não aparece no preview HTTP.
+    #[serde(skip)]
+    pub full_intent: Option<PendingFull>,
 }
 
 /// Pedido de enqueue sem `enqueued_at` (o relógio preenche no aceite).
@@ -109,6 +122,8 @@ pub enum EnqueueReason {
     Dedupe,
     /// Obra em voo no worker — stub: precisa de `harvest-inflight`.
     Coalesced,
+    /// Ingresso distinto evictado pelo teto (não grava dedupe).
+    Capacity,
 }
 
 impl EnqueueReason {
@@ -121,6 +136,7 @@ impl EnqueueReason {
             Self::Duplicate => "duplicate",
             Self::Dedupe => "dedupe",
             Self::Coalesced => "coalesced",
+            Self::Capacity => "capacity",
         }
     }
 }

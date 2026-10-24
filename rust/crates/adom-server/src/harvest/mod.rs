@@ -32,8 +32,12 @@
 
 mod config;
 mod drain;
+mod drain_record;
 mod drain_shape;
+mod drain_sources;
 mod enqueue;
+mod evidence;
+mod handle;
 mod live;
 mod routes;
 mod serve;
@@ -45,56 +49,60 @@ mod traffic;
 #[path = "worker_tests.rs"]
 mod worker_tests;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use adom_harvest::{
-    load_hour, EnqueueOutcome, HarvestQueue, HarvestQueueConfig, HarvestRequest, HarvestStore,
-    HarvestWorker, HarvestWorkerConfig,
+    load_hour, HarvestQueue, HarvestQueueConfig, HarvestStore, HarvestWorker, HarvestWorkerConfig,
 };
-use adom_search::orchestrator::Orchestrator;
+use adom_search::orchestrator::{Orchestrator, SharedIndex};
+use adom_store::StreamsStore;
 use tokio::sync::{oneshot, Mutex as AsyncMutex, Notify};
 
 pub use config::HarvestConfig;
+pub use handle::HarvestHandle;
 pub use status::{HarvestCounters, HarvestStatus};
 pub use traffic::StreamTraffic;
 
 /// Rotas administrativas do colhedor, montadas no `store_admin`.
 pub(crate) use routes::router as admin_router;
 
-use enqueue::enqueue_with_dedupe;
+use evidence::{queue_identities, EvidenceSnapshot};
 use live::LiveOverlay;
 use serve::serve;
 
 /// Estado compartilhado entre o loop e a API administrativa.
 pub(crate) struct Inner {
     /// `.env` do gateway: a base sobre a qual o overlay do painel se aplica.
-    env: HarvestConfig,
+    pub(crate) env: HarvestConfig,
     /// Config efetiva (`.env` + painel). Leitura curta, nunca durante rede.
-    config: Mutex<HarvestConfig>,
+    pub(crate) config: Mutex<HarvestConfig>,
     /// O painel mudou a config: o loop reaplica no worker, na fila e no drain
     /// (os três são dele, então quem aplica é ele, no topo do ciclo).
-    live_dirty: AtomicBool,
-    store: Arc<HarvestStore>,
-    store_path: PathBuf,
+    pub(crate) live_dirty: AtomicBool,
+    pub(crate) store: Arc<HarvestStore>,
+    pub(crate) store_path: PathBuf,
     /// A fila só é tocada pelo tick (dono) ou pelas rotas (com o lock).
-    queue: AsyncMutex<HarvestQueue>,
+    pub(crate) queue: AsyncMutex<HarvestQueue>,
     /// Snapshot do painel — nunca segura o lock da fila.
-    status: Mutex<HarvestStatus>,
-    paused: AtomicBool,
-    traffic: StreamTraffic,
+    pub(crate) status: Mutex<HarvestStatus>,
+    pub(crate) paused: AtomicBool,
+    pub(crate) traffic: StreamTraffic,
     /// Acorda o loop para pausa/enqueue/drain imediato.
-    notify: Notify,
+    pub(crate) notify: Notify,
     /// Quantos ticks o `POST /harvest/drain` pediu (`0` = nenhum).
-    drain_budget: AtomicUsize,
+    pub(crate) drain_budget: AtomicUsize,
     /// Quem espera a resposta do drain pedido pela rota.
-    drain_reply: Mutex<Option<oneshot::Sender<usize>>>,
+    pub(crate) drain_reply: Mutex<Option<oneshot::Sender<usize>>>,
+    /// Índice nativo do orquestrador (ausente = foto neutra).
+    pub(crate) index: Option<SharedIndex>,
+    /// Última foto de evidência. Nunca segura este mutex à espera da fila.
+    pub(crate) evidence: Mutex<EvidenceSnapshot>,
 }
 
 impl Inner {
-    fn config(&self) -> HarvestConfig {
+    pub(crate) fn config(&self) -> HarvestConfig {
         self.config
             .lock()
             .unwrap_or_else(|err| err.into_inner())
@@ -103,7 +111,7 @@ impl Inner {
 
     /// Aplica o overlay do painel: o que é atômico vale já (pausa, janela de
     /// tráfego); o resto o loop pega no próximo ciclo (`live_dirty`).
-    fn apply_live(&self, overlay: &LiveOverlay) -> HarvestConfig {
+    pub(crate) fn apply_live(&self, overlay: &LiveOverlay) -> HarvestConfig {
         let config = overlay.apply(&self.env);
         *self.config.lock().unwrap_or_else(|err| err.into_inner()) = config.clone();
         self.traffic.set_idle_window(config.idle_window_ms);
@@ -118,7 +126,7 @@ impl Inner {
     }
 
     /// Foto da fila (+ worker, quando o loop está no comando).
-    fn publish(&self, queue: &HarvestQueue, worker: &mut HarvestWorker, now: i64) {
+    pub(crate) fn publish(&self, queue: &HarvestQueue, worker: &mut HarvestWorker, now: i64) {
         let mut status = self.status.lock().unwrap_or_else(|err| err.into_inner());
         status.paused = self.paused.load(Ordering::SeqCst);
         status.inflight = worker.in_flight();
@@ -128,133 +136,17 @@ impl Inner {
     }
 
     /// Foto sem worker (rotas de escrita fora do ciclo).
-    fn publish_queue(&self, queue: &HarvestQueue) {
+    pub(crate) fn publish_queue(&self, queue: &HarvestQueue) {
         let mut status = self.status.lock().unwrap_or_else(|err| err.into_inner());
         status.paused = self.paused.load(Ordering::SeqCst);
         status.depth = queue.depth();
         status.preview = queue.preview(self.config().queue_preview);
     }
 
-    fn persist_queue(&self, queue: &HarvestQueue, now: i64) {
+    pub(crate) fn persist_queue(&self, queue: &HarvestQueue, now: i64) {
         if let Err(err) = queue.save_to(&self.store, self.config().entry_ttl, now) {
             eprintln!("[harvest] fila não persistiu: {err}");
         }
-    }
-}
-
-/// Handle clonável: o worker roda mesmo se todas as cópias caírem (a thread
-/// tem o `Arc` dela; este é o lado da API).
-#[derive(Clone)]
-pub struct HarvestHandle {
-    inner: Arc<Inner>,
-}
-
-impl HarvestHandle {
-    /// Config efetiva (`.env` + painel) neste instante.
-    pub fn config(&self) -> HarvestConfig {
-        self.inner.config()
-    }
-
-    /// `POST /harvest/config`: overrides do painel empurrados pelo Node.
-    pub fn apply_live(&self, overrides: &serde_json::Value) -> HarvestConfig {
-        self.inner.apply_live(&LiveOverlay::from_value(overrides))
-    }
-
-    pub fn store_path(&self) -> &Path {
-        &self.inner.store_path
-    }
-
-    /// Snapshot do painel (não espera um drain em andamento).
-    pub fn status(&self) -> HarvestStatus {
-        self.inner
-            .status
-            .lock()
-            .unwrap_or_else(|err| err.into_inner())
-            .clone()
-    }
-
-    /// Enqueue com o dedupe 12h do Node (só grava `seen` no aceite).
-    pub async fn enqueue(&self, req: HarvestRequest) -> EnqueueOutcome {
-        let now = adom_sources::now_ms();
-        let mut queue = self.inner.queue.lock().await;
-        let outcome = enqueue_with_dedupe(&mut queue, &self.inner.store, req, now);
-        if outcome.accepted {
-            self.inner.persist_queue(&queue, now);
-        }
-        self.inner.publish_queue(&queue);
-        outcome
-    }
-
-    /// Pausa/retoma. O loop aplica no próximo ciclo (o notify o acorda já).
-    pub fn set_paused(&self, paused: bool) {
-        self.inner.paused.store(paused, Ordering::SeqCst);
-        self.inner
-            .status
-            .lock()
-            .unwrap_or_else(|err| err.into_inner())
-            .paused = paused;
-        self.inner.notify.notify_one();
-    }
-
-    /// Limpa a fila e o L2. O balde horário NÃO é zerado (seria burlar o teto).
-    pub async fn clear(&self) -> usize {
-        let now = adom_sources::now_ms();
-        let mut queue = self.inner.queue.lock().await;
-        let cleared = queue.clear();
-        self.inner.persist_queue(&queue, now);
-        self.inner.publish_queue(&queue);
-        cleared
-    }
-
-    /// Pede até `max` ticks ao loop e espera a contagem de drains.
-    ///
-    /// O handler axum não pode rodar `tick_async` (future `!Send`), então o
-    /// pedido viaja por budget + oneshot e quem executa é a thread do loop.
-    pub async fn drain(&self, max: usize) -> usize {
-        let max = max.clamp(1, self.inner.config().drain_max_works);
-        let (tx, rx) = oneshot::channel();
-        {
-            let mut slot = self
-                .inner
-                .drain_reply
-                .lock()
-                .unwrap_or_else(|err| err.into_inner());
-            if slot.is_some() {
-                // Um pedido por vez: o painel não enfileira cliques.
-                return 0;
-            }
-            *slot = Some(tx);
-        }
-        self.inner.drain_budget.store(max, Ordering::SeqCst);
-        self.inner.notify.notify_one();
-        match tokio::time::timeout(Duration::from_secs(600), rx).await {
-            Ok(Ok(drained)) => drained,
-            // Sem resposta (loop travado), o slot não pode ficar ocupado para
-            // sempre: o próximo `/harvest/drain` volta a tentar.
-            _ => {
-                self.inner
-                    .drain_reply
-                    .lock()
-                    .unwrap_or_else(|err| err.into_inner())
-                    .take();
-                0
-            }
-        }
-    }
-
-    /// O painel pergunta só pelo IMDb (sem temporada): qualquer entrada da
-    /// obra conta, e `brProbe` é a flag de sonda dirigida.
-    pub async fn pending(&self, imdb: &str) -> (bool, bool) {
-        let queue = self.inner.queue.lock().await;
-        let mut queued = false;
-        let mut probe = false;
-        for entry in queue.entries() {
-            if entry.imdb_id == imdb {
-                queued = true;
-                probe |= entry.br_probe;
-            }
-        }
-        (queued, probe)
     }
 }
 
@@ -262,7 +154,11 @@ impl HarvestHandle {
 ///
 /// `None` = colhedor desligado (`HARVEST_ENABLED=false`), store indisponível
 /// ou thread não criada. O gateway segue; a API responde `enabled:false`.
-pub fn spawn(orch: &Orchestrator, last_stream_ms: Arc<AtomicI64>) -> Option<HarvestHandle> {
+pub fn spawn(
+    orch: &Orchestrator,
+    last_stream_ms: Arc<AtomicI64>,
+    streams: Option<Arc<StreamsStore>>,
+) -> Option<HarvestHandle> {
     let config = HarvestConfig::from_env();
     if !config.enabled {
         eprintln!("[harvest] desligado (HARVEST_ENABLED=false)");
@@ -298,6 +194,9 @@ pub fn spawn(orch: &Orchestrator, last_stream_ms: Arc<AtomicI64>) -> Option<Harv
     if let Err(err) = queue.load_from(&store, now, None) {
         eprintln!("[harvest] fila do L2 ilegível ({err}); começando vazia");
     }
+    let index = orch.index_source().cloned();
+    let snap = EvidenceSnapshot::from_index(index.as_deref(), &queue_identities(&queue), now);
+    queue.prioritize(&snap, now);
     let mut worker = HarvestWorker::new(HarvestWorkerConfig {
         enabled: config.enabled,
         max_per_hour: config.max_per_hour,
@@ -328,6 +227,8 @@ pub fn spawn(orch: &Orchestrator, last_stream_ms: Arc<AtomicI64>) -> Option<Harv
         notify: Notify::new(),
         drain_budget: AtomicUsize::new(0),
         drain_reply: Mutex::new(None),
+        index,
+        evidence: Mutex::new(snap),
     });
 
     eprintln!(
@@ -352,7 +253,7 @@ pub fn spawn(orch: &Orchestrator, last_stream_ms: Arc<AtomicI64>) -> Option<Harv
                     return;
                 }
             };
-            runtime.block_on(serve(loop_inner, worker, orch));
+            runtime.block_on(serve(loop_inner, worker, orch, streams));
         });
     if let Err(err) = thread {
         eprintln!("[harvest] thread do colhedor não subiu: {err}");

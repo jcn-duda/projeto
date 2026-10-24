@@ -126,7 +126,9 @@ impl ReleaseIndexStore {
                 .iter()
                 .filter(|release| novos.contains(&release.hash))
                 .count();
-            let partial = if opts.keep_partial {
+            let partial = if opts.supplemental {
+                prior_entry.as_ref().is_none_or(|entry| entry.partial) || opts.partial
+            } else if opts.keep_partial {
                 prior_entry.as_ref().is_some_and(|entry| entry.partial) || opts.partial
             } else {
                 opts.partial

@@ -6,8 +6,7 @@
 
 use adom_core::RelevanceItem;
 use adom_harvest::HarvestEntry;
-use adom_search::orchestrator::MetaQuery;
-use adom_sources::JackettRawItem;
+use adom_search::orchestrator::{MetaQuery, RawItem};
 
 /// Default do Node para `JACKETT_LIVE_EXEMPT_INDEXERS` (o `adom-search` guarda
 /// o dele em `pub(super)`; aqui a lista é só para o subset da sonda).
@@ -53,17 +52,66 @@ pub(super) fn entry_meta_query(entry: &HarvestEntry, deadline: i64) -> MetaQuery
 }
 
 /// Campos que a régua lê — MESMA conversão do coletor nativo
-/// (`jackett_live::relevance_entries`).
-pub(super) fn relevance_items(items: &[JackettRawItem]) -> Vec<RelevanceItem> {
+/// (`jackett_live::relevance_entries`). Jackett e BLUDV já chegaram como
+/// [`RawItem`]; o item Jackett convertido preserva título/magnet/`is_br`.
+pub(super) fn relevance_items(items: &[RawItem]) -> Vec<RelevanceItem> {
     items
         .iter()
         .map(|item| RelevanceItem {
-            title: Some(item.title.clone()),
-            title_pascal: None,
+            title: item.title.clone(),
+            title_pascal: item.title_pascal.clone(),
             magnet: item.magnet.clone(),
-            magnet_uri: None,
-            guid: None,
+            magnet_uri: item.magnet_uri.clone(),
+            guid: item.guid.clone(),
             is_br: item.is_br,
         })
         .collect()
+}
+
+/// Completo só com ≥1 alvo planejado e todos com resposta válida.
+/// Não inferir pela soma de itens nem por `answered > 0`.
+pub(super) fn jackett_targets_complete(planned: u32, answered: u32) -> bool {
+    planned > 0 && answered == planned
+}
+
+#[cfg(test)]
+mod tests {
+    use adom_search::orchestrator::harvest_support::raw_items_from_jackett;
+    use adom_sources::JackettRawItem;
+
+    use super::{jackett_targets_complete, relevance_items};
+
+    #[test]
+    fn relevance_de_raw_jackett_preserva_campos() {
+        let raw = raw_items_from_jackett(vec![JackettRawItem {
+            title: "Filme 2024".into(),
+            magnet: Some("magnet:?xt=urn:btih:aa".into()),
+            info_hash: None,
+            seeders: Some(1.0),
+            size: Some(1.0),
+            published_at: None,
+            tracker: None,
+            indexer: "bludv".into(),
+            download_url: None,
+            is_br: true,
+        }]);
+        let rel = relevance_items(&raw);
+        assert_eq!(rel[0].title.as_deref(), Some("Filme 2024"));
+        assert_eq!(rel[0].magnet.as_deref(), Some("magnet:?xt=urn:btih:aa"));
+        assert!(rel[0].title_pascal.is_none());
+        assert!(rel[0].magnet_uri.is_none());
+        assert!(rel[0].guid.is_none());
+        assert!(rel[0].is_br);
+    }
+
+    #[test]
+    fn completo_exige_todos_os_alvos() {
+        assert!(!jackett_targets_complete(0, 0));
+        assert!(!jackett_targets_complete(0, 3));
+        assert!(!jackett_targets_complete(3, 0));
+        assert!(!jackett_targets_complete(3, 1));
+        assert!(!jackett_targets_complete(3, 2));
+        assert!(jackett_targets_complete(1, 1));
+        assert!(jackett_targets_complete(3, 3));
+    }
 }

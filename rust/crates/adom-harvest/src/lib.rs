@@ -34,14 +34,16 @@
 //! | [`HarvestDrainAsync`] / [`tick_async`](HarvestWorker::tick_async) | Mesma decisão, drain que espera rede (gateway) |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Ponte do `BrEvidence`, seed IMDb e o resto da Fase E: **ainda não** — ver
-//! `README.md`.
+//! A foto de `BrEvidence` (índice nativo) mora no gateway; este crate só
+//! ordena e evicta com o snapshot recebido.
 
 mod hour;
 mod inflight;
+mod intent;
 mod prioritize;
 mod probe;
 mod queue;
+mod queue_config;
 mod reason;
 mod seen;
 mod store;
@@ -52,7 +54,7 @@ pub use hour::{
     hour_bucket, hour_key, hour_ttl_seconds, load_hour, save_hour, HourMeter, StoredHour, HOUR_KEY,
     HOUR_MS,
 };
-pub use inflight::{HarvestInflight, HarvestIntent, PendingFull, PendingIntent};
+pub use inflight::{HarvestInflight, HarvestIntent, PendingIntent};
 pub use prioritize::{
     br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
 };
@@ -73,7 +75,7 @@ pub use seen::{
 pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
 pub use types::{
     BrProbeRecord, BrProbeState, BrProbeWork, EnqueueOutcome, EnqueueReason, HarvestEntry,
-    HarvestMediaType, HarvestRequest, ProbeConfig, ProbeFinal, RequestProbeResult,
+    HarvestMediaType, HarvestRequest, PendingFull, ProbeConfig, ProbeFinal, RequestProbeResult,
 };
 pub use worker::{
     DrainOutcome, HarvestDrain, HarvestDrainAsync, HarvestWorker, HarvestWorkerConfig, StubTraffic,

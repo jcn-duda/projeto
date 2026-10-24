@@ -6,8 +6,8 @@
 //! inválido/duplicado não bloquear a obra por 12 h.
 
 use adom_harvest::{
-    entry_identity, mark_recently_queued, was_recently_queued, EnqueueOutcome, EnqueueReason,
-    HarvestEntry, HarvestQueue, HarvestRequest, HarvestStore,
+    entry_identity, mark_recently_queued, was_recently_queued, BrEvidence, EnqueueOutcome,
+    EnqueueReason, HarvestEntry, HarvestQueue, HarvestRequest, HarvestStore,
 };
 
 /// Enqueue com o dedupe 12 h do TS, na ordem do Node.
@@ -20,6 +20,7 @@ pub(crate) fn enqueue_with_dedupe(
     store: &HarvestStore,
     req: HarvestRequest,
     now: i64,
+    evidence: Option<&dyn BrEvidence>,
 ) -> EnqueueOutcome {
     let probe = probe_entry(&req, now);
     let identity = entry_identity(&probe);
@@ -35,7 +36,7 @@ pub(crate) fn enqueue_with_dedupe(
             Err(err) => eprintln!("[harvest] dedupe indisponível: {err}"),
         }
     }
-    let outcome = queue.enqueue(req);
+    let outcome = queue.enqueue_with_evidence(req, evidence);
     if outcome.accepted {
         if let Err(err) = mark_recently_queued(store, &probe, now) {
             eprintln!("[harvest] dedupe não gravou: {err}");
@@ -57,5 +58,6 @@ fn probe_entry(req: &HarvestRequest, now: i64) -> HarvestEntry {
         resumed: false,
         br_probe: req.br_probe,
         full_base: false,
+        full_intent: None,
     }
 }

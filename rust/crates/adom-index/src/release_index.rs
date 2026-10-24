@@ -11,7 +11,8 @@
 //! da release pela temporada/episódio que o título (ou o `dn=` do magnet)
 //! declara, `isBr`/`dubbed`/`lied` OR-aderentes, `seeders` pelo máximo, fonte de
 //! mídia decidida pelo núcleo (`release_index_media`), corte protegido BR e o
-//! flag `partial` (`keepPartial` nunca rebaixa).
+//! flag `partial` (`keepPartial` nunca rebaixa; `supplemental` nasce
+//! parcial em chave nova e preserva o estado existente).
 //!
 //! Leitura: `lookup` agrega episódio → temporada → raiz (dedupe por hash com o
 //! `seenAt` mais recente); `is_partial` espelha as mesmas três chaves e qualquer
@@ -132,6 +133,9 @@ pub struct RecordOptions<'a> {
     pub keep_partial: bool,
     /// `'autofetch'` quando o lote veio do Chupim.
     pub source: Option<&'a str>,
+    /// Sonda ou FULL incompleto: chave nova nasce parcial; não reconstrói
+    /// intenção a partir de `source`/título/áudio.
+    pub supplemental: bool,
 }
 
 /// Banco do índice (compartilhado com o `cache.db` do Node).
@@ -308,3 +312,7 @@ pub fn default_cache_db_path() -> PathBuf {
 #[cfg(test)]
 #[path = "release_index_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "release_index_supplement_tests.rs"]
+mod supplement_tests;

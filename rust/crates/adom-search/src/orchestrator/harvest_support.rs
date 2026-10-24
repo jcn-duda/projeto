@@ -9,6 +9,8 @@
 //!
 //! - [`raw_items_from_jackett`] delega a
 //!   [`super::jackett_collector::raw_from_jackett`];
+//! - [`raw_items_from_bludv`] delega a
+//!   [`super::bludv_collector::raw_from_bludv`];
 //! - [`release_entry_for`] delega a [`super::finish::release_entry_parts`], o
 //!   mesmo miolo de `release_entry`;
 //! - [`record_release`] chama [`write_entry`], que é o corpo do
@@ -17,7 +19,7 @@
 //! Mexeu numa dessas réguas? Mexa na origem; aqui só se transporta.
 
 use adom_core::BankRow;
-use adom_sources::JackettRawItem;
+use adom_sources::{BludvRawItem, JackettRawItem};
 
 use crate::internal_types::ReleaseEntry;
 use crate::raw_item::RawItem;
@@ -31,6 +33,15 @@ pub fn raw_items_from_jackett(items: Vec<JackettRawItem>) -> Vec<RawItem> {
     items
         .into_iter()
         .map(super::jackett_collector::raw_from_jackett)
+        .collect()
+}
+
+/// Itens do BLUDV → lote cru do build, com a conversão do coletor nativo
+/// (`raw_from_bludv`): tracker `"BLUDV"`, sem `indexer`, `fromAccount` falso.
+pub fn raw_items_from_bludv(items: Vec<BludvRawItem>) -> Vec<RawItem> {
+    items
+        .into_iter()
+        .map(super::bludv_collector::raw_from_bludv)
         .collect()
 }
 

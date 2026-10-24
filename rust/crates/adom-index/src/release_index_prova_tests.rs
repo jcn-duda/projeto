@@ -47,6 +47,7 @@ fn grava(
                 partial,
                 keep_partial: false,
                 source,
+                supplemental: false,
             },
             30 * 24 * 3600,
             60,

@@ -36,6 +36,7 @@ pub struct RecordOptionsInput {
     pub partial: Option<bool>,
     pub keep_partial: Option<bool>,
     pub source: Option<String>,
+    pub supplemental: Option<bool>,
 }
 
 #[napi]
@@ -255,6 +256,7 @@ impl IdxStore {
                     partial: opts.partial.unwrap_or(false),
                     keep_partial: opts.keep_partial.unwrap_or(false),
                     source: opts.source.as_deref(),
+                    supplemental: opts.supplemental.unwrap_or(false),
                 },
                 self.inner.ttl(),
                 self.inner.max_releases(),
@@ -300,6 +302,7 @@ mod tests {
                     partial: Some(true),
                     keep_partial: None,
                     source: None,
+                    supplemental: None,
                 },
                 vec![BankRowInput {
                     hash: H1.into(),

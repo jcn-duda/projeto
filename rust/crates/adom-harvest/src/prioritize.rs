@@ -7,7 +7,8 @@
 //!   com `br_first` ligado **ou** desligado.
 //! - No tier regular, com `br_first`, a ordem é evidência BR → anti-fome → FIFO.
 //! - Contagem pura **não** decide: só o callback [`BrEvidence`] (espelho de
-//!   `hasBrDubbed(lookupQuiet(...))`). Índice real ainda **não** é plugado.
+//!   `hasBrDubbed(lookupQuiet(...))`). O gateway pluga o índice via foto em
+//!   memória; este módulo não faz I/O.
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -35,7 +36,7 @@ impl Default for PrioritizeConfig {
 
 /// Evidência BR injetável — espelho de `hasBrDubbed(lookupQuiet(...))`.
 ///
-/// Não pluga o índice real. Testes (e a ponte futura) fornecem a implementação.
+/// Sem I/O: o gateway entrega uma foto já materializada.
 pub trait BrEvidence {
     /// Espelho de `releaseIndex.lookupQuiet(imdb, { season, episode })`:
     /// presença de releases para a obra (não decide dublagem).
@@ -189,6 +190,7 @@ mod tests {
             resumed: false,
             br_probe: false,
             full_base: false,
+            full_intent: None,
         }
     }
 
@@ -210,6 +212,7 @@ mod tests {
             resumed: false,
             br_probe: false,
             full_base: false,
+            full_intent: None,
         }
     }
 

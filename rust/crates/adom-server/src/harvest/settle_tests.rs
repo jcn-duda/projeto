@@ -4,7 +4,7 @@
 
 use adom_harvest::{
     probe_key, BrProbeRecord, BrProbeState, BrProbeWork, HarvestEntry, HarvestMediaType,
-    HarvestQueue, HarvestQueueConfig, HarvestStore, DEFAULT_PROBE_TTL_SECONDS,
+    HarvestQueue, HarvestQueueConfig, HarvestStore, PendingIntent, DEFAULT_PROBE_TTL_SECONDS,
 };
 
 use super::{Settlement, Settler};
@@ -27,6 +27,7 @@ fn entry(imdb: &str, br_probe: bool) -> HarvestEntry {
         resumed: false,
         br_probe,
         full_base: false,
+        full_intent: None,
     }
 }
 
@@ -36,7 +37,12 @@ fn queue() -> HarvestQueue {
 
 fn outcome(is_probe: bool, ok: bool, br_found: bool) -> Settlement {
     Settlement {
-        is_probe,
+        intent: is_probe.then(|| PendingIntent {
+            reason: "br-gap".into(),
+            br_probe: true,
+            priority_at: Some(NOW),
+            full: None,
+        }),
         ok,
         br_found,
     }

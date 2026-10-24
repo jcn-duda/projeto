@@ -108,6 +108,9 @@ pub struct ReleaseEntry {
     pub survivors: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// Sonda ou FULL incompleto. Ausente/false omite o campo (JSON antigo).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub supplemental: bool,
 }
 
 // ── effects ─────────────────────────────────────────────────────────────────

@@ -80,13 +80,94 @@ fn duplicata_simples() {
 }
 
 #[test]
-fn teto_descarta_mais_velha() {
-    let mut queue = q(2);
+fn teto_sem_br_first_descarta_menor_enqueued_at() {
+    let mut queue = HarvestQueue::with_clock(
+        HarvestQueueConfig {
+            queue_max: 2,
+            br_first: false,
+            ..HarvestQueueConfig::default()
+        },
+        clock_fixed,
+    );
     queue.enqueue(HarvestRequest::movie("tt0000001", "miss"));
     queue.enqueue(HarvestRequest::movie("tt0000002", "miss"));
     queue.enqueue(HarvestRequest::movie("tt0000003", "miss"));
     assert_eq!(queue.depth(), 2);
-    assert_eq!(queue.preview(2)[0].imdb_id, "tt0000002");
+    let ids: Vec<_> = queue.preview(2).into_iter().map(|e| e.imdb_id).collect();
+    assert_eq!(ids, ["tt0000002", "tt0000003"]);
+}
+
+#[test]
+fn teto_com_br_first_descarta_cauda_priorizada() {
+    use crate::prioritize::StubBrEvidence;
+    let mut ev = StubBrEvidence::new();
+    ev.insert("tt0000001", None, None);
+    ev.insert("tt0000002", None, None);
+    let mut queue = q(2);
+    queue.enqueue_with_evidence(HarvestRequest::movie("tt0000001", "miss"), Some(&ev));
+    queue.enqueue_with_evidence(HarvestRequest::movie("tt0000002", "miss"), Some(&ev));
+    // Sem evidência na foto: a nova cai na cauda e é evictada — sem aceite,
+    // para o dedupe de 12 h não trancar uma obra que não ficou na fila.
+    let out = queue.enqueue_with_evidence(HarvestRequest::movie("tt0000003", "miss"), Some(&ev));
+    assert!(!out.accepted);
+    assert_eq!(out.reason, EnqueueReason::Capacity);
+    assert_eq!(queue.depth(), 2);
+    let ids: Vec<_> = queue.preview(2).into_iter().map(|e| e.imdb_id).collect();
+    assert_eq!(ids, ["tt0000001", "tt0000002"]);
+}
+
+#[test]
+fn teto_reduzido_evicta_mais_de_uma_no_proximo_ingresso() {
+    let mut queue = HarvestQueue::with_clock(
+        HarvestQueueConfig {
+            queue_max: 4,
+            br_first: false,
+            ..HarvestQueueConfig::default()
+        },
+        clock_fixed,
+    );
+    for n in 1..=4 {
+        queue.enqueue(HarvestRequest::movie(format!("tt000000{n}"), "miss"));
+    }
+    queue.set_config(HarvestQueueConfig {
+        queue_max: 2,
+        br_first: false,
+        ..HarvestQueueConfig::default()
+    });
+    assert_eq!(queue.depth(), 4, "reduzir teto não corta sozinho");
+    queue.enqueue(HarvestRequest::movie("tt0000005", "miss"));
+    assert_eq!(queue.depth(), 2);
+    let ids: Vec<_> = queue.preview(2).into_iter().map(|e| e.imdb_id).collect();
+    assert_eq!(ids, ["tt0000004", "tt0000005"]);
+}
+
+#[test]
+fn enqueue_concorrente_durante_snapshot_fica_neutro() {
+    use crate::prioritize::StubBrEvidence;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    let mut ev = StubBrEvidence::new();
+    ev.insert("tt7100001", None, None);
+    let ev = Arc::new(ev);
+    let queue = Arc::new(Mutex::new(q(10)));
+    {
+        let mut locked = queue.lock().unwrap();
+        locked.enqueue_with_evidence(HarvestRequest::movie("tt7100001", "miss"), Some(&*ev));
+    }
+    let queue_t = queue.clone();
+    let ev_t = ev.clone();
+    thread::spawn(move || {
+        let mut locked = queue_t.lock().unwrap();
+        locked.enqueue_with_evidence(HarvestRequest::movie("tt7100002", "miss"), Some(&*ev_t));
+    })
+    .join()
+    .unwrap();
+
+    let locked = queue.lock().unwrap();
+    assert_eq!(locked.depth(), 2);
+    assert_eq!(locked.preview(2)[0].imdb_id, "tt7100001");
+    assert_eq!(locked.preview(2)[1].imdb_id, "tt7100002");
 }
 
 #[test]
@@ -119,6 +200,7 @@ fn head_e_tail_nao_duplicam() {
         resumed: false,
         br_probe: false,
         full_base: false,
+        full_intent: None,
     };
     queue.head(entry.clone());
     assert_eq!(queue.depth(), 1);

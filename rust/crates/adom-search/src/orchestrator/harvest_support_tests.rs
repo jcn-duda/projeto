@@ -6,7 +6,9 @@ use adom_core::{BankRow, InstantSource, InstantWork, WorkTarget};
 use adom_sources::JackettRawItem;
 use serde_json::Value;
 
-use super::{raw_items_from_jackett, record_release, release_entry_for, write_entry};
+use super::{
+    raw_items_from_bludv, raw_items_from_jackett, record_release, release_entry_for, write_entry,
+};
 // Importa pelo caminho do CONSUMIDOR (`orchestrator::*`): é também a prova de
 // que os reexports de `RawItem`/`ReleaseEntry`/traits existem fora do crate.
 use crate::orchestrator::{
@@ -185,6 +187,25 @@ fn raw_items_from_jackett_preserva_hash_titulo_e_indexer() {
     assert_eq!(out[0].published_at, Some(1_700_000_000_000.0));
 }
 
+#[test]
+fn raw_items_from_bludv_marca_tracker_sem_conta() {
+    let out = raw_items_from_bludv(vec![adom_sources::BludvRawItem {
+        title: "Filme 2024 1080p DUBLADO".into(),
+        magnet: format!("magnet:?xt=urn:btih:{HASH_A}&dn=x"),
+        seeders: 1.0,
+        size: Some(1_000.0),
+        tracker: "BLUDV".into(),
+        audio: "dublado".into(),
+        is_br: true,
+    }]);
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].tracker.as_deref(), Some("BLUDV"));
+    assert_eq!(out[0].indexer, None);
+    assert!(out[0].is_br);
+    assert!(!out[0].from_account, "fromAccount nunca nasce do BLUDV");
+    assert_eq!(out[0].hash(), HASH_A);
+}
+
 // ── (b) entrada do índice ──────────────────────────────────────────────────
 
 #[test]
@@ -205,6 +226,15 @@ fn release_entry_for_filme_e_serie_preenche_a_chave_do_indice() {
     assert_eq!(filme.season, None, "filme não cai em balde de temporada");
     assert_eq!(filme.episode, None);
     assert_eq!(filme.source, None);
+    assert!(
+        !filme.supplemental,
+        "escrita do /stream nasce sem suplemento"
+    );
+    let omitido = serde_json::to_value(&filme).expect("json");
+    assert!(
+        omitido.get("supplemental").is_none(),
+        "false omite o campo (JSON antigo)"
+    );
     // A reserva 📦 (`fromFallback`) sai das TRÊS listas: zero auto-perpetuação.
     assert_eq!(filme.items.len(), 1);
     assert_eq!(filme.entered.as_ref().map(Vec::len), Some(2));

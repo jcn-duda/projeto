@@ -44,6 +44,11 @@ impl NativeReleaseIndex {
         ReleaseIndexStore::from_env().map(Self)
     }
 
+    /// Store já aberto (memória ou arquivo) — o colhedor de teste injeta.
+    pub fn from_store(store: ReleaseIndexStore) -> Self {
+        Self(store)
+    }
+
     pub fn with_limits(self, ttl_seconds: u64, max_releases: usize) -> Self {
         Self(self.0.with_limits(ttl_seconds, max_releases))
     }
@@ -88,6 +93,7 @@ impl ReleaseIndexSource for NativeReleaseIndex {
                 partial: false,
                 keep_partial: false,
                 source: entry.source.as_deref(),
+                supplemental: entry.supplemental,
             },
             self.0.ttl(),
             self.0.max_releases(),
@@ -149,5 +155,59 @@ impl MagnetBankSource for MagnetBankStore {
 
     fn has_br_row(&self, imdb: &str, targets: &[WorkTarget]) -> bool {
         MagnetBankStore::has_br_row(self, imdb, targets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use adom_index::ReleaseIndexStore;
+    use serde_json::json;
+
+    const NOW: i64 = 1_700_000_000_000;
+    const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    impl NativeReleaseIndex {
+        fn memory() -> Self {
+            Self(ReleaseIndexStore::open_memory().expect("memória"))
+        }
+    }
+
+    fn entry(supplemental: bool, source: Option<&str>) -> ReleaseEntry {
+        ReleaseEntry {
+            imdb: "tt0111161".into(),
+            season: None,
+            episode: None,
+            items: vec![json!({
+                "title": "Filme 1994 1080p Dublado",
+                "infoHash": HASH,
+                "isBr": true,
+            })],
+            entered: None,
+            survivors: None,
+            source: source.map(str::to_string),
+            supplemental,
+        }
+    }
+
+    #[test]
+    fn record_transporta_suplementar_sem_inferir_fonte() {
+        let index = NativeReleaseIndex::memory();
+        index
+            .record(&entry(true, None), NOW, None)
+            .expect("suplementar");
+        assert!(
+            index.is_partial("tt0111161", None, None, NOW),
+            "flag chega ao store"
+        );
+
+        let outro = NativeReleaseIndex::memory();
+        outro
+            .record(&entry(false, Some("autofetch")), NOW, None)
+            .expect("autofetch");
+        assert!(
+            !outro.is_partial("tt0111161", None, None, NOW),
+            "source/título não viram suplementar"
+        );
     }
 }

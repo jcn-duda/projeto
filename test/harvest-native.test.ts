@@ -66,7 +66,7 @@ test('status: normaliza o contrato do gateway e marca a ponte online', async () 
     queriesThisHour: 3,
     depth: 2,
     inflight: true,
-    preview: [{ imdbId: 'tt0107953', type: 'movie', reason: 'miss' }],
+    preview: [{ imdbId: 'tt0107953', type: 'movie', reason: 'miss', fullIntent: { reason: 'miss' } }],
     last: [{ imdbId: 'tt0107953', type: 'movie', reason: 'miss', ok: true, queries: 1, at: 123 }],
     counters: { drained: 5, failed: 1 },
     store: 'data/streams.db',
@@ -82,6 +82,8 @@ test('status: normaliza o contrato do gateway e marca a ponte online', async () 
     assert.equal(snap?.depth, 2);
     assert.equal(snap?.inflight, true);
     assert.equal(snap?.preview.length, 1);
+    assert.equal('fullIntent' in (snap?.preview[0] ?? {}), false, 'formato público omite fullIntent');
+    assert.equal(snap?.preview[0].imdbId, 'tt0107953');
     assert.equal(snap?.last[0].queries, 1);
     assert.deepEqual(snap?.counters, { drained: 5, failed: 1 });
     assert.equal(snap?.store, 'data/streams.db');

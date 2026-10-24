@@ -100,9 +100,13 @@ pub async fn run(config: Config) -> Result<(), String> {
     let stream_traffic = Arc::new(AtomicI64::new(0));
     // Colhedor nativo (Fase 5): só existe com o corte nativo e orquestrador.
     // `None` não impede o gateway — as rotas `/harvest*` respondem desligado.
-    let harvest = orchestrator
-        .as_ref()
-        .and_then(|orch| crate::harvest::spawn(orch, stream_traffic.clone()));
+    let harvest = orchestrator.as_ref().and_then(|orch| {
+        crate::harvest::spawn(
+            orch,
+            stream_traffic.clone(),
+            stores.as_ref().and_then(|stores| stores.streams.clone()),
+        )
+    });
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
         spawn_store_admin(stores, orch.config().stale_grace_seconds, harvest);
     }

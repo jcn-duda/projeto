@@ -262,6 +262,7 @@ impl BrProbe {
             resumed: false,
             br_probe: true,
             full_base: false,
+            full_intent: None,
         };
         let identity = obra_identity(&work.imdb_id, work.season, work.episode);
         let listed = queue

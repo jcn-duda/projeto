@@ -52,6 +52,7 @@ fn partial_grava_bloqueia_e_keep_partial_nao_rebaixa() {
                 partial: false,
                 keep_partial: true,
                 source: None,
+                supplemental: false,
             },
             TTL,
             60,

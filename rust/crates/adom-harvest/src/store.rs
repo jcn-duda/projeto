@@ -13,7 +13,17 @@ use rusqlite::{params, Connection};
 
 use crate::queue::QUEUE_KEY;
 use crate::reason::is_valid_imdb_id;
-use crate::types::HarvestEntry;
+use crate::types::{HarvestEntry, PendingFull};
+
+/// Envelope privado: o preview HTTP serializa `HarvestEntry` sem `fullIntent`.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredEntry {
+    #[serde(flatten)]
+    entry: HarvestEntry,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    full_intent: Option<PendingFull>,
+}
 
 const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
@@ -75,11 +85,17 @@ impl HarvestStore {
                 .map_err(|err| err.to_string())?;
             return Ok(Vec::new());
         }
-        let raw: Vec<HarvestEntry> =
+        let raw: Vec<StoredEntry> =
             serde_json::from_str(&value).map_err(|err| format!("fila harvest inválida: {err}"))?;
         Ok(raw
             .into_iter()
-            .filter(|e| is_valid_imdb_id(&e.imdb_id))
+            .filter(|stored| is_valid_imdb_id(&stored.entry.imdb_id))
+            .map(|stored| {
+                let mut entry = stored.entry;
+                entry.full_intent = stored.full_intent;
+                entry.normalize_intent();
+                entry
+            })
             .collect())
     }
 
@@ -94,7 +110,14 @@ impl HarvestStore {
             return self.forget_queue();
         }
         let expires_at = now_ms.saturating_add((ttl_seconds as i64).saturating_mul(1000));
-        let encoded = serde_json::to_string(entries).map_err(|err| err.to_string())?;
+        let stored: Vec<StoredEntry> = entries
+            .iter()
+            .map(|entry| StoredEntry {
+                entry: entry.clone(),
+                full_intent: entry.full_intent.clone(),
+            })
+            .collect();
+        let encoded = serde_json::to_string(&stored).map_err(|err| err.to_string())?;
         let conn = self.lock();
         conn.execute(
             "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
@@ -202,6 +225,7 @@ mod tests {
             resumed: false,
             br_probe: false,
             full_base: false,
+            full_intent: None,
         }
     }
 
@@ -282,9 +306,9 @@ mod tests {
         );
         other.load_from(&store, clock_fixed(), None).unwrap();
         assert_eq!(other.depth(), 2);
-        let head = other.take_head().expect("cabeça");
-        assert_eq!(head.imdb_id, "tt0111161");
-        assert_eq!(other.preview(1)[0].reason, "br-gap");
+        // Ingresso já prioriza: br-gap recente sobe; o save/load preserva a ordem.
+        assert_eq!(other.take_head().expect("cabeça").imdb_id, "tt0068646");
+        assert_eq!(other.preview(1)[0].imdb_id, "tt0111161");
     }
 
     #[test]
@@ -303,3 +327,7 @@ mod tests {
         assert_eq!(loaded[0].imdb_id, "tt0111161");
     }
 }
+
+#[cfg(test)]
+#[path = "store_intent_tests.rs"]
+mod intent_tests;

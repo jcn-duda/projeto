@@ -9,10 +9,13 @@
 use adom_core::prefix;
 
 use crate::inflight::{HarvestInflight, HarvestIntent};
-use crate::prioritize::{prioritize, BrEvidence, PrioritizeConfig};
-use crate::reason::{entry_identity, is_promotion, is_valid_imdb_id};
+use crate::prioritize::{prioritize, BrEvidence};
+use crate::queue_config::{system_now_ms, ClockMs, NeutralEvidence};
+use crate::reason::{entry_identity, is_valid_imdb_id};
 use crate::store::HarvestStore;
 use crate::types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestRequest};
+
+pub use crate::queue_config::HarvestQueueConfig;
 
 /// Namespace nas cotas / `cache-keys` (`harvest` → `v1`).
 pub const HARVEST_NAMESPACE: &str = "harvest";
@@ -27,50 +30,6 @@ pub fn queue_key() -> String {
 
 /// Constante documentada — equivale a `queue_key()` com o prefixo vivo.
 pub const QUEUE_KEY: &str = "harvest:v1:q";
-
-/// Config mínima do stub (espelha fatias de `harvesterLive.effective()`).
-#[derive(Debug, Clone)]
-pub struct HarvestQueueConfig {
-    pub enabled: bool,
-    /// Teto `HARVEST_QUEUE_MAX` (default TS: 200).
-    pub queue_max: usize,
-    /// `HARVEST_BR_FIRST` — prioriza evidência BR no tier regular.
-    pub br_first: bool,
-    /// `HARVEST_BR_MAX_WAIT_MS` — anti-fome no tier regular (`0` = off).
-    pub br_max_wait_ms: i64,
-}
-
-impl Default for HarvestQueueConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            queue_max: 200,
-            br_first: true,
-            br_max_wait_ms: 6 * 3600 * 1000,
-        }
-    }
-}
-
-impl HarvestQueueConfig {
-    /// Fatia usada por [`crate::prioritize`].
-    pub fn prioritize_config(&self) -> PrioritizeConfig {
-        PrioritizeConfig {
-            br_first: self.br_first,
-            br_max_wait_ms: self.br_max_wait_ms,
-        }
-    }
-}
-
-/// Relógio injetável — testes não dependem de `SystemTime`.
-pub type ClockMs = fn() -> i64;
-
-fn system_now_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
 
 /// Dono único do array da fila (mesmo corte TS: ciclo só toca pelas primitivas).
 pub struct HarvestQueue {
@@ -142,10 +101,10 @@ impl HarvestQueue {
     }
 
     /// Substitui o array em memória (após `HarvestStore::load`).
-    pub fn replace(&mut self, mut entries: Vec<HarvestEntry>) {
-        if entries.len() > self.config.queue_max {
-            entries.truncate(self.config.queue_max);
-        }
+    ///
+    /// Não trunca: um retorno aceito acima do teto sobrevive ao save/load.
+    /// Ingresso novo e distinto continua aplicando o teto em [`enqueue`].
+    pub fn replace(&mut self, entries: Vec<HarvestEntry>) {
         self.entries = entries;
     }
 
@@ -153,7 +112,7 @@ impl HarvestQueue {
     ///
     /// Se `evidence` for fornecida, aplica [`prioritize`] (espelho do
     /// `prioritizeQueue` pós-load). Sem evidência, mantém a ordem do L2 —
-    /// índice real ainda não é plugado.
+    /// o gateway materializa a foto e reordena fora deste método.
     pub fn load_from(
         &mut self,
         store: &HarvestStore,
@@ -173,19 +132,14 @@ impl HarvestQueue {
         self.entries = prioritize(&self.entries, &cfg, evidence, now_ms);
     }
 
-    /// `persist()` do TS: grava fatia até `queue_max` (ou apaga se vazia).
+    /// `persist()` do TS: grava o snapshot inteiro (ou apaga se vazia).
     pub fn save_to(
         &self,
         store: &HarvestStore,
         ttl_seconds: u64,
         now_ms: i64,
     ) -> Result<(), String> {
-        let kept = if self.entries.len() > self.config.queue_max {
-            &self.entries[..self.config.queue_max]
-        } else {
-            &self.entries
-        };
-        store.save(kept, ttl_seconds, now_ms)
+        store.save(&self.entries, ttl_seconds, now_ms)
     }
 
     /// Amostra (cópia) — stub FIFO; priorização BR fica na Fase E real.
@@ -234,6 +188,16 @@ impl HarvestQueue {
     /// Enfileira. Fogo-e-esquece no contrato público; o retorno existe para a
     /// sonda saber se o pedido virou trabalho.
     pub fn enqueue(&mut self, req: HarvestRequest) -> EnqueueOutcome {
+        self.enqueue_with_evidence(req, None)
+    }
+
+    /// Ingresso com a última foto de evidência: prioriza depois da fusão e
+    /// antes da evicção. Identidade nova sem evidência na foto fica neutra.
+    pub fn enqueue_with_evidence(
+        &mut self,
+        req: HarvestRequest,
+        evidence: Option<&dyn BrEvidence>,
+    ) -> EnqueueOutcome {
         if !self.config.enabled {
             return EnqueueOutcome::rejected(EnqueueReason::Disabled);
         }
@@ -253,33 +217,35 @@ impl HarvestQueue {
             resumed: false,
             br_probe: req.br_probe,
             full_base: false,
+            full_intent: None,
         };
         if full.reason == "br-gap" {
             full.priority_at = Some(now);
         }
+        full.normalize_intent();
 
         let identity = entry_identity(&full);
-        if let Some(existing) = self
+        if let Some(idx) = self
             .entries
-            .iter_mut()
-            .find(|e| entry_identity(e) == identity)
+            .iter()
+            .position(|entry| entry_identity(entry) == identity)
         {
-            let probe_upgrade = full.br_probe && !existing.br_probe;
-            if probe_upgrade {
-                existing.br_probe = true;
-                existing.full_base = true;
-            }
-            if !is_promotion(&existing.reason, &full.reason) {
-                if !probe_upgrade {
-                    return EnqueueOutcome::accepted(EnqueueReason::Duplicate);
+            let out = {
+                let existing = &mut self.entries[idx];
+                let before_reason = existing.reason.clone();
+                let before_probe = existing.br_probe;
+                let before_full = existing.full_intent.clone();
+                existing.merge_intent(&full);
+                if existing.reason != before_reason {
+                    EnqueueOutcome::accepted(EnqueueReason::Promoted)
+                } else if existing.br_probe != before_probe || existing.full_intent != before_full {
+                    EnqueueOutcome::accepted(EnqueueReason::Queued)
+                } else {
+                    EnqueueOutcome::accepted(EnqueueReason::Duplicate)
                 }
-                return EnqueueOutcome::accepted(EnqueueReason::Queued);
-            }
-            existing.reason = full.reason.clone();
-            if full.reason == "br-gap" {
-                existing.priority_at = Some(now);
-            }
-            return EnqueueOutcome::accepted(EnqueueReason::Promoted);
+            };
+            self.apply_priority(evidence, now);
+            return out;
         }
 
         // Coalescing em voo: MESMA obra colhida agora — funde a intenção na
@@ -292,17 +258,57 @@ impl HarvestQueue {
             return EnqueueOutcome::accepted(EnqueueReason::Coalesced);
         }
 
-        // Sem priorização BR: obra nova empurra a mais velha (semântica
-        // `harvestBrFirst=false` do TS).
-        while self.entries.len() >= self.config.queue_max {
-            self.entries.remove(0);
-        }
         self.entries.push(full);
-        EnqueueOutcome::accepted(EnqueueReason::Queued)
+        self.apply_priority(evidence, now);
+        self.evict_to_cap();
+        if self
+            .entries
+            .iter()
+            .any(|entry| entry_identity(entry) == identity)
+        {
+            EnqueueOutcome::accepted(EnqueueReason::Queued)
+        } else {
+            EnqueueOutcome::rejected(EnqueueReason::Capacity)
+        }
+    }
+
+    fn apply_priority(&mut self, evidence: Option<&dyn BrEvidence>, now: i64) {
+        match evidence {
+            Some(ev) => self.prioritize(ev, now),
+            None => self.prioritize(&NeutralEvidence, now),
+        }
+    }
+
+    /// Com BR-first remove a cauda já priorizada; sem ele, o menor
+    /// `enqueued_at`. Teto reduzido pode exigir mais de um descarte.
+    fn evict_to_cap(&mut self) {
+        let cap = self.config.queue_max;
+        if cap == 0 {
+            return;
+        }
+        while !self.entries.is_empty() && self.entries.len() > cap {
+            let idx = if self.config.br_first {
+                self.entries.len() - 1
+            } else {
+                self.entries
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, entry)| entry.enqueued_at)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0)
+            };
+            let gone = self.entries.remove(idx);
+            eprintln!(
+                "[harvest] evicção por capacidade: {} motivo={}",
+                entry_identity(&gone),
+                gone.reason
+            );
+        }
     }
 
     /// Volta à frente (teto / preempção). Não duplica identidade.
-    pub fn head(&mut self, entry: HarvestEntry) {
+    pub fn head(&mut self, mut entry: HarvestEntry) {
+        entry.normalize_intent();
         let identity = entry_identity(&entry);
         if let Some(idx) = self
             .entries
@@ -310,18 +316,7 @@ impl HarvestQueue {
             .position(|e| entry_identity(e) == identity)
         {
             let mut queued = self.entries.remove(idx);
-            if entry.br_probe && !queued.br_probe {
-                queued.br_probe = true;
-                queued.full_base = true;
-            }
-            if is_promotion(&queued.reason, &entry.reason) {
-                queued.reason = entry.reason.clone();
-                if entry.reason == "br-gap" {
-                    if let Some(at) = entry.priority_at {
-                        queued.priority_at = Some(at);
-                    }
-                }
-            }
+            queued.merge_intent(&entry);
             self.entries.insert(0, queued);
         } else {
             self.entries.insert(0, entry);
@@ -329,26 +324,15 @@ impl HarvestQueue {
     }
 
     /// Devolve ao fim (falha transitória). Não duplica identidade.
-    pub fn tail(&mut self, entry: HarvestEntry) {
+    pub fn tail(&mut self, mut entry: HarvestEntry) {
+        entry.normalize_intent();
         let identity = entry_identity(&entry);
         if let Some(idx) = self
             .entries
             .iter()
             .position(|e| entry_identity(e) == identity)
         {
-            let queued = &mut self.entries[idx];
-            if entry.br_probe && !queued.br_probe {
-                queued.br_probe = true;
-                queued.full_base = true;
-            }
-            if is_promotion(&queued.reason, &entry.reason) {
-                queued.reason = entry.reason.clone();
-                if entry.reason == "br-gap" {
-                    if let Some(at) = entry.priority_at {
-                        queued.priority_at = Some(at);
-                    }
-                }
-            }
+            self.entries[idx].merge_intent(&entry);
         } else {
             self.entries.push(entry);
         }
@@ -358,3 +342,7 @@ impl HarvestQueue {
 #[cfg(test)]
 #[path = "queue_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "queue_intent_tests.rs"]
+mod intent_tests;

@@ -99,6 +99,7 @@ pub(crate) fn release_entry_parts(
                 .collect(),
         ),
         source: None,
+        supplemental: false,
     }
 }
 

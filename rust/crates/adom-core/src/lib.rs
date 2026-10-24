@@ -108,8 +108,9 @@ pub use magnet_uri::{default_magnet, sanitize_magnet};
 
 // ── br_origin ─────────────────────────────────────────────────────────
 pub use br_gap::{
-    has_br_dubbed, has_br_dubbed_at_quality, has_br_dubbed_below_target, has_br_evidence,
-    should_br_gap, BrGapRelease, BR_GAP_TARGET_QUALITY,
+    br_transition, has_br_dubbed, has_br_dubbed_at_quality, has_br_dubbed_below_target,
+    has_br_evidence, probe_found_viable, should_br_gap, BrGapRelease, BrProbeRelease, BrTransition,
+    BR_GAP_TARGET_QUALITY,
 };
 pub use br_origin::{br_origin_mark, has_pt_signs};
 pub use br_pool_selection::picks::{

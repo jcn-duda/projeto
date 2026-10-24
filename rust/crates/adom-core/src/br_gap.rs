@@ -29,6 +29,56 @@ fn is_br_dubbed(release: &BrGapRelease<'_>) -> bool {
     release.source != Some("autofetch") && release.is_br && release.dubbed && !release.lied
 }
 
+/// Release com hash/seeders para o Found da sonda (delta do índice).
+#[derive(Clone, Copy, Debug)]
+pub struct BrProbeRelease<'a> {
+    pub hash: &'a str,
+    pub seeders: f64,
+    pub release: BrGapRelease<'a>,
+}
+
+/// Transição BR/upgrade entre duas fotos do índice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrTransition {
+    None,
+    Br,
+    Upgrade,
+}
+
+pub fn br_transition(before: &[BrGapRelease<'_>], after: &[BrGapRelease<'_>]) -> BrTransition {
+    let had_br = has_br_dubbed(before);
+    if !had_br && has_br_dubbed(after) {
+        return BrTransition::Br;
+    }
+    if had_br
+        && !has_br_dubbed_at_quality(before, BR_GAP_TARGET_QUALITY)
+        && has_br_dubbed_at_quality(after, BR_GAP_TARGET_QUALITY)
+    {
+        return BrTransition::Upgrade;
+    }
+    BrTransition::None
+}
+
+pub fn probe_found_viable(
+    before: &[BrProbeRelease<'_>],
+    after: &[BrProbeRelease<'_>],
+    require_quality: Option<&str>,
+) -> bool {
+    let prior: std::collections::HashSet<String> = before
+        .iter()
+        .filter(|release| !release.hash.is_empty())
+        .map(|release| release.hash.to_ascii_lowercase())
+        .collect();
+    after.iter().any(|release| {
+        !release.hash.is_empty()
+            && !prior.contains(&release.hash.to_ascii_lowercase())
+            && is_br_dubbed(&release.release)
+            && release.seeders > 0.0
+            && require_quality
+                .is_none_or(|quality| release.release.quality.eq_ignore_ascii_case(quality))
+    })
+}
+
 /// "BR dublado comprovado": BR, dublado e não condenado pela auditoria.
 pub fn has_br_dubbed(releases: &[BrGapRelease<'_>]) -> bool {
     releases.iter().any(is_br_dubbed)
@@ -134,3 +184,7 @@ mod tests {
         assert!(!should_br_gap(&only_hd, true));
     }
 }
+
+#[cfg(test)]
+#[path = "br_gap_outcome_tests.rs"]
+mod outcome_tests;

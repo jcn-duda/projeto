@@ -161,6 +161,27 @@ export function harvestNativeOnline(): boolean {
   return snapshot?.ok === true && snapshot.enabled !== false;
 }
 
+/** Preview público: só campos do contrato. `fullIntent` nunca viaja. */
+function publicPreview(raw: unknown): NativeHarvestEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => {
+    const e = row && typeof row === 'object' ? row as Record<string, unknown> : {};
+    const out: NativeHarvestEntry = {
+      imdbId: String(e.imdbId || ''),
+      type: e.type === 'series' ? 'series' : 'movie',
+      reason: String(e.reason || ''),
+      enqueuedAt: Number(e.enqueuedAt) || 0,
+    };
+    if (Number.isFinite(Number(e.season))) out.season = Number(e.season);
+    if (Number.isFinite(Number(e.episode))) out.episode = Number(e.episode);
+    if (Number.isFinite(Number(e.priorityAt))) out.priorityAt = Number(e.priorityAt);
+    if (e.resumed === true) out.resumed = true;
+    if (e.brProbe === true) out.brProbe = true;
+    if (e.fullBase === true) out.fullBase = true;
+    return out;
+  });
+}
+
 /** Busca o estado no gateway. Nunca lança; em falha mantém o snapshot anterior. */
 export async function refreshHarvestStatus(): Promise<NativeHarvestStatus | null> {
   if (!available()) return snapshot;
@@ -176,7 +197,7 @@ export async function refreshHarvestStatus(): Promise<NativeHarvestStatus | null
       queriesThisHour: Number(json?.queriesThisHour) || 0,
       depth: Number(json?.depth) || 0,
       inflight: json?.inflight === true,
-      preview: Array.isArray(json?.preview) ? json.preview : [],
+      preview: publicPreview(json?.preview),
       last: Array.isArray(json?.last) ? json.last : [],
       counters: {
         drained: Number(json?.counters?.drained) || 0,

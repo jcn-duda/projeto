@@ -11,7 +11,7 @@ enfileirar, ler o estado e mandar pausar/drenar/limpar.
 adom-server (gateway)
   └─ thread "adom-harvest" (std::thread + runtime current_thread)
        └─ loop: pausa → budget → begin → drain → finish → settle → persistência → notify/sleep
-            └─ NetworkDrain (uma vez): MetaSources + JackettClient + índice/banco
+            └─ NetworkDrain (uma vez): MetaSources + JackettClient + BLUDV FULL + índice/banco
 ```
 
 - **Thread própria, não `tokio::spawn`.** O loop é dono exclusivo do
@@ -30,10 +30,12 @@ adom-server (gateway)
 lock → begin(&mut queue, &traffic, now)
          ├─ Skip(outcome) → publica o snapshot, encerra o ciclo
          └─ Run { entry, identity }
-unlock → drain_one(&entry).await      (metadados + Jackett + régua + gravação)
-lock → is_probe efetivo → finish(&mut queue, &identity, outcome, now)
-     → status/settle → publica → persiste → unlock
+unlock → drain_one(&entry).await      (metadados + Jackett + BLUDV FULL + régua + gravação)
+lock → snapshot do slot → finish → settle → persiste → unlock
 ```
+
+Uma iteração é `run_iteration` em `serve.rs` (o loop de produção só orça budget,
+hora e notify/sleep). O teste injeta um drain com barreira no mesmo corpo.
 
 - **`begin`** roda as guardas (`disabled` → `paused` → `in_flight` → `busy` →
   vazio → teto horário), consome a cabeça, abre o slot em voo
@@ -47,13 +49,15 @@ lock → is_probe efetivo → finish(&mut queue, &identity, outcome, now)
 - **`finish`** debita `outcome.queries` no balde, fecha o slot (o `end` só casa a
   identidade da obra) e derruba a flag `in_flight`. Falha do drain fecha o slot
   igual; requeue é do desfecho, não do worker.
-- **`is_probe` é lido ANTES do `finish`**:
-  `entry.br_probe || queue.inflight().pending(&identity).is_some_and(|i| i.br_probe)`.
-  É a intenção efetiva do slot, equivalente ao `isProbe = entry.brProbe ||
-  intent?.brProbe` do TS. Sem isso, a sonda que coalesceu em voo numa execução
-  completa nunca finalizaria e o `pending` duraria até o lease vencer.
+- **O snapshot do slot é lido ANTES do `finish`**: `Settlement.intent =
+  queue.inflight().pending(&identity)`. A sonda anexada e a FULL remanescente
+  saem desse envelope, não de um campo relido depois do `end`.
+- **Prioridade** usa `EvidenceSnapshot` (uma leitura nativa por identidade, fora
+  do lock). O comparador, o ingresso e o `preview` só vêem essa foto. Sem SQL no
+  comparador e sem rede com o lock da fila.
 - `GET /harvest` não participa do lock: lê o snapshot de `HarvestStatus`, que o
-  loop publica a cada ciclo (skip incluso).
+  loop publica a cada ciclo (skip incluso). `fullIntent` nunca entra no JSON
+  público (`#[serde(skip)]` + normalização da ponte).
 
 ## Estado (MESMO `data/cache.db` do Node)
 
@@ -101,53 +105,69 @@ o ajuste vale no próximo restart. Teto de fila menor não corta a fila atual.
 `at`) — o espelho TS é `NativeHarvestEntry`/`NativeHarvestLast` em
 `src/utils/harvest-native.ts`.
 
-## Drain (as mesmas réguas do `/stream`)
+## Drain (fontes reais)
 
 1. **Metadados**: `MetaSources::lookup` (prazo 4 s) → `meta_from_lookup`, a
    mesma montagem de `query`/`pt_query`/`original_query` do orquestrador.
-2. **Consultas**: um indexer por vez (`HARVEST_INDEXER_DELAY_MS`, default
+2. **Jackett**: um indexer por vez (`HARVEST_INDEXER_DELAY_MS`, default
    1 500 ms); lista vazia ⇒ ramo agregado `/all`. Indexer *index-only* usa
    `JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS`. `record_status:false` (colheita não
-   pinta o card de status).
+   pinta o card de status). Contagem = alvos Jackett tentados, não hops HTTP
+   internos nem BLUDV.
 3. **Sonda dirigida**: `entry.br_probe` troca a lista inteira pelo subset de
    `BrProbe::probe_indexers()` — a MESMA interseção do crate (index-only ∩ pt-BR
    − isentos da busca viva), na ordem de `index_only`. Os isentos vêm de
    `JACKETT_LIVE_EXEMPT_INDEXERS` (default `apachetorrent-cardigann`), lidos em
    `drain_shape.rs`; não existe segunda lista no drain. Interseção vazia não vira
-   `/all`: a sonda não tem alvo e devolve `failed` com 0 consultas.
-4. **Régua**: `filter_relevant_raw` com os campos do build do orquestrador
+   `/all`: a sonda não tem alvo e devolve `failed` com 0 consultas. Sonda **não**
+   consulta BLUDV.
+4. **BLUDV (só FULL)**: depois do Jackett, com `BLUDV_ENABLED` e
+   `BludvSearchOpts { dubbed_only: false }`. Query PT não vazia; senão a EN.
+   Não debita o contador Jackett e **nunca certifica** completude. Kill-switch,
+   prazo e SSRF (`allow_private_url`) são os do cliente. Sem resposta Jackett
+   válida, BLUDV aproveitável grava suplemento e o drain continua falho.
+5. **Régua**: `filter_relevant_raw` com os campos do build do orquestrador
    (`pre_home_release_cut`, margem, `title_precision_tail_cut`).
-5. **Gravação**: `harvest_support::{release_entry_for, record_release}` →
-   `ReleaseIndexSource::record` (índice nativo `idx:v14`).
-6. **Contabilidade**: `responded == 0` ⇒ `{ok:false, queries: attempted}` — a
-   cota é debitada mesmo sem resposta, senão o teto horário não segura indexer
-   morto. `items` vazio ⇒ `ok` com 0 gravações (nunca apaga o que o `/stream` já
-   provou). Gravação quebrada ⇒ `{ok:false, queries: attempted}`.
-7. **Evidência BR**: `last_found` = existe survivor `is_br` com `seeders > 0`
-   nesta passada. O loop lê com `take_found()` e entrega ao desfecho.
+6. **Gravação suplementar**: `release.supplemental = entry.br_probe ||
+   !jackett_complete`. `jackett_complete` só com ≥1 alvo planejado e todos
+   respondidos. Chave nova suplementar nasce parcial; chave existente preserva
+   `partial`. FULL com todos os alvos Jackett ok é escrita normal. Lote vazio
+   não apaga nem limpa parcialidade.
+7. **Found e invalidação**: ler o índice antes e depois da escrita confirmada.
+   Found exige hash novo (case-insensitive), BR dublado, não `lied`, não
+   `source=autofetch`, seeds > 0; se já havia BR dublado, qualidade exata
+   `1080p`. Transição BR/upgrade invalida só os streams da obra no store
+   compartilhado. Falha de escrita não produz Found; falha de invalidação não
+   apaga a prova e fica pendente para retry local.
 
-Sem índice nativo o drain não gasta cota (`ok`, 0 consultas, loga uma vez). Sem
-metadados nativos ou sem Jackett configurado a obra falha.
+Sem índice nativo o drain falha com 0 consultas (não anuncia sucesso
+descartado). Sem metadados nativos ou sem Jackett configurado a obra falha.
 
-## Desfecho (`settle`)
+## Desfecho (`settle`) e FULL ↔ sonda
 
-`Settlement { is_probe, ok, br_found }` — struct para o `settle` caber no clippy
-de 7 argumentos — resume o que o drain provou sobre a obra.
+`Settlement { intent, ok, br_found }` captura o slot **antes** do `finish`.
 
-- **Sucesso** (`ok`): a obra sai da fila e o contador de tentativas é zerado. Se
-  havia sonda, grava `Found` quando `br_found`, senão `Empty`.
-- **Falha**: `tries += 1`; com `tries <= 3` (`MAX_ATTEMPTS`) a obra volta ao FIM
-  da fila (`queue.tail`), acima disso sai da fila (loga). Se havia sonda, grava
-  `Failed` — ou `Found`, porque `br_found` vence `ok` (a passada provou valor
-  mesmo cortada).
-- **Sem sonda** (`is_probe == false`): nenhum estado é gravado — colheita
-  completa não inventa `Found`/`Empty`.
-- O requeue existe porque, sem ele, a obra desapareceria com o `seen` de 12 h
-  já gravado no aceite e a próxima busca só receberia `dedupe`.
+| Execução | Resultado | Retorno |
+|---|---|---|
+| FULL | sucesso | nenhum; absorveu a mesma identidade |
+| Sonda sem FULL | sucesso | nenhum |
+| Sonda com FULL | sucesso | exatamente uma FULL (`br_probe` limpo) |
+| FULL (com ou sem sonda anexada) | falha 1–3 | uma FULL, motivo efetivo promovido |
+| Sonda sem FULL | falha 1–3 | uma sonda |
+| Sonda com FULL | falha 1–3 | uma FULL, motivo FULL preservado |
+| Qualquer modo | 4ª falha | descarte explícito (loga quatro, não três) |
 
-A chave do contador é `entry_identity` (obra/S/E). Falha também interrompe o
-budget do `POST /harvest/drain` (o loop dá `break`): insistir na mesma obra com
-a fonte fora martela o Jackett.
+- Sucesso zera o contador, inclusive quando deixa FULL remanescente.
+- Retorno usa `tail` (sem ingresso público nem dedupe). A sonda anexada a um
+  FULL termina, mas o retry não vira sonda.
+- Identidade da fila: IMDb + S/E. Dedupe 12 h continua por obra+motivo.
+- `save_to`/`replace` não truncam o snapshot aceito. Ingresso novo distinto
+  aplica o teto (BR-first = cauda priorizada; senão o mais antigo por
+  `enqueued_at`). Reduzir o teto por config não corta a fila atual.
+
+A chave do contador é `entry_identity`. Falha interrompe o budget do
+`POST /harvest/drain`. O contador de tentativas é **volátil** (memória): restart
+depois do save reconstrói a fila, não o número de falhas.
 
 ## Configuração (`.env`)
 
@@ -187,18 +207,23 @@ Gateway — `rust/crates/adom-server/src/harvest/`:
 
 | arquivo | papel |
 |---|---|
-| `mod.rs` | `Inner`, `HarvestHandle` (enqueue/clear/pause/drain/pending) e `spawn` da thread |
-| `serve.rs` | ciclo: pausa → budget → `begin` → `drain_one` sem lock → `is_probe` → `finish` → status/settle → persistência → notify/sleep |
-| `drain.rs` | `NetworkDrain` (`HarvestDrainAsync`): metadados → Jackett → régua → índice; subset da sonda por `BrProbe::probe_indexers` |
-| `drain_shape.rs` | conversões puras: `JACKETT_LIVE_EXEMPT_INDEXERS`, `MetaQuery` (`entry_meta_query`), `RelevanceItem` (`relevance_items`) |
-| `settle.rs` | `Settler`/`Settlement`: requeue até `MAX_ATTEMPTS`, finalização da sonda, reset no sucesso |
+| `mod.rs` | `Inner`, `spawn` da thread; métodos administrativos em `handle.rs` |
+| `serve.rs` | ciclo: pausa → budget → `run_iteration` → hora → notify/sleep |
+| `drain.rs` | `NetworkDrain`: metadados → Jackett → BLUDV FULL → régua → índice |
+| `drain_sources.rs` | consultas e merge; BLUDV não decide matching nem certifica |
+| `drain_record.rs` | filtro → escrita → delta Found → invalidação da obra |
+| `drain_shape.rs` | conversões puras: isentos, `MetaQuery`, `RelevanceItem`, `jackett_complete` |
+| `evidence.rs` | `EvidenceSnapshot` para prioridade/preview/evicção |
+| `settle.rs` | `Settler`/`Settlement`: FULL remanescente, 3 reinserções, 4ª falha |
 | `enqueue.rs` | enqueue com dedupe 12 h (só grava `seen` no aceite) |
 | `routes.rs` | rotas administrativas no `store_admin` |
 | `status.rs` | snapshot `HarvestStatus`/`HarvestCounters` (não segura o lock da fila) |
 | `traffic.rs` | `StreamTraffic`: janela de idle do `/stream` (`TrafficSense`) |
 | `config.rs` | `HarvestConfig::from_env` (mesmos nomes/defaults do TS) |
-| `worker_tests.rs` | testes do gateway: tick, teto, enqueue/dedupe, parser da rota |
-| `settle_tests.rs` | testes do desfecho, sem rede |
+| `loop_tests.rs` | uma iteração com barreira; restart após save; dedupe; TTL; balde |
+| `network_tests.rs` | `NetworkDrain` real contra stubs locais |
+| `worker_tests.rs` | tick/teto/enqueue sem rede |
+| `settle_tests.rs` | desfecho, sem rede |
 
 Crate — `rust/crates/adom-harvest/src/`:
 
@@ -213,17 +238,20 @@ Crate — `rust/crates/adom-harvest/src/`:
 
 ## Testes
 
-72 testes em `adom-harvest` e 67 em `adom-server`. Os que fixam este contrato:
+Os que fixam este contrato no gateway (`cargo test -p adom-server harvest::`):
 
-- `settle_tests.rs`: sucesso, `found`, `empty`, falha até o teto, reset do
-  contador e sonda coalescida (entrada completa + `is_probe` efetivo).
-- `adom-harvest::worker_tests`: `begin` abre o slot antes da rede (enqueue da
-  mesma obra coalesce) e `finish` fecha depois; skip não consome nem abre slot.
-- `adom-server::harvest::worker_tests`: tick/teto sem rede, enqueue + dedupe e o
-  parser do corpo da rota.
+- `loop_tests.rs`: barreira/oneshot no mesmo `run_iteration`; coalescing da
+  mesma identidade e permanência da outra; restart lê a fila persistida
+  (não é recuperação de crash no meio da rede); dedupe 12 h; TTL da fila;
+  balde da mesma hora e virada.
+- `network_tests.rs`: `NetworkDrain` real contra metadados/Jackett/BLUDV
+  locais — alvos, índice, parcialidade, retry e invalidação da obra.
+- `settle_intent_tests.rs` / `settle_tests.rs`: FULL ↔ sonda, 4ª falha, reset.
+- Ponte Node (`test/harvest-native.test.ts`, `test/harvester-panel.test.ts`):
+  config sem restart, pausa, `nativeApplied:false` quando a ponte cai, reset
+  para defaults, pending e preview sem `fullIntent`.
 
-`NetworkDrain` (Jackett/metadados reais), a thread do ciclo e as rotas HTTP
-exigem gateway e indexer de pé.
+A thread de produção e as rotas HTTP ainda exigem gateway de pé.
 
 ## O que não fazer
 
@@ -250,17 +278,22 @@ nas fontes nativas do `/stream`.
 A fila é lida direto do `cache.db`; não há "consumidor antigo parado" a negociar
 porque o corpo TS saiu na mesma virada.
 
-## Dívidas declaradas
+## Limites (não cobertos — 5H)
 
-- O drain cobre **Jackett**; o coletor **BLUDV** nativo não entra na colheita.
-- **Intenção FULL perdida quando a sonda vence**: `full_base` (entrada FULL que
-  ganhou `br_probe` na fila) e `PendingIntent::full` (pedido FULL que coalesceu
-  num run dirigido) são gravados, mas nenhum consumidor os lê. Nos dois casos o
-  drain roda só o subset e, no sucesso, a obra sai da fila/slot sem varredura
-  completa. A direção contrária — sonda coalescendo num run FULL — está coberta
-  pelo `is_probe` efetivo.
-- O overlay `cfg:v1:harvester` não chega ao Rust: os knobs `harvest*` do painel
-  (`harvestMaxPerHour`, `harvestIntervalMs`, …) não têm consumidor no worker
-  nativo, que lê só `.env`. Os campos de seed seguem valendo no Node.
-- O teto de tentativas é volátil: `Settler::attempts` mora em memória, então um
-  restart zera as 3 falhas e a obra volta a ser tentada.
+Config ao vivo (`POST /harvest/config` + overlay `cfg:v1:harvester`) **já
+chega** ao worker/fila/drain no próximo ciclo; `nativeApplied:false` só quando
+a ponte falha. Seed continua no Node.
+
+O recorte 5A–5G **não** cobre:
+
+- crash no meio do drain (inflight não é durável; não há exactly-once);
+- journal/transação única entre fila, índice, sonda e balde;
+- fencing de invalidação contra um commit SWR concorrente;
+- preempção de uma obra já em execução;
+- teto horário rígido entre cada consulta Jackett (as guardas operam no
+  início do tick);
+- reparo automático de SQLite corrompido.
+
+Restart depois de `settle`+`save` reconstrói a fila persistida, o dedupe e o
+balde da hora corrente. Isso não é recuperação de crash em voo. Tentativas
+(`Settler::attempts`) continuam voláteis.

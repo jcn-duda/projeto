@@ -71,6 +71,7 @@ mod tests {
             resumed: false,
             br_probe: false,
             full_base: false,
+            full_intent: None,
         }
     }
 

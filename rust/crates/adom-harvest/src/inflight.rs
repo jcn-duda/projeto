@@ -12,7 +12,7 @@
 //!   só o subset index-only∩pt-BR e NÃO satisfaz um pedido de colheita inteira.
 
 use crate::reason::reason_priority;
-use crate::types::HarvestEntry;
+use crate::types::{HarvestEntry, PendingFull};
 
 /// Intenção de uma entrada (base ou coalescida em voo).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +22,7 @@ pub struct HarvestIntent {
     pub rank: u8,
     pub br_probe: bool,
     pub priority_at: Option<i64>,
+    pub full: Option<PendingFull>,
 }
 
 impl HarvestIntent {
@@ -31,16 +32,9 @@ impl HarvestIntent {
             rank: reason_priority(&entry.reason),
             br_probe: entry.br_probe,
             priority_at: entry.priority_at,
+            full: entry.pending_full(),
         }
     }
-}
-
-/// Intenção completa (não-dirigida) mais forte coalescida no slot.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FullIntent {
-    reason: String,
-    rank: u8,
-    priority_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,14 +45,7 @@ struct Slot {
     rank: u8,
     br_probe: bool,
     priority_at: Option<i64>,
-    full: Option<FullIntent>,
-}
-
-/// O `full` que volta ao chamador (sem o `rank` interno).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PendingFull {
-    pub reason: String,
-    pub priority_at: Option<i64>,
+    full: Option<PendingFull>,
 }
 
 /// Intenção efetiva lida DEPOIS do drain; `None` quando a obra não está em voo.
@@ -81,8 +68,8 @@ impl HarvestInflight {
         Self::default()
     }
 
-    /// Abre o slot com a intenção da entrada que saiu da fila. O `full` nasce
-    /// nulo de propósito: a cobertura da própria base quem decide é o caller.
+    /// Abre o slot com a intenção da entrada que saiu da fila, inclusive a
+    /// obrigação FULL da base (sonda em voo não pode apagá-la).
     pub fn begin(&mut self, identity: &str, base: HarvestIntent) {
         self.current = Some(Slot {
             identity: identity.to_string(),
@@ -90,7 +77,7 @@ impl HarvestInflight {
             rank: base.rank,
             br_probe: base.br_probe,
             priority_at: base.priority_at,
-            full: None,
+            full: base.full,
         });
     }
 
@@ -126,20 +113,22 @@ impl HarvestInflight {
             // inventa instante (o campo fica ausente).
             slot.priority_at = br_gap_priority(intent);
         }
-        // Só a intenção NÃO-dirigida exige cobertura completa; guarda a mais forte.
-        if !intent.br_probe
-            && slot
-                .full
-                .as_ref()
-                .is_none_or(|full| intent.rank > full.rank)
-        {
-            slot.full = Some(FullIntent {
-                reason: intent.reason.clone(),
-                rank: intent.rank,
-                priority_at: br_gap_priority(intent),
-            });
-        }
+        slot.full = PendingFull::strongest(slot.full.clone(), intent.full.clone());
         true
+    }
+
+    /// Há slot em voo desta obra (IMDb), qualquer S/E.
+    pub fn pending_for_imdb(&self, imdb: &str) -> Option<PendingIntent> {
+        let slot = self
+            .current
+            .as_ref()
+            .filter(|slot| slot.identity.split(':').next() == Some(imdb))?;
+        Some(PendingIntent {
+            reason: slot.reason.clone(),
+            br_probe: slot.br_probe,
+            priority_at: slot.priority_at,
+            full: slot.full.clone(),
+        })
     }
 
     /// Não limpa o slot — quem encerra é o [`end`](Self::end).
@@ -152,10 +141,7 @@ impl HarvestInflight {
             reason: slot.reason.clone(),
             br_probe: slot.br_probe,
             priority_at: slot.priority_at,
-            full: slot.full.as_ref().map(|full| PendingFull {
-                reason: full.reason.clone(),
-                priority_at: full.priority_at,
-            }),
+            full: slot.full.clone(),
         })
     }
 
@@ -174,69 +160,5 @@ fn br_gap_priority(intent: &HarvestIntent) -> Option<i64> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const ID: &str = "tt0111161::";
-
-    fn intent(reason: &str, br_probe: bool) -> HarvestIntent {
-        HarvestIntent {
-            reason: reason.into(),
-            rank: reason_priority(reason),
-            br_probe,
-            priority_at: (reason == "br-gap").then_some(7),
-        }
-    }
-
-    #[test]
-    fn so_a_mesma_obra_coalesce() {
-        let mut inflight = HarvestInflight::new();
-        inflight.begin(ID, intent("miss", false));
-        assert!(inflight.is_inflight(ID));
-        assert!(!inflight.is_inflight("tt0903747:1:2"));
-        assert!(!inflight.coalesce("tt0903747:1:2", &intent("miss", false)));
-        assert!(inflight.coalesce(ID, &intent("miss", false)));
-    }
-
-    #[test]
-    fn rank_so_sobe_e_probe_e_aderente() {
-        let mut inflight = HarvestInflight::new();
-        inflight.begin(ID, intent("br-gap", false));
-        // Motivo fraco: não rebaixa, mas marca o full.
-        assert!(inflight.coalesce(ID, &intent("miss", false)));
-        // Dirigido: não sobrescreve a intenção efetiva, só liga a flag.
-        assert!(inflight.coalesce(ID, &intent("miss", true)));
-        let pending = inflight.pending(ID).unwrap();
-        assert_eq!(pending.reason, "br-gap");
-        assert!(pending.br_probe);
-        assert_eq!(pending.priority_at, Some(7));
-        // Promoção forte sobe e herda a janela do br-gap.
-        assert!(inflight.coalesce(ID, &intent("next-episode", false)));
-        assert_eq!(inflight.pending(ID).unwrap().reason, "next-episode");
-        assert_eq!(inflight.pending(ID).unwrap().priority_at, None);
-    }
-
-    #[test]
-    fn full_ignora_dirigida_e_guarda_a_mais_forte() {
-        let mut inflight = HarvestInflight::new();
-        inflight.begin(ID, intent("miss", true));
-        assert!(inflight.coalesce(ID, &intent("miss", true)));
-        assert_eq!(inflight.pending(ID).unwrap().full, None);
-        assert!(inflight.coalesce(ID, &intent("br-gap", false)));
-        assert!(inflight.coalesce(ID, &intent("miss", false)));
-        let full = inflight.pending(ID).unwrap().full.unwrap();
-        assert_eq!(full.reason, "br-gap");
-        assert_eq!(full.priority_at, Some(7));
-    }
-
-    #[test]
-    fn end_so_derruba_a_identidade_da_vez() {
-        let mut inflight = HarvestInflight::new();
-        inflight.begin(ID, intent("miss", false));
-        inflight.end("tt0903747:1:2");
-        assert!(inflight.is_inflight(ID));
-        inflight.end(ID);
-        assert!(!inflight.is_inflight(ID));
-        assert_eq!(inflight.pending(ID), None);
-    }
-}
+#[path = "inflight_tests.rs"]
+mod tests;
