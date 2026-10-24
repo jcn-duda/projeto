@@ -171,7 +171,7 @@ export interface ListingCursor {
   roundPage: number;
   /** Modo INCREMENTAL (a carga inicial já chegou ao fim): a passada começa na
    * página 1 e fecha ao reencontrar a `anchor`. Ausente = carga inicial, e aí
-   * a âncora não vale — ver `crawl-listing-read.ts`. */
+   * a âncora não vale (régua no sidecar Rust). */
   sweep?: boolean;
   /** Post mais NOVO visto na página 1 no início da passada: vira a âncora da
    * passada seguinte quando esta fecha. */
@@ -280,11 +280,6 @@ export function listingCursorExhausted(cursor: ListingCursor, maxPages = 0): boo
 export function restartListingRound(cursor: ListingCursor, now: number): ListingCursor {
   return { ...cursor, roundPage: 0, updatedAt: now };
 }
-
-// A leitura de UMA página (o único verbo que move o cursor) mora em
-// `crawl-listing-read.ts` — reexportada aqui para os importadores de sempre.
-export { readListingPage } from './crawl-listing-read.js';
-export type { ListingPageRead, ListingReadOptions, ListingReadReason, ListingReadResult } from './crawl-listing-read.js';
 
 /** Lê o cursor durável da listagem. Ausente, ilegível ou de outra listagem
  * (mesmo site, caminho diferente) = `null`: o chamador recomeça da página 1. */
