@@ -15,6 +15,7 @@
 //! outcome, jamais `Err` que derrube a busca.
 
 use super::JackettClient;
+use crate::jackett::status_board;
 use crate::jackett::types::{
     IndexerStatus, JackettMediaType, QueryOutcome, SearchOptions, ALL_QUERY_INDEXER,
 };
@@ -95,6 +96,11 @@ impl JackettClient {
                 // Breaker aberto: consulta não aconteceu, mas o status NÃO é
                 // engolido — o Node também reporta `responded:false` (breaker).
                 slow.push(format!("{indexer} ✗ breaker"));
+                if options.record_status() {
+                    let now = crate::http::now_ms();
+                    let snap = self.breaker.snapshot(indexer, &self.config, now);
+                    status_board::note_breaker(indexer, &snap, now);
+                }
                 out.push(failed_outcome(indexer, "breaker", options.record_status()));
                 continue;
             };
@@ -102,11 +108,10 @@ impl JackettClient {
             match handle.await {
                 Ok(outcome) => {
                     if options.record_status() && !outcome.from_cache {
-                        self.breaker.record(
-                            &outcome.indexer,
-                            outcome.source_ok,
-                            crate::http::now_ms(),
-                        );
+                        let now = crate::http::now_ms();
+                        self.breaker
+                            .record(&outcome.indexer, outcome.source_ok, now);
+                        self.note_sample(&outcome, now);
                         if !outcome.source_ok {
                             if let Some(err) = &outcome.source_error {
                                 eprintln!(
@@ -127,7 +132,9 @@ impl JackettClient {
                     // JoinError / panic no task — engole e segue (nunca propaga).
                     eprintln!("[jackett] {indexer}: tarefa abortada: {err}");
                     if options.record_status() {
-                        self.breaker.record(indexer, false, crate::http::now_ms());
+                        let now = crate::http::now_ms();
+                        self.breaker.record(indexer, false, now);
+                        self.note_sample(&failed_outcome(indexer, "tarefa abortada", true), now);
                     }
                     slow.push(format!("{indexer} ✗"));
                     out.push(failed_outcome(
@@ -142,6 +149,23 @@ impl JackettClient {
             eprintln!("[jackett] lentos/falharam: {}", slow.join(", "));
         }
         out
+    }
+
+    /// Amostra do painel (`status_board`): `ok` é a fonte ter respondido de
+    /// verdade — o `responded` que o `jackett.ts` passava ao `indexerStatus`.
+    fn note_sample(&self, outcome: &QueryOutcome, now: i64) {
+        let snap = self.breaker.snapshot(&outcome.indexer, &self.config, now);
+        status_board::record_sample(
+            status_board::IndexerSample {
+                id: outcome.indexer.clone(),
+                ok: outcome.source_ok && outcome.status != IndexerStatus::Failed,
+                ms: outcome.ms,
+                results: outcome.items.len(),
+                budget_ms: crate::jackett::budget_for(&outcome.indexer, &self.config),
+                at: now,
+            },
+            &snap,
+        );
     }
 }
 

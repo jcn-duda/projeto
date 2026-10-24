@@ -358,8 +358,17 @@ test('indexerRows lê fallbackServed sem confundir com o estado online', () => {
   const tpb = chips.find((c) => textOf(c).includes('TPB'))!;
   assert.doesNotMatch(textOf(tpb), /MEM/, 'zero medido não inventa badge');
   const semMedida = chips.find((c) => textOf(c).includes('SemMedida'))!;
-  assert.match(textOf(semMedida), /MEM NÃO MEDIDO/, 'null aparece como não medido, não some nem vira 0');
+  assert.match(textOf(semMedida), /MEM —/, 'null aparece como não medido, não some nem vira 0');
   assert.match(String(semMedida.props.title), /não medid/, 'tooltip diz que a métrica não tem produtor');
+});
+
+test('ViewSaude: sem NENHUM contador de memória a lacuna vai uma vez na legenda, não em cada linha', () => {
+  const row = (id: string) => ({ id, label: id, status: { state: 'online', ms: 10 }, fallbackServed: null });
+  const vnode = ViewSaude({ general: { ok: true, services: {} }, indexers: [row('a'), row('b')] });
+  const chips = chipButtons(vnode);
+  assert.equal(chips.length, 2);
+  for (const chip of chips) assert.doesNotMatch(textOf(chip), /MEM/, 'a linha não repete a lacuna');
+  assert.equal((textOf(vnode).match(/MEM NÃO MEDIDO/g) || []).length, 1, 'a legenda declara uma vez');
 });
 
 test('wiring: app entrega o bloco magnetBank à aba Magnets', async () => {

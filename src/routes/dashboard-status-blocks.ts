@@ -6,6 +6,7 @@ import { crawlBlock } from './dashboard-crawl-block.js';
 // Bloco `harvest`: extraído pela catraca de 400 linhas e porque a fonte mudou
 // (snapshot do gateway nativo, leitura síncrona).
 import { harvestBlock } from './dashboard-harvest-block.js';
+import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
 
 export const ALL_BLOCKS = [
   'general',
@@ -172,9 +173,8 @@ export async function computeStatusPayload(
 
   let memoIndexers: Promise<any> | null = null;
   const getIndexers = () => {
-    if (!memoIndexers) {
-      memoIndexers = services.jackettCatalog.load();
-    }
+    // O status vivo é medido no gateway: lê o placar antes de decorar o catálogo.
+    if (!memoIndexers) memoIndexers = refreshNativeIndexerStatus().then(() => services.jackettCatalog.load());
     return memoIndexers;
   };
 
@@ -311,10 +311,9 @@ export async function computeStatusPayload(
     const indexers = await getIndexers();
     out.indexers = indexers.map((indexer: any) => ({
       ...indexer,
-      // O circuito por indexer é do coletor NATIVO (gateway). O Node não tem
-      // mais breaker local, então o painel recebe objeto vazio = "não medido"
-      // (a view lê `breaker.tripped` e mostra o neutro em vez de inventar 0).
-      breaker: {},
+      // O circuito por indexer é do coletor NATIVO (gateway, pela ponte). Sem
+      // foto, objeto vazio = "não medido" (a view não inventa 0).
+      breaker: breakerFor(indexer.id) || {},
       flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
       // `fallbackServed` vinha do contador `fallback.indexer.<id>`, que não tem
       // produtor (o fallback 📦 é do gateway e não conta por indexer). Ausência

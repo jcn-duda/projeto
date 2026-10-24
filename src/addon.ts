@@ -8,6 +8,7 @@ import * as metrics from './utils/metrics.js';
 import debrid from './debrid/index.js';
 import { createApp } from './app.js';
 import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.js';
+import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
@@ -99,6 +100,8 @@ const server = app.listen(config.port, config.host, () => {
   // bloco do painel lê sem esperar rede. Idempotente e best-effort: gateway
   // fora do ar vira backoff, nunca erro de boot.
   startHarvestPolling();
+  // Status dos indexadores medido pelo gateway (painel e alerta de BR offline).
+  startIndexerStatusPolling();
   rdWarmer.start();
   brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
@@ -119,6 +122,7 @@ function shutdown(signal: string) {
   // enquanto o processo fecha (a ponte já é best-effort, mas o timer também
   // não deve sobreviver ao desarme).
   stopHarvestPolling();
+  stopIndexerStatusPolling();
   server.closeIdleConnections?.();
   const force = setTimeout(() => process.exit(0), 5000);
   force.unref();

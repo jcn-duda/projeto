@@ -1,0 +1,53 @@
+/* Aba Saúde: card de indexadores. Fora do painel.css pela catraca de 400
+   linhas, como o painel-limpeza.css. */
+
+/* Badge é rótulo curto: quebrar "MEM NÃO MEDIDO" ou "SISTEMA OPERACIONAL" em
+   várias linhas desalinhava a lista e os cabeçalhos dos cards. */
+.painel-badge { white-space: nowrap; }
+
+/* Card que ocupa a linha inteira da grade (a lista de indexadores precisa de
+   largura: em 1/4 da tela cada badge quebrava em três linhas). */
+.painel-card-full { grid-column: 1 / -1; }
+
+/* Indexadores: linhas de colunas FIXAS para alinharem entre si — estado ·
+   nome (+ CIRCUITO/MEM, que só aparecem quando há) · BR · ms · badge. Duas
+   colunas de linhas quando há largura; uma só no celular. */
+.painel-ix-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+.painel-chip.painel-ix {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) 26px 64px 112px;
+  align-items: center;
+  column-gap: var(--space-2);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--space-1) var(--space-3);
+  text-align: left;
+}
+.painel-ix-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-neutral-text); }
+.painel-ix-dot-ok { background: var(--status-ok-text); }
+.painel-ix-dot-warn { background: var(--status-warn-text); }
+.painel-ix-dot-err { background: var(--status-err-text); }
+.painel-ix-main { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+.painel-ix-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.painel-ix-tag {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+}
+.painel-ix-ms { text-align: right; white-space: nowrap; }
+.painel-ix-state { display: flex; justify-content: center; }
+@media (max-width: 480px) {
+  .painel-ix-list { grid-template-columns: 1fr; }
+  .painel-chip.painel-ix { grid-template-columns: 8px minmax(0, 1fr) 26px 104px; }
+  .painel-ix-ms { display: none; }
+}

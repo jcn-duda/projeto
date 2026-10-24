@@ -18,6 +18,7 @@ const PAGE_ASSETS = [
   'painel-tokens.css',
   'painel.css',
   'painel-limpeza.css',
+  'painel-indexers.css',
 ];
 
 // Entry e filhos dos clientes ESM (/configure e /painel; fontes em

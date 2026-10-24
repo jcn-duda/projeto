@@ -16,18 +16,27 @@ export interface ViewSaudeProps {
   onSelectIndexer?: (id: string) => void;
 }
 
-// Chip de um indexador. O breaker aberto é o único destaque de borda (o
-// indexer está fora do orçamento de busca); o resto da leitura vem dos badges
-// de estado, com o rótulo fiel (degradado ≠ offline).
-function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: string) => void }) {
+// Linha de um indexador. Colunas FIXAS (estado · nome · BR · ms · badge ·
+// extras) para as linhas alinharem entre si; o nome longo corta com reticências
+// e o id completo fica no title. O breaker aberto é o único destaque de borda
+// (o indexer está fora do orçamento de busca); o resto vem do badge de estado,
+// com o rótulo fiel (degradado ≠ offline).
+function IndexerChip({ row, onSelect, memoryMeasured }: {
+  row: SaudeIndexerRow;
+  onSelect?: (id: string) => void;
+  /** Algum indexer tem o contador de memória? Sem nenhum, a lacuna vai UMA vez
+   * na legenda do card em vez de repetir "não medido" em toda linha. */
+  memoryMeasured: boolean;
+}) {
   // O indicador de memória é HISTÓRICO de cobertura (contador desde o boot) e
   // entra no title com a ressalva explícita — não é o estado online, que
-  // continua no badge de estado. Sem a distinção, um indexer ONLINE coberto no
-  // passado pareceria inconsistente. Sem contador (o produtor saiu do build),
-  // `null` vira "NÃO MEDIDO": sumir esconderia a lacuna e 0 passaria por medida.
+  // continua no badge de estado. `null` com outros medidos vira "MEM —": sumir
+  // esconderia a lacuna e 0 passaria por medida.
   const memoryTitle = indexerMemoryLabel(row);
   const memoryBadge = row.servedFromMemory == null
-    ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM NÃO MEDIDO</span>`
+    ? memoryMeasured
+      ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM —</span>`
+      : null
     : row.servedFromMemory > 0
       ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM ${row.servedFromMemory}</span>`
       : null;
@@ -41,16 +50,21 @@ function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: 
   return html`
     <button
       type="button"
-      class=${'painel-chip' + (row.breakerOpen ? ' painel-chip-open' : '')}
+      class=${'painel-chip painel-ix' + (row.breakerOpen ? ' painel-chip-open' : '')}
       title=${title}
       onClick=${() => onSelect?.(row.id)}
     >
-      <span class="painel-chip-label">${row.label}</span>
-      ${row.isBr ? html`<span class="painel-badge painel-badge-neutral">BR</span>` : null}
-      <span class=${'painel-badge painel-badge-' + row.variant}>${row.stateLabel}</span>
-      ${row.ms != null ? html`<span class="painel-chip-ms">${row.ms} ms</span>` : null}
-      ${row.breakerOpen ? html`<span class="painel-badge painel-badge-err">CIRCUITO</span>` : null}
-      ${memoryBadge}
+      <span class=${'painel-ix-dot painel-ix-dot-' + row.variant} aria-hidden="true"></span>
+      <span class="painel-ix-main">
+        <span class="painel-chip-label painel-ix-name">${row.label}</span>
+        ${row.breakerOpen ? html`<span class="painel-badge painel-badge-err">CIRCUITO</span>` : null}
+        ${memoryBadge}
+      </span>
+      <span class="painel-ix-br">${row.isBr ? html`<span class="painel-ix-tag">BR</span>` : null}</span>
+      <span class="painel-chip-ms painel-ix-ms">${row.ms != null ? `${row.ms} ms` : '—'}</span>
+      <span class="painel-ix-state">
+        <span class=${'painel-badge painel-badge-' + row.variant}>${row.stateLabel}</span>
+      </span>
     </button>
   `;
 }
@@ -66,13 +80,19 @@ function IndexadoresCard({ indexers, onSelectIndexer }: { indexers?: Record<stri
     `${summary.offline} offline`,
   ];
   if (summary.unknown > 0) parts.push(`${summary.unknown} desconhecido`);
+  const memoryMeasured = rows.some((row) => row.servedFromMemory != null);
+  // Nenhum contador de memória: a lacuna aparece uma vez, com o porquê.
+  if (rows.length > 0 && !memoryMeasured) parts.push('MEM NÃO MEDIDO');
 
   return html`
-    <${Card} title="Indexadores (Jackett)" badge=${indexerCardBadge(summary)}>
+    <${Card} title="Indexadores (Jackett)" badge=${indexerCardBadge(summary)} className="painel-card-full">
       ${rows.length === 0 ? html`
         <div class="painel-empty painel-empty-sm">Catálogo de indexadores ainda não carregado.</div>
       ` : html`
-        <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">${parts.join(' · ')}</p>
+        <p
+          style="color: var(--muted); margin: 0; font-size: var(--font-floor);"
+          title=${memoryMeasured ? '' : 'cobertura de memória não medida — o contador fallback.indexer.<id> não tem produtor'}
+        >${parts.join(' · ')}</p>
         ${summary.breakerOpen > 0 ? html`
           <p style="color: var(--red); margin: 0; font-size: var(--font-floor);">
             ${summary.breakerOpen} com o circuito aberto — fora do orçamento de busca
@@ -83,8 +103,8 @@ function IndexadoresCard({ indexers, onSelectIndexer }: { indexers?: Record<stri
             ${summary.brOffline} fonte(s) BR offline — o dublado pode faltar
           </p>
         ` : null}
-        <div class="painel-chip-list">
-          ${rows.map((row) => html`<${IndexerChip} key=${row.id} row=${row} onSelect=${onSelectIndexer} />`)}
+        <div class="painel-ix-list">
+          ${rows.map((row) => html`<${IndexerChip} key=${row.id} row=${row} onSelect=${onSelectIndexer} memoryMeasured=${memoryMeasured} />`)}
         </div>
       `}
     </${Card}>

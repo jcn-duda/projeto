@@ -128,6 +128,7 @@ pub fn router(
         .route("/streams/clear", post(clear))
         .route("/streams/trace", get(trace))
         .route("/streams/stats", get(stats))
+        .route("/indexers/status", get(indexer_status))
         .merge(crate::harvest::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
@@ -332,6 +333,19 @@ async fn stats(State(state): State<Arc<AdminState>>) -> Response {
         "ok": true,
         "entries": state.store.len().unwrap_or(0),
         "quota": state.store.quota(),
+    }))
+    .into_response()
+}
+
+/// `GET /indexers/status` — última consulta medida de cada indexer nas buscas
+/// vivas + a foto do circuito (`adom_sources::jackett::status_board`). O Node
+/// traduz para o `indexer-status.ts`; sem isto o painel ficava "desconhecido".
+async fn indexer_status() -> Response {
+    let now = adom_sources::now_ms();
+    Json(json!({
+        "ok": true,
+        "now": now,
+        "indexers": adom_sources::jackett::status_board::snapshot(now),
     }))
     .into_response()
 }

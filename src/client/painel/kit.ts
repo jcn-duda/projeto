@@ -4,12 +4,14 @@ export interface CardProps {
   title: string;
   badge?: { text: string; variant?: 'ok' | 'warn' | 'err' | 'neutral' };
   children?: any;
+  /** Classe extra do `<section>` (ex.: card que ocupa a linha inteira). */
+  className?: string;
 }
 
-export function Card({ title, badge, children }: CardProps) {
+export function Card({ title, badge, children, className }: CardProps) {
   const badgeClass = badge ? 'painel-badge painel-badge-' + (badge.variant || 'neutral') : '';
   return html`
-    <section class="painel-card">
+    <section class=${'painel-card' + (className ? ' ' + className : '')}>
       <header class="painel-card-header">
         <h3 class="painel-card-title">${title}</h3>
         ${badge ? html`<span class=${badgeClass}>${badge.text}</span>` : null}

@@ -180,7 +180,12 @@ npm run docker:up / docker:logs
   `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
   para invalidar por obra/hash, limpar no `clear-cache` e ler o
   `/stream-trace.json`; ela é incondicional no corte. Contrato em
-  `docs/migracao-stream-rust.md` §F4 (F4.4a).
+  `docs/migracao-stream-rust.md` §F4 (F4.4a). O **status por indexer** do
+  painel também sai dela: o cliente Jackett nativo grava a última consulta
+  viva e a foto do circuito (`adom-sources::jackett::status_board`), `GET
+  /indexers/status` expõe, e `src/providers/indexer-status-native.ts` lê a
+  cada 30 s e grava pelo `indexerStatus.record` (estado, TTL da medição,
+  alerta de BR offline). Sem a ponte o painel mostra todos "desconhecido".
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
@@ -506,7 +511,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - **Nada de config hardcoded**: número ajustável vai em `src/config.ts` + `.env.example`.
 - **Falha de rede nunca derruba a busca**: `Promise.allSettled`, `try/catch` → `[]` + log.
 - Circuit breaker (`JACKETT_BREAKER_*`) só abre em `offline`; a antiga
-  `/test-indexer.json` (410) o ignorava.
+  `/test-indexer.json` (410) o ignorava. O breaker é do cliente nativo; o
+  painel o lê pela ponte de status (`breakerFor`), o Node não tem breaker.
 - Rota async no Express 4 precisa de `asyncRoute`.
 - Metadado em `inFlight` usa `fetchJsonWithin` (prazo duro), nunca `fetch` cru.
 

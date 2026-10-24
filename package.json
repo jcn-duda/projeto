@@ -303,6 +303,7 @@
     "test/index-only-timeout-clamp.test.js",
     "test/index-pool-pack-episode.test.js",
     "test/indexer-status.test.js",
+    "test/indexer-status-native.test.js",
     "test/internal-crawl-result-identify.test.js",
     "test/internal-crawl-routes.test.js",
     "test/internal-resolve.test.js",

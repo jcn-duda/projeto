@@ -29,7 +29,7 @@ function stateFor({ ok, ms, budgetMs, results = 0 }: StateSample = {}) {
 /**
  * @param {*} id
  */
-function record(id: string, sample: StateSample = {}) {
+function record(id: string, sample: StateSample = {}, at: number = Date.now()) {
   const key = normalize(id);
   if (!key) return null;
   const measured = sample.ms == null ? null : Number(sample.ms);
@@ -46,7 +46,9 @@ function record(id: string, sample: StateSample = {}) {
     // `Number.isFinite(null)` já é false no runtime (não converte), então o cast
     // só repete o fato para a assinatura `(number) => boolean` do lib.
     ms: Number.isFinite(measured as number) ? Math.max(0, Math.trunc(measured as number)) : null,
-    checkedAt: new Date().toISOString(),
+    // `at` = quando a consulta foi medida (a amostra do gateway chega depois
+    // pela ponte; o TTL conta da medição, não da ingestão).
+    checkedAt: new Date(at).toISOString(),
     failStreak: state === 'offline' ? (previous?.failStreak || 0) + 1 : 0,
   };
   statuses.set(key, value);

@@ -26,6 +26,7 @@ mod config_file;
 mod download;
 mod query;
 mod results;
+pub mod status_board;
 mod types;
 
 pub use breaker::{now_ms as breaker_now_ms, Breaker, BreakerSnapshot};
