@@ -26,6 +26,10 @@
 //! `crate::flows::vaca` — por isso o ramo do dispatch não é a fonte de verdade do
 //! Vaca, mas tampouco é morto: é o que `parse_listing_posts("vacatorrent", ..)`
 //! devolve, e `listing_parsers_tests.rs` o trava.
+//!
+//! O ramo do TorrentGalaxy (`parse_torrentgalaxy_posts`, em
+//! `listing_torrentgalaxy.rs`) devolve a linha RICA — tamanho, data, seeders e
+//! poster; o magnet do TGx vive na página de DETALHE, não na listagem.
 
 use regex::Regex;
 use std::collections::HashSet;
@@ -34,6 +38,9 @@ use std::sync::LazyLock;
 use adom_crawl::resolver_matching::is_generic_list_post;
 use adom_crawl::resolver_text::strip_tags;
 
+#[path = "listing_torrentgalaxy.rs"]
+pub mod torrentgalaxy;
+use torrentgalaxy::parse_torrentgalaxy_posts;
 #[path = "listing_vaca.rs"]
 mod vaca;
 use vaca::parse_vaca_posts;
@@ -65,6 +72,11 @@ pub fn parse_listing_posts(site_name: &str, html: &str, base_url: &str) -> Vec<L
         parse_hdr_posts(html, base_url)
     } else if s.contains("rede") {
         parse_rede_posts(html, base_url)
+    } else if s.contains("torrentgalaxy") {
+        // O TGx tem a listagem mais RICA (tamanho, data, seeders e poster na
+        // linha; o magnet fica na página de detalhe). O parser mora em
+        // `listing_torrentgalaxy.rs` porque este arquivo já está no teto.
+        parse_torrentgalaxy_posts(html, base_url)
     } else {
         Vec::new()
     }

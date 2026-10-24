@@ -18,7 +18,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use adom_core::{live_indexers, plan_jackett_queries};
+use adom_core::{live_indexers, plan_jackett_queries, rename_indexer_ids};
 use serde_json::Value;
 
 use crate::internal_types::TaskScope;
@@ -83,7 +83,16 @@ impl RequestSelection {
         if self.jackett_indexers.is_empty() {
             operator_default.to_vec()
         } else {
-            self.jackett_indexers.clone()
+            // Rename do id aposentado no `ji` da REQUEST: quem instalou antes
+            // do aposentadoria tem o id VELHO gravado na URL, e o card velho é
+            // ESTACIONADO (some do catálogo do Jackett) — sem o rename a
+            // busca consultaria um id morto e o indexer sumiria.
+            //
+            // O default do OPERADOR não é renomeado aqui: ele já vem
+            // normalizado na origem (env → `indexerList`; catálogo do
+            // Jackett → a verdade do que existe). Renomeá-lo aqui faria o
+            // Rust e o Node divergirem sobre o id a consultar.
+            rename_indexer_ids(&self.jackett_indexers)
         }
     }
 }
@@ -361,3 +370,9 @@ pub fn sweep_job(
 #[cfg(test)]
 #[path = "collect_tests.rs"]
 mod tests;
+
+// O rename de indexer aposentado tem suíte própria: é o que garante que o
+// `ji` gravado na URL de quem já instalou vira o card substituto.
+#[cfg(test)]
+#[path = "collect_rename_tests.rs"]
+mod rename_tests;

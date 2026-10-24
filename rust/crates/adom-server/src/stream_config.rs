@@ -181,19 +181,24 @@ fn operator_jackett_indexers() -> Vec<String> {
     ids
 }
 
-/// CSV de indexers (`indexerList` do Node): trim, descarta vazios. `raw` vazio
-/// ou ausente cai no `default` (vazio = lista vazia), nunca no catálogo vivo.
+/// CSV de indexers (`indexerList` do Node): trim, descarta vazios e aplica o
+/// rename dos ids aposentados. `raw` vazio ou ausente cai no `default` (vazio
+/// = lista vazia), nunca no catálogo vivo.
 fn indexer_list(raw: Option<&str>, default: &str) -> Vec<String> {
     let source = raw
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or(default);
-    source
+    let ids: Vec<String> = source
         .split(',')
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
-        .collect()
+        .collect();
+    // O MESMO rename do TS (`indexerList`): o id aposentado da env aponta
+    // para o card substituto. Sem isso, o Rust e o Node consultariam ids
+    // DIFERENTES para a MESMA env — e o indexer sumiria da busca sem erro.
+    adom_core::rename_indexer_ids(&ids)
 }
 
 pub fn operator_search_build_from_env() -> BuildOptions {

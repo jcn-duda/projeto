@@ -1,0 +1,121 @@
+---
+id: torrentgalaxy-cardigann
+name: TorrentGalaxy
+description: "TorrentGalaxy — torrents globais de filmes e séries (busca servida pelo resolver local)"
+language: en-US
+type: public
+encoding: UTF-8
+# O stock não declara requestDelay; 1 é o das outras definições Cardigann
+# locais (uma requisição por vez no resolver, sem martelar o site).
+requestDelay: 1
+links:
+  - https://torrentgalaxy.one/
+
+caps:
+  categorymappings:
+    # TorrentGalaxy é GLOBAL (en-US), não BR: o site não separa filme de série
+    # na listagem, então as duas categorias apontam para o mesmo id `media`
+    # (como nas definições Cardigann locais) e movie-search/tv-search não
+    # filtram release nenhuma.
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+# A busca NÃO roda pelo cliente HTTP C# do Jackett: medido no Docker local
+# (2026-10-24) ele cai na página de desafio do Cloudflare (HTTP 200 com ZERO
+# itens). O parser stock é bom — o TRANSPORTE que não é. Um resolver Rust
+# local (mesma rede Docker, porta 8708) busca o site e devolve a MESMA página
+# HTML sintética dos outros sites: `div.posts > div.release`, com o magnet
+# apontando para o `/resolve` do próprio resolver.
+search:
+  # Mesma higiene das outras definições locais: ":" sai antes de virar parâmetro
+  # de URL (o resolver também normaliza — defesa dupla, como no título).
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "http://127.0.0.1:8708/search?q={{ .Query.Keywords }}"
+
+  rows:
+    selector: "div.posts > div.release"
+
+  fields:
+    title:
+      selector: "div.title > a"
+      filters:
+        # Garantia dupla: se sobrar rótulo "Torrent", remove aqui para não
+        # atrapalhar quem casa o título com o nome do filme.
+        - name: re_replace
+          args: ["(?i)\\s*Torrent\\s*(?:[–-]|&#8211;)\\s*", " "]
+        - name: re_replace
+          args: ["(?i)\\s+Torrent\\b", ""]
+    details:
+      # O href aponta para o `/resolve` do resolver — é o mesmo campo do
+      # `download` (o magnet só existe depois da segunda chamada).
+      selector: "div.title > a"
+      attribute: href
+    download:
+      selector: "div.title > a"
+      attribute: href
+    category:
+      text: media
+    size:
+      selector: "div.size"
+      optional: true
+      filters:
+        # KB entra por causa do sentinela "1 KB" do resolver (tamanho
+        # desconhecido): sem casar aqui, o Jackett descarta a release inteira.
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:GB|MB|TB|KB))"
+        # O site usa vírgula decimal em alguns posts; o parser do Jackett quer ponto.
+        - name: re_replace
+          args: [",", "."]
+    poster:
+      selector: "div.poster img"
+      attribute: src
+      optional: true
+    description:
+      selector: "div.description"
+      optional: true
+    date:
+      selector: "div.date"
+      optional: true
+      filters:
+        - name: regexp
+          args: "(\\d{2}/\\d{2}/\\d{4}).*"
+        - name: dateparse
+          args: "dd/MM/yyyy"
+    seeders:
+      # O resolver não publica seeds. Um valor neutro permite que clientes com
+      # MIN_SEEDERS=1 não descartem a release antes de consultar o swarm.
+      text: 1
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
+
+download:
+  before:
+    # O magnet do TorrentGalaxy vive na página de DETALHE (`/post-detail/<id>/`),
+    # não na listagem: o resolver abre o post indicado e devolve o magnet como
+    # texto — o mesmo caminho do BLUDV.
+    path: "http://127.0.0.1:8708/resolve"
+    inputs:
+      url: "{{ .DownloadUri.AbsoluteUri }}"
+  selectors:
+    - selector: body
+      usebeforeresponse: true
+      filters:
+        - name: regexp
+          args: "(magnet:\\?[^\\s\"'<>]+)"

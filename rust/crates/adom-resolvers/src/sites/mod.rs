@@ -16,6 +16,7 @@ pub mod hdrtorrents;
 pub mod nerdfilmes;
 pub mod redetorrent;
 pub mod torrentdosfilmes;
+pub mod torrentgalaxy;
 pub mod vacatorrent;
 
 /// O que cada site entrega para a busca e o feed.
@@ -136,6 +137,7 @@ pub fn site_output(name: &str) -> Option<&'static dyn SiteOutput> {
         "redetorrent" => Some(&redetorrent::REDE),
         "apachetorrent" => Some(&apachetorrent::APACHE),
         "hdrtorrents" => Some(&hdrtorrents::HDR),
+        "torrentgalaxy" => Some(&torrentgalaxy::TORRENTGALAXY),
         _ => None,
     }
 }
@@ -163,8 +165,8 @@ pub fn torznab_caps(title: &str) -> String {
 /// `capsXml` inline de rede, apache e hdr (o mesmo texto nos três).
 pub const COMPACT_CAPS: &str = r#"<?xml version="1.0" encoding="UTF-8"?><caps><server version="1.0"/><searching><search available="yes"/><tv-search available="yes" supportedParams="q,season,ep"/><movie-search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>"#;
 
-/// Os oito resolvers, na ordem das portas 8700-8707.
-pub const SITES: [&str; 8] = [
+/// Os nove resolvers, na ordem das portas 8700-8708.
+pub const SITES: [&str; 9] = [
     "bludv",
     "comandotorrents",
     "nerdfilmes",
@@ -173,6 +175,7 @@ pub const SITES: [&str; 8] = [
     "redetorrent",
     "apachetorrent",
     "hdrtorrents",
+    "torrentgalaxy",
 ];
 
 /// `hasAllowedHost`: o host é o sufixo ou subdomínio dele.
@@ -202,6 +205,7 @@ mod tests {
             ("redetorrent", want(false, false, true)),
             ("apachetorrent", want(false, false, true)),
             ("hdrtorrents", want(false, false, true)),
+            ("torrentgalaxy", want(true, true, true)),
         ];
         for (name, routes) in table {
             let site = site_output(name).unwrap();
@@ -215,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn post_que_falha_sai_do_lote_nos_oito() {
+    fn post_que_falha_sai_do_lote_nos_nove() {
         for name in SITES {
             let site = site_output(name).expect("site registrado");
             assert_eq!(site.name(), name);

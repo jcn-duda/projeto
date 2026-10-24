@@ -175,6 +175,38 @@ bootstrap_jackett_indexers() {
   fi
   park_stock_indexer hdrtorrent
 
+  # TorrentGalaxy (GLOBAL, não BR): o cliente HTTP C# do Jackett cai na página
+  # de desafio do Cloudflare (medido no Docker local em 2026-10-24: HTTP 200
+  # com ZERO itens). O parser stock é bom; o TRANSPORTE que não é. A correção
+  # é o mesmo padrão dos sites BR: um resolver Rust local (porta 8708) busca o
+  # site e o card Cardigann local aponta search.paths para ele.
+  #
+  # O card ATIVO precisa do nome da DEFINIÇÃO (`torrentgalaxy-cardigann.json` —
+  # é o filename que vira o id no Jackett). Criado só se AUSENTE: um card
+  # existente é config do operador e nunca é sobrescrito.
+  local tg_card="$dir/torrentgalaxy-cardigann.json"
+  if [ ! -e "$tg_card" ]; then
+    local tg_tmp="$tg_card.tmp.$$"
+    if write_indexer_card "$tg_tmp" 'http://127.0.0.1:8708/' && mv "$tg_tmp" "$tg_card" 2>/dev/null; then
+      chown node:node "$tg_card" 2>/dev/null || true
+      echo "[entrypoint] indexer Cardigann torrentgalaxy-cardigann registrado"
+    else
+      rm -f "$tg_tmp" 2>/dev/null || true
+      echo "[entrypoint] aviso: falha ao instalar o card torrentgalaxy-cardigann" >&2
+    fi
+  fi
+  # O stock C# sai do catálogo: ele responde (200) com a página de desafio, ou
+  # seja, não devolve item nenhum e ainda consome o orçamento da busca.
+  park_stock_indexer torrentgalaxyclone
+
+  # wolfmax4k (C# nativo): quebrado (HTTP 400) e o site novo (wolftorrent.com)
+  # exige Turnstile para o download — medido: não há magnet sem browser.
+  # DECISÃO DO OPERADOR: estacionar o card, mas MANTER o id listado (continua
+  # visível no painel e é religável). Por isso o id NÃO entra no mapa de
+  # aposentados (RETIRED_INDEXERS em src/config/helpers.ts): lá o id seria
+  # RENOMEADO, e o rename sumiria com o id que o operador quer manter.
+  park_stock_indexer wolfmax4k
+
   # Chromium derrubando a aba: `rutor` e `kickasstorrents-ws` respondiam com
   # `tab crashed` no FlareSolverr e ZERO release — 28 crashes/hora medidos em
   # 2026-09-17, com o RuTor pendurando 100 SEGUNDOS por busca. O FlareSolverr
@@ -307,7 +339,7 @@ done
 #
 # O binário serve TODOS os sites delegados num processo único
 # (rust/crates/adom-resolvers/src/main.rs: um tokio::spawn por entrada do CSV).
-# Morto ele, as portas 8700-8707 somem, o healthcheck do Dockerfile NÃO cobre
+# Morto ele, as portas 8700-8708 somem, o healthcheck do Dockerfile NÃO cobre
 # essas portas, e o `wait -n` não o enxerga: o container ficaria "saudável" com
 # todos os indexers BR ausentes da busca — a falha silenciosa que o contrato dos
 # outros quatro processos existe para evitar.
@@ -352,10 +384,11 @@ supervise_resolvers() {
   done
 }
 
-# Resolvers BR em Rust: os oito por padrão (o addon não tem mais resolvedor
-# TS). `BR_RESOLVER_RUST` restringe a lista; sem o binário, os cards BR do
-# Jackett ficam sem resposta.
-export BR_RESOLVER_RUST="${BR_RESOLVER_RUST:-bludv,comandotorrents,nerdfilmes,torrentdosfilmes,vacatorrent,redetorrent,apachetorrent,hdrtorrents}"
+# Resolvers em Rust: os nove por padrão (o addon não tem mais resolvedor TS) —
+# os oito sites BR mais o TorrentGalaxy global (porta 8708, mesmo binário e
+# mesmo padrão de card Cardigann). `BR_RESOLVER_RUST` restringe a lista; sem o
+# binário, os cards do Jackett ficam sem resposta.
+export BR_RESOLVER_RUST="${BR_RESOLVER_RUST:-bludv,comandotorrents,nerdfilmes,torrentdosfilmes,vacatorrent,redetorrent,apachetorrent,hdrtorrents,torrentgalaxy}"
 echo "[entrypoint] iniciando adom-resolvers supervisionado (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"
 supervise_resolvers &
 RESOLVERS_SUPERVISOR_PID=$!

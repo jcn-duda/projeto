@@ -2,11 +2,11 @@ import * as log from './utils/logger.js';
 import config from './config.js';
 
 /**
- * Resolvedores BR: servidos pelo binário Rust `adom-resolvers` (portas
- * 8700-8707, as que os cards Cardigann do Jackett chamam). O entrypoint sobe e
+ * Resolvedores servidos pelo binário Rust `adom-resolvers` (portas
+ * 8700-8708, as que os cards Cardigann do Jackett chamam). O entrypoint sobe e
  * supervisiona o binário; o addon não abre essas portas.
  *
- * Os profiles TypeScript saíram quando os oito sites passaram ao Rust (golden
+ * Os profiles TypeScript saíram quando os oito sites BR passaram ao Rust (golden
  * e diff ao vivo iguais; a versão TS segue no branch `esm`). Aqui ficou o que
  * o painel e o diagnóstico usam: a lista de sites/portas, o domínio
  * configurado e o teste direto (`probe`).
@@ -28,6 +28,10 @@ const RESOLVERS: ResolverEntry[] = [
   { name: 'redetorrent', port: config.resolvers.ports.redetorrent, siteEnv: 'REDETORRENT_URL', siteUrl: config.resolvers.redetorrentUrl },
   { name: 'apachetorrent', port: config.resolvers.ports.apachetorrent, siteEnv: 'APACHETORRENT_URL', siteUrl: config.resolvers.apachetorrentUrl },
   { name: 'hdrtorrents', port: config.resolvers.ports.hdrtorrents, siteEnv: 'HDRTORRENTS_URL', siteUrl: config.resolvers.hdrtorrentsUrl },
+  // TorrentGalaxy é GLOBAL (en-US), não BR: mora no mesmo binário Rust e no
+  // mesmo padrão de card Cardigann local (a busca global não passa pelo
+  // cliente HTTP C# do Jackett, que cai no desafio do Cloudflare).
+  { name: 'torrentgalaxy', port: config.resolvers.ports.torrentgalaxy, siteEnv: 'TORRENTGALAXY_URL', siteUrl: config.resolvers.torrentgalaxyUrl },
 ];
 
 /** Só registra quem atende as portas: o binário Rust sobe no entrypoint. */

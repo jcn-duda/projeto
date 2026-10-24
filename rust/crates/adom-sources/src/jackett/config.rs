@@ -184,11 +184,16 @@ fn env_u64(key: &str) -> Option<u64> {
 }
 
 pub(super) fn split_indexers(raw: &str) -> Vec<String> {
-    raw.split(|c: char| c == ',' || c.is_whitespace())
+    let ids: Vec<String> = raw
+        .split(|c: char| c == ',' || c.is_whitespace())
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .collect()
+        .collect();
+    // Rename dos ids aposentados (espelho do `indexerList` do TS): a env do
+    // operador é a MESMA que o Node lê, então os dois lados precisam
+    // consultar o mesmo id.
+    adom_core::rename_indexer_ids(&ids)
 }
 
 fn default_pt_br_indexers() -> Vec<String> {

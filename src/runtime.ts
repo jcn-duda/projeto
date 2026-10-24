@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import config from './config.js';
+import { renameIndexerId, renameIndexerIds } from './config/helpers.js';
 import autofetchLive from './utils/autofetch-live.js';
 import * as secretBox from './utils/secret-box.js';
 
@@ -26,6 +27,21 @@ const store = new AsyncLocalStorage<RuntimeContext>();
 // um segmento arbitrariamente grande seja decodificado como JSON.
 const MAX_CONFIG_SEGMENT = 8192;
 const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/**
+ * Opções cujas entradas são IDS DE INDEXER: valem o rename de id aposentado
+ * (`RETIRED_INDEXERS`, `src/config/helpers.ts`).
+ *
+ * O `ji` é a lista que a busca consulta — é ela que precisa do rename, porque
+ * quem instalou antes do aposentadoria tem o id VELHO gravado na URL e o card
+ * velho é ESTACIONADO (some do catálogo do Jackett). O `ip` (prioridade) e o
+ * `jl` (limite por indexer) guardam o MESMO id: sem o rename neles, a
+ * prioridade e o limite que o usuário fixou sumiriam junto com o indexer.
+ *
+ * O Rust aplica o MESMO mapa (`adom-core::retired_indexers`): os dois lados
+ * precisam mandar o mesmo id ao Jackett.
+ */
+const INDEXER_ID_OPTIONS = new Set(['jackettIndexers', 'indexerPriority']);
 
 /**
  * Entrada do SCHEMA. O literal de `type` é o discriminante: sem ele o TS amplia
@@ -156,7 +172,9 @@ function normalizeIntMap(value: unknown, spec: any) {
 
   const parsed = new Map();
   for (const entry of entries.slice(0, 100)) {
-    const id = String(entry[0] || '').trim().toLowerCase();
+    // O id aposentado vira o substituto ANTES do teste de segurança: o limite
+    // que o usuário fixou antes do aposentadoria continua valendo no card novo.
+    const id = renameIndexerId(String(entry[0] || '').trim().toLowerCase());
     const rawLimit = entry[1];
     if (!SAFE_INDEXER_ID.test(id) || rawLimit === '' || rawLimit == null) continue;
     const limit = Number(rawLimit);
@@ -183,7 +201,10 @@ function normalize(raw: any) {
         .flatMap((item) => String(item).split(/[,+]/))
         .map((s) => String(s).trim().toLowerCase())
         .filter(Boolean);
-      base[name] = items;
+      // Lista de indexer: o id aposentado vira o substituto AQUI, antes de
+      // virar consulta ao Jackett. Sem isso, uma instalação que já tem o `ji`
+      // gravado na URL consultaria um id que não existe mais no catálogo.
+      base[name] = INDEXER_ID_OPTIONS.has(name) ? renameIndexerIds(items) : items;
     } else if (spec.type === 'int') {
       base[name] = clampInt(value, spec, base[name]);
     } else if (spec.type === 'intmap') {

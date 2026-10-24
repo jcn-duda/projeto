@@ -90,6 +90,10 @@ pub fn jackett_indexers_from_config_dir(dir: &Path) -> Vec<String> {
 /// Decisão única do modo automático: env preenchida VENCE (é o contrato do
 /// `indexersAuto` do TS); vazia/ausente → volume; nada legível → `[]` (o
 /// cliente Jackett cai no agregado `/all`, comportamento anterior).
+///
+/// O ramo da ENV passa pelo rename dos ids aposentados (`split_indexers`); o
+/// ramo do VOLUME NÃO: ali o id é a verdade do card que existe no Jackett, e
+/// renomeá-lo apontaria para um id que talvez não exista.
 pub fn resolve_jackett_indexers(env_value: Option<&str>, config_dir: &Path) -> Vec<String> {
     let explicit = super::config::split_indexers(env_value.unwrap_or(""));
     if !explicit.is_empty() {

@@ -31,13 +31,18 @@ impl ResolverProfile {
         site.post_links(&html, post_url)
     }
 
-    /// Itens da busca: um por botão de cada post selecionado. Apache, HDR e
-    /// Vaca têm busca própria (`crate::flows`); os demais seguem o `/?s=`.
+    /// Itens da busca: um por botão de cada post selecionado. Apache, HDR,
+    /// Vaca e TorrentGalaxy têm busca própria (`crate::flows`); os demais
+    /// seguem o `/?s=`.
     pub async fn search_items(&self, query: &str) -> Result<Vec<SearchItem>, String> {
         match self.site_name.as_str() {
             "apachetorrent" => crate::flows::apache::search_items(self, query).await,
             "hdrtorrents" => crate::flows::hdr::search_items(self, query).await,
             "vacatorrent" => crate::flows::vaca::search_items(self, query).await,
+            // O TGx não abre os 50 posts de uma busca: o magnet vive no
+            // DETALHE, então a listagem vira linha de cartão e o `/resolve`
+            // abre só o post escolhido.
+            "torrentgalaxy" => crate::flows::torrentgalaxy::search_items(self, query).await,
             _ => {
                 let rules = search_select::rules_for(&self.site_name);
                 let season = search_select::requested_season(query);

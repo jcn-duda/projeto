@@ -2,6 +2,11 @@
 
 use super::*;
 
+/// Recorte REAL da listagem do TorrentGalaxy (2026-10-24): 3 linhas
+/// `div.tgxtablerow` de "batman", com tamanho, data relativa, seeders e poster
+/// na própria linha (o magnet do TGx vive no post de detalhe).
+const TGX: &str = include_str!("../tests/fixtures/torrentgalaxy_listing.html");
+
 #[test]
 fn comando_extrai_posts() {
     let html = r#"<article class="blog-view"><h2 class="entry-title"><a href="/x" title="Filme X">X</a></h2><img src="i.jpg"></article>"#;
@@ -77,4 +82,53 @@ fn dispatch_e_genericos() {
     assert!(parse_listing_posts("desconhecido", html, "https://x.com").is_empty());
     let gen = r#"<div class="title"><a href="/l" title="Lista de Filmes 2024">L</a></div>"#;
     assert!(parse_tdf_posts(gen, "https://tdf.com").is_empty());
+}
+
+/// A linha do TGx é a mais RICA da lista: título, path de detalhe, tamanho,
+/// data RELATIVA, seeders/leechers, poster e categoria — tudo na listagem.
+#[test]
+fn torrentgalaxy_extrai_a_linha_rica() {
+    let rows = torrentgalaxy::parse_rows(TGX, "https://torrentgalaxy.one");
+    assert_eq!(rows.len(), 3);
+    let row = &rows[0];
+    assert_eq!(
+        row.title,
+        "Batman.Knightfall.Part.1.Knightfall.2026.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir"
+    );
+    assert_eq!(
+        row.url,
+        "https://torrentgalaxy.one/post-detail/960407/batman-knightfall-part-1-knightfall-2026-1080p-webrip-10bit-ddp5-1-x265-neonoir/"
+    );
+    assert_eq!(row.size.as_deref(), Some("956.3 MB"));
+    assert_eq!(row.date.as_deref(), Some("1 month, 4 weeks"));
+    assert_eq!(row.seeders, Some(1026));
+    assert_eq!(row.leechers, Some(168));
+    assert_eq!(row.category.as_deref(), Some("Movies"));
+    assert_eq!(
+        row.poster.as_deref(),
+        Some("https://i.rar.pics/009/ebe7c6c1fd443fa2f577.jpg")
+    );
+    // A segunda linha tem outro tamanho e outra data: a extração não pode
+    // estar lendo o rodapé da tabela (que repete os mesmos valores).
+    assert_eq!(rows[1].size.as_deref(), Some("1.5 GB"));
+    assert_eq!(rows[1].date.as_deref(), Some("1 month, 2 weeks"));
+    assert_eq!(rows[1].seeders, Some(1017));
+}
+
+/// O dispatch por nome do site devolve a linha do TGx (título + URL + poster).
+#[test]
+fn torrentgalaxy_dispatch_de_listagem() {
+    let posts = parse_listing_posts("torrentgalaxy", TGX, "https://torrentgalaxy.one");
+    assert_eq!(posts.len(), 3);
+    assert_eq!(
+        posts[0].title,
+        "Batman.Knightfall.Part.1.Knightfall.2026.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir"
+    );
+    assert!(posts[0]
+        .url
+        .starts_with("https://torrentgalaxy.one/post-detail/960407/"));
+    assert_eq!(
+        posts[0].poster.as_deref(),
+        Some("https://i.rar.pics/009/ebe7c6c1fd443fa2f577.jpg")
+    );
 }

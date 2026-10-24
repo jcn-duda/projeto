@@ -43,6 +43,7 @@ pub use crate::js_text::{b64url_decode, b64url_encode};
 use crate::js_text::{
     clamp_trunc, js_number, js_number_of_str, js_slice_units, js_stringify, js_to_string, js_trim,
 };
+use crate::retired_indexers::{rename_indexer_id, rename_indexer_ids};
 
 /// Tetos do segmento e dos valores (constantas do `runtime.ts`).
 pub const MAX_CONFIG_SEGMENT: usize = 8192;
@@ -72,6 +73,11 @@ fn safe_indexer_id(id: &str) -> bool {
 /// array é a ordem de iteração do `Object.entries` do TS.
 enum Spec {
     List,
+    /// Lista de IDS DE INDEXER: `normalize_list` + o rename dos ids
+    /// aposentados (`RETIRED_INDEXERS`). O `ji` é a lista que a busca
+    /// consulta — quem instalou antes do aposentadoria tem o id VELHO na URL e
+    /// o card velho é ESTACIONADO (some do catálogo do Jackett).
+    IndexerList,
     Int(i64, i64),
     IntMap(i64, i64),
     Bool,
@@ -85,8 +91,8 @@ const SCHEMA: &[(&str, &str, Spec)] = &[
     ("minSeeders", "s", Spec::Int(0, 1000)),
     ("brReservedSlots", "b", Spec::Int(0, 40)),
     ("brFirst", "bf", Spec::Bool),
-    ("jackettIndexers", "ji", Spec::List),
-    ("indexerPriority", "ip", Spec::List),
+    ("jackettIndexers", "ji", Spec::IndexerList),
+    ("indexerPriority", "ip", Spec::IndexerList),
     ("indexerLimits", "jl", Spec::IntMap(0, 20)),
     ("brOnly", "o", Spec::Bool),
     ("dubbedOnly", "d", Spec::Bool),
@@ -163,6 +169,7 @@ pub fn normalize_overlay(raw: Option<&Value>, defaults: &Value, resolve_secret: 
         }
         let novo = match spec {
             Spec::List => Value::Array(normalize_list(value)),
+            Spec::IndexerList => Value::Array(normalize_indexer_list(value)),
             Spec::Int(min, max) => {
                 let n = js_number(value);
                 match n.is_finite() {
@@ -212,6 +219,24 @@ fn normalize_list(value: &Value) -> Vec<Value> {
         .collect()
 }
 
+/// Lista de IDS DE INDEXER: o mesmo `normalize_list` (separadores, `trim`,
+/// minúsculas) + o rename dos ids aposentados e o dedup.
+///
+/// O rename acontece AQUI, antes de a lista virar consulta ao Jackett: sem
+/// ele, uma instalação que já tem o `ji` gravado na URL consultaria um id que
+/// não existe mais no catálogo.
+fn normalize_indexer_list(value: &Value) -> Vec<Value> {
+    let items = normalize_list(value);
+    let ids: Vec<String> = items
+        .iter()
+        .filter_map(|v| v.as_str().map(str::to_string))
+        .collect();
+    rename_indexer_ids(&ids)
+        .into_iter()
+        .map(Value::String)
+        .collect()
+}
+
 /// Mapa compacto `id:limite,id:limite`; 0 é override explícito sem limite.
 /// O `split(':', 2)` do JS DESCARTA o resto (`"a:1:2"` → `["a","1"]`), por isso
 /// dois `next()` e não `splitn(2)`, que deixaria `"1:2"`.
@@ -234,6 +259,9 @@ fn normalize_int_map(value: &Value, min: i64, max: i64) -> Map<String, Value> {
             continue;
         };
         let id = js_trim(&id).to_lowercase();
+        // O id aposentado vira o substituto ANTES do teste: o limite que o
+        // usuário fixou antes do aposentadoria continua valendo no card novo.
+        let id = rename_indexer_id(&id).to_string();
         if !safe_indexer_id(&id) {
             continue;
         }

@@ -20,9 +20,14 @@ pub(super) fn parse_title_precision_tail_cut(raw: &str) -> bool {
 }
 
 pub(super) fn split_csv(raw: &str) -> Vec<String> {
-    raw.split(',')
+    let ids: Vec<String> = raw
+        .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .collect()
+        .collect();
+    // Rename dos ids aposentados (mesmo mapa do TS): `JACKETT_INDEX_ONLY_INDEXERS`
+    // e `JACKETT_LIVE_EXEMPT_INDEXERS` são as MESMAS envs que o Node lê, então
+    // os dois lados precisam casar o mesmo id.
+    adom_core::rename_indexer_ids(&ids)
 }

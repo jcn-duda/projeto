@@ -3,7 +3,7 @@ use crate::internal_types::LiveSnapshot;
 use crate::orchestrator::config::OrchestratorConfig;
 use serde_json::json;
 
-fn meta_movie() -> SearchMeta {
+pub(super) fn meta_movie() -> SearchMeta {
     SearchMeta {
         imdb_id: "tt0133093".into(),
         name: "The Matrix".into(),

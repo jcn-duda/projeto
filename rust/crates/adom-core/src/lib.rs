@@ -80,6 +80,7 @@ mod release_work;
 mod reply_budget;
 mod request_key;
 mod resolve_sign;
+pub mod retired_indexers;
 mod search_bank;
 mod search_finish;
 mod search_name_helpers;
@@ -139,6 +140,10 @@ pub use cache_quotas::{
 // ── config encoding / dk seal ─────────────────────────────────────────
 pub use config_encoding::{decode_config, encode_config, parse_segment, seal_segment};
 pub use dk_seal::{derive_dk_key, is_sealed, seal_dk, unseal_dk};
+// Ids de indexer aposentados → substituto. O MESMO mapa do TS
+// (`src/config/helpers.ts`): os dois lados precisam mandar o mesmo id ao
+// Jackett, senão o indexer some da busca sem erro visível.
+pub use retired_indexers::{rename_indexer_id, rename_indexer_ids, RETIRED_INDEXERS};
 
 // ── debrid file select ────────────────────────────────────────────────
 pub use debrid::{

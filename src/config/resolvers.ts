@@ -10,7 +10,7 @@ import { BLUDV_DEFAULT_URL, list } from './helpers.js';
 export const resolvers = () => ({
   embedded: String(process.env.BR_RESOLVERS_EMBEDDED || 'true') === 'true',
   host: process.env.BR_RESOLVERS_HOST || '127.0.0.1',
-  // Desloca as portas dos resolvedores (8700..8707); o probe do painel usa a
+  // Desloca as portas dos resolvedores (8700..8708); o probe do painel usa a
   // mesma base para achar a porta certa de cada card.
   portOffset: Number(process.env.BR_RESOLVERS_PORT_OFFSET || 0) || 0,
   // Teto do teste DIRETO do resolvedor pelo painel (/test-resolver.json). A
@@ -29,6 +29,10 @@ export const resolvers = () => ({
     redetorrent: 8705,
     apachetorrent: 8706,
     hdrtorrents: 8707,
+    // TorrentGalaxy: o transporte do cliente HTTP C# do Jackett cai no
+    // desafio do Cloudflare (200 com 0 itens), então a busca global passa
+    // pelo mesmo binário Rust dos sites BR (mesma rede Docker, loopback).
+    torrentgalaxy: 8708,
   },
   bludvUrl: (process.env.BLUDV_URL || BLUDV_DEFAULT_URL).replace(/\/$/, ''),
   comandotorrentsUrl: (process.env.COMANDOTORRENTS_URL || 'https://comandotorrents.to').replace(/\/$/, ''),
@@ -56,5 +60,8 @@ export const resolvers = () => ({
   // raspa as páginas de listagem e casa a query contra o catálogo em cache.
   // Magnets diretos no post, sem protetor de link.
   hdrtorrentsUrl: (process.env.HDRTORRENTS_URL || 'https://hdrtorrents.net').replace(/\/$/, ''),
+  // TorrentGalaxy é GLOBAL (en-US), não BR: mesmo binário Rust e mesmo padrão
+  // de card Cardigann local, só que o site não é de dublado português.
+  torrentgalaxyUrl: (process.env.TORRENTGALAXY_URL || 'https://torrentgalaxy.one').replace(/\/$/, ''),
   extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
 });

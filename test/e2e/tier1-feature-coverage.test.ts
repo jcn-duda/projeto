@@ -219,9 +219,9 @@ describe('Feature 2: In-Memory Caching & Dedupe in BLUDV Resolver', () => {
 // FEATURE 3: Standardized siteEnv Configuration
 // ════════════════════════════════════════════════════════════════════════════════
 describe('Feature 3: Standardized siteEnv Configuration', () => {
-  it('3.1: brResolvers.RESOLVERS declara todos os 8 microserviços com portas e siteEnv corretos', () => {
+  it('3.1: brResolvers.RESOLVERS declara todos os 9 microserviços com portas e siteEnv corretos', () => {
     const names = brResolvers.RESOLVERS.map((r) => r.name);
-    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents']);
+    assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents', 'torrentgalaxy']);
 
     const bludv = brResolvers.RESOLVERS.find((r) => r.name === 'bludv') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(bludv.port, 8700);
@@ -246,6 +246,11 @@ describe('Feature 3: Standardized siteEnv Configuration', () => {
     const apache = brResolvers.RESOLVERS.find((r) => r.name === 'apachetorrent') as (typeof brResolvers.RESOLVERS)[number];
     assert.equal(apache.port, 8706);
     assert.equal(apache.siteEnv, 'APACHETORRENT_URL');
+
+    // TorrentGalaxy é o NÓVELO global: mesmo binário Rust, porta 8708.
+    const torrentgalaxy = brResolvers.RESOLVERS.find((r) => r.name === 'torrentgalaxy') as (typeof brResolvers.RESOLVERS)[number];
+    assert.equal(torrentgalaxy.port, 8708);
+    assert.equal(torrentgalaxy.siteEnv, 'TORRENTGALAXY_URL');
   });
 
   it('3.3: Configuração de COMANDOTORRENTS_URL é respeitada pelo siteEnv', () => {

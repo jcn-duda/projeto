@@ -129,6 +129,13 @@ impl ResolverProfile {
                 .append_pair("lang", "pt-BR");
             return Ok(url.to_string());
         }
+        if self.site_name == "torrentgalaxy" {
+            // O TGx busca pelo PATH (`/get-posts/keywords:<termo>`), não por
+            // `/?s=` — medido em 2026-10-24: o `/?s=` devolve a home do site.
+            // O dois-pontos CRU do separador funciona; o termo já vem
+            // higienizado (sem `:`) do `sanitize_term`.
+            return crate::sites::torrentgalaxy::search_url(&base, query);
+        }
         url.set_path("/");
         // Mesmo encoding do TS: `encodeURIComponent` → espaço vira `%20`.
         // `query_pairs_mut` segue form-urlencoded (espaço → '+'), que o

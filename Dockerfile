@@ -13,7 +13,8 @@ FROM caddy:2-alpine AS caddy
 # sozinho. Depois do rebuild confira no log que as definitions BR ainda
 # carregam: "Loaded N Cardigann indexers" e os ids na lista
 # (bludv-cardigann, comandotorrents, nerdfilmes, torrentdosfilmesv2, vacatorrent,
-# redetorrent-cardigann, apachetorrent-cardigann).
+# redetorrent-cardigann, apachetorrent-cardigann, hdrtorrent-cardigann,
+# torrentgalaxy-cardigann).
 FROM lscr.io/linuxserver/jackett@sha256:099e895abbeb4564f8c5cb5f2def66462d73dffa39728a1a106af79ff1b04e65 AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
@@ -100,6 +101,10 @@ COPY jackett-bludv/vacatorrent.yml /app/Jackett/Definitions/vacatorrent.yml
 COPY jackett-bludv/redetorrent-cardigann.yml /app/Jackett/Definitions/redetorrent-cardigann.yml
 COPY jackett-bludv/apachetorrent-cardigann.yml /app/Jackett/Definitions/apachetorrent-cardigann.yml
 COPY jackett-bludv/hdrtorrent-cardigann.yml /app/Jackett/Definitions/hdrtorrent-cardigann.yml
+# TorrentGalaxy global: o cliente HTTP C# do Jackett cai no desafio do
+# Cloudflare (200 com 0 itens), então a busca passa pelo resolver local
+# (porta 8708) — mesmo padrão das outras definições Cardigann locais.
+COPY jackett-bludv/torrentgalaxy-cardigann.yml /app/Jackett/Definitions/torrentgalaxy-cardigann.yml
 
 # --- FlareSolverr: scripts são puro python; o chromedriver glibc da imagem
 # oficial NÃO roda em alpine. O código checa exatamente /app/chromedriver,

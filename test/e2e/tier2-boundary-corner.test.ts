@@ -178,15 +178,15 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   // Feature 3: Standardized siteEnv Configuration
   // =========================================================================
   describe('Feature 3: Standardized siteEnv Configuration', () => {
-    it('F03-BND-01: RESOLVERS matrix defines all 8 resolvers with ports 8700..8707 and siteEnv', () => {
-      assert.equal(brResolvers.RESOLVERS.length, 8);
+    it('F03-BND-01: RESOLVERS matrix defines all 9 resolvers with ports 8700..8708 and siteEnv', () => {
+      assert.equal(brResolvers.RESOLVERS.length, 9);
       const names = brResolvers.RESOLVERS.map((r) => r.name);
       const ports = brResolvers.RESOLVERS.map((r) => r.port);
       const siteEnvs = brResolvers.RESOLVERS.map((r) => r.siteEnv);
 
-      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents']);
-      assert.deepEqual(ports, [8700, 8701, 8702, 8703, 8704, 8705, 8706, 8707]);
-      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL', 'APACHETORRENT_URL', 'HDRTORRENTS_URL']);
+      assert.deepEqual(names, ['bludv', 'comandotorrents', 'nerdfilmes', 'torrentdosfilmes', 'vacatorrent', 'redetorrent', 'apachetorrent', 'hdrtorrents', 'torrentgalaxy']);
+      assert.deepEqual(ports, [8700, 8701, 8702, 8703, 8704, 8705, 8706, 8707, 8708]);
+      assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL', 'APACHETORRENT_URL', 'HDRTORRENTS_URL', 'TORRENTGALAXY_URL']);
     });
 
     it('F03-BND-04: load() só registra os resolvedores do binário Rust, sem lançar', () => {

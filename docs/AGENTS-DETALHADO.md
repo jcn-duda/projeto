@@ -72,18 +72,16 @@ Praticamente todo trabalho de código acontece no **Adom**.
   sidecar do crawl também tem reinício próprio e **não** derruba o container.
   Logs saem prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`,
   `[gateway]`.
-- Os oito `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
-  **estaticamente** os oito profiles no processo do addon, cada um na própria
-  porta (8700–8707), via factory com config explícita — sem ler
-  `PORT`/`SITE_URL` no import e sem mutar/restaurar o ambiente.
-  `BR_RESOLVERS_EMBEDDED=false` volta ao modo de processos separados (não é o
-  caminho de produção). Cada `<nome>-resolver/server.ts` é um shim de
-  compatibilidade/standalone (instância lazy por `resolvers/shim-instance.ts`,
-  env lida no ponto de entrada e `isMain(import.meta.url)` no lugar do
-  `require.main`); a lógica vive no `resolvers/` (**TypeScript/ESM**, sem
-  `resolvers/package.json`), e o `tsc` compila/emite `resolvers/` e os oito
-  `*-resolver/` inteiros para `dist/` (o build-assets só copia assets
-  não-compiláveis — ver a armadilha do `dist/`).
+- Os nove `*-resolver` **não são containers** e **não são mais TS**: quem serve
+  os sites é o binário Rust `adom-resolvers` (um processo, uma porta por site:
+  8700–8708), supervisionado pelo entrypoint (`BR_RESOLVER_RUST`). O
+  `src/br-resolvers.ts` só lista e testa (o painel usa a lista e o `probe`).
+  A arquitetura anterior — oito profiles TS importados **estaticamente** no
+  processo do addon, cada um na própria porta (8700–8707), via factory com
+  config explícita, sem ler `PORT`/`SITE_URL` no import e sem mutar/restaurar o
+  ambiente, com shims `*-resolver/server.ts` para o modo standalone — ficou no
+  branch `esm`. O `resolvers/` ainda existe, mas só com o que o provider do
+  BLUDV e o Mico usam.
 - O healthcheck do Dockerfile é **quádruplo** (`/manifest.json` na 7000 + API
   do Jackett na 9117 + FlareSolverr na 8191 + API admin do Caddy na 2019, num
   `node -e fetch` só). A API do Caddy fica em loopback e prova processo+config
@@ -685,7 +683,8 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   episódio.
 
 **Fallback do acervo (Etapa 4).** (Registro histórico: desde o F4.4 a
-reserva é do orquestrador Rust e o TS abaixo saiu do `src/`.) `live-indexer-state.ts` acompanha o
+reserva é do orquestrador Rust e o TS abaixo saiu do `src/`.) O então
+`live-indexer-state.ts` (apagado na F3) acompanhava o
 `onQueryResult` das consultas PRINCIPAIS do Jackett (a varredura pt-BR e o
 caminho de fundo ficam de fora, de propósito): `error`/`breaker`/`source` marcam
 o indexer como falho e **pendente NO PRAZO também conta como falho**; quando a
@@ -3053,7 +3052,6 @@ fire-and-forget) continua.
 | `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
 | `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice |
 | `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
-| `src/providers/live-indexer-state.ts` | Só as constantes `ALL_QUERY_INDEXER` (`*all*`) e `SAFE_INDEXER_ID`; o estado vivo de falha por coleta saiu com o fallback TS (é do orquestrador Rust) |
 | `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
@@ -3872,7 +3870,7 @@ o orçamento com a resposta.
   compilação. Em asserção intermediária use `assert.equal(lista.length, 0)`.
 - **`BR_RESOLVERS_HOST` é o único jeito de alcançar os resolvers.** Os cards
   Cardigann chamam `http://{{ ... }}/...` montado com essa env; no container
-  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8707 **só dentro do
+  único ela é `127.0.0.1`. Os resolvers escutam em 8700–8708 **só dentro do
   container** — nenhuma dessas portas é publicada no host.
 - **Jackett no alpine é self-contained** (binário com libcoreclr embutida):
   precisa de `icu-libs`/`zlib`/`libstdc++` e das envs `XDG_CONFIG_HOME=/config`
@@ -3918,6 +3916,43 @@ o orçamento com a resposta.
   log de origem), aí o advisory deixa de ser teórico — e a trava já estará
   no lugar. Preserve o lockfile e valide suíte + `npm audit --omit=dev` ao
   atualizar ou remover.
+- **O cliente HTTP do Jackett é .NET/SChannel: ele não passa em todo site.**
+  Medido no Docker local (2026-10-24) com o `torrentgalaxyclone` stock: HTTP
+  **200 com ZERO itens** — a página de desafio do Cloudflare (381.622 B, 50
+  linhas, `server: cloudflare`), **byte-idêntica** para qualquer User-Agent
+  (node, Chrome, `Jackett/1.0`, curl e vazio). Não é header, é **transporte**.
+  O `reqwest` 0.12 com rustls (HTTP/1.1) passa limpo (10/10, 0,22–0,61 s) e o
+  FlareSolverr passa mas custa 2,7–3,8 s por chamada (demais para o caminho
+  quente). O `is_cloudflare_challenge` dá **falso positivo** nesse site (marca
+  desafio numa página de 200 com 50 linhas): use `is_direct_challenge`.
+  Antes de culpar o parser, meça o TRANSPORTE.
+- **Resolver Rust novo sem entrada em `DEFAULT_PORTS`/`DEFAULT_URLS` sobe
+  “saudável” e devolve 200 com ZERO itens.** O binário `adom-resolvers` sobe
+  uma porta por entrada do CSV `BR_RESOLVER_RUST`; site sem URL registrada
+  fica sem candidato e a listagem sai vazia **sem erro** — o zero silencioso
+  que a sonda de 40 (e o `probe` do painel) existe para pegar. Cadastre o
+  site nos DOIS arrays (`main.rs`) e confira o `/health` + `/search?q=` da
+  porta nova antes de ligar o card.
+- **Cardigann local apontando para o resolver: o contrato é o `div.posts >
+  div.release` e o magnet em texto puro.** O `search.rows.selector` do YAML
+  casa as linhas do HTML sintético que o resolver monta; o `download.before`
+  (`inputs.url: {{ .DownloadUri.AbsoluteUri }}`) chama o `/resolve` e extrai o
+  magnet por regexp no corpo (`selector: body` + `usebeforeresponse: true`).
+  Se o seletor divergir do HTML que o resolver emite, o indexer responde
+  **200 com zero releases** — e parece site quebrado, não card errado.
+- **Id de indexer aposentado: o `ji` selado na URL NÃO passa por
+  `indexerList()`.** O `RETIRED_INDEXERS` do TS cobre a lista padrão; o
+  `ji` que vem **selado** na URL de instalação é normalizado em
+  `src/runtime.ts` e, no Rust, em `adom-core::retired_indexers`. Sem os dois
+  lados, uma instalação existente perde o indexer na URL (o card existe, mas
+  a busca não o pede). `test/config-indexer-aliases.test.ts` amarra os dois
+  mapas lendo o arquivo Rust.
+- **`wolfmax4k` não tem caminho sem browser.** O Wolftorrent exige Turnstile
+  (`POST /api/descargas` → 403 sem token) e o download final é blob cifrado
+  (`enlacito.com`): o FlareSolverr não resolve o desafio e sem token não há
+  magnet. O card foi **estacionado** e o id **mantido listado** (aparece
+  offline no painel, religável) — por isso ele NÃO entra no mapa de
+  aposentados (lá o id seria renomeado, e o rename o sumiria).
 
 ## Git
 

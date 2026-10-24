@@ -49,7 +49,11 @@ pub fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 }
 
 /// Inverso de `days_from_civil`: (ano, mês 1..=12, dia, dia da semana).
-fn civil_from_days(days: i64) -> (i64, i64, i64, &'static str) {
+///
+/// Público porque o TorrentGalaxy publica data RELATIVA ("1 month, 4 weeks") e
+/// precisa voltar para `dd/MM/yyyy` — a conversão mora aqui para não haver
+/// duas cópias do algoritmo civil divergindo em silêncio.
+pub fn civil_from_days(days: i64) -> (i64, i64, i64, &'static str) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;

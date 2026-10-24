@@ -70,3 +70,7 @@ pub(crate) fn host_of(url: &str) -> Option<String> {
         .ok()
         .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
 }
+
+#[cfg(test)]
+#[path = "site_config_tests.rs"]
+mod tests;

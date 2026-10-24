@@ -97,9 +97,9 @@ fn vacatorrent_allowlist_includes_extras() {
     );
 }
 
-/// Todos os 9 sites estão no registry.
+/// Todos os 10 sites estão no registry.
 #[test]
-fn all_nine_sites_registered() {
+fn all_ten_sites_registered() {
     let expected_ids = vec![
         "vacatorrent",
         "redetorrent-cardigann",
@@ -109,11 +109,12 @@ fn all_nine_sites_registered() {
         "torrentdosfilmesv2",
         "hdrtorrent-cardigann",
         "apachetorrent-cardigann",
+        "torrentgalaxy-cardigann",
         "mico",
     ];
 
     let all = all_site_configs();
-    assert_eq!(all.len(), 9, "devem ser 9 sites registrados");
+    assert_eq!(all.len(), 10, "devem ser 10 sites registrados");
 
     for id in &expected_ids {
         assert!(
@@ -123,11 +124,11 @@ fn all_nine_sites_registered() {
     }
 }
 
-/// `all_site_ids` retorna os mesmos 9 ids.
+/// `all_site_ids` retorna os mesmos 10 ids.
 #[test]
 fn all_site_ids_count() {
     let ids = all_site_ids();
-    assert_eq!(ids.len(), 9);
+    assert_eq!(ids.len(), 10);
 }
 
 /// Sites sem Flare têm `flare_session_ttl_ms = 0`.
@@ -166,4 +167,31 @@ fn default_constants() {
     assert_eq!(DEFAULT_MAX_HOPS, 10);
     assert_eq!(FLARE_SESSION_TTL_MS, 1_200_000);
     assert!(DEFAULT_USER_AGENT.contains("Mozilla"));
+}
+
+/// O TorrentGalaxy tem PERFIL DE REDE (o resolver tira host, espelho e timeout
+/// daqui) mas NÃO é site do raspador: `canonical_site_id` não o conhece, então
+/// `parse_crawl_page` recusaria a página e ele nunca entra na fila do motor
+/// (a fila é a tabela `crawl_url`, não este registry).
+///
+/// Se um dia o TGx ganhar parser + descoberta, este teste avisa: a ressalva do
+/// cabeçalho do registry e do `AGENTS.md` saem junto.
+#[test]
+fn torrentgalaxy_e_perfil_mas_nao_site_do_raspador() {
+    let cfg = site_network_config("torrentgalaxy-cardigann").expect("TGx deve ter perfil");
+    assert!(cfg
+        .candidate_hosts
+        .contains(&"torrentgalaxy.one".to_string()));
+    assert!(cfg
+        .candidate_hosts
+        .contains(&"torrentgalaxy.info".to_string()));
+    assert!(
+        !cfg.uses_flare,
+        "o fetch direto passa no Cloudflare; Flare é caro"
+    );
+    assert_eq!(
+        crate::page_parser::canonical_site_id("torrentgalaxy-cardigann"),
+        "unknown",
+        "o TGx não pode virar site do raspador sem parser e descoberta"
+    );
 }

@@ -1,4 +1,12 @@
-//! Registro dos 9 sites BR com suas configs de rede.
+//! Registro dos sites com suas configs de rede.
+//!
+//! São os 9 sites BR do raspador (8 cards do Jackett + o Mico) mais o
+//! TorrentGalaxy, que é GLOBAL (en-US) e entra aqui só como PERFIL DE REDE:
+//! o `adom-resolvers` tira daqui host, espelho, timeout e User-Agent (o
+//! `profile.rs` do resolver lê este registry — nada é duplicado). O raspador
+//! NÃO cobre o TGx: ele não tem parser nem trilha de descoberta, logo nunca
+//! entra na fila do motor (`crawl_url` é a fila; a lista do registry não a
+//! decide). Ver `tests.rs::torrentgalaxy_e_perfil_mas_nao_site_do_raspador`.
 //!
 //! A tabela é construída uma vez (via `OnceLock`) e consultada por `site_id`.
 //! Os dados foram extraídos dos profiles TS equivalentes.
@@ -18,6 +26,7 @@ fn build_site_table() -> Vec<SiteNetworkConfig> {
         build_torrentdosfilmes(),
         build_hdrtorrent(),
         build_apachetorrent(),
+        build_torrentgalaxy(),
         build_mico(),
     ]
 }
@@ -47,7 +56,9 @@ pub fn is_own_pace(site_id: &str) -> bool {
     site_network_config(site_id).is_some_and(|c| c.own_pace)
 }
 
-/// Lista de todos os `site_id` conhecidos.
+/// Lista de todos os `site_id` conhecidos — perfis de rede registrados, NÃO a
+/// lista de sites do raspador: o TorrentGalaxy aparece aqui (perfil do
+/// resolver) sem ser coberto pela raspagem.
 pub fn all_site_ids() -> Vec<&'static str> {
     vec![
         "vacatorrent",
@@ -58,6 +69,7 @@ pub fn all_site_ids() -> Vec<&'static str> {
         "torrentdosfilmesv2",
         "hdrtorrent-cardigann",
         "apachetorrent-cardigann",
+        "torrentgalaxy-cardigann",
         "mico",
     ]
 }
@@ -238,6 +250,33 @@ fn build_apachetorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "apachetorrent-cardigann".into(),
         candidate_hosts: strings(&["apachetorrents.com", "apachetorrent.com"]),
+        protector_suffixes: protector_suffixes(&[]),
+        assert_only_suffixes: Vec::new(),
+        timeout_ms: 15_000,
+        max_hops: 10,
+        uses_flare: false,
+        flare_session_ttl_ms: 0,
+        user_agent: super::config::DEFAULT_USER_AGENT.to_string(),
+        own_pace: false,
+        min_gap_ms: None,
+    }
+}
+
+/// TorrentGalaxy: SEM FlareSolverr. Medido em 2026-10-24: o cliente HTTP do
+/// Jackett (.NET HttpClient/SChannel) cai na página de desafio do Cloudflare e
+/// devolve 200 com ZERO itens, com resposta byte-idêntica para qualquer
+/// User-Agent (node, Chrome, `Jackett/1.0`, curl e vazio: 381.622 B, 50 linhas,
+/// `server: cloudflare`) — não é header, é transporte. O `reqwest` 0.12 com
+/// rustls (HTTP/1.1) passa limpo: 10/10 requisições com as 50 linhas em
+/// 0,22–0,61 s, no host e no container. O FlareSolverr também passa, mas custa
+/// 2,7–3,8 s por chamada — não pode ser o caminho quente. Por isso
+/// `uses_flare: false`: o fetch direto é o caminho, e a detecção de desafio do
+/// `is_cloudflare_challenge` NÃO entra (ela dá falso positivo aqui: marca
+/// desafio numa página de 200 com 50 linhas).
+fn build_torrentgalaxy() -> SiteNetworkConfig {
+    SiteNetworkConfig {
+        site_id: "torrentgalaxy-cardigann".into(),
+        candidate_hosts: strings(&["torrentgalaxy.one", "torrentgalaxy.info"]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,

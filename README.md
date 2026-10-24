@@ -339,24 +339,21 @@ stremio adom/
 │   ├── app.ts                # createApp(): só compõe (manifest + registerRoutes)
 │   ├── config.ts             # .env (padrões do operador)
 │   ├── runtime.ts            # config por usuário na URL (overlay)
-│   ├── br-resolvers.ts       # carrega os *-resolver no processo do addon
+│   ├── br-resolvers.ts       # lista e testa os 9 resolvers (8 BR + TorrentGalaxy; binário adom-resolvers)
 │   ├── routes/               # as rotas de verdade moram aqui
 │   │   ├── register.ts       # único ponto que monta as rotas (ordem importa)
 │   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
 │   │   ├── stream.ts         # /stream do Node: 410 com gateway nativo, 503 sem
-│   │   ├── resolve.ts        # /resolve (HMAC)
+│   │   ├── internal-resolve.ts # efeitos/fatos do /resolve (o play é do gateway)
 │   │   ├── public.ts         # /configure, /painel, /seal-config
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
 │   │   ├── index.ts          # fachada: autofetchStatus + cobertura de pool
-│   │   ├── collect-orchestrator.ts # coleta (rotas internas do gateway)
-│   │   ├── search-index-path.ts   # leitura do índice p/ /internal/search
-│   │   ├── magnet-bank-*.ts  # banco VIVO + reserva 📦 (BANK_RUST on)
 │   │   ├── autofetch-runner.ts    # fila, holds, recheck
-│   │   ├── demo.ts           # teste sem indexer
-│   │   ├── jackett.ts / prowlarr.ts
-│   │   ├── bludv.ts          # scraper direto do BLUDV
-│   │   └── account.ts        # inventário pronto da conta como fonte
+│   │   ├── indexer-status.ts # status por indexer do card
+│   │   ├── jackett-catalog.ts # catálogo vivo do Jackett
+│   │   ├── mico.ts           # card virtual de indexer (fora do Jackett)
+│   │   └── crawl-*.ts        # estado/política do raspador no painel (o crawl é do sidecar Rust)
 │   ├── debrid/               # adaptadores: premiumize, realdebrid, …
 │   ├── client/               # clientes ESM nativos (TS, compilados)
 │   │   ├── configure/        # entry, state, dom, keys, limits, indexers, view, seal, init
@@ -370,23 +367,20 @@ stremio adom/
 │       ├── cinemeta.ts       # título/ano pelo IMDb
 │       ├── tmdb.ts           # título pt-BR
 │       ├── sign.ts           # HMAC dos links /resolve
+│       ├── harvest-native.ts # ponte do colhedor nativo (admin do gateway)
 │       └── format.ts         # barrel dos 7 submódulos de formatação
 ├── types/domain.d.ts         # contratos do domínio (Stream, DebridAdapter, …)
 ├── test/                     # testes (node:test; .test.ts → dist/test/)
 ├── scripts/
 │   ├── smoke.ts              # smoke test contra o addon rodando
 │   └── entrypoint.sh         # supervisor dos 4 processos no container único
+├── rust/crates/              # gateway e núcleo: adom-server (gateway :7000),
+│                             # adom-search (busca/coleta), adom-sources (Jackett,
+│                             # Prowlarr, BLUDV, Mico, Torrentio), adom-harvest
+│                             # (colhedor), adom-core (réguas), adom-napi (.node)
 ├── docker-compose.yml        # serviço único (adom)
 ├── jackett-bludv/            # definitions Cardigann dos cards BR (yml)
-├── resolvers/                # núcleo comum dos 8 resolvers BR + profiles/
-├── bludv-resolver/           # shim → resolvers/profiles/bludv.ts
-├── comandotorrents-resolver/ # shim → resolvers/profiles/comandotorrents.ts
-├── nerdfilmes-resolver/      # shim → resolvers/profiles/nerdfilmes.ts
-├── torrentdosfilmes-resolver/ # shim → resolvers/profiles/torrentdosfilmes.ts
-├── vacatorrent-resolver/     # shim → resolvers/profiles/vacatorrent.ts
-├── redetorrent-resolver/     # shim → resolvers/profiles/redetorrent.ts
-├── apachetorrent-resolver/   # shim → resolvers/profiles/apachetorrent.ts
-├── hdrtorrents-resolver/     # shim → resolvers/profiles/hdrtorrents.ts
+├── resolvers/                # helpers do BLUDV (profiles/) e tipos comuns (Rust: adom-resolvers)
 ├── Caddyfile
 ├── Dockerfile
 ├── .env.example

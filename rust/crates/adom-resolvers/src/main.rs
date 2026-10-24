@@ -25,6 +25,7 @@ const DEFAULT_PORTS: &[(&str, u16)] = &[
     ("redetorrent", 8705),
     ("apachetorrent", 8706),
     ("hdrtorrents", 8707),
+    ("torrentgalaxy", 8708),
 ];
 
 #[tokio::main]
@@ -129,6 +130,7 @@ const DEFAULT_URLS: &[(&str, &str)] = &[
     ("redetorrent", "https://www.redetorrent.xyz"),
     ("apachetorrent", "https://apachetorrents.com"),
     ("hdrtorrents", "https://hdrtorrents.net"),
+    ("torrentgalaxy", "https://torrentgalaxy.one"),
 ];
 
 /// Espelhos do operador: `<SITE>_URLS` em CSV, o `urlsEnv` dos profiles TS.

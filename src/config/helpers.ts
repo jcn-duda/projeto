@@ -23,27 +23,50 @@ export function list(value: unknown) {
 // reapareceria no catálogo como OFFLINE permanente. Mapa só de RENAME — um id
 // que o operador escreve por decisão própria (ex.: religar o hdrtorrent) nunca
 // entra aqui, porque sumir com a escolha dele em silêncio seria pior.
+//
+// O MESMO mapa existe em Rust (`adom-core::retired_indexers`): desde o F4.4
+// quem decide a lista EFETIVA de indexers da busca é o Rust, e o TS ainda
+// serve o `/configure` e as listas do env. Divergir entre os dois significaria
+// o TS mandando um id ao Jackett e o Rust outro — o indexer sumiria sem erro
+// visível.
 export const RETIRED_INDEXERS: Readonly<Record<string, string>> = Object.freeze({
   // O indexer C# stock foi aposentado; o card local é o `-cardigann` que o
   // entrypoint registra no volume (scripts/entrypoint.sh).
   apachetorrent: 'apachetorrent-cardigann',
+  // O stock do TorrentGalaxy idem: o card local `torrentgalaxy-cardigann` é o
+  // que o entrypoint registra; o stock é ESTACIONADO (some do catálogo).
+  torrentgalaxyclone: 'torrentgalaxy-cardigann',
 });
 
 /**
- * `list()` para listas de INDEXER: aplica os renames aposentados e deduplica.
- * O dedup é o ponto fino — um .env que já cita o id novo E o velho produziria
- * a mesma entrada duas vezes, e o addon consultaria o indexer em dobro.
+ * Renomeia UM id de indexer aposentado. Id fora do mapa entra como está: o
+ * rename é só de id que o projeto aposentou, nunca de escolha do operador.
  */
-export function indexerList(value: unknown) {
+export function renameIndexerId(id: string): string {
+  return Object.prototype.hasOwnProperty.call(RETIRED_INDEXERS, id) ? RETIRED_INDEXERS[id] : id;
+}
+
+/**
+ * Renomeia uma LISTA de ids e deduplica (ordem do primeiro aparecimento
+ * manda). O dedup é o ponto fino — uma lista que já cita o id novo E o velho
+ * produziria a mesma entrada duas vezes, e o addon consultaria o indexer em
+ * dobro.
+ */
+export function renameIndexerIds(ids: readonly string[]): string[] {
   const out: string[] = [];
-  for (const id of list(value)) {
-    const mapped = Object.prototype.hasOwnProperty.call(RETIRED_INDEXERS, id)
-      ? RETIRED_INDEXERS[id]
-      : id;
+  for (const id of ids) {
+    const mapped = renameIndexerId(id);
     if (!mapped || out.includes(mapped)) continue;
     out.push(mapped);
   }
   return out;
+}
+
+/**
+ * `list()` para listas de INDEXER: aplica os renames aposentados e deduplica.
+ */
+export function indexerList(value: unknown) {
+  return renameIndexerIds(list(value));
 }
 
 // Default único do bludv. O resolvedor embutido e o scraper direto leem a

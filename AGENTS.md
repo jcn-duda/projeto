@@ -89,14 +89,15 @@ trabalho de código é em `src/`.
   velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
-  `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
-  `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o
-  `src/br-resolvers.ts` só lista e testa) e o **raspador dos nove sites** (oito
-  cards + Mico) é o sidecar `adom-sidecar`, que o entrypoint sempre sobe. O loop
-  TS do crawl, o adaptador TS do Mico, a sonda CLI de 40 e o knob `CRAWL_ENGINE`
-  saíram; o `crawler.ts` é só fachada do painel (status, pausa, "reprocessar sem
-  obra"; "reprocessar erros" e "zerar" vão ao sidecar). Em `resolvers/` ficou
-  só o que o provider do BLUDV e o Mico usam.
+  `esm`, que é o oráculo dos goldens): os **nove resolvers** (oito BR + o
+  TorrentGalaxy, que é global) são o binário `adom-resolvers` (portas
+  8700–8708, supervisionado pelo entrypoint; o `src/br-resolvers.ts` só lista e
+  testa) e o **raspador dos nove sites** (oito cards + Mico) é o sidecar
+  `adom-sidecar`, que o entrypoint sempre sobe. O loop TS do crawl, o adaptador
+  TS do Mico, a sonda CLI de 40 e o knob `CRAWL_ENGINE` saíram; o `crawler.ts` é
+  só fachada do painel (status, pausa, "reprocessar sem obra"; "reprocessar
+  erros" e "zerar" vão ao sidecar). Em `resolvers/` ficou só o que o provider do
+  BLUDV e o Mico usam.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;
   `FlareSolverrUrl` tem que ser `http://127.0.0.1:8191`. Definitions Cardigann
   vêm da imagem; nunca monte volume sobre elas. Cache do addon persiste em
@@ -104,6 +105,27 @@ trabalho de código é em `src/`.
 - Indexer só sai da busca estacionando o card no Jackett (`park_stock_indexer`);
   o `.env` é só o default de instalações novas (o `ji` da URL manda). Id
   renomeado entra em `RETIRED_INDEXERS` (`src/config/helpers.ts`), não no `.env`.
+- **Id aposentado precisa de rename em DOIS lugares.** O `RETIRED_INDEXERS` do
+  TS cobre a lista padrão (`indexerList()`), mas o `ji` **selado na URL** não
+  passa por ela: o rename vive em `src/runtime.ts` (`normalize`/`normalizeIntMap`)
+  e no Rust (`adom-core::retired_indexers`, aplicado em `config_encoding`,
+  `collect.rs` e `stream_config.rs`). Sem os dois, uma instalação existente
+  perde o indexer na URL. `test/config-indexer-aliases.test.ts` amarra os dois
+  mapas (lê o arquivo Rust) para os lados não divergirem.
+- **O cliente HTTP do Jackett é .NET/SChannel: não passa em todo site.** O
+  `torrentgalaxyclone` stock devolvia HTTP 200 com ZERO itens — a página de
+  desafio do Cloudflare, byte-idêntica para qualquer User-Agent (node, Chrome,
+  `Jackett/1.0`, curl, vazio). Medido: `reqwest` 0.12 + rustls passa (10/10,
+  0,22–0,61 s); FlareSolverr passa mas custa 2,7–3,8 s (não serve ao caminho
+  quente). O site virou card local `torrentgalaxy-cardigann`, servido pelo
+  resolver Rust na 8708; o stock fica estacionado e o id é **renomeado** para o
+  novo (não some da lista).
+- **`wolfmax4k` foi estacionado, não consertado.** O Wolftorrent exige Turnstile
+  (`POST /api/descargas` → 403 sem token) e o download final é blob cifrado
+  (`enlacito.com`): sem browser não há magnet, e o FlareSolverr não resolve o
+  desafio. O card fica estacionado e o id **continua listado** (aparece offline,
+  religável) — por isso ele NÃO entra no mapa de aposentados (lá o id seria
+  renomeado, e o rename sumiria com o id que o operador quer manter).
 
 ## Comandos
 
@@ -451,7 +473,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do `dub-audit` (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
-| Fontes | `prowlarr.ts`, `torrentio.ts`, `mico.ts`, `account.ts` (Jackett/BLUDV nativos em `adom-sources`) |
+| Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`; fila e worker do colhedor são do gateway (`adom-harvest`), o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |

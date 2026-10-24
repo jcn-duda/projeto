@@ -19,11 +19,15 @@ pub(super) fn live_exempt_indexers() -> Vec<String> {
     std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS")
         .ok()
         .map(|raw| {
-            raw.split(',')
+            let ids: Vec<String> = raw
+                .split(',')
                 .map(str::trim)
                 .filter(|id| !id.is_empty())
                 .map(str::to_string)
-                .collect()
+                .collect();
+            // Rename dos ids aposentados (mesmo mapa do TS): a env é a MESMA
+            // que o Node lê, então os dois lados precisam casar o mesmo id.
+            adom_core::rename_indexer_ids(&ids)
         })
         .unwrap_or_else(|| vec![DEFAULT_LIVE_EXEMPT.to_string()])
 }

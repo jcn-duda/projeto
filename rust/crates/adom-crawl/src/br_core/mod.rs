@@ -25,7 +25,9 @@ pub mod text;
 pub mod vaca;
 
 pub use collector::{parse_download_links, CollectorHooks, Resolved, Step};
-pub use http_date::{date_utc_ms, days_from_civil, http_date, http_date_now, http_date_secs};
+pub use http_date::{
+    civil_from_days, date_utc_ms, days_from_civil, http_date, http_date_now, http_date_secs,
+};
 pub use page::{
     encode_uri_component, rss_xml, search_page_html, RssConfig, SearchItem, SitePost, UNKNOWN_SIZE,
 };
