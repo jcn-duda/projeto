@@ -13,8 +13,10 @@ import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
+import { seasonIndexKey, seasonSearchKeys } from '../src/providers/autofetch-season-index.js';
 import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 // O F4.4 removeu `findStreams`; o registro da chave de temporada (único efeito
 // que estes testes usavam da busca) agora é explícito, como no efeito
@@ -136,6 +138,12 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
   };
   const flush = () => new Promise((resolve) => setImmediate(resolve));
   const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
+  const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
+  // A lista pronta vive no `streams.db` (F4.2(c)); o store dublado permite
+  // provar que NADA foi tocado no L1 (que já não guarda `streams`).
+  const bridge = createStreamsBridge({
+    entries: keys.map((key, i) => ({ type: 'series' as const, id: ids[i], key, cache: { partial: false } })),
+  });
   let checks = 0;
 
   try {
@@ -148,7 +156,6 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
       checks += 1;
       return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
     };
-    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
 
     // O registro da temporada é o efeito `season_key` do orquestrador.
     await runtime.run({ opts: userOpts, encoded: 'cfg-season-fill' }, async () => {
@@ -163,8 +170,16 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     testMock.timers.tick(120_000);
     await flush();
 
-    assert.equal(cache.get(keys[0]), null, 'a busca que enfileirou o pack é invalidada');
-    assert.equal(cache.get(keys[1]), null, 'outro episódio da mesma temporada é invalidado');
+    // A DECISÃO do season-fill alcança os dois episódios indexados. O caminho
+    // do pedido por obra (ponte → `streams.db`) ainda não existe no recheck:
+    // `cache.forgetMany` virou no-op para `streams` ao tornar o namespace
+    // Rust-owned — dívida registrada fora desta frente.
+    assert.equal(
+      (metrics.snapshot().counters['autofetch.season-fill'] || 0) - fillBefore,
+      keys.length,
+      'a decisão do season-fill conta os episódios indexados da temporada',
+    );
+    assert.equal(bridge.count('/streams/invalidate'), 0, 'nenhum pedido nativo neste caminho (dívida conhecida)');
     assert.equal(
       cache.snapshot().namespaces.davail?.entries || 0,
       davailBefore + 1,
@@ -178,7 +193,7 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
-    for (const key of keys) cache.forget(key);
+    bridge.restore();
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
@@ -259,6 +274,11 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
   };
   const ids = [`${imdbId}:1:1`, `${imdbId}:1:2`, `${imdbId}:2:1`];
   const keys = ids.map((id) => streamsCacheKey('series', id, { ...userOpts, resolveUncached: config.debrid.resolveUncached }));
+  // A lista pronta só existe no `streams.db` (F4.2(c)): despejar o índice de
+  // temporada NÃO pode pedir invalidação ao nativo.
+  const bridge = createStreamsBridge({
+    entries: keys.map((key, i) => ({ type: 'series' as const, id: ids[i], key, cache: { partial: false } })),
+  });
   const h = '5'.repeat(40);
   const pack = {
     infoHash: h, name: 'Show S01 Dublado', title: 'Show S01 Dublado',
@@ -277,7 +297,6 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
       checks += 1;
       return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
     };
-    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
     await runtime.run({ opts: userOpts, encoded: 'cfg-season-lru' }, async () => {
       registerSeasons(ids, keys, pmAdapter.id, apiKey);
     });
@@ -290,7 +309,19 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
     testMock.timers.tick(120_000);
     await flush();
 
-    assert.notEqual(cache.get(keys[1]), null, 'S01 foi despejada quando S02 ocupou a única vaga LRU');
+    assert.equal(
+      seasonSearchKeys.has(seasonIndexKey(pmAdapter.id, accountScope(apiKey), imdbId, 1)),
+      false,
+      'S01 foi despejada quando S02 ocupou a única vaga LRU',
+    );
+    assert.equal(
+      seasonSearchKeys.has(seasonIndexKey(pmAdapter.id, accountScope(apiKey), imdbId, 2)),
+      true,
+      'S02 ficou no índice',
+    );
+    // O despejo do ÍNDICE não é invalidação da lista pronta: nada foi pedido.
+    assert.equal(bridge.count('/streams/invalidate'), 0);
+    assert.equal(bridge.has(keys[1]), true, 'S01 continua no streams.db sem pedido de invalidação');
   } finally {
     testMock.timers.reset();
     debrid.checkCached = originalCheck;
@@ -299,7 +330,7 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
     config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
-    for (const key of keys) cache.forget(key);
+    bridge.restore();
     cache.forget(autofetch.markerKey('premiumize', accountScope(apiKey), h));
     held.release(h, accountScope(apiKey));
   }

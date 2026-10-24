@@ -27,6 +27,8 @@ import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
 import { sortAndLimit, toStremioStream } from './helpers/pipeline-oracle/format.js';
 import { stubFetch } from './helpers/stub.js';
+import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 import type { RawItem } from '../types/domain.js';
 
 const counter = (key: string) => metrics.snapshot().counters[key] || 0;
@@ -77,7 +79,7 @@ test('harvestOne: transição do índice a BR dublado invalida streams da obra',
     idleWindowMs: config.harvest.idleWindowMs,
     indexerDelayMs: config.harvest.indexerDelayMs,
   };
-  const stub = stubFetch((url: string) => {
+  const handler = (url: string) => {
     if (url.includes('api.themoviedb.org')) {
       return {
         ok: true,
@@ -107,8 +109,16 @@ test('harvestOne: transição do índice a BR dublado invalida streams da obra',
       };
     }
     return { ok: false, status: 404, json: async () => ({}) };
-  });
+  };
+  const stub = stubFetch(handler);
   const OBRA = 'tt9500061';
+  // A lista pronta da obra vive no `streams.db` (F4.2(c)): o canário da
+  // transição BR é o pedido de invalidação chegar à ponte e a entrada cair.
+  const streamKey = `${prefix('streams')}movie:${OBRA}:{}:account:a`;
+  const bridge = createStreamsBridge({
+    entries: [{ type: 'movie', id: OBRA, key: streamKey, cache: { partial: false } }],
+    onOther: handler,
+  });
   try {
     config.jackett.indexers = ['glob-br'];
     config.jackett.ptBrIndexers = [];
@@ -122,7 +132,6 @@ test('harvestOne: transição do índice a BR dublado invalida streams da obra',
     releaseIndex.record(OBRA, {}, [
       { title: 'Event Horizon 1997 1080p WEB-DL', infoHash: '66'.repeat(20), seeders: 40, indexer: 'thepiratebay' },
     ], {});
-    cache.set(`${prefix('streams')}movie:${OBRA}:{}:account:a`, { streams: [{ name: 'x' }] }, 3600);
 
     const dTrans = deltaOf('harvest.transition.br');
     const dInvalidated = deltaOf('harvest.transition.br.invalidated');
@@ -138,10 +147,12 @@ test('harvestOne: transição do índice a BR dublado invalida streams da obra',
 
     assert.equal(result.ok, true, 'colheita concluída');
     assert.equal(dTrans(), 1, 'a transição a BR dublado comprovado foi detectada');
-    assert.equal(dInvalidated(), 1, 'a clave de streams da obra foi invalidada');
-    assert.equal(cache.get(`${prefix('streams')}movie:${OBRA}:{}:account:a`), null, 'lista pronta descartada');
+    assert.equal(dInvalidated(), 1, 'o pedido de invalidação da obra foi feito');
+    await flushNativeStreamStores();
+    assert.equal(bridge.has(streamKey), false, 'lista pronta descartada no streams.db');
     assert.equal(hasBrDubbed(releaseIndex.lookupQuiet(OBRA, {})), true, 'o índice passou a cobrir BR dublado');
   } finally {
+    bridge.restore();
     stub.restore();
     harvestQueue.clearQueue();
     cache.clear();

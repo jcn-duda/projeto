@@ -331,11 +331,13 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   const afterReleases = releaseIndex.lookupQuiet(entry.imdbId, location);
   const transition = brTransition(beforeReleases, afterReleases);
   if (transition !== 'none') {
-    const cleared = invalidateStreamsForObra(entry.imdbId);
+    const requested = invalidateStreamsForObra(entry.imdbId);
     metrics.count(transition === 'br' ? 'harvest.transition.br' : 'harvest.transition.brUpgrade');
     if (directed) metrics.count('autofetch.brProbe.transition');
-    if (cleared > 0) {
-      metrics.count(transition === 'br' ? 'harvest.transition.br.invalidated' : 'harvest.transition.brUpgrade.invalidated', cleared);
+    // Métrica de PEDIDO (1 por obra), não de entradas: desde o F4.4a a lista
+    // pronta vive no `streams.db` do gateway e o Node não tem contagem local.
+    if (requested) {
+      metrics.count(transition === 'br' ? 'harvest.transition.br.invalidated' : 'harvest.transition.brUpgrade.invalidated');
     }
   }
   queueRdWarmForRelevant(relevant);

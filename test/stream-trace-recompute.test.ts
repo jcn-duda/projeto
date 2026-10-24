@@ -16,6 +16,7 @@ import * as config from '../src/config.js';
 import jackett from '../src/providers/jackett.js';
 import { recomputeOffline, collectLocalMaterial } from '../src/utils/trace-recompute.js';
 import { withMockFetch } from './e2e/e2e-harness.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 const OPTS = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'chave-diag' };
 
@@ -128,13 +129,20 @@ test('o recompute NÃO reescreve a entrada streams', () => {
     cache.clear();
     const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
     cache.set(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
-    const entrada = { streams: [{ name: 'A' }], partial: false, debridKnown: true, searchMeta: { names: ['Filme'], year: 2020 } };
-    const cacheKey = 'streams:v11:diag:tt123:{}:account:none';
-    cache.set(cacheKey, entrada, 900);
-    RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020));
-    const depois = cache.get(cacheKey) as unknown;
-    assert.deepEqual(depois, entrada, 'entrada intacta — recompute é leitura pura');
-    cache.forget(cacheKey);
+    // A entrada mora no `streams.db` (F4.2(c)): o contrato de leitura pura se
+    // prova pela ponte — recompute não pede clear/invalidate e não escreve L1.
+    const cacheKey = 'streams:v21:diag:tt123:{}:account:none';
+    const bridge = createStreamsBridge({
+      entries: [{ type: 'movie', id: 'tt123', key: cacheKey, cache: { partial: false, debridKnown: true } }],
+    });
+    try {
+      RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020));
+      assert.equal(bridge.has(cacheKey), true, 'entrada intacta — recompute é leitura pura');
+      assert.equal(bridge.calls.length, 0, 'recompute nem fala com a ponte');
+      assert.equal(cache.get(cacheKey), null, 'nada foi escrito no L1 do Node');
+    } finally {
+      bridge.restore();
+    }
   } finally {
     restore();
   }

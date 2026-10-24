@@ -116,16 +116,15 @@ test('clear com escopo de instalação manda o sufixo do segmento', async () => 
   }
 });
 
-test('ponte fora do ar não impede a invalidação do L1 do Node', async () => {
+test('ponte fora do ar: o pedido falha em silêncio sem derrubar quem chamou', async () => {
   const stub = stubFetch(() => {
     throw new Error('conexão recusada');
   });
   try {
-    const key = `${prefix('streams')}movie:tt123:{"m":2}:account:abc`;
-    cache.set(key, { streams: [] }, 60);
-    const cleared = invalidateStreamsForObra('tt123');
-    assert.equal(cleared, 1, 'o L1 do Node continua sendo invalidado');
-    assert.equal(cache.get(key), null);
+    // `streams` é Rust-owned (F4.2(c)): o pedido é o efeito inteiro — não há
+    // mais L1 do Node para invalidar em paralelo.
+    const requested = invalidateStreamsForObra('tt123');
+    assert.equal(requested, true, 'o pedido foi enfileirado (fire-and-forget)');
     await flushNativeStreamStores();
     assert.equal(stub.calls.length, 1, 'a ponte tentou e falhou em silêncio');
 

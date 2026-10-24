@@ -146,8 +146,8 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     rdAdapter.torrentStatus = async () => ({ [h]: { state: 'ready', id: 'rd-1' } });
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
 
-    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
-
+    // Sem seed no L1: `streams:v21` é Rust-owned (F4.2(c)) e esta suíte cobra o
+    // gate de CAPACIDADE do adaptador (davail/season-fill), não a lista pronta.
     await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, async () => {
       registerSeasons(ids, keys, rdAdapter.id, apiKey);
     });
@@ -180,7 +180,6 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     config.debrid.rdOracle.enabled = originalOracle;
     rdAdapter.enqueue = originalEnqueue;
     rdAdapter.torrentStatus = originalTorrentStatus;
-    for (const key of keys) cache.forget(key);
     cache.forget(autofetch.markerKey('realdebrid', account, h));
     held.release(h, account);
   }

@@ -34,8 +34,12 @@ export interface RecordReport {
   added: number;
   /** `br`/`upgrade` quando o índice passou a cobrir dublado (senão `none`). */
   transition: 'none' | 'br' | 'upgrade';
-  /** Listas `streams:vN` invalidadas nesta obra. */
-  cleared: number;
+  /**
+   * A invalidação da lista pronta da obra foi SOLICITADA à ponte do
+   * `streams.db` nativo (fire-and-forget). Não é contagem: desde o F4.4a o
+   * namespace `streams` não mora no L1 deste processo.
+   */
+  invalidated: boolean;
 }
 
 /** Localização declarada da obra para UMA gravação (Fase 7 séries): raiz
@@ -92,7 +96,8 @@ export interface CrawlRecorderDeps {
     opts: { partial?: boolean; keepPartial?: boolean },
   ): number;
   transition(before: unknown[] | null | undefined, after: unknown[] | null | undefined): 'none' | 'br' | 'upgrade';
-  invalidate(imdb: string): number;
+  /** `true` = pedido de invalidação enfileirado na ponte do `streams.db`. */
+  invalidate(imdb: string): boolean;
   buildContext(obra: CrawlObra, location: CrawlObraLocation): Promise<MatchContext | null>;
   count(name: string, value?: number): void;
 }
@@ -194,10 +199,10 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       const after = d.lookupQuiet(obra.imdb, loc);
       const transition = d.transition(before, after);
       checkAbort();
-      const cleared = transition === 'none' ? 0 : d.invalidate(obra.imdb);
+      const invalidated = transition === 'none' ? false : d.invalidate(obra.imdb);
       d.count('crawl.record.added', added);
-      if (cleared > 0) d.count('crawl.record.invalidated', cleared);
-      return { kept: relevant.length, added, transition, cleared };
+      if (invalidated) d.count('crawl.record.invalidated');
+      return { kept: relevant.length, added, transition, invalidated };
     },
   };
 }

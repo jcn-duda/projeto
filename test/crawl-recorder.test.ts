@@ -142,7 +142,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
       isPartial: () => false,
       record: (imdb, _loc, items, opts) => { calls.record = [imdb, items.length, opts.partial, opts.keepPartial]; return 3; },
       transition: () => 'none',
-      invalidate: () => 0,
+      invalidate: () => false,
       count: () => {},
     });
     const report = await recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases);
@@ -170,14 +170,14 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
       isPartial: () => true,
       record: (_i, _l, _it, opts) => { partial = opts.partial; keep = opts.keepPartial; return 1; },
       transition: () => 'br',
-      invalidate: () => { invalidated += 1; return 2; },
+      invalidate: () => { invalidated += 1; return true; },
       count: () => {},
     });
     const report = await recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases);
     assert.equal(partial, true, 'partial existente preservado');
     assert.equal(keep, true);
     assert.equal(report.transition, 'br');
-    assert.equal(report.cleared, 2);
+    assert.equal(report.invalidated, true, 'a invalidação da obra foi pedida à ponte');
     assert.equal(invalidated, 1, 'transição BR invalida as listas prontas');
   });
 
@@ -190,7 +190,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
       lookupQuiet: () => [{ hash: 'x' }],
       isPartial: () => false,
       record: (_i, _l, _it, opts) => { partial = opts.partial; return 0; },
-      transition: () => 'none', invalidate: () => 0, count: () => {},
+      transition: () => 'none', invalidate: () => false, count: () => {},
     });
     await recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases);
     assert.equal(partial, false);
@@ -206,7 +206,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
       lookupQuiet: () => [],
       isPartial: () => false,
       record: () => { recorded += 1; return 1; },
-      transition: () => 'none', invalidate: () => 0,
+      transition: () => 'none', invalidate: () => false,
       count: (name) => { counted.push(name); },
     });
     await assert.rejects(

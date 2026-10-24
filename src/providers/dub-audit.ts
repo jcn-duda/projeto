@@ -205,6 +205,8 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   }
   // A lista corrente ainda carrega o candidato: invalida para a próxima
   // busca nascer limpa (mentira) ou com `_dubbed` promovido (prova OK).
+  // `forget` só alcança namespaces do Node — `streams` é Rust-owned e o
+  // caminho vivo é o pedido por obra abaixo (ponte do `streams.db`).
   for (const key of liedKeys) cache.forget(key);
   for (const key of okKeys) cache.forget(key);
   for (const imdb of okImdb) invalidateStreamsForObra(imdb);

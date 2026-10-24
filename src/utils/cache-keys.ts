@@ -186,10 +186,15 @@ const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:', 'tsj:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 
-// Dono ÚNICO por namespace: `idx` é do IdxStore, no MESMO cache.db. O Node não
-// lê nem grava esse namespace no L1/L2 — segundo escritor deixa o disco
-// incoerente com o handle nativo (rollback é commit/imagem anterior).
-const RUST_OWNED = Object.freeze(['idx']);
+// Dono ÚNICO por namespace, declarado pelo DONO DE EXECUÇÃO (quem tem o timer
+// ou a rota que grava):
+//   `idx`     — IdxStore do gateway, no MESMO cache.db;
+//   `streams` — `data/streams.db` do gateway (F4.4a), o SWR do corte.
+// O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
+// disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
+// superfície do Node é só a ponte administrativa (`streams-store-native.ts`):
+// a leitura do L1 nasce vazia e cai nela; escrita e invalidação vão por ela.
+const RUST_OWNED = Object.freeze(['idx', 'streams']);
 
 // Dono por PREFIXO dentro de namespace compartilhado: `raw:v1` é do gateway no
 // BLUDV (chave e arquivo iguais) e do Node no Jackett. Sem esta guarda o

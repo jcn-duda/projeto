@@ -25,17 +25,19 @@ const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 let cacheSeq = 0;
 const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
-test('estouro de dlmag despeja só o próprio namespace e preserva streams', async () => {
+test('estouro de dlmag despeja só o próprio namespace e preserva outro balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
     const cache = await freshCache();
 
-    cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    // `streams` saiu do L1 no F4.2(c) (Rust-owned): o vizinho agora é um balde
+    // vivo do Node. O invariante é o mesmo — cota de um não despeja o outro.
+    cache.set('davail:v1:premiumize:tt-vizinho:h', { available: true }, TTL_S);
     for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:url-${i}`, { n: i }, TTL_S);
     cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
 
-    assert.deepEqual(cache.get('streams:v5:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.deepEqual(cache.get('davail:v1:premiumize:tt-vizinho:h'), { available: true });
     assert.equal(cache.get('dlmag:url-0'), null, 'LRU de dlmag sai na própria cota');
     assert.deepEqual(cache.get('dlmag:overflow'), { n: 'overflow' });
     assert.equal(cache.snapshot().namespaces.dlmag.entries, DLMAG_QUOTA);
@@ -100,20 +102,20 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
   }
 });
 
-test('estouro de raw despeja só o próprio namespace e preserva streams', async () => {
+test('estouro de raw despeja só o próprio namespace e preserva outro balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
     const cache = await freshCache();
     const RAW_QUOTA = cache.QUOTAS.raw;
 
-    cache.set('streams:v5:movie:tt-vizinho', { streams: ['preservado'] }, TTL_S);
+    cache.set('davail:v1:premiumize:tt-vizinho:h', { available: true }, TTL_S);
     for (let i = 0; i < RAW_QUOTA; i += 1) {
       cache.set(`raw:v1:jackett:yts:movie:t-${i}`, { items: [] }, TTL_S);
     }
     cache.set('raw:v1:jackett:yts:movie:overflow', { items: ['overflow'] }, TTL_S);
 
-    assert.deepEqual(cache.get('streams:v5:movie:tt-vizinho'), { streams: ['preservado'] });
+    assert.deepEqual(cache.get('davail:v1:premiumize:tt-vizinho:h'), { available: true });
     assert.equal(cache.get('raw:v1:jackett:yts:movie:t-0'), null, 'LRU de raw sai na própria cota');
     assert.deepEqual(cache.get('raw:v1:jackett:yts:movie:overflow'), { items: ['overflow'] });
     assert.equal(cache.snapshot().namespaces.raw.entries, RAW_QUOTA);
@@ -300,6 +302,24 @@ test('cache.set de chave idx não entra no L1 (dono é o Rust)', async () => {
     assert.equal(cache.get('idx:v14:should-not-land'), null);
     assert.equal(cache.get('idx:dashboard-scope'), null);
     assert.equal(cache.snapshot().namespaces.idx, undefined);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+  }
+});
+
+test('cache.set de chave streams não entra no L1 (dono é o streams.db) e a leitura devolve null', async () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    const cache = await freshCache();
+    // F4.2(c): o único escritor de `streams:v21` é o gateway Rust. A escrita do
+    // Node vira no-op — e é isso que libera o caminho vivo a cair na ponte.
+    cache.set('streams:v21:movie:tt123:{}:account:a', { streams: [{ name: 'x' }] }, TTL_S);
+    assert.equal(cache.get('streams:v21:movie:tt123:{}:account:a'), null, 'L1 nasce vazio');
+    // A LEITURA não é bloqueada por `isRustOwned` (só escrita/forget/persist):
+    // devolve null em vez de lançar, que é o sinal para a rota consultar a ponte.
+    assert.equal(cache.snapshot().namespaces.streams, undefined, 'nenhum balde criado');
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

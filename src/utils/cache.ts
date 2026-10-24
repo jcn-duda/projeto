@@ -185,10 +185,10 @@ function peekRemaining(key: string): number | null {
 /**
  * Leitura SEM efeito: devolve o valor se ainda válido, sem promover o LRU (o
  * Map preserva a posição de recência) e sem contar `cache.hit`/`cache.miss`.
- * Para sondas que só querem LER e decidir depois se escrevem — ex: a promoção
- * de ⚡ do rd-probe reescreve via `set`, que aí sim promove e renova o TTL com
- * `peekRemaining`, então a varredura sem match não pode inflar os contadores
- * do painel nem reordenar o cache. Expirada/ausente devolve null (não apaga).
+ * Para sondas que só querem LER e decidir depois se escrevem — ex: o ledger do
+ * debrid e o `davail` consultam antes de qualquer gravação, e o `set` promove
+ * a chave e conta `cache.hit`. Assim a varredura sem match não infla os
+ * contadores do painel nem reordena o cache. Expirada/ausente devolve null.
  */
 function peek(key: string): unknown {
   if (isForeignKey(key)) return null;

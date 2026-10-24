@@ -27,6 +27,8 @@ const metrics = await import('../src/utils/metrics.js');
 const { prefix } = await import('../src/utils/cache-keys.js');
 const { createCrawlRecorder } = await import('../src/providers/crawl-recorder.js');
 const { createPageProcessor } = await import('../src/providers/crawl-page.js');
+const { flushNativeStreamStores } = await import('../src/utils/streams-store-native.js');
+const { createStreamsBridge } = await import('./helpers/streams-bridge.js');
 import type { RawItem } from '../types/domain.js';
 import type { CrawlDiscovery, CrawlSite, CrawlUrlRow } from '../src/providers/crawl-types.js';
 
@@ -76,34 +78,42 @@ const releases: RawItem[] = [
 describe('crawl-recorder: integração real com o acervo e o índice', () => {
   test('grava magnet/source/work (passed_filter=1), idx partial e invalida streams na transição BR', async () => {
     const streamKey = `${prefix('streams')}movie:${IMDB}:abc`;
-    cache.set(streamKey, [{ name: 'antiga' }], 900);
+    // A lista pronta é do `streams.db` (F4.2(c)): o único lugar onde a
+    // invalidação por obra pode aparecer é a ponte administrativa.
+    const bridge = createStreamsBridge({
+      entries: [{ type: 'movie', id: IMDB, key: streamKey, cache: { partial: false } }],
+    });
+    try {
+      const recorder = createCrawlRecorder({ buildContext: async () => CONTEXT });
+      const report = await recorder.record('vacatorrent', { imdb: IMDB, title: 'Expresso do Amanhã', year: 2013, kind: 'movie' }, releases);
 
-    const recorder = createCrawlRecorder({ buildContext: async () => CONTEXT });
-    const report = await recorder.record('vacatorrent', { imdb: IMDB, title: 'Expresso do Amanhã', year: 2013, kind: 'movie' }, releases);
+      // --- Banco vivo (memória): a página inteira entra, o filtro só marca.
+      assert.ok(bank.lookup(goodHash), 'magnet do relevante gravado');
+      assert.equal(bank.sourcesFor(goodHash)[0].indexer, 'vacatorrent', 'source com o id do card');
+      const goodWork = bank.worksFor(goodHash).find((w) => w.season === -1 && w.episode === -1);
+      assert.ok(goodWork, 'work da obra do pedido');
+      assert.equal(goodWork!.passedFilter, 1, 'relevante sobrevive ao filtro');
 
-    // --- Banco vivo (memória): a página inteira entra, o filtro só marca.
-    assert.ok(bank.lookup(goodHash), 'magnet do relevante gravado');
-    assert.equal(bank.sourcesFor(goodHash)[0].indexer, 'vacatorrent', 'source com o id do card');
-    const goodWork = bank.worksFor(goodHash).find((w) => w.season === -1 && w.episode === -1);
-    assert.ok(goodWork, 'work da obra do pedido');
-    assert.equal(goodWork!.passedFilter, 1, 'relevante sobrevive ao filtro');
+      assert.ok(bank.lookup(cutHash), 'a release cortada TAMBÉM entra no acervo');
+      const cutWork = bank.worksFor(cutHash).find((w) => w.season === -1 && w.episode === -1);
+      assert.equal(cutWork?.passedFilter, 0, 'cortada fica 0 — não contaminou o passed_filter');
 
-    assert.ok(bank.lookup(cutHash), 'a release cortada TAMBÉM entra no acervo');
-    const cutWork = bank.worksFor(cutHash).find((w) => w.season === -1 && w.episode === -1);
-    assert.equal(cutWork?.passedFilter, 0, 'cortada fica 0 — não contaminou o passed_filter');
+      // --- Índice: obra nova nasce parcial e só com o relevante.
+      assert.ok(releaseIndex.idxHasKey(`${prefix('idx')}${IMDB}`), 'índice gravou a obra');
+      assert.equal(releaseIndex.isPartial(IMDB), true);
+      const indexed = releaseIndex.lookup(IMDB);
+      assert.equal(indexed.length, 1);
+      assert.equal(indexed[0].hash, goodHash);
 
-    // --- Índice: obra nova nasce parcial e só com o relevante.
-    assert.ok(releaseIndex.idxHasKey(`${prefix('idx')}${IMDB}`), 'índice gravou a obra');
-    assert.equal(releaseIndex.isPartial(IMDB), true);
-    const indexed = releaseIndex.lookup(IMDB);
-    assert.equal(indexed.length, 1);
-    assert.equal(indexed[0].hash, goodHash);
-
-    // --- Transição BR invalidou a lista pronta.
-    assert.equal(report.added, 1);
-    assert.equal(report.transition, 'br');
-    assert.equal(report.cleared, 1);
-    assert.ok(!cache.peek(streamKey), 'streams pronta da obra foi invalidada');
+      // --- Transição BR pediu a invalidação da obra ao store nativo.
+      assert.equal(report.added, 1);
+      assert.equal(report.transition, 'br');
+      assert.equal(report.invalidated, true);
+      await flushNativeStreamStores();
+      assert.equal(bridge.has(streamKey), false, 'streams pronta da obra foi invalidada no streams.db');
+    } finally {
+      bridge.restore();
+    }
   });
 
   test('preserva partial e releases de um registro pré-existente', async () => {

@@ -12,6 +12,8 @@ import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
+import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 const [H1, H2, H3, H4, H5] = ['1', '2', '3', '4', '5'].map(c => c.repeat(40));
 
@@ -243,46 +245,10 @@ test('rd-warmer: DELETE de limpeza que falha não transforma ⚡ em miss', async
   }
 });
 
-test('rd-warmer: confirmação de ⚡ promove entrada [RD download] para [RD⚡] no cache ativo', async () => {
-  const searchKey = `${cachePrefix('streams')}movie:ttWarmPromote:cfg`;
-  cache.set(searchKey, {
-    streams: [
-      {
-        name: '[RD download] 1080p',
-        title: 'Filme.2026.1080p',
-        url: `http://localhost:7000/prefix/resolve/${H1}?sig=test`,
-      },
-    ],
-    partial: false,
-    debridKnown: true,
-  }, 900);
-
-  const mock = mockFetch((url) => {
-    if (url.pathname === '/rest/1.0/torrents/addMagnet') return jsonOk({ id: 'T-PROMOTE' });
-    if (url.pathname.includes('/torrents/info/')) {
-      return jsonOk({
-        id: 'T-PROMOTE',
-        status: 'downloaded',
-        files: [{ id: 1, path: '/Filme.mkv', bytes: 1000, selected: 1 }],
-      });
-    }
-    if (url.pathname.includes('/torrents/delete/')) return { ok: true, status: 204, async json() { return null; }, async text() { return ''; } };
-    return jsonOk({}, 404);
-  });
-
-  try {
-    rdWarmer.enqueue([H1], 100);
-    await rdWarmer.tick();
-
-    assert.equal(rdLedger.peek(H1), 'hit');
-    const entry = cache.get(searchKey) as any;
-    assert.ok(entry && Array.isArray(entry.streams));
-    assert.equal(entry.streams[0].name, '[RD⚡] 1080p', 'stream foi promovido de [RD download] para [RD⚡]');
-  } finally {
-    mock.restore();
-    cache.forget(searchKey);
-  }
-});
+// A promoção de ⚡ no L1 (`promoteCachedBolts*`) saiu junto com o `rd-probe`
+// no F4.2(c): o namespace `streams` é Rust-owned e a lista pronta vive no
+// `streams.db` do gateway. O hit do ledger, que esta suíte cobre acima, é o que
+// alimenta o ⚡ da próxima construção.
 
 test('rd-warmer: 451 deixa ledger blocked e magnetdb bad=false; segunda tentativa não re-sonda', async () => {
   config.debrid.rdLedger.enabled = true;
@@ -322,7 +288,7 @@ test('rd-warmer: 451 deixa ledger blocked e magnetdb bad=false; segunda tentativ
   }
 });
 
-test('rd-warmer: reparo idempotente limpa só o bad RD correlacionado com ledger blocked', () => {
+test('rd-warmer: reparo idempotente limpa só o bad RD e pede o clear do streams.db', async () => {
   config.debrid.rdLedger.enabled = true;
   const blockedHash = 'b'.repeat(40); // dano antigo: bad + blocked
   const noVideoHash = 'c'.repeat(40); // NoVideo legítimo: bad, sem blocked
@@ -331,27 +297,39 @@ test('rd-warmer: reparo idempotente limpa só o bad RD correlacionado com ledger
   magnetdb.markBad('realdebrid', config.debrid.apiKey, noVideoHash);
   magnetdb.markBad('torbox', 'outra-conta', otherHash);
   rdLedger.noteBlocked(blockedHash);
-  const staleStreamKey = `${cachePrefix('streams')}movie:ttBlockedRepair`;
-  cache.set(staleStreamKey, { streams: [] }, 600);
+  // Lista pronta da obra no store NATIVO: é só lá que o reparo pode limpar.
+  const bridge = createStreamsBridge({
+    entries: [{ type: 'movie', id: 'ttBlockedRepair', key: `${cachePrefix('streams')}movie:ttBlockedRepair` }],
+  });
   metrics.reset();
 
-  const cleared = rdWarmer.scanBlockedRdBads();
-  assert.equal(cleared, 1, 'só o par bad+blocked é recuperado');
+  try {
+    const cleared = rdWarmer.scanBlockedRdBads();
+    assert.equal(cleared, 1, 'só o par bad+blocked é recuperado');
 
-  const scanCounters = (metrics.snapshot() as any).counters;
-  assert.equal(scanCounters['cache.hit.rdc'], undefined, 'varredura não promove nem conta hit do ledger');
-  assert.equal(scanCounters['cache.miss.rdc'], undefined, 'varredura não conta miss do ledger');
+    const scanCounters = (metrics.snapshot() as any).counters;
+    assert.equal(scanCounters['cache.hit.rdc'], undefined, 'varredura não promove nem conta hit do ledger');
+    assert.equal(scanCounters['cache.miss.rdc'], undefined, 'varredura não conta miss do ledger');
 
-  assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, blockedHash), false, 'bad+blocked limpo');
-  assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, noVideoHash), true, 'NoVideo sem blocked preservado');
-  assert.equal(magnetdb.isBad('torbox', 'outra-conta', otherHash), true, 'bad de outro adapter preservado');
-  assert.equal(cache.peek(staleStreamKey), null, 'lista pronta antiga é invalidada para o hash voltar na próxima abertura');
+    assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, blockedHash), false, 'bad+blocked limpo');
+    assert.equal(magnetdb.isBad('realdebrid', config.debrid.apiKey, noVideoHash), true, 'NoVideo sem blocked preservado');
+    assert.equal(magnetdb.isBad('torbox', 'outra-conta', otherHash), true, 'bad de outro adapter preservado');
 
-  const counters = (metrics.snapshot() as any).counters;
-  assert.equal(counters['magnetdb.bad.clearedBlocked'], 1, 'métrica específica do reparo');
+    // O clear do store nativo é fire-and-forget: espera a ponte antes de olhar.
+    await flushNativeStreamStores();
+    assert.equal(bridge.count('/streams/clear'), 1, 'pedido único de clear no streams.db');
+    assert.equal(bridge.size(), 0, 'lista pronta antiga invalidada para o hash voltar na próxima abertura');
 
-  // Idempotente: segunda execução não acha nada a limpar.
-  metrics.reset();
-  assert.equal(rdWarmer.scanBlockedRdBads(), 0);
-  assert.equal((metrics.snapshot() as any).counters['magnetdb.bad.clearedBlocked'] ?? 0, 0, 'nada recuperado no segundo passe');
+    const counters = (metrics.snapshot() as any).counters;
+    assert.equal(counters['magnetdb.bad.clearedBlocked'], 1, 'métrica específica do reparo');
+
+    // Idempotente: segunda execução não acha nada a limpar nem pede outro clear.
+    metrics.reset();
+    assert.equal(rdWarmer.scanBlockedRdBads(), 0);
+    await flushNativeStreamStores();
+    assert.equal(bridge.count('/streams/clear'), 1, 'sem bad recuperado, sem clear novo');
+    assert.equal((metrics.snapshot() as any).counters['magnetdb.bad.clearedBlocked'] ?? 0, 0, 'nada recuperado no segundo passe');
+  } finally {
+    bridge.restore();
+  }
 });

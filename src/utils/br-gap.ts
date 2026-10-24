@@ -11,9 +11,8 @@
 // existe.
 //
 // As métricas do ciclo vivem nos pontos que as disparam (busca e colheita);
-// aqui só vivem o predicado e a decisão, puros e testáveis.
-import * as cache from './cache.js';
-import { prefix } from './cache-keys.js';
+// aqui só vivem o predicado, a decisão e o pedido de invalidação, puros e
+// testáveis.
 import { invalidateNativeStreamsForObra } from './streams-store-native.js';
 import type { IndexedRelease } from './release-index.js';
 
@@ -148,31 +147,23 @@ export function brTransition(
 }
 
 /**
- * Invalida TODAS as claves `streams:vN` de UMA obra. Quando o índice passa a
- * cobrir BR dublado comprovado, a lista pronta que a busca guardou
- * enquanto não o tinha não pode seguir sendo servida: a próxima abertura deve
- * reconstruir a partir do índice agora completo. Aqui não há índice imdbId→clave,
- * então se varre o L1 (igual que rd-probe/dub-audit) reconhecendo o `id` em
- * `streams:vN:<tipo>:<id>:…` — pode ser `tt123` (filme) ou `tt123:S2:E5`
- * (série); o token `tt\d+` depois do tipo identifica a obra e `:tt1230` não
- * colide com `:tt123` porque se exige limite de seção (`:` ou fim).
+ * Invalida a lista pronta de UMA obra no store NATIVO (`data/streams.db`).
+ *
+ * Até o F4.4a isto varria o L1 do Node atrás de `streams:vN:<tipo>:<id>:…`.
+ * Desde o corte ninguém escreve esse namespace no L1 (`RUST_OWNED` em
+ * `cache-keys.ts`) e a varredura virou morta — percorria um Map que nunca
+ * recebia a chave. O dono de execução do SWR é o gateway, então o pedido vai
+ * pela ponte administrativa (a mesma do `/clear-cache`); a segmentação do id
+ * (`tt123` ≠ `tt1230`) mora no `adom-store::streams`, do lado que apaga.
+ *
+ * Devolve `true` quando o pedido foi enfileirado, `false` quando nem havia o
+ * que pedir (imdbId fora do contrato, ponte em backoff). Não é contagem de
+ * entradas invalidadas: este processo não tem mais esse número.
  */
-export function invalidateStreamsForObra(imdbId: string): number {
+export function invalidateStreamsForObra(imdbId: string): boolean {
   const target = String(imdbId || '').toLowerCase();
-  if (!/^tt\d+$/.test(target)) return 0;
-  // F4.4a — o SWR do corte é o `streams.db` NATIVO: a varredura acima só
-  // alcança o L1 deste processo e sozinha não invalida a lista servida pelo
-  // gateway. A ponte é fire-and-forget (o chamador é síncrono e o `/resolve`
-  // não pode esperar); o caminho antigo continua valendo sempre.
-  invalidateNativeStreamsForObra(target);
-  const streamPrefix = prefix('streams');
-  let cleared = 0;
-  for (const key of cache.keysMatching(streamPrefix)) {
-    const rest = key.slice(streamPrefix.length);
-    const idToken = rest.match(/^(?:movie|series):(tt\d+)(?::|$)/i)?.[1]?.toLowerCase();
-    if (idToken !== target) continue;
-    cache.forget(key);
-    cleared += 1;
-  }
-  return cleared;
+  if (!/^tt\d+$/.test(target)) return false;
+  // Fire-and-forget por contrato: o `/resolve` é síncrono e não pode esperar
+  // o DELETE do gateway; a próxima abertura que chegar depois já reconstrói.
+  return invalidateNativeStreamsForObra(target);
 }

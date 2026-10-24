@@ -137,10 +137,26 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
         const native = await fetchNativeStreamTrace(type, id, cacheKey);
         if (native?.found) {
           const cache = native.cache ?? {};
+          // F4.2(c) — o dono da lista `streams` é o `streams.db` do gateway,
+          // mas a EXPLICAÇÃO (recompute offline) continua no Node: sem trace, o
+          // `searchMeta` que vem junto com a entrada é a única matéria-prima de
+          // nomes/ano. Sem searchMeta ou com o knob desligado o recompute não
+          // tem o que dizer — `cached`/`null`, como antes.
+          const hasTrace = native.trace != null;
+          const recomputeOn = services.config.search.streamTrace && services.config.search.streamTraceRecompute;
+          let recompute: ReturnType<typeof recomputeOffline> | null = null;
+          if (!hasTrace && recomputeOn && native.searchMeta) {
+            const [imdbId, sRaw, eRaw] = id.split(':');
+            const season = sRaw ? Number(sRaw) || null : null;
+            const episode = eRaw ? Number(eRaw) || null : null;
+            const names = native.searchMeta.names ?? [];
+            const year = native.searchMeta.year ?? null;
+            recompute = recomputeOffline(imdbId, { season, episode }, names, year);
+          }
           const base = {
             ok: true,
             found: true,
-            origin: 'cached',
+            origin: recompute ? 'recompute' : 'cached',
             source: 'rust',
             type,
             id,
@@ -151,7 +167,7 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
               stale: cache.stale === true,
             },
             trace: serializeTrace(native.trace as Parameters<typeof serializeTrace>[0]),
-            recompute: null,
+            recompute,
           };
           return res.json(await appendLive(services, req.query.mode, base, native.streams ?? []));
         }

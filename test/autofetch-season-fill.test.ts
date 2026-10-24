@@ -17,6 +17,7 @@ import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
 import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 // O F4.4 removeu `findStreams`; o registro da temporada (único efeito usado
 // aqui) é explícito, como no efeito `season_key` do orquestrador nativo.
@@ -54,6 +55,11 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
   };
   const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
   const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
+  // A lista pronta é do `streams.db` (F4.2(c)): o dublê da ponte é o único
+  // lugar onde uma invalidação de `streams` poderia aparecer.
+  const bridge = createStreamsBridge({
+    entries: keys.map((key, i) => ({ type: 'series' as const, id: ids[i], key, cache: { partial: false } })),
+  });
   let checks = 0;
 
   try {
@@ -67,7 +73,6 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
       checks += 1;
       return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
     };
-    for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-fill-sem-numero' }, async () => {
       registerSeasons(ids, keys, pmAdapter.id, apiKey);
@@ -81,7 +86,8 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     testMock.timers.tick(120_000);
     await flush();
 
-    assert.equal(cache.get(keys[1]) != null, true, 'episódio vizinho não é invalidado sem prova de temporada');
+    assert.equal(bridge.has(keys[1]), true, 'episódio vizinho não é invalidado sem prova de temporada');
+    assert.equal(bridge.count('/streams/invalidate'), 0, 'nenhum pedido de invalidação ao store nativo');
     assert.equal(
       cache.snapshot().namespaces.davail?.entries || 0,
       davailBefore + 1,
@@ -100,7 +106,7 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
-    for (const key of keys) cache.forget(key);
+    bridge.restore();
     cache.forget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }

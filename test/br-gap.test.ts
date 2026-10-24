@@ -18,6 +18,8 @@ import { liveIndexers } from '../src/providers/search-plan.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import { hasBrDubbed, hasBrDubbedAtQuality, hasBrDubbedBelowTarget, shouldBrGap, invalidateStreamsForObra, brTransition, BR_GAP_TARGET_QUALITY } from '../src/utils/br-gap.js';
+import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 // --- Predicado: release "BR dublado comprovado" (isBr && dubbed && !lied) ---
 
@@ -327,7 +329,7 @@ test('liveIndexers deixa os index-only fora do plano ao vivo', () => {
   assert.equal(liveIndexers(['apachetorrent'], ['apachetorrent']).length, 0, 'todos index-only → nenhum plano vivo');
 });
 
-// --- Invalidador exato: só as claves streams de ESA obra -------------------
+// --- Transição BR: classificação pura (sem cache) ---------------------------
 
 test('brTransition classifica ganho de BR e upgrade de faixa', () => {
   const br720 = [{ isBr: true, dubbed: true, quality: '720p' } as any];
@@ -339,36 +341,60 @@ test('brTransition classifica ganho de BR e upgrade de faixa', () => {
   assert.equal(brTransition(br1080, br720), 'none', 'regressão de leitura não transiciona');
 });
 
-function seedStreamKey(key: string, value = { streams: [{ name: 'x' }] }) {
-  cache.set(`${prefix('streams')}${key}`, value, 3600);
+// --- Invalidador por obra: pedido à ponte do `streams.db` ------------------
+function entry(key: string, id: string, type: 'movie' | 'series' = 'movie') {
+  return { type, id, key: `${prefix('streams')}${key}`, cache: { partial: false } };
 }
 
-test('invalidateStreamsForObra derruba filme, série e temporada; não toca outras obras', () => {
-  seedStreamKey('movie:tt9000101:{}:account:a');
-  seedStreamKey('series:tt9000101:S2:E5:{}:account:b');
-  seedStreamKey('series:tt9000101:S2:{}:account:a');
-  seedStreamKey('movie:tt9000102:{}:account:a');
-  seedStreamKey('movie:tt9000103:{}:account:b');
+test('invalidateStreamsForObra pede a invalidação da obra e só ela', async () => {
+  // `streams` é Rust-owned (F4.2(c)): o recorte por obra acontece no
+  // `streams.db` do gateway. A ponte dublada é o caminho real do teste.
+  const bridge = createStreamsBridge({
+    entries: [
+      entry('movie:tt9000101:{}:account:a', 'tt9000101'),
+      entry('series:tt9000101:S2:E5:{}:account:b', 'tt9000101:2:5', 'series'),
+      entry('series:tt9000101:S2:{}:account:a', 'tt9000101:2', 'series'),
+      entry('movie:tt9000102:{}:account:a', 'tt9000102'),
+      entry('movie:tt9000103:{}:account:b', 'tt9000103'),
+    ],
+  });
+  try {
+    assert.equal(invalidateStreamsForObra('tt9000101'), true, 'o pedido foi enfileirado');
+    await flushNativeStreamStores();
+    assert.equal(bridge.size(), 2, 'só as 3 chaves de tt9000101 caíram (filme + episódio + temporada)');
+    assert.equal(bridge.has(`${prefix('streams')}movie:tt9000101:{}:account:a`), false);
+    assert.equal(bridge.has(`${prefix('streams')}series:tt9000101:S2:E5:{}:account:b`), false);
+    assert.equal(bridge.has(`${prefix('streams')}series:tt9000101:S2:{}:account:a`), false);
 
-  const cleared = invalidateStreamsForObra('tt9000101');
-  assert.equal(cleared, 3, 'as três claves de tt9000101 caem (filme + episódio + temporada)');
-  assert.equal(cache.get(`${prefix('streams')}movie:tt9000101:{}:account:a`), null);
-  assert.equal(cache.get(`${prefix('streams')}series:tt9000101:S2:E5:{}:account:b`), null);
-  assert.equal(cache.get(`${prefix('streams')}series:tt9000101:S2:{}:account:a`), null);
-
-  assert.notEqual(cache.get(`${prefix('streams')}movie:tt9000102:{}:account:a`), null, 'outra obra intacta');
-  assert.notEqual(cache.get(`${prefix('streams')}movie:tt9000103:{}:account:b`), null, 'outra obra intacta');
+    assert.equal(bridge.has(`${prefix('streams')}movie:tt9000102:{}:account:a`), true, 'outra obra intacta');
+    assert.equal(bridge.has(`${prefix('streams')}movie:tt9000103:{}:account:b`), true, 'outra obra intacta');
+  } finally {
+    bridge.restore();
+  }
 });
 
-test('invalidateStreamsForObra não colide com prefixos de imdbId', () => {
-  seedStreamKey('movie:tt9000101:{}:account:a');
-  // tt90001 NÃO é tt9000101 (fronteira de seção); o `tt\d+` captura a obra inteira.
-  assert.equal(invalidateStreamsForObra('tt90001'), 0, 'prefixo curto não toca a obra longa');
-  assert.notEqual(cache.get(`${prefix('streams')}movie:tt9000101:{}:account:a`), null);
-  cache.forget(`${prefix('streams')}movie:tt9000101:{}:account:a`);
+test('invalidateStreamsForObra manda o imdbId EXATO (sem colidir com prefixo)', async () => {
+  const bridge = createStreamsBridge({
+    entries: [entry('movie:tt9000101:{}:account:a', 'tt9000101')],
+  });
+  try {
+    // tt90001 NÃO é tt9000101: o payload leva o id curto e o Rust não acha a obra longa.
+    assert.equal(invalidateStreamsForObra('tt90001'), true);
+    await flushNativeStreamStores();
+    assert.deepEqual(JSON.parse(String(bridge.calls.at(-1)?.options?.body)), { imdbId: 'tt90001' });
+    assert.equal(bridge.size(), 1, 'a obra longa continua no store');
+  } finally {
+    bridge.restore();
+  }
 });
 
-test('invalidateStreamsForObra ignora imdbId inválido', () => {
-  assert.equal(invalidateStreamsForObra('abc'), 0);
-  assert.equal(invalidateStreamsForObra(''), 0);
+test('invalidateStreamsForObra ignora imdbId inválido sem tocar a ponte', async () => {
+  const bridge = createStreamsBridge();
+  try {
+    assert.equal(invalidateStreamsForObra('abc'), false);
+    assert.equal(invalidateStreamsForObra(''), false);
+    assert.equal(bridge.calls.length, 0, 'id fora do contrato não vira pedido');
+  } finally {
+    bridge.restore();
+  }
 });

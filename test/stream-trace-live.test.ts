@@ -7,6 +7,11 @@
 // - O live chama o adaptador direto (BY_ID), NUNCA debrid.checkCached() — a
 //   camada orquestrada grava davail/magnetdb/métricas/notify.
 // - Nada é gravado em lugar nenhum; hash some do payload (id+name+verdict).
+//
+// Desde o F4.2(c) a entrada do `/stream-trace.json` vive no `streams.db` do
+// gateway: o seed é a PONTE dublada (`createStreamsBridge`), não o L1 do Node
+// (que recusa escrita de `streams` por contrato). O debrid continua com o seu
+// próprio dublê, passado como `onOther`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -14,14 +19,12 @@ process.env.CACHE_PERSIST = 'false';
 
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
-import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
-import { streamsCacheKey } from '../src/utils/request-key.js';
 import { liveCapability, liveCheck } from '../src/debrid/live-check.js';
 import { createTestServer, withMockFetch, fakeResponse, encodeConfig } from './e2e/e2e-harness.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 const HASH = 'd'.repeat(40);
-const TB_HOST = 'https://api.torbox.app';
 const PM_HOST = 'https://www.premiumize.me';
 
 let server: any;
@@ -109,106 +112,102 @@ test('liveCheck: erro local vira skipped, nunca unusable', async () => {
 });
 
 test('rota mode=live: sonda de capacidade + execução só no segmento torbox', async () => {
-  config.jackett.testToken = 'tok-live';
   // O segmento usa as CHAVES CURTAS do SCHEMA (o normalize só lê elas): `ds`
   // é debridService e `dk` a apiKey (texto puro sem RESOLVE_SECRET).
   const segment = encodeConfig({ p: ['jackett'], ds: 'torbox', dk: 'k' });
-  const key = streamsCacheKey('movie', 'tt222', { ...(runtime.decode(segment) || {}), resolveUncached: config.debrid.resolveUncached });
-  const seed = () => {
-    cache.set(key, {
-      streams: [{ name: 'Filme 2024\n1080p', url: `https://x/resolve/${HASH}?sig=1` }],
-      partial: false,
-      debridKnown: true,
+  const debridCalls: string[] = [];
+  // Seed no store NATIVO: lista + searchMeta, SEM trace (o recompute explica).
+  const bridge = createStreamsBridge({
+    entries: [{
+      type: 'movie',
+      id: 'tt222',
+      cache: { partial: false, debridKnown: true },
+      streams: [{ name: 'Filme 2024\n1080p', infoHash: HASH, url: `https://x/resolve/${HASH}?sig=1` }],
       searchMeta: { names: ['Filme 2024'], year: 2024 },
-    }, 900);
-  };
+    }],
+    onOther: (url) => {
+      debridCalls.push(url);
+      return fakeResponse({ status: 'success', data: [{ hash: HASH }] });
+    },
+  });
   try {
     // Knob vazio: a EXECUÇÃO também é recusada — resposta honesta SEM rede.
     config.search.streamTraceLive = [];
-    await withMockFetch([], async (mockFetch) => {
-      seed();
-      const liveOff = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
-        headers: { 'X-Indexer-Test-Token': 'tok-live' },
-      });
-      assert.equal(liveOff.status, 200);
-      assert.equal(liveOff.json.live.allowed, false);
-      assert.equal(liveOff.json.live.reason, 'knob-off');
-      assert.equal(mockFetch.calls.length, 0, 'knob desligado: NENHUMA chamada ao debrid');
+    const liveOff = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
+      headers: { 'X-Indexer-Test-Token': bridge.token },
     });
+    assert.equal(liveOff.status, 200);
+    assert.equal(liveOff.json.live.allowed, false);
+    assert.equal(liveOff.json.live.reason, 'knob-off');
+    assert.equal(debridCalls.length, 0, 'knob desligado: NENHUMA chamada ao debrid');
+    assert.equal(bridge.count('/streams/trace'), 1, 'mas a leitura do ledger nativo aconteceu');
 
     // Kill-switch STREAM_TRACE=false também desliga o live.
     const savedTrace = config.search.streamTrace;
     config.search.streamTrace = false;
     config.search.streamTraceLive = ['torbox'];
     try {
-      await withMockFetch([], async (mockFetch) => {
-        seed();
-        const ks = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
-          headers: { 'X-Indexer-Test-Token': 'tok-live' },
-        });
-        assert.equal(ks.json.live.allowed, false);
-        assert.equal(ks.json.live.reason, 'knob-off');
-        assert.equal(mockFetch.calls.length, 0, 'kill-switch: NENHUMA chamada ao debrid');
+      const ks = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
+        headers: { 'X-Indexer-Test-Token': bridge.token },
       });
+      assert.equal(ks.json.live.allowed, false);
+      assert.equal(ks.json.live.reason, 'knob-off');
+      assert.equal(debridCalls.length, 0, 'kill-switch: NENHUMA chamada ao debrid');
     } finally {
       config.search.streamTrace = savedTrace;
     }
 
     config.search.streamTraceLive = ['torbox'];
-    try {
-      await withMockFetch([], async () => {
-        seed();
-        const liveRes = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
-          headers: { 'X-Indexer-Test-Token': 'tok-live' },
-        });
-        assert.equal(liveRes.status, 200);
-        assert.equal(liveRes.json.live.allowed, true, `reason: ${liveRes.json.live.reason}`);
-        assert.equal(liveRes.json.origin, 'recompute', 'entrada sem trace dispara o recompute também');
-      });
-    } finally {
-      config.search.streamTraceLive = [];
-    }
+    const liveRes = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt222&mode=live`, {
+      headers: { 'X-Indexer-Test-Token': bridge.token },
+    });
+    assert.equal(liveRes.status, 200);
+    assert.equal(liveRes.json.live.allowed, true, `reason: ${liveRes.json.live.reason}`);
+    assert.equal(liveRes.json.origin, 'recompute', 'entrada sem trace dispara o recompute também');
+    assert.equal(debridCalls.length, 1);
+    assert.match(debridCalls[0], /torrents\/checkcached/);
   } finally {
-    config.jackett.testToken = '';
+    config.search.streamTraceLive = [];
+    bridge.restore();
+    cache.clear();
   }
 });
 
 test('rota mode=live: name sanitizado/truncado com a MESMA defesa do trace', async () => {
-  config.jackett.testToken = 'tok-live';
   const segment = encodeConfig({ p: ['jackett'], ds: 'torbox', dk: 'k' });
-  const key = streamsCacheKey('movie', 'tt444', { ...(runtime.decode(segment) || {}), resolveUncached: config.debrid.resolveUncached });
   config.search.streamTraceLive = ['torbox'];
   const savedTrace = config.search.streamTrace;
+  const hash = 'a'.repeat(40);
+  const bridge = createStreamsBridge({
+    entries: [{
+      type: 'movie',
+      id: 'tt444',
+      cache: { partial: false, debridKnown: true },
+      streams: [{
+        name: `Filme Sujo ${hash} magnet:?xt=urn:btih:${hash}&dn=F ${'X'.repeat(200)}`,
+        infoHash: hash,
+        url: `https://x/${hash}`,
+      }],
+      searchMeta: { names: ['Filme'], year: 2020 },
+    }],
+    onOther: () => fakeResponse({ status: 'success', data: [] }),
+  });
   try {
-    await withMockFetch([
-      { match: 'torrents/checkcached', handler: async () => fakeResponse({ status: 'success', data: [] }) },
-    ], async () => {
-      const hash = 'a'.repeat(40);
-      cache.set(key, {
-        streams: [{
-          name: `Filme Sujo ${hash} magnet:?xt=urn:btih:${hash}&dn=F ${'X'.repeat(200)}`,
-          infoHash: hash,
-          url: `https://x/${hash}`,
-        }],
-        partial: false, debridKnown: true,
-        searchMeta: { names: ['Filme'], year: 2020 },
-      }, 900);
-      const res = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt444&mode=live`, {
-        headers: { 'X-Indexer-Test-Token': 'tok-live' },
-      });
-      assert.equal(res.status, 200);
-      const name = String(res.json.live?.results?.[0]?.name || '');
-      assert.ok(name.length <= 60, `name passou do teto: ${name.length}`);
-      const body = JSON.stringify(res.json);
-      assert.doesNotMatch(body, /magnet:/i, 'magnet não vaza no live');
-      assert.doesNotMatch(body, /[a-f0-9]{40}/i, 'hash não vaza no live');
-      assert.match(name, /<magnet>/);
-      assert.match(name, /<hash>/);
+    const res = await server.request('GET', `/${segment}/stream-trace.json?type=movie&id=tt444&mode=live`, {
+      headers: { 'X-Indexer-Test-Token': bridge.token },
     });
+    assert.equal(res.status, 200);
+    const name = String(res.json.live?.results?.[0]?.name || '');
+    assert.ok(name.length <= 60, `name passou do teto: ${name.length}`);
+    const body = JSON.stringify(res.json);
+    assert.doesNotMatch(body, /magnet:/i, 'magnet não vaza no live');
+    assert.doesNotMatch(body, /[a-f0-9]{40}/i, 'hash não vaza no live');
+    assert.match(name, /<magnet>/);
+    assert.match(name, /<hash>/);
   } finally {
     config.search.streamTraceLive = [];
     config.search.streamTrace = savedTrace;
-    config.jackett.testToken = '';
+    bridge.restore();
     cache.clear();
   }
 });

@@ -6,9 +6,10 @@ import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
-import { streamsCacheKey } from '../src/utils/request-key.js';
+import { streamsCacheKey, streamsCacheScope } from '../src/utils/request-key.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 const SWEEP_ADAPTER = {
   id: 'sweepfake',
@@ -101,7 +102,6 @@ test('POST clear-cache por namespace preserva os outros namespaces', async () =>
 });
 
 test('POST clear-cache por instalação apaga somente streams do segmento corrente', async () => {
-  config.jackett.testToken = TOKEN;
   const segmentA = encodeConfig({ m: 2, ds: 'sweepfake', dk: 'conta-a' });
   const segmentB = encodeConfig({ m: 4, ds: 'sweepfake', dk: 'conta-b' });
   const optionsA = decodeConfig(segmentA);
@@ -109,20 +109,25 @@ test('POST clear-cache por instalação apaga somente streams do segmento corren
   assert.ok(optionsA && optionsB);
   const keyA = streamsCacheKey('movie', 'tt1000001', optionsA);
   const keyB = streamsCacheKey('movie', 'tt1000002', optionsB);
+  // A lista pronta vive no `streams.db` do gateway (F4.2(c)): o recorte por instalação é LÁ.
+  const entries = [keyA, keyB].map((key, i) => ({ type: 'movie' as const, id: `tt100000${i + 1}`, key, cache: { partial: false } }));
+  const bridge = createStreamsBridge({ entries });
   try {
-    cache.set(keyA, { streams: [] }, 60);
-    cache.set(keyB, { streams: [] }, 60);
     const res = await server.request('POST', `/${segmentA}/dashboard-action.json`, {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
+      headers: { 'X-Indexer-Test-Token': bridge.token },
       body: { action: 'clear-cache', confirm: true, scope: { installation: true } },
     });
     assert.equal(res.status, 200);
     assert.deepEqual(res.json.scope, { kind: 'installation' });
-    assert.equal(cache.get(keyA), null);
-    assert.deepEqual(cache.get(keyB), { streams: [] });
+    assert.deepEqual(res.json.native, { attempted: true, ok: true, removed: 1 });
+    // Só a chave do segmento A saiu; a do segmento B continua servindo.
+    assert.equal(bridge.has(keyA), false);
+    assert.equal(bridge.has(keyB), true);
+    const body = JSON.parse(String(bridge.calls.at(-1)?.options?.body)) as { suffix?: string };
+    assert.equal(body.suffix, `:${streamsCacheScope(optionsA)}`);
   } finally {
+    bridge.restore();
     cache.clear();
-    config.jackett.testToken = '';
   }
 });
 

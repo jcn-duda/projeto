@@ -18,7 +18,7 @@ import { prefix } from '../utils/cache-keys.js';
 import { accountScope } from '../utils/request-key.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import { isRateLimitError, isQuotaError } from '../debrid/common.js';
-import { promoteCachedBoltsAcrossStreams } from './rd-probe.js';
+import { clearNativeStreamsSoon } from '../utils/streams-store-native.js';
 
 type WarmEntry = {
   hash: string;
@@ -215,7 +215,9 @@ async function processBatch(maxItems: number): Promise<number> {
         rdLedger.noteHit([hash]);
         magnetdb.markAlive('realdebrid', apiKey, [hash]);
         metrics.count('debrid.rd.warm.hit');
-        promoteCachedBoltsAcrossStreams([hash]);
+        // Nada a promover no L1: desde o F4.2(c) a lista pronta de `streams`
+        // vive no `streams.db` do gateway e o ⚡ entra na próxima construção
+        // (o ledger que acabou de virar `hit` já responde a consulta).
       } else if (result.reason === 'blocked') {
         rdLedger.noteBlocked(hash);
         // Recusa legal do Real-Debrid (HTTP 451 / error_code 35), não magnet
@@ -300,10 +302,10 @@ function scanBlockedRdBads(): number {
   }
   if (cleared) {
     // As listas prontas foram construídas SEM esses hashes; só limpar o bad não
-    // os reinsere. Invalida streams uma vez no reparo para a próxima abertura
-    // reconstruir a lista a partir do índice/raw já persistido.
-    cache.clearNamespace('streams');
-    log.info(`[rd-warmer] ${cleared} bad(s) RD recusa legal recuperado(s); cache de streams invalidado`);
+    // os reinsere. Pede o clear do store NATIVO (F4.2(c)): o L1 do Node nunca
+    // recebeu `streams`, então `clearNamespace('streams')` era no-op silencioso.
+    clearNativeStreamsSoon();
+    log.info(`[rd-warmer] ${cleared} bad(s) RD recusa legal recuperado(s); clear do streams.db pedido`);
   }
   return cleared;
 }

@@ -118,14 +118,19 @@ function track<T>(promise: Promise<T>): Promise<T> {
 }
 
 /**
- * Invalida a lista pronta de UMA obra no store nativo — o espelho de
- * `invalidateStreamsForObra` (cache do Node), que continua sendo chamado no
- * mesmo ponto. Fire-and-forget: o `/resolve` não espera, e o próximo `stream`
- * que chegar depois do DELETE já reconstrói.
+ * Invalida a lista pronta de UMA obra no store nativo — o único caminho vivo
+ * de `invalidateStreamsForObra` (`src/utils/br-gap.ts`), que delegou para cá no
+ * F4.2(c): o namespace `streams` é Rust-owned e o L1 do Node nasce vazio.
+ * Fire-and-forget: o `/resolve` não espera, e o próximo `stream` que chegar
+ * depois do DELETE já reconstrói.
+ *
+ * Devolve `true` quando o pedido foi enfileirado e `false` quando não havia o
+ * que pedir (imdbId fora do contrato, ponte em backoff). Nunca é contagem de
+ * entradas: o Node não tem mais esse número.
  */
-export function invalidateNativeStreamsForObra(imdbId: string): void {
+export function invalidateNativeStreamsForObra(imdbId: string): boolean {
   const target = String(imdbId || '').trim().toLowerCase();
-  if (!/^tt\d+$/.test(target) || !available()) return;
+  if (!/^tt\d+$/.test(target) || !available()) return false;
   track(
     request('/streams/invalidate', { body: { imdbId: target } })
       .then((json) => {
@@ -137,6 +142,7 @@ export function invalidateNativeStreamsForObra(imdbId: string): void {
       })
       .catch((err) => noteFailure('invalidate por obra', err)),
   );
+  return true;
 }
 
 /**

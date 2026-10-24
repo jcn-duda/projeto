@@ -157,7 +157,9 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
     });
 
     it('F06-BND-06: Cache keys with unicode, colons, spaces, and quotes work seamlessly', () => {
-      const specialKey = 'streams:movie:tt1234567:São Paulo:"Special":100%';
+      // `streams` é Rust-owned (F4.2(c)) e recusa escrita no L1: a chave
+      // especial usa `raw`, que continua sendo namespace do Node.
+      const specialKey = 'raw:movie:tt1234567:São Paulo:"Special":100%';
       cache.set(specialKey, { ok: true }, 60);
       assert.deepEqual(cache.get(specialKey), { ok: true });
       cache.forget(specialKey);

@@ -118,11 +118,10 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   "insert.run('streams:v15:movie:tt-anterior2:{}:account:none', JSON.stringify({ streams: ['anterior2'] }), now + 900000);",
   "insert.run('streams:v21:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
   'seed.close();',
-  '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
   // TTL futuro: v7..v15 somem por serem versão morta, não por expirar.
-  "assert.deepStrictEqual(cache.get('streams:v21:movie:tt-atual:{}:account:none'), { streams: ['atual'] }, 'v21 sobe do disco');",
+  // `streams` é Rust-owned na execução: v21 fica no disco, não sobe no L1.
+  "assert.strictEqual(cache.get('streams:v21:movie:tt-atual:{}:account:none'), null, 'v21 nao sobe no L1 (Rust-owned)');",
   "assert.strictEqual(cache.get('streams:v15:movie:tt-anterior2:{}:account:none'), null, 'v15 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v14:movie:tt-quase:{}:account:none'), null, 'v14 nao entra no L1');",
   "assert.strictEqual(cache.get('streams:v13:movie:tt-prev:{}:account:none'), null, 'v13 nao entra no L1');",
@@ -143,7 +142,7 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — streams: v7..v20 somem, v21 sobe no boot',
+  'descarte de versão obsoleta no disco — streams: v7..v20 somem, v21 fica no disco sem subir no L1',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
 );

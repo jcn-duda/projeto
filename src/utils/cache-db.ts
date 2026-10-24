@@ -111,10 +111,10 @@ export function createPersistence() {
       // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
       // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
       deleteExpiredStmt.run(now - maxGraceMs(), ...ownedGuards);
-      // Versão de namespace é fonte única (cache-keys.js): apaga no banco o que
-      // não bate com a versão corrente, sem materializar a linha. LEGACY abaixo.
+      // Namespace versionado é fonte única (cache-keys.js). `idx` é do Rust ponta
+      // a ponta; `streams` é Rust-owned na execução — linha morta é lixo puro.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
-        if (!isRustOwned(ns)) deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
+        if (ns !== 'idx') deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
       }
       for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
       // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
