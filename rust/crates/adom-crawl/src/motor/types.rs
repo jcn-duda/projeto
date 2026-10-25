@@ -132,6 +132,14 @@ pub struct MotorConfig {
     /// por post, num solver que atende um pedido por vez e é o mesmo da busca
     /// ao vivo). Default baixo de propósito; porta de `CRAWL_GATE_HOURLY`.
     pub gate_hourly: u32,
+    /// Intervalo entre rodadas COMPLETAS de descoberta do MESMO site. Rodada
+    /// parcial volta no prazo curto de retry, não neste. Porta de
+    /// `CRAWL_DISCOVERY_INTERVAL_MS` (no TS a descoberta era o ciclo inteiro).
+    pub discovery_interval_ms: u64,
+    /// Descoberta de SÉRIES ligada (porta de `CRAWL_SERIES_ENABLED`, default
+    /// ON e só global). Desligada, nenhuma URL `tv_show` entra na fila e o
+    /// cursor de série não anda.
+    pub series_enabled: bool,
 }
 
 impl Default for MotorConfig {
@@ -153,6 +161,8 @@ impl Default for MotorConfig {
             hour_window_ms: 3_600_000,
             degraded_write: false,
             gate_hourly: 4,
+            discovery_interval_ms: 3_600_000,
+            series_enabled: true,
         }
     }
 }

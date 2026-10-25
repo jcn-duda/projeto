@@ -71,6 +71,7 @@ impl CrawlPageEngine {
         &self,
         url: &str,
         profile: &SiteNetworkConfig,
+        accept: &str,
         cost: &Arc<AtomicU32>,
     ) -> Result<String, String> {
         let headers = match self.sessions.lock() {
@@ -83,7 +84,7 @@ impl CrawlPageEngine {
             max_hops: profile.max_hops,
             allowlist: site_profiles::resolve_allowlist(profile),
             user_agent: profile.user_agent.clone(),
-            accept: ACCEPT_PAGE.to_string(),
+            accept: accept.to_string(),
             headers,
             cookie_jar: None,
             on_request: Some(Box::new(move || {
@@ -103,6 +104,24 @@ impl CrawlPageEngine {
             return Err("desafio cloudflare no caminho direto (perfil sem flare)".to_string());
         }
         self.escalate_via_flare(url, cost).await
+    }
+
+    /// Texto do crawl FORA do parser de página (sitemap da descoberta).
+    ///
+    /// Mesmo caminho da página — direto e escalada ao solver com desafio — para
+    /// reusar a sessão `cf_clearance` quente e não abrir uma segunda política de
+    /// desafio no mesmo processo. O custo por hop é medido e descartado: quem
+    /// cobra a descoberta no teto por hora é UMA chamada = uma requisição.
+    pub async fn fetch_crawl_text(
+        &self,
+        site_id: &str,
+        url: &str,
+        accept: &str,
+    ) -> Result<String, String> {
+        let profile = site_profiles::site_network_config(site_id)
+            .ok_or_else(|| format!("site sem perfil de rede: {site_id}"))?;
+        let cost = Arc::new(AtomicU32::new(0));
+        self.fetch_page(url, profile, accept, &cost).await
     }
 
     /// UM pedido ao solver, serializado na faixa única, com a solução validada.
@@ -186,7 +205,7 @@ impl PageEngine for CrawlPageEngine {
             }
             // 3. Fetch com custo medido; o solver entra só com desafio real.
             let cost = Arc::new(AtomicU32::new(0));
-            let html = match self.fetch_page(&row.url, profile, &cost).await {
+            let html = match self.fetch_page(&row.url, profile, ACCEPT_PAGE, &cost).await {
                 Ok(h) => h,
                 Err(msg) => return PageOutcome::Failed(msg),
             };

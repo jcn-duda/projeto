@@ -18,6 +18,7 @@
 //! `applyResult` do TS. Erro de rede nunca derruba o motor: é logado e o
 //! próximo ciclo segue.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
 use tokio::time::{interval, Duration, Instant};
@@ -28,6 +29,7 @@ use super::types::{
     error_work, now_ms, CrawlResultStatus, MotorConfig, MotorStatus, PageEngine, PageOutcome,
     SiteStatus, UnwiredPageEngine,
 };
+use crate::discovery::SiteDiscovery;
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;
 use crate::site_profiles::all_site_ids;
@@ -135,12 +137,21 @@ pub struct CrawlMotor {
     pub(super) ingest: Option<Arc<dyn PageIngest>>,
     running: Arc<Mutex<bool>>,
     global_paused: Arc<Mutex<bool>>,
-    pages_this_hour: Arc<Mutex<u32>>,
-    hour_started_at: Arc<Mutex<i64>>,
-    pause_until: Arc<Mutex<i64>>,
-    failure_streak: Arc<Mutex<u32>>,
+    pub(super) pages_this_hour: Arc<Mutex<u32>>,
+    pub(super) hour_started_at: Arc<Mutex<i64>>,
+    pub(super) pause_until: Arc<Mutex<i64>>,
+    pub(super) failure_streak: Arc<Mutex<u32>>,
     /// Lane de ritmo próprio (Mico). `None` = nenhum site own_pace trabalhado.
     pub(super) mico: Option<Arc<MicoLane>>,
+    /// Descoberta de sitemap plugada pela fiação. `None` = tick não descobre
+    /// e a fila só anda pelo que já estava nela.
+    pub(super) discovery: Option<Arc<dyn SiteDiscovery>>,
+    /// Relógio POR SITE da próxima rodada de descoberta (memória: restart
+    /// descobre uma vez, que é o comportamento correto depois de um deploy).
+    pub(super) discover_next_at: super::discovery_tick::DiscoverClock,
+    /// Rodízio entre os sites que descobrem (um site faminto não pode ser
+    /// preterido por outro com fila grande).
+    pub(super) discover_cursor: Arc<Mutex<usize>>,
 }
 
 impl CrawlMotor {
@@ -163,6 +174,9 @@ impl CrawlMotor {
             pause_until: Arc::new(Mutex::new(0)),
             failure_streak: Arc::new(Mutex::new(0)),
             mico: None,
+            discovery: None,
+            discover_next_at: Arc::new(Mutex::new(HashMap::new())),
+            discover_cursor: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -245,6 +259,15 @@ impl CrawlMotor {
         }
 
         self.ensure_store()?;
+        // Descoberta ANTES do claim: fila vazia é o estado normal de um site
+        // recém-ligado (e o fim da carga inicial), e sem esta chamada o motor
+        // ficava para sempre em `sem-fila` — a fila é alimentada aqui.
+        if let Some(tick) = self.discover_once().await {
+            eprintln!(
+                "[motor] descoberta {}: {} URL(s), +{} nova(s), {} refeita(s), {} req, parcial={}",
+                tick.site, tick.urls, tick.added, tick.refreshed, tick.cost, tick.partial
+            );
+        }
         let limit = self.config.max_parallel.max(1);
         let batch = with_store(self.store.clone(), move |db| db.take_next_batch(limit)).await?;
         if batch.is_empty() {
@@ -322,35 +345,6 @@ impl CrawlMotor {
         .unwrap_or(0);
         if total > 0 {
             eprintln!("[motor] recovery: {total} URLs inflight voltaram para a fila");
-        }
-    }
-
-    /// Fecha a janela de uma hora e zera o custo quando ela vence.
-    async fn roll_hour_window(&self, now: i64) {
-        let mut start = self.hour_started_at.lock().await;
-        if *start == 0 || now - *start >= self.config.hour_window_ms as i64 {
-            *start = now;
-            *self.pages_this_hour.lock().await = 0;
-        }
-    }
-
-    /// Cobra o custo real do lote e auto-pausa após lotes sem entrega.
-    async fn settle_budget(&self, cost: u32, delivered: usize) {
-        if cost > 0 {
-            let mut spent = self.pages_this_hour.lock().await;
-            *spent = spent.saturating_add(cost);
-        }
-        if delivered > 0 {
-            *self.failure_streak.lock().await = 0;
-            return;
-        }
-        let mut streak = self.failure_streak.lock().await;
-        *streak = streak.saturating_add(1);
-        if *streak >= self.config.error_pause_streak.max(1) {
-            // Lotes inteiros sem entrega = Node fora do ar: dorme a janela.
-            *self.pause_until.lock().await = now_ms() + self.config.hour_window_ms as i64;
-            eprintln!("[motor] {streak} lotes sem entrega; auto-pausando a raspagem");
-            *streak = 0;
         }
     }
 

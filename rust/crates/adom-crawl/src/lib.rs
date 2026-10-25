@@ -2,6 +2,8 @@
 //! Divididos por famílias de parser conforme fase C1 do plano de migração.
 
 pub mod br_core;
+// Descoberta nativa (fase 6): sitemap → fila, consumida pelo motor.
+pub mod discovery;
 pub mod flare;
 pub mod gate;
 pub mod http_session;

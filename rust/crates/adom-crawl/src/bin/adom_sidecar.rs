@@ -26,6 +26,7 @@ use std::env;
 use std::process;
 use std::sync::{Arc, Mutex as StdMutex};
 
+use adom_crawl::discovery::{SiteDiscovery, SitemapDiscovery};
 use adom_crawl::gate::{
     FlareProbe, GateExecutor, GateExecutorConfig, GateResolver, HttpGateResolver,
 };
@@ -88,6 +89,14 @@ async fn main() {
     // Teto de pagamentos de portão por hora (custo ~30s de FlareSolverr cada;
     // 0 desliga o executor de fundo).
     let gate_hourly = env_u64("CRAWL_GATE_HOURLY", 4) as u32;
+    // Rodada completa de descoberta do mesmo site: 1 h (o TS descobria a cada
+    // ciclo). Rodada parcial volta no retry curto, não aqui.
+    let discovery_interval_ms = env_u64("CRAWL_DISCOVERY_INTERVAL_MS", 3_600_000);
+    // Prazo da rodada de descoberta: índice + um fetch por sitemap de obra, no
+    // MESMO caminho das páginas (FlareSolverr incluído quando desafiado).
+    let discovery_deadline_ms = env_u64("CRAWL_DISCOVERY_DEADLINE_MS", 300_000);
+    let series_enabled = env_or("CRAWL_SERIES_ENABLED", "true") != "false";
+    let discovery_enabled = env_or("CRAWL_DISCOVERY", "true") != "false";
 
     eprintln!(
         "[adom-sidecar] iniciando — db={}, node={}, port={}, idle_window={}ms, \
@@ -121,6 +130,8 @@ async fn main() {
         max_parallel: max_concurrent as usize,
         delay_ms,
         gate_hourly,
+        discovery_interval_ms,
+        series_enabled,
         ..Default::default()
     };
     // Conecta o PageEngine real (C5): fetch + parser. Sem isto o motor usa
@@ -175,6 +186,22 @@ async fn main() {
     }
     if let Some((_, lane)) = &mico {
         motor = motor.with_mico(lane.clone());
+    }
+    // Descoberta de sitemap: a fila `crawl_url` é alimentada AQUI. Sem ela o
+    // motor drena a fila e para em `sem-fila` para sempre (regressão da fase 6).
+    // O fetcher é a MESMA engine das páginas (sessão cf_clearance quente).
+    if discovery_enabled {
+        let discovery: Arc<dyn SiteDiscovery> = Arc::new(SitemapDiscovery::new(
+            html_engine.clone(),
+            std::time::Duration::from_millis(discovery_deadline_ms.max(1_000)),
+        ));
+        eprintln!(
+            "[adom-sidecar] descoberta: sitemap ligada (intervalo={}ms, prazo={}ms, séries={})",
+            discovery_interval_ms, discovery_deadline_ms, series_enabled
+        );
+        motor = motor.with_discovery(discovery);
+    } else {
+        eprintln!("[adom-sidecar] descoberta: DESLIGADA (CRAWL_DISCOVERY=false)");
     }
     let motor = Arc::new(motor);
 

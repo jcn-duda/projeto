@@ -15,6 +15,8 @@
 //!   ([`MarkResult::from_work`](crate::store::ops::MarkResult)).
 //! - [`loop`] — loop principal: freios, seleção, despacho, prazo duro, entrega.
 //! - [`ingest`] — a costura [`PageIngest`] da ingestão nativa (T3-L3).
+//! - [`discovery_tick`] — a descoberta de sitemap: um site por tick, cursor por
+//!   kind e custo no mesmo teto por hora (fase 6).
 //! - [`deliver`] — a entrega da página concluída (substitui o POST antigo).
 //! - [`gate_pending`] — o fluxo do resultado `GatePending` (post só-com-portão
 //!   do BLUDV): gravação da pendência e fallback de erro retentável.
@@ -32,7 +34,10 @@
 //! dormiria páginas boas por conta de um elo não implementado. O mesmo vale para
 //! a ingestão ausente (`ingest-pendente`).
 
+mod budget;
 mod deliver;
+/// Descoberta de sitemap dentro do tick (alimenta a fila `crawl_url`).
+mod discovery_tick;
 mod gate_pending;
 pub mod ingest;
 pub mod r#loop;
@@ -50,6 +55,7 @@ mod loop_tests;
 mod tests;
 
 // Re-exports para ergonomia.
+pub use discovery_tick::DiscoveryTick;
 pub use ingest::{IngestFuture, PageIngest};
 pub use mico_lane::{MicoLane, OwnPaceReport};
 pub use r#loop::{CrawlMotor, MotorError, TickOutcome};
