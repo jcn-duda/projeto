@@ -1,3 +1,5 @@
+// Limite: o teste de despacho real (nenhum 501 em check/conta) exige o sidecar
+// em 8710; a suíte pina a URL numa porta fechada, então ele fica `test.skip`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -13,7 +15,7 @@ const TEST_KEY = 'chave-de-teste-rust';
 
 config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
 
-test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS', async () => {
+test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async () => {
   const previous = config.debrid.rustServices.slice();
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
@@ -44,9 +46,8 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     const wrapped = withPremiumize(() => debrid.current());
     if (!wrapped) throw new Error('sem adaptador');
     const cached = await wrapped.checkCached('chave', ['h']);
-    const hit = cached instanceof Set ? cached.has('h') : cached.cached.has('h');
-    assert.equal(hit, true);
-    assert.equal(checks, 1);
+    assert.equal(hasHash(cached, 'h'), false, '501 é contrato incompleto');
+    assert.equal(checks, 0, '501 não é segunda pergunta ao TS');
     await assert.rejects(() => wrapped.resolveLink('chave', 'abc'), (err: unknown) => {
       assert.ok(err instanceof RustWriteError);
       return true;
@@ -55,10 +56,7 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     assert.equal(calls, 2);
 
     checks = 0;
-    globalThis.fetch = (async () => new Response(JSON.stringify({ cached: ['abc'], complete: true }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    })) as typeof fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ cached: ['abc'], complete: true }), { status: 200 })) as typeof fetch;
     const again = withPremiumize(() => debrid.current());
     if (!again) throw new Error('sem adaptador');
     const direct = await again.checkCached('chave', ['abc']);
@@ -114,13 +112,11 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     assert.equal(unreachableCount(), unreachableBeforeSkip, 'timeoutMs 0 não é a API caída');
 
     checks = 0;
-    const portedAdapter = useFetch((async () => new Response(JSON.stringify({ error: 'service_not_ported' }), {
-      status: 501,
-    })) as typeof fetch);
+    const portedAdapter = useFetch((async () => new Response(JSON.stringify({ error: 'service_not_ported' }), { status: 501 })) as typeof fetch);
     const unreachableBefore501 = unreachableCount();
     const ported = await portedAdapter.checkCached(TEST_KEY, ['h-501']);
-    assert.equal(checks, 1, 'HTTP 501 da checagem ainda cai no TS');
-    assert.equal(hasHash(ported, 'h-501'), true);
+    assert.equal(checks, 0, 'HTTP 501 não cai mais no TS');
+    assert.equal(hasHash(ported, 'h-501'), false);
     assert.equal(unreachableCount(), unreachableBefore501, 'HTTP 501 não conta a checagem como inacessível');
 
     const playCases: { status: number; body: { kind: string; message: string }; check: (err: unknown) => void }[] = [
@@ -171,9 +167,7 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     const remoteMisses: string[] = [];
     const missCases: { label: string; hash: string; respond: () => Promise<Response> }[] = [
       { label: 'rede', hash: 'h-net', respond: () => Promise.reject(new Error('rede caiu')) },
-      { label: 'HTTP 500', hash: 'h-500',
-        respond: async () => new Response(JSON.stringify({ error: 'other', kind: 'other', message: 'falhou' }), {
-          status: 500, headers: { 'content-type': 'application/json' } }) },
+      { label: 'HTTP 500', hash: 'h-500', respond: async () => new Response(JSON.stringify({ error: 'other', kind: 'other', message: 'falhou' }), { status: 500 }) },
     ];
     for (const spec of missCases) {
       checks = 0;
@@ -214,9 +208,7 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
   if (!adapter) throw new Error('alldebrid ausente');
   const savedTtl = config.debrid.availNegTtl;
   config.debrid.availNegTtl = 3600;
-  const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), {
-    status, headers: { 'content-type': 'application/json' },
-  })) as unknown as typeof fetch;
+  const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
   const remote = (impl: typeof fetch) => wrap(adapter, { token: 'tok', fetchImpl: impl });
   try {
     // Frio que a guarda do delete liberou: a busca seguinte não pinta ⚡ nele.
@@ -256,9 +248,7 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
 test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', async () => {
   const { pullMetrics } = await import('../src/debrid/rust-remote.js');
   const saved = { fetch: globalThis.fetch, native: config.nativeMetrics };
-  const reply = (body: Record<string, number>) => (async () => new Response(JSON.stringify(body), {
-    status: 200, headers: { 'content-type': 'application/json' },
-  })) as unknown as typeof fetch;
+  const reply = (body: Record<string, number>) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
   try {
     config.nativeMetrics = {
       // A 8710 só recebe o token em loopback; o fetch é dublê, nada sai daqui.
@@ -352,7 +342,7 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
 // Fase 3.1: a conta não repete a pergunta quando o serviço já recusou.
 // `fileLink` saiu: não tinha chamador vivo (a medição do cabeçalho por arquivo
 // não existe mais no Node) e a rota `/debrid/files` ficou sem consumidor.
-test('conta: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async () => {
+test('conta: recusa sobe sem segunda pergunta; 501 e queda viram erro', async () => {
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
   const saved = { services: config.debrid.rustServices.slice(), account: adapter.accountStatus, fetch: globalThis.fetch };
@@ -372,13 +362,12 @@ test('conta: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async ()
     await assert.rejects(() => current('a').accountStatus!('k-a'), (err: unknown) => err instanceof AuthError);
     assert.equal(tsAccount, 0, 'recusa do serviço não vira segunda pergunta');
     globalThis.fetch = reply(501, { error: 'service_not_ported' });
-    assert.deepEqual(await current('c').accountStatus!('k-c'), { magnets: 3 });
-    assert.equal(tsAccount, 1, '501 continua caindo no TS');
+    await assert.rejects(() => current('c').accountStatus!('k-c'), (err: unknown) => err instanceof RustWriteError);
     globalThis.fetch = reply(502, { error: 'other' });
     const accountBefore = counter('rust.debrid.account.unreachable');
-    await current('e').accountStatus!('k-e');
+    await assert.rejects(() => current('e').accountStatus!('k-e'), (err: unknown) => err instanceof RustWriteError);
     assert.equal(counter('rust.debrid.account.unreachable') - accountBefore, 1, 'queda da conta é medida');
-    assert.equal(tsAccount, 2, 'sem veredito o TS responde uma vez');
+    assert.equal(tsAccount, 0, 'a conta nunca cai no TS');
   } finally {
     adapter.accountStatus = saved.account;
     globalThis.fetch = saved.fetch;
@@ -395,4 +384,16 @@ test('DEBRID_RUST_SERVICES aceita id com hifen e sem hifen', () => {
   assert.deepEqual(normalizeRustServices(' RealDebrid , TORBOX '), ['realdebrid', 'torbox']);
   assert.deepEqual(normalizeRustServices(''), []);
   assert.deepEqual(normalizeRustServices(undefined), []);
+});
+
+// Contrato da fatia T2-L3: serviço coberto pelo Rust não volta 501 em
+// check/conta. Roda contra o sidecar real (ver limite no topo do arquivo).
+test.skip('serviço coberto não devolve 501 em check/account (exige a 8710)', async () => {
+  const token = process.env.DEBRID_INTERNAL_TOKEN || config.jackett.testToken;
+  const call = (path: string, service: string) => fetch(`http://127.0.0.1:8710${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-indexer-test-token': token },
+    body: JSON.stringify({ service, apiKey: 'k', hashes: ['0'.repeat(40)] }),
+  });
+  for (const service of ['premiumize', 'torbox', 'alldebrid', 'realdebrid'])
+    for (const path of ['/debrid/check', '/debrid/account']) assert.notEqual((await call(path, service)).status, 501, `${service} ${path}`);
 });

@@ -5,6 +5,7 @@ import express from 'express';
 import { createApp, asyncRoute } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
+import { RustWriteError } from '../src/debrid/rust-remote.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
 
 let server: any;
@@ -191,6 +192,39 @@ test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitor
     });
   } finally {
     config.debrid.dashboardAccountTimeoutMs = originalTimeout;
+    config.jackett.testToken = '';
+    await isolatedSrv.close();
+  }
+});
+
+test('ponte do debrid fora do ar: diagnóstico responde o motivo e o painel não morre', async () => {
+  config.jackett.testToken = 'tok-diagnostico-ponte';
+  const isolatedSrv = await createTestServer(createApp().app);
+  try {
+    await withMockFetch([], async () => {
+      const originalAccountStatus = debrid.accountStatus;
+      try {
+        // A conta é nativa: 501/queda sobe como RustWriteError, sem plano B no TS.
+        debrid.accountStatus = (async () => {
+          throw new RustWriteError('debrid rust não leu a conta (ponte fora)');
+        }) as any;
+        const status = await isolatedSrv.request('GET', '/debrid-status.json', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-ponte' },
+        });
+        assert.equal(status.status, 200, 'a rota existe para mostrar o motivo, não 500');
+        assert.equal(status.json.reason, 'debrid-bridge');
+        assert.match(String(status.json.error), /não leu a conta/);
+
+        const panel = await isolatedSrv.request('GET', '/dashboard-status.json?blocos=general', {
+          headers: { 'X-Indexer-Test-Token': 'tok-diagnostico-ponte' },
+        });
+        assert.equal(panel.status, 200, 'o painel segue de pé com a ponte fora');
+        assert.equal(panel.json.general.services.debrid, false);
+      } finally {
+        debrid.accountStatus = originalAccountStatus;
+      }
+    });
+  } finally {
     config.jackett.testToken = '';
     await isolatedSrv.close();
   }

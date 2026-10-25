@@ -4,7 +4,7 @@ import { dispatchDashboardAction } from './dashboard-actions.js';
 import * as brCoverage from '../utils/br-coverage.js';
 import { unavailable, makeStreamTraceHandler } from './stream-trace.js';
 import { computeStatusPayload, accountTimeout } from './dashboard-status-blocks.js';
-import { pullMetrics } from '../debrid/rust-remote.js';
+import { pullMetrics, RustWriteError } from '../debrid/rust-remote.js';
 
 function makeDiagnosticHandlers(services: AppServices) {
   // Último probe de cada resolvedor (/test-resolver.json), SÓ em memória e
@@ -115,7 +115,13 @@ function makeDiagnosticHandlers(services: AppServices) {
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ ok: false, error: admission.error, reason: admission.reason });
     try {
-      const status = await accountTimeout(services, services.debrid.accountStatus()) as any;
+      const status = await accountTimeout(services, services.debrid.accountStatus()).catch((err: unknown) => {
+        // Sem braço nativo (501/queda) a conta é `unavailable`, não 500: a rota
+        // existe para o operador ver o MOTIVO. Recusa do serviço continua
+        // subindo (é veredito do debrid, não falha da ponte).
+        if (err instanceof RustWriteError) return { ok: false, reason: 'debrid-bridge', error: err.message };
+        throw err;
+      }) as any;
       if (status?.service === 'realdebrid') {
         const rd = {
           ledger: services.rdLedger.status(),

@@ -2,9 +2,8 @@
  * Régua dos envelopes da API interna do debrid (8710).
  *
  * Fica fora do `rust-remote.ts` porque os dois métodos (`checkCached`,
- * `accountStatus`) decidem igual: 501 = ainda não portado (o TS é a
- * implementação), erro de conta = o gateway já perguntou ao serviço e o TS não
- * repete, o resto = sem veredito.
+ * `accountStatus`) decidem igual: erro de conta = o gateway já perguntou ao
+ * serviço e o TS não repete; 501 e o resto = sem veredito nativo.
  */
 
 /** Status de play_status → kind. 401 do token interno fica de fora. */

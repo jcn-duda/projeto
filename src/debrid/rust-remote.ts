@@ -1,16 +1,15 @@
 /**
  * Adaptador que fala com a API interna do adom-debrid (127.0.0.1:8710).
  *
- * A checagem só cai no TypeScript quando o Rust responde 501 (ainda não
- * portado). Prazo vencido, rede e 5xx devolvem cache incompleto: o tempo da
- * resposta já foi gasto, e na AllDebrid a checagem é um upload de verdade.
- * Chave recusada, cota e rate limit sobem como o erro do TypeScript, sem
- * segunda pergunta — na checagem, na conta e na lista de arquivos. O play nunca
- * chama o adaptador TypeScript.
+ * O Rust é a implementação — não existe segunda pergunta ao TypeScript. Prazo
+ * vencido, rede, 5xx e 501 devolvem cache incompleto (`known:false`): o tempo
+ * da resposta já foi gasto e, na AllDebrid, a checagem é um upload de verdade.
+ * Chave recusada, cota e rate limit sobem como o erro do TypeScript. O play
+ * nunca chama o adaptador TypeScript.
  */
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
-import type { DebridAdapter } from '../../types/domain.js';
+import type { AccountStatus, DebridAdapter } from '../../types/domain.js';
 import {
   AuthError,
   BlockedError,
@@ -303,8 +302,8 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       adoptBlockedReady(adapter.id, apiKey, remote.json, result.cached);
       return result;
     }
-    // 501 = ainda não portado: o TS é a implementação, não uma segunda pergunta.
-    if (remote.status === 501) return adapter.checkCached(apiKey, hashes, checkOpts);
+    // 501 = sem braço nativo: contrato INCOMPLETO, não segunda pergunta ao TS.
+    if (remote.status === 501) return unchecked();
     const kind = playKind(remote);
     if (kind === 'auth' || kind === 'quota' || kind === 'rate_limit') {
       throw playError(remote, [apiKey, fetchOpts.token]);
@@ -314,14 +313,14 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
     return unchecked();
   };
   if (typeof adapter.accountStatus === 'function') {
-    const accountStatus = adapter.accountStatus.bind(adapter);
     out.accountStatus = async (apiKey) => {
       const remote = await post(opts, '/debrid/account', { service: adapter.id, apiKey });
-      if (remote.ok) return remote.json as Awaited<ReturnType<typeof accountStatus>>;
-      // Conta recusada não ganha segunda pergunta: o gateway já falou com o serviço.
+      if (remote.ok) return remote.json as AccountStatus;
+      // Recusa não ganha segunda pergunta (o gateway já falou com o serviço);
+      // 501 e queda também não: a conta é nativa, o TS não é plano B.
       if (isAccountRefusal(remote)) throw playError(remote, [apiKey, opts.token]);
       if (remote.status !== 501) metrics.count('rust.debrid.account.unreachable');
-      return accountStatus(apiKey);
+      throw new RustWriteError(`debrid rust não leu a conta (${redact(remote.message, [apiKey, opts.token])})`);
     };
   }
   // HMAC (infoHash + S/E + dica w) fica na rota, antes deste POST.

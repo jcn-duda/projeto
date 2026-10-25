@@ -165,8 +165,12 @@ export async function computeStatusPayload(
   // Lazy loaders memoizados por ciclo de requisição
   let memoAccount: Promise<any> | null = null;
   const getAccount = () => {
+    // A conta é NATIVA: sem braço no gateway (501/queda) não há segunda pergunta
+    // ao TS e o painel não pode morrer — `general` segue com `debrid: false`.
     if (!memoAccount) {
-      memoAccount = accountTimeout(services, services.debrid.accountStatus()) as Promise<any>;
+      memoAccount = accountTimeout(services, services.debrid.accountStatus()).catch((err) => ({
+        ok: false, reason: 'debrid-bridge', error: String((err as Error)?.message || err),
+      })) as Promise<any>;
     }
     return memoAccount;
   };
