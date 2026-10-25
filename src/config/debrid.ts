@@ -4,6 +4,22 @@ import { reconcile } from './debrid-reconcile.js';
 import { evictFallback } from './debrid-evict.js';
 import { suppressedRevalidate } from './debrid-suppressed.js';
 
+// Ids aceitos no DEBRID_RUST_SERVICES com hífen (como o serviço se apresenta) e
+// o id curto do registry Rust, que é quem decide o despacho.
+const SERVICE_ALIASES: Record<string, string> = {
+  'real-debrid': 'realdebrid',
+  'debrid-link': 'debridlink',
+  'premiumize-me': 'premiumize',
+  'premiumize.me': 'premiumize',
+};
+
+export function normalizeRustServices(raw: string | undefined): string[] {
+  return list(raw).map((id) => {
+    const short = id.toLowerCase();
+    return SERVICE_ALIASES[short] ?? short;
+  });
+}
+
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.
@@ -13,7 +29,7 @@ export const debrid = () => ({
   // premiumize | realdebrid | alldebrid | torbox | debridlink. Vazio = P2P puro.
   service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
   apiKey: process.env.DEBRID_API_KEY || '',
-  rustServices: list(process.env.DEBRID_RUST_SERVICES).map((id) => id.toLowerCase()),
+  rustServices: normalizeRustServices(process.env.DEBRID_RUST_SERVICES),
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
   // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk

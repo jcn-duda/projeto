@@ -7,6 +7,7 @@ import debrid from '../src/debrid/index.js';
 import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
 import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
+import { normalizeRustServices } from '../src/config/debrid.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
 
@@ -383,4 +384,15 @@ test('conta: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async ()
     globalThis.fetch = saved.fetch;
     config.debrid.rustServices = saved.services;
   }
+});
+
+test('DEBRID_RUST_SERVICES aceita id com hifen e sem hifen', () => {
+  assert.deepEqual(normalizeRustServices('real-debrid,debrid-link,alldebrid'), [
+    'realdebrid',
+    'debridlink',
+    'alldebrid',
+  ]);
+  assert.deepEqual(normalizeRustServices(' RealDebrid , TORBOX '), ['realdebrid', 'torbox']);
+  assert.deepEqual(normalizeRustServices(''), []);
+  assert.deepEqual(normalizeRustServices(undefined), []);
 });

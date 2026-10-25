@@ -2785,4 +2785,4 @@ Step 1).
 | `npm run test:complete` | todos os arquivos listados | **279 arquivos, 2 harnesses** |
 | `npm run lint:lines -- --check` | 0 acima do teto | **655 arquivos, 0 excedentes** |
 | `node scripts/check-rust-lines.mjs` | baseline 0 | **873 fontes, baseline 0** |
-| `cargo test --workspace --locked` | 0 falhas | sem medição local nesta sessão (TS intocado; toda fatia `.rs` reroda o gate) |
+| `cargo test --workspace --locked` | 0 falhas | **146 resultados, 0 falhas** |
