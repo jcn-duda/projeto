@@ -14,6 +14,12 @@
 
 mod index_impl;
 pub use index_impl::NativeReleaseIndex;
+// KV nativo do estado que o Rust passou a possuir (fila/estado do Chupim,
+// posse/proteção do AllDebrid) na MESMA tabela `cache` do `data/cache.db`.
+// Mora no `adom-index` (crate leve) para o `.node` alcançar sem dependência
+// nova; aqui é só o caminho antigo de quem já importa de `adom-store`.
+pub use adom_index::kv;
+pub use adom_index::NativeKv;
 mod magnet_bank;
 mod magnet_db;
 mod meta;

@@ -55,6 +55,7 @@ mod bank;
 mod cache;
 mod catalog;
 mod idx_store;
+mod kv;
 pub use idx_store::{BankRowInput, IdxStore, RecordOptionsInput};
 // Handle do `raw:v1` (dono único Rust, F3): leitura do diagnóstico e clear.
 mod raw_store;
@@ -110,6 +111,8 @@ pub use episode_filter::*;
 pub use episode_matching::*;
 // Ranking de streams e anotação de tamanho: lote da Parte 7 da migração.
 pub use episode_size::*;
+// KV nativo (`NativeKv`) na tabela `cache` do `cache.db`: o Node só espia.
+pub use kv::*;
 // Pré-resolve do protetor BR em lote: só índices aprovados saem pela fronteira.
 pub use pre_resolve::*;
 pub use pt_title_dual::*;

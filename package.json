@@ -337,6 +337,7 @@
     "test/multiwork-pack.test.js",
     "test/named-sequel.test.js",
     "test/native-json.test.js",
+    "test/native-kv.test.js",
     "test/non-feature-release.test.js",
     "test/notify.test.js",
     "test/observability-first.test.js",
