@@ -101,6 +101,18 @@ impl NativeKv {
             .map_err(|err| format!("valor inválido em {key}: {err}"))
     }
 
+    /// Remove a linha (`cache.forget` do Node). `false` = não havia nada.
+    ///
+    /// Necessário para tirar o item da fila e soltar o lease: sem isto só
+    /// restaria gravar um tombstone e esperar o TTL.
+    pub fn forget(&self, key: &str) -> Result<bool, String> {
+        let conn = self.lock();
+        let removed = conn
+            .execute("DELETE FROM cache WHERE key = ?1", params![key])
+            .map_err(|err| err.to_string())?;
+        Ok(removed > 0)
+    }
+
     /// Chaves vivas com o prefixo (`substr`, como o `len` do `RawCacheStore`).
     /// As expiradas que a varredura encontrar saem do banco na mesma passada:
     /// quem lista um namespace também o poda, como o `cache.keys()` do Node.

@@ -1623,7 +1623,66 @@ git commit -m "refactor(store): magnet_work com dono unico e sem escritor TS"
 
 </details>
 
-### T3-L4: estado do Chupim nativo (`adom-autofetch`)
+### T3-L4: estado do Chupim nativo (`adom-autofetch`) — EXECUTADA
+
+**O que o plano especificava:** crate puro sobre o `NativeKv` com fila/hold/
+obra/suppressed/terminal, **sem rede**, com o Node ainda drenando nesta leva.
+
+**Executado:**
+
+- `rust/crates/adom-autofetch` (novo membro do workspace): `state.rs` (chaves,
+  TTLs e registros), `queue.rs` (`AutofetchQueue`: `enqueue`/`entries`/`len`/
+  `take`, `hold`/`put_hold`/`is_held`/`release`, `marker`, `obra`),
+  `suppressed.rs`, `terminal.rs` e `tests/queue_tests.rs` (9 testes).
+- `NativeKv::forget` (em `adom-index`, reexportado por `adom-store`): sem
+  remoção de linha não havia como tirar item da fila nem soltar o lease sem
+  gravar tombstone.
+- Regras invariantes no código: no `enqueue`, `suppressed` → `terminal` → fila,
+  nessa ordem; `hold` DURÁVEL (sobrevive a reabrir o `cache.db`, provado com
+  `tempfile`), ao contrário do `pending`/`searchSlots` de processo do Node;
+  `marker` só no aceite (`release(accepted = true)`) e só para a rodada dona do
+  lease (`run`, senão soltar o lease alheio viraria marca falsa); terminal barra
+  o enqueue por 24 h e libera depois; `suppressed`/`terminal`/`hold` não colidem
+  entre obras (digest com separador).
+
+**Divergências do texto do plano (declaradas):**
+
+1. **Nada foi fiado.** O crate não é importado por nenhum binário: o
+   enfileiramento continua no Node até a T3-L5, então não há mudança de
+   comportamento nesta leva.
+2. **O modelo de chaves é o ALVO, não o do Node.** O Chupim real usa
+   `q:<sha256(searchKey)>` com lista de `QueueCandidate`, `o:`, `m:`, `sup:`,
+   `dead:` e hold em memória. O crate implementa a fila ÚNICA por obra+episódio
+   com lease durável, como o plano manda; as duas metades convivem no mesmo
+   `cache.db` (prefixos distintos) até a T3-L6 apagar o TS.
+3. **`sha1` → `sha256`.** Não há crate de SHA-1 no workspace e hash não se
+   escreve à mão; aqui o papel é encurtar a chave, não autenticar. O registro
+   guarda a identidade inteira (`imdb_id` + S/E), então o painel sempre sabe
+   QUAL obra está suprimida/terminal — a tabela do plano previa só `reason/at`.
+4. **`adrm` não mora no `enqueue`.** A assinatura do plano (`enqueue(imdb, ep)`)
+   não recebe hash; "hash com marca `adrm` é recusado" é regra dos pickers
+   (`first_viable`), como a própria T3-L5 escreve.
+5. **`adom-core` fora do `Cargo.toml`.** Nada das regras portadas é usado
+   ainda; entra na T3-L5, quando gate e pickers passarem a chamá-las.
+6. **Marker sem `id`.** A tabela manda `{at, source}`. O marker do Node guarda
+   o id da transferência (o recheck do Premiumize reencontra o hash por ele): a
+   T3-L6 precisa disso e terá que estender o registro e passar o id do aceite
+   ao `release`.
+7. **Fila sem CAS.** `get_json` + `put_json` não é transação; um escritor por
+   vez (a thread do worker na T3-L5) é premissa documentada no módulo.
+
+**Arquivos (executado):**
+- Create: `rust/crates/adom-autofetch/{Cargo.toml,src/lib.rs,src/state.rs,src/queue.rs,src/suppressed.rs,src/terminal.rs,tests/queue_tests.rs}`
+- Modify: `rust/Cargo.toml` (`members`), `rust/Cargo.lock`,
+  `rust/crates/adom-index/src/kv.rs` (`forget`)
+
+**Provas:** `cargo test -p adom-autofetch` (9 testes + 1 doc-test),
+`cargo fmt --all`, `cargo clippy --workspace --all-targets --locked -- -D
+warnings`, `cargo test --workspace --locked` e `node scripts/check-rust-lines.mjs`
+(945 fontes, 0 acima do teto). Nenhum `.ts` tocado: gates TS não se aplicam.
+
+<details>
+<summary>Plano original (histórico) — tabela de chaves e testes de referência</summary>
 
 Cria o crate puro que guarda fila/hold/obra/suppressed/terminal sobre o
 `NativeKv` (T2-L2). **Nada de rede** — só estado. O Node continua drenando nesta
@@ -1742,6 +1801,8 @@ git add rust/Cargo.toml rust/Cargo.lock rust/crates/adom-autofetch rust/crates/a
 ```powershell
 git commit -m "feat(autofetch): crate de estado nativo sobre o kv do cache.db"
 ```
+
+</details>
 
 ---
 

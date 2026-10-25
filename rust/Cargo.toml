@@ -26,6 +26,9 @@ members = [
     # Índice idx:v14 (SQLite do cache.db): crate leve, sem rede, compartilhado
     # pelo gateway (adom-store) e pelo .node (adom-napi).
     "crates/adom-index",
+    # Estado durável do Chupim (fila/hold/marker/suppressed/terminal) sobre o
+    # `NativeKv`. Crate puro: sem rede; o worker mora no adom-server (T3-L5).
+    "crates/adom-autofetch",
 ]
 resolver = "2"
 

@@ -1,0 +1,18 @@
+[package]
+name = "adom-autofetch"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Estado duravel do Chupim (autofetch) sobre o cache.db: fila, hold, marker, suppressed e terminal. Sem rede."
+license = "UNLICENSED"
+
+# Só estado: `adom-store` entrega o `NativeKv` da tabela `cache`. As regras puras
+# do `adom-core` entram na T3-L5, quando o gate e os pickers passarem a usá-las.
+[dependencies]
+adom-store = { path = "../adom-store" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"

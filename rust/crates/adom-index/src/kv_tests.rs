@@ -15,6 +15,21 @@ fn ttl_zero_persiste_e_expirado_some_na_leitura() {
 }
 
 #[test]
+fn forget_remove_so_a_chave_pedida_e_e_idempotente() {
+    let kv = NativeKv::open_memory().unwrap();
+    kv.put_json("autofetch:v1:q", &json!([]), 0, 1_000).unwrap();
+    kv.put_json("autofetch:v1:hold:x", &json!({}), 0, 1_000)
+        .unwrap();
+
+    assert!(kv.forget("autofetch:v1:q").unwrap());
+    assert!(!kv.forget("autofetch:v1:q").unwrap(), "idempotente");
+    assert!(
+        kv.get_json("autofetch:v1:hold:x", 2_000).unwrap().is_some(),
+        "vizinha de prefixo não é tocada"
+    );
+}
+
+#[test]
 fn keys_matching_por_prefixo_apaga_expirado() {
     let kv = NativeKv::open_memory().unwrap();
     kv.put_json("autofetch:obra:tt1", &json!({"a": 1}), 0, 1_000)
