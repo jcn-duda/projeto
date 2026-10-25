@@ -1,7 +1,7 @@
 // Ações do crawler no painel (Fase 4): dispatch real por /dashboard-action.json
-// (allowlist → confirm → gate) com store em memória. "Reprocessar erros" e
-// "Zerar" vão ao sidecar Rust: aqui um sidecar falso em loopback. Nada toca
-// rede externa, o acervo ou a VPS.
+// (allowlist → confirm → gate) com store em memória. "Reprocessar erros",
+// "Reprocessar sem obra" e "Zerar" vão ao sidecar Rust: aqui um sidecar falso
+// em loopback. Nada toca rede externa, o acervo ou a VPS.
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -23,9 +23,12 @@ const savedCrawl = { ...config.crawl };
 
 const movie = (url: string) => ({ url, lastmod: '2026-01-01', kind: 'movie' as const });
 
-/** Sidecar Rust falso: grava o corpo de cada `/action` e responde como o real. */
+/** Resposta do sidecar falso: status HTTP + corpo (o real recusa com 400/401/500). */
+type FakeReply = { status?: number; body: Record<string, unknown> };
+
+/** Sidecar Rust falso: grava o corpo de cada chamada e responde como o real. */
 async function withFakeSidecar(
-  reply: (body: Record<string, unknown>) => Record<string, unknown>,
+  reply: (body: Record<string, unknown>) => FakeReply,
   fn: (calls: Array<Record<string, unknown>>) => Promise<void>,
 ): Promise<void> {
   const calls: Array<Record<string, unknown>> = [];
@@ -35,8 +38,9 @@ async function withFakeSidecar(
     req.on('end', () => {
       const body = JSON.parse(raw || '{}') as Record<string, unknown>;
       calls.push({ path: req.url, token: req.headers['x-indexer-test-token'], ...body });
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(reply(body)));
+      const out = reply(body);
+      res.writeHead(out.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(out.body));
     });
   });
   await new Promise<void>((resolve) => fake.listen(0, '127.0.0.1', resolve));
@@ -122,7 +126,7 @@ test('crawl-simulate sem adaptador TS responde sem-adaptador e não toca a fila'
 
 test('crawl-reprocess-errors vai ao sidecar (dono do crawl.db) e devolve a resposta dele', async () => {
   await withFakeSidecar(
-    (body) => ({ ok: true, action: body.action, site: body.site, requeued: 3 }),
+    (body) => ({ body: { ok: true, action: body.action, site: body.site, requeued: 3 } }),
     async (calls) => {
       const res = await post({ action: 'crawl-reprocess-errors', site: ' fake ' });
       assert.equal(res.status, 200);
@@ -148,17 +152,70 @@ test('sidecar fora do ar: reprocessar erros é 502 com o motivo', async () => {
   }
 });
 
-test('crawl-reprocess-no-work devolve à fila só o sem obra do site, sem confirm', async () => {
-  store.engine().upsertUrls('fake', [movie('/a'), movie('/b'), movie('/c')], 1);
-  store.engine().markResult('fake', '/a', { status: 'no-work', imdb: null, releases: 0 }, 1);
-  store.engine().markResult('fake', '/b', { status: 'done', imdb: 'tt1', releases: 2 }, 1);
-  store.engine().markResult('fake', '/c', { status: 'no-torrent', imdb: null, releases: 0 }, 1);
-  const res = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
-  assert.equal(res.status, 200, 'não é destrutiva: nada é apagado');
-  assert.equal(res.json.requeued, 1);
-  assert.equal(store.engine().getUrl('fake', '/a')?.status, 'pending');
-  assert.equal(store.engine().getUrl('fake', '/b')?.status, 'done', 'obra identificada fica');
-  assert.equal(store.engine().getUrl('fake', '/c')?.status, 'no-torrent', 'sem torrent não é sem obra');
+test('crawl-reprocess-no-work vai ao sidecar com o corpo {site} e devolve a contagem', async () => {
+  store.engine().upsertUrls('fake', [movie('/a')], 1);
+  await withFakeSidecar(
+    (body) => ({ body: { ok: true, action: 'crawl-reprocess-no-work', site: body.site, requeued: 2, ids: ['/a', '/c'] } }),
+    async (calls) => {
+      const res = await post({ action: 'crawl-reprocess-no-work', site: ' fake ' });
+      assert.equal(res.status, 200, 'não é destrutiva: nada é apagado');
+      assert.equal(res.json.requeued, 2);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].path, '/crawl/reprocess-no-work');
+      assert.equal(calls[0].site, 'fake', 'id sem espaço nas bordas');
+      assert.equal(calls[0].action, undefined, 'a rota nova leva SÓ {site}: sem action/confirm');
+      assert.equal(calls[0].token, TOKEN, 'o token interno vai no header');
+      assert.equal(store.engine().getUrl('fake', '/a')?.status, 'pending',
+        'quem escreve é o sidecar: o Node não toca a fila');
+    },
+  );
+});
+
+test('reprocessar sem obra sem `site` cai no site ativo do motor (o sidecar exige o site)', async () => {
+  await withFakeSidecar(
+    () => ({ body: { ok: true, action: 'crawl-reprocess-no-work', requeued: 0 } }),
+    async (calls) => {
+      const res = await post({ action: 'crawl-reprocess-no-work' });
+      assert.equal(res.status, 200);
+      assert.equal(calls[0]?.site, 'fake', 'o sidecar recusa site vazio: o Node resolve o primeiro do motor');
+    },
+  );
+});
+
+test('400 do sidecar vira erro de validação; 401/500 viram internal_error', async () => {
+  let status = 400;
+  await withFakeSidecar(
+    () => ({ status, body: { ok: false, error: status === 400 ? 'site desconhecido: fake' : 'token inválido' } }),
+    async (calls) => {
+      const bad = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
+      assert.equal(bad.status, 400);
+      assert.equal(bad.json.error, 'validation_error');
+      assert.deepEqual(bad.json.errors, ['site desconhecido: fake'], 'o motivo do sidecar chega ao painel');
+      status = 401;
+      const unauthorized = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
+      assert.equal(unauthorized.status, 502);
+      assert.equal(unauthorized.json.error, 'internal_error');
+      assert.ok(!JSON.stringify(unauthorized.json).includes(TOKEN), 'o token nunca volta ao painel');
+      status = 500;
+      const boom = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
+      assert.equal(boom.status, 502);
+      assert.equal(boom.json.error, 'internal_error');
+      assert.equal(calls.length, 3);
+    },
+  );
+});
+
+test('sidecar fora do ar: reprocessar sem obra é 502 internal_error', async () => {
+  const savedPort = config.crawl.sidecarPort;
+  config.crawl.sidecarPort = 1;
+  try {
+    const res = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
+    assert.equal(res.status, 502);
+    assert.equal(res.json.error, 'internal_error');
+    assert.deepEqual(res.json.errors, ['sidecar não acessível']);
+  } finally {
+    config.crawl.sidecarPort = savedPort;
+  }
 });
 
 test('reprocessar sem obra em site fora do motor é 400 com motivo (não "0 URL(s)" em 200)', async () => {
@@ -170,7 +227,7 @@ test('reprocessar sem obra em site fora do motor é 400 com motivo (não "0 URL(
 
 test('crawl-reset exige confirm e vai ao sidecar só com o site informado', async () => {
   await withFakeSidecar(
-    (body) => ({ ok: true, action: body.action, site: body.site, urls: 7 }),
+    (body) => ({ body: { ok: true, action: body.action, site: body.site, urls: 7 } }),
     async (calls) => {
       const noConfirm = await post({ action: 'crawl-reset', site: 'fake' });
       assert.equal(noConfirm.status, 400);

@@ -38,12 +38,18 @@
 
 mod catalog;
 mod locate;
+// Adaptadores de produção das costuras: TMDB nativo e a ponte admin do
+// `streams.db` do gateway (o sidecar é outro processo).
+mod native;
 // O laço da página (`apply*`) e o SQL dos bancos ficaram em módulos próprios
 // pela catraca de 400 linhas.
 mod page;
 mod record;
 mod store;
 
+#[cfg(test)]
+#[path = "native_tests.rs"]
+mod native_tests;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
@@ -64,6 +70,7 @@ pub use catalog::{
     StreamsInvalidator, WorkKind, WorkNames,
 };
 pub use locate::{page_locations, parse_size_bytes, raw_item, raw_items, PageLocation};
+pub use native::{AdminStreamInvalidator, TmdbCatalog};
 pub use record::Ingest;
 pub use store::{IngestStore, NativeStore};
 
@@ -77,7 +84,11 @@ pub struct CrawlObra {
 }
 
 /// Cerca do passo: `true` = o passo estourou o prazo e não pode mais gravar.
-pub type AbortCheck<'a> = &'a dyn Fn() -> bool;
+///
+/// `Send + Sync` porque o futuro da página roda dentro de `tokio::spawn` no
+/// motor: sem os bounds, o `Ingest::apply_page` deixaria de ser `Send` e o
+/// passo não poderia ser despachado em paralelo.
+pub type AbortCheck<'a> = &'a (dyn Fn() -> bool + Send + Sync);
 
 /// O `options` do `record` do TS (`{ shouldAbort }`).
 ///

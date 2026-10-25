@@ -26,6 +26,7 @@ version = "0.0.0"
 dependencies = [
  "adom-core",
  "adom-search",
+ "adom-sources",
  "adom-store",
  "axum",
  "fancy-regex",

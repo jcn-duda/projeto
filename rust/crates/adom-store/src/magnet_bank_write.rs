@@ -5,6 +5,12 @@
 //! transação e CAS: `last_seen` só avança e `passed_filter` só cede para um lote
 //! de carimbo igual ou mais novo — o lost update da Fase 4.0.4.
 //!
+//! As duas operações de `magnet_work` são também API PÚBLICA de uma linha
+//! (`upsert_work` / `mark_work_filter`, fatia T2-L4): o dono da tabela é este
+//! crate e o escritor TS (`src/utils/magnet-bank-rows.ts`) não tem mais paridade
+//! a manter. O SQL é UM só — as versões em lote e de uma linha compartilham os
+//! helpers (`upsert::upsert_work` e `mark_work_row`).
+//!
 //! As REGRAS de qual linha gravar (merge de `magnet`/`magnet_source`, upgrade de
 //! título, guardrail do item) vivem em `magnet_bank_capture.rs`, pela catraca de
 //! 400 linhas; aqui fica só o SQL.
@@ -13,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use adom_core::{extract_info_hash, magnet_display_name, release_work_targets, WorkTarget};
 use adom_search::RawItem;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde_json::Value;
 
 use super::capture::{self, CaptureRow, SourceRow};
@@ -122,7 +128,72 @@ fn string_of(value: Option<&Value>) -> Option<String> {
     }
 }
 
+/// `UPDATE` de UMA linha de `magnet_work` — a marca do filtro. `last_seen` é
+/// `MAX` e `passed_filter` só cede para uma observação igual ou mais nova que a
+/// linha (CAS contra o lote atrasado).
+///
+/// Devolve `rows_affected`: 0 = a linha não existe (fonte sem captura não cria
+/// obra órfã). Uma implementação só, usada pela marca em lote
+/// (`mark_filter_outcome`) e pela API de uma linha (`mark_work_filter`).
+fn mark_work_row(
+    conn: &Connection,
+    hash: &str,
+    imdb: &str,
+    season: i64,
+    episode: i64,
+    passed: bool,
+    now_ms: i64,
+) -> rusqlite::Result<usize> {
+    conn.execute(
+        "UPDATE magnet_work SET passed_filter = CASE WHEN last_seen <= ?2 THEN ?1 ELSE passed_filter END, \
+         last_seen = MAX(last_seen, ?2) WHERE hash = ?3 AND imdb = ?4 AND season = ?5 AND episode = ?6",
+        params![if passed { 1 } else { 0 }, now_ms, hash, imdb, season, episode],
+    )
+}
+
 impl MagnetBankStore {
+    /// Upsert de UMA linha de `magnet_work` (dono único: `adom-store`).
+    ///
+    /// `first_seen` é fixo, `last_seen` é `MAX` e `passed_filter` NÃO é tocado —
+    /// captura não reabre o filtro; quem escreve 0/1 é `mark_work_filter`. O SQL
+    /// é o MESMO da captura em lote (`magnet_bank_upsert::upsert_work`), sem
+    /// cópia.
+    pub fn upsert_work(
+        &self,
+        hash: &str,
+        imdb: &str,
+        season: i64,
+        episode: i64,
+        last_seen_ms: i64,
+    ) -> Result<(), String> {
+        let mut conn = self.lock();
+        let tx = conn
+            .transaction()
+            .map_err(|err| format!("transação do magnet_work: {err}"))?;
+        upsert_work(&tx, hash, imdb, season, episode, last_seen_ms)
+            .map_err(|err| format!("magnet_work {hash}: {err}"))?;
+        tx.commit()
+            .map_err(|err| format!("commit do magnet_work: {err}"))
+    }
+
+    /// `markBankFilterOutcome` de UMA linha: grava `passed_filter` 1/0 e
+    /// `last_seen` (`MAX`) numa linha que JÁ existe. `false` = nada atualizado
+    /// (linha ausente: fonte sem captura não cria órfão).
+    pub fn mark_work_filter(
+        &self,
+        hash: &str,
+        imdb: &str,
+        season: i64,
+        episode: i64,
+        passed: bool,
+        now_ms: i64,
+    ) -> Result<bool, String> {
+        let conn = self.lock();
+        let rows = mark_work_row(&conn, hash, imdb, season, episode, passed, now_ms)
+            .map_err(|err| format!("magnet_work {hash}: {err}"))?;
+        Ok(rows == 1)
+    }
+
     /// `captureItems` + `applyOps`/`writeBatch`: grava a leva da busca NATIVA —
     /// `magnet`, `magnet_source` e `magnet_work` — em UMA transação (ou entra
     /// tudo, ou nada).
@@ -243,13 +314,10 @@ impl MagnetBankStore {
                 .filter(|list| list.len() > 1)
                 .unwrap_or_else(|| vec![request]);
             for (season, episode) in list {
-                let passed = if surviving.contains(hash) { 1 } else { 0 };
-                let result = tx.execute(
-                    "UPDATE magnet_work SET passed_filter = CASE WHEN last_seen <= ?2 THEN ?1 ELSE passed_filter END, \
-                     last_seen = MAX(last_seen, ?2) WHERE hash = ?3 AND imdb = ?4 AND season = ?5 AND episode = ?6",
-                    params![passed, now_ms, hash, ctx.imdb_id, season, episode],
-                );
-                if result.is_err() {
+                let passed = surviving.contains(hash);
+                // Mesmo SQL da API de uma linha: linha ausente é no-op (0 linhas).
+                if mark_work_row(&tx, hash, &ctx.imdb_id, season, episode, passed, now_ms).is_err()
+                {
                     return false;
                 }
             }

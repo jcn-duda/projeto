@@ -13,7 +13,8 @@
 // casos de homônimo em que a identificação importa. O ano entra como filtro
 // LOCAL de tolerância ±1 sobre os candidatos, e candidato SEM ano legível
 // quando a página TEM ano é descartado, não aceito. Nome estrito e
-// ambiguidade são decisão do `crawl-identify` — nunca desta camada.
+// ambiguidade são decisão da ingestão nativa (`adom-crawl::ingest`) — nunca
+// desta camada.
 //
 // CONTRATO DE PRAZO — background-only, inegociável: este módulo NÃO tem
 // `deadlineAt` e não deve ter. Cada chamada usa `AbortSignal.timeout` fixo

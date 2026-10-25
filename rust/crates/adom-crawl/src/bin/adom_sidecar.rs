@@ -167,6 +167,12 @@ async fn main() {
         None => html_engine.clone(),
     };
     let mut motor = CrawlMotor::new(config.clone()).with_page_engine(engine);
+    // Ingestão NATIVA (T3-L3): a página é gravada no processo (banco vivo →
+    // índice → invalidação). Sem ela o motor fica em `ingest-pendente` e não
+    // reivindica URL — o POST antigo para o Node não existe mais.
+    if let Some(ingest) = adom_crawl::sidecar::production_ingest() {
+        motor = motor.with_ingest(ingest);
+    }
     if let Some((_, lane)) = &mico {
         motor = motor.with_mico(lane.clone());
     }

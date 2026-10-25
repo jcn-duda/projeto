@@ -44,7 +44,8 @@ async fn post_so_gate_vira_pendencia_sem_entrega_ao_node() {
     let posts = Arc::new(AtomicUsize::new(0));
     let node = node_falso(posts.clone()).await;
     let motor = CrawlMotor::new(config(caminho, &node))
-        .with_page_engine(Arc::new(EngineGateFake { sem_href: true }));
+        .with_page_engine(Arc::new(EngineGateFake { sem_href: true }))
+        .with_ingest(Arc::new(FakeIngest::delivered()));
 
     let outcome = motor.tick_once().await.expect("tick");
     assert_eq!(
@@ -90,7 +91,8 @@ async fn gate_pendente_sem_href_vira_erro_retentavel() {
     let posts = Arc::new(AtomicUsize::new(0));
     let node = node_falso(posts.clone()).await;
     let motor = CrawlMotor::new(config(caminho, &node))
-        .with_page_engine(Arc::new(EngineGateFake { sem_href: false }));
+        .with_page_engine(Arc::new(EngineGateFake { sem_href: false }))
+        .with_ingest(Arc::new(FakeIngest::delivered()));
 
     motor.tick_once().await.expect("tick");
     let (status, tries, next_at) = ler_linha(caminho, "filme-sem-gate");

@@ -25,6 +25,10 @@ pub use adom_index::NativeKv;
 pub mod integrity;
 mod magnet_bank;
 mod magnet_db;
+// API de UMA linha de `magnet_work` (fatia T2-L4): o CAS que sobrevive à saída
+// do escritor TS (`src/utils/magnet-bank-rows.ts`).
+#[cfg(test)]
+mod magnet_work_tests;
 mod meta;
 mod raw;
 mod streams;

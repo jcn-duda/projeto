@@ -2,7 +2,6 @@ import express from 'express';
 import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
-import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
 import { registerInternalDebridHolds } from './internal-debrid-holds.js';
@@ -60,7 +59,8 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/magnet-bank-export', bankTransfer.exportBank);
   app.post('/magnet-bank-import', bankTransfer.importBank);
   // Rotas internas do sidecar Rust (C4): antes do /:userConfig, sem config.
-  registerInternalCrawlResult(app, services);
+  // O `/internal/crawl-result` saiu na T3-L3: a ingestão da página é nativa no
+  // sidecar (o motor grava no processo e nada é postado para cá).
   registerInternalActivity(app, services);
   // Leituras internas de busca (F1.1): o orquestrador Rust consome metadados e
   // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.

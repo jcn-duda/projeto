@@ -19,6 +19,7 @@ use crate::mico_discovery::MicoCrawlConfig;
 use crate::mico_net::api::{MicoApi, MicoFuture};
 use crate::mico_net::types::{CatalogPage, CatalogType, MicoError};
 use crate::mico_page::{MicoPageEngine, RoutedPageEngine};
+use crate::motor::ingest::test_support::FakeIngest;
 use crate::motor::mico_lane::MicoLane;
 use crate::motor::r#loop::{CrawlMotor, TickOutcome};
 use crate::motor::types::{MotorConfig, PageEngine, PageFuture, PageOutcome};
@@ -132,7 +133,8 @@ impl PageEngine for EngineProibida {
     }
 }
 
-/// Node falso: freio de tráfego com `recent` fixo + contador de entregas.
+/// Node falso: freio de tráfego com `recent` fixo + contador de POSTs antigos
+/// (tem de ficar em ZERO: a página agora é ingerida no processo).
 async fn node(recent: bool, entregas: Arc<AtomicUsize>) -> String {
     let app = axum::Router::new()
         .route(
@@ -159,13 +161,19 @@ async fn entrega(
     Json(serde_json::json!({ "ok": true, "kept": 0, "added": 0 }))
 }
 
-/// Monta o motor com a lane ligada e o roteador own_pace → engine do Mico.
-fn motor_com_lane(cfg_motor: MotorConfig, api: Arc<FakeApi>) -> CrawlMotor {
+/// Monta o motor com a lane ligada, o roteador own_pace → engine do Mico e a
+/// ingestão (sem ela a lane não reivindica).
+fn motor_com_lane(
+    cfg_motor: MotorConfig,
+    api: Arc<FakeApi>,
+    ingest: Arc<FakeIngest>,
+) -> CrawlMotor {
     let lane_cfg = config_lane();
     let page = Arc::new(MicoPageEngine::new(api.clone(), &lane_cfg));
     let engine = RoutedPageEngine::new(Arc::new(EngineProibida), page);
     CrawlMotor::new(cfg_motor)
         .with_page_engine(Arc::new(engine))
+        .with_ingest(ingest)
         .with_mico(Arc::new(MicoLane::new(api, lane_cfg)))
 }
 
@@ -193,7 +201,8 @@ async fn own_pace_ignora_teto_ociosidade_e_vagas() {
     let node = node(true, entregas.clone()).await;
 
     let api = Arc::new(FakeApi::nova());
-    let motor = motor_com_lane(config_freada(caminho, &node), api.clone());
+    let ingest = Arc::new(FakeIngest::delivered());
+    let motor = motor_com_lane(config_freada(caminho, &node), api.clone(), ingest.clone());
     assert!(motor.own_pace_ready());
 
     // Banco vazio: a descoberta nativa enfileira e o MESMO passo já trabalha.
@@ -204,8 +213,13 @@ async fn own_pace_ignora_teto_ociosidade_e_vagas() {
         .expect("lane ligada");
     assert_eq!(rel.discovered, 1, "catálogo com uma obra virou uma URL");
     assert_eq!(rel.claimed, 1, "a linha foi reivindicada no mesmo passo");
-    assert_eq!(rel.delivered, 1, "o Node aceitou a entrega");
-    assert_eq!(entregas.load(Ordering::SeqCst), 1);
+    assert_eq!(rel.delivered, 1, "a ingestão aceitou a página");
+    assert_eq!(ingest.calls(), 1, "a página foi ingerida no processo");
+    assert_eq!(
+        entregas.load(Ordering::SeqCst),
+        0,
+        "o POST /internal/crawl-result não acontece mais"
+    );
 
     let (status, releases) = linha(caminho, "mico", "/crawl/movie/tt0133093");
     assert_eq!(status, "done");
@@ -220,7 +234,7 @@ async fn own_pace_ignora_teto_ociosidade_e_vagas() {
     // Passo seguinte, sem descoberta vencida e sem fila: nada é refeito.
     let rel2 = motor.own_pace_once().await.expect("lane").expect("ligada");
     assert_eq!((rel2.discovered, rel2.claimed), (0, 0));
-    assert_eq!(entregas.load(Ordering::SeqCst), 1, "nada reentregue");
+    assert_eq!(ingest.calls(), 1, "nada reingerido");
 }
 
 /// A descoberta respeita o intervalo: só a primeira rodada gasta catálogo.
@@ -231,7 +245,11 @@ async fn descoberta_nao_repete_dentro_do_intervalo() {
     let caminho = db.to_str().unwrap();
     let node = node(false, Arc::new(AtomicUsize::new(0))).await;
     let api = Arc::new(FakeApi::nova());
-    let motor = motor_com_lane(config_freada(caminho, &node), api.clone());
+    let motor = motor_com_lane(
+        config_freada(caminho, &node),
+        api.clone(),
+        Arc::new(FakeIngest::delivered()),
+    );
 
     motor.own_pace_once().await.expect("1º passo");
     let depois_da_descoberta = api.chamadas();
@@ -288,6 +306,7 @@ async fn descoberta_de_serie_vira_url_de_serie() {
     let engine = RoutedPageEngine::new(Arc::new(EngineProibida), page);
     let motor = CrawlMotor::new(config_freada(caminho, &node))
         .with_page_engine(Arc::new(engine))
+        .with_ingest(Arc::new(FakeIngest::delivered()))
         .with_mico(Arc::new(MicoLane::new(api.clone(), cfg)));
 
     // A série é descoberta; o passe a lê (meta ausente = erro retentável, sem

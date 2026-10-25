@@ -13,9 +13,15 @@
 // `crawl-site-config-set`, `crawl-site-config-reset`) recebem `site` no corpo e
 // age SÓ naquele site; sem `site`, elas caem no site ATIVO (o que o painel está
 // mostrando), nunca "o primeiro da lista" às cegas.
+//
+// T3-L3: o sidecar Rust passou a ter rota própria para as ações que ainda
+// pediam o motor local — `crawl-reprocess-no-work` vira
+// `POST /crawl/reprocess-no-work` com `{ site }`. O Node não abre o `crawl.db`
+// para agir: só resolve o alvo e transporta.
 import type express from 'express';
 import type { AppServices } from './types.js';
 import { maxFromBody } from './dashboard-actions-shared.js';
+import { knownSites } from '../utils/crawler-live-schema.js';
 import config from '../config.js';
 
 type ActionDeps = {
@@ -27,14 +33,19 @@ type ActionDeps = {
 
 type CrawlAction = (deps: ActionDeps) => Promise<express.Response> | express.Response;
 
-/** Encaminha uma ação destrutiva ao sidecar Rust via HTTP. Fail-open: se o
- * sidecar não responde, devolve 502 com o motivo (não crash). */
-async function forwardToSidecar(
-  services: AppServices,
-  action: string,
-  body: Record<string, unknown>,
-): Promise<{ ok: boolean; sidecarError?: string; result?: Record<string, unknown> }> {
-  const url = `http://127.0.0.1:${config.crawl.sidecarPort}/action`;
+/** Resposta do sidecar: `ok` decide o ramo, `status` o mapeamento de erro,
+ * `error` traz o motivo do envelope `{ok:false,error}` quando houve. */
+type SidecarReply = {
+  ok: boolean;
+  status: number;
+  sidecarError?: string;
+  error?: string;
+  result?: Record<string, unknown>;
+};
+
+/** `POST` no sidecar (loopback + mesmo token/timeout). Fail-open: nunca lança. */
+async function postToSidecar(path: string, payload: Record<string, unknown>): Promise<SidecarReply> {
+  const url = `http://127.0.0.1:${config.crawl.sidecarPort}${path}`;
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -42,17 +53,48 @@ async function forwardToSidecar(
         'Content-Type': 'application/json',
         ...(config.jackett.testToken ? { 'X-Indexer-Test-Token': config.jackett.testToken } : {}),
       },
-      body: JSON.stringify({ action, ...body }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });
     if (resp.ok) {
-      const result = await resp.json() as Record<string, unknown>;
-      return { ok: true, result };
+      const result = await resp.json().catch(() => null) as Record<string, unknown> | null;
+      if (result) return { ok: true, status: resp.status, result };
+      return { ok: false, status: resp.status, sidecarError: 'sidecar respondeu corpo inválido' };
     }
-    return { ok: false, sidecarError: `sidecar respondeu HTTP ${resp.status}` };
-  } catch (err) {
-    return { ok: false, sidecarError: 'sidecar não acessível' };
+    const body = await resp.json().catch(() => null) as Record<string, unknown> | null;
+    return {
+      ok: false,
+      status: resp.status,
+      sidecarError: `sidecar respondeu HTTP ${resp.status}`,
+      ...(typeof body?.error === 'string' ? { error: body.error } : {}),
+    };
+  } catch {
+    return { ok: false, status: 0, sidecarError: 'sidecar não acessível' };
   }
+}
+
+/** Encaminha uma ação do `/action` ao sidecar Rust. Fail-open: se o sidecar não
+ * responde, devolve 502 com o motivo (não crash). */
+function forwardToSidecar(action: string, body: Record<string, unknown>): Promise<SidecarReply> {
+  return postToSidecar('/action', { action, ...body });
+}
+
+/**
+ * Falha da ponte na ação por site: 400 é erro do PEDIDO (validação, o sidecar
+ * recusou o `site`) e vira 400 `validation_error`; 401/500/transporte são falha
+ * da ponte e viram 502 `internal_error`. Só a mensagem do envelope do sidecar
+ * viaja para o painel — o token nunca sai daqui.
+ */
+function sidecarFailed(
+  services: AppServices, res: express.Response, action: string, site: string, fwd: SidecarReply,
+): express.Response {
+  const message = fwd.error ?? fwd.sidecarError ?? 'sidecar recusou o pedido';
+  if (fwd.status === 400) {
+    services.metrics.count('dashboard.crawl.reprocess.rejected');
+    return res.status(400).json({ ok: false, action, site, error: 'validation_error', errors: [message] });
+  }
+  services.metrics.count('dashboard.crawl.reprocess.sidecar-error');
+  return res.status(502).json({ ok: false, action, site, error: 'internal_error', errors: [message] });
 }
 
 /** `site` do corpo: string limpa, ou `''` (o handler decide o alvo). */
@@ -91,7 +133,7 @@ export const crawlReprocessErrors: CrawlAction = async ({ services, req, res, ac
   // Mesmo tratamento das outras ações por site: id sem espaços nas bordas.
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
   // O sidecar Rust é o dono do `crawl.db` dos nove sites: a ação vai a ele.
-  const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
+  const fwd = await forwardToSidecar(action, { confirm: Boolean(req.body?.confirm), site });
   if (!fwd.ok) {
     services.metrics.count('dashboard.crawl.reprocess.sidecar-error');
     return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
@@ -114,20 +156,27 @@ function rejectReprocess(
 }
 
 /** "Reprocessar sem obra": `no-work` do site volta à fila (não é destrutiva:
- * nada é apagado, a página só é raspada e identificada de novo). */
-export const crawlReprocessNoWork: CrawlAction = ({ services, req, res, action }) => {
-  const site = siteFromBody(req) || undefined;
-  const result = services.crawler.reprocessNoWork(site);
-  if (!result.ok) return rejectReprocess(services, res, action, result);
+ * nada é apagado, a página só é raspada e identificada de novo). A escrita é
+ * do sidecar; aqui só se resolve o alvo (o sidecar EXIGE `site`: ele não tem
+ * "primeiro site configurado") e se transporta o `{ site }`. */
+export const crawlReprocessNoWork: CrawlAction = async ({ services, req, res, action }) => {
+  const known = knownSites(services.crawlerLive.effective());
+  // Sem `site` no corpo, o alvo é o site ativo do motor (o primeiro da lista),
+  // como era na ação local — nunca um id inventado.
+  const site = siteFromBody(req) || known[0] || '';
+  if (!site) return rejectReprocess(services, res, action, { site: null, reason: 'sem-site' });
+  if (!known.includes(site)) return rejectReprocess(services, res, action, { site, reason: 'site-desconhecido' });
+  const fwd = await postToSidecar('/crawl/reprocess-no-work', { site });
+  if (!fwd.ok) return sidecarFailed(services, res, action, site, fwd);
   services.metrics.count('dashboard.crawl.reprocess.noWork');
-  services.log.info(`[dashboard] sem obra da raspagem reprocessadas: ${result.requeued} URL(s) (${result.site})`);
-  return res.json({ action, ...result });
+  services.log.info(`[dashboard] sem obra reprocessadas (sidecar Rust): ${fwd.result?.requeued ?? 0} URL(s) (${site})`);
+  return res.json({ action, ...fwd.result });
 };
 
 export const crawlReset: CrawlAction = async ({ services, req, res, action }) => {
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
   // O sidecar Rust é o dono do `crawl.db` dos nove sites: a ação vai a ele.
-  const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
+  const fwd = await forwardToSidecar(action, { confirm: Boolean(req.body?.confirm), site });
   if (!fwd.ok) {
     services.metrics.count('dashboard.crawl.reset.sidecar-error');
     return res.status(502).json({ ok: false, action, error: fwd.sidecarError });

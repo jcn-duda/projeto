@@ -3,8 +3,8 @@
 // fallback do caminho nativo: metadados (Cinemeta+TMDB). A COLETA não passa
 // mais por aqui: desde o R5 ela é 100% nativa no gateway Rust.
 //
-// SEM config na URL: montada ANTES de /:userConfig em register.ts, junto das
-// rotas do sidecar (`internal-crawl-result`/`internal-activity`). O usuário vem
+// SEM config na URL: montada ANTES de /:userConfig em register.ts, junto da
+// rota do sidecar (`internal-activity`). O usuário vem
 // no CORPO (`encoded`), decodificado aqui e executado dentro de `runtime.run` —
 // invariante 5: a preferência do usuário nunca vem do `.env`.
 //
@@ -33,7 +33,7 @@ export { isLoopbackAddress } from './internal-search-shared.js';
 
 // Guarda compartilhada: ver irmãos (extraídos pela catraca de linhas).
 
-/** Colaboradores trocáveis em teste (mesmo padrão de internal-crawl-result). */
+/** Colaboradores trocáveis em teste (mesmo padrão das rotas internas do sidecar). */
 export interface InternalSearchCollaborators {
   getMeta: typeof getMeta;
   getTitles: typeof getTitles;

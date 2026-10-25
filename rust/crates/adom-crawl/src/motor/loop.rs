@@ -5,8 +5,13 @@
 //! parser nenhum, conhece a trait.
 //!
 //! Um tick: pausa global → auto-pausa → teto por hora (custo REAL) → freio do
-//! usuário → parser ligado? → `take_next_batch(max_parallel)` → uma `spawn` por
-//! linha com `timeout(step_deadline_ms)` → POST ao Node → `mark_result`.
+//! usuário → parser ligado? → INGESTÃO ligada? → `take_next_batch(max_parallel)`
+//! → uma `spawn` por linha com `timeout(step_deadline_ms)` → ingestão nativa
+//! (T3-L3) → `mark_result`.
+//!
+//! A página NÃO é mais postada em `/internal/crawl-result`: quem grava é o
+//! [`Ingest`](crate::ingest::Ingest) injetado (banco vivo → índice → invalidação),
+//! pelo adaptador [`PageIngest`](super::ingest::PageIngest).
 //!
 //! As regras puras de decisão (backoff, status, esgotamento de `tries`) estão em
 //! [`MarkResult::from_work`](crate::store::ops::MarkResult), ao lado do
@@ -15,8 +20,9 @@
 
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, Duration, Instant};
 
+use super::ingest::PageIngest;
 use super::mico_lane::MicoLane;
 use super::types::{
     error_work, now_ms, CrawlResultStatus, MotorConfig, MotorStatus, PageEngine, PageOutcome,
@@ -25,7 +31,7 @@ use super::types::{
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;
 use crate::site_profiles::all_site_ids;
-use crate::store::ops::{CrawlStore, MarkResult, StoreError, UrlRow};
+use crate::store::ops::{CrawlStore, MarkResult, UrlRow};
 
 /// Erro fatal do motor — só persistência. Rede/entrega são log, não erro.
 #[derive(Debug)]
@@ -53,15 +59,16 @@ pub enum TickOutcome {
     Processed { claimed: usize, delivered: usize },
 }
 
-/// Store compartilhado entre o tick e as tasks: `rusqlite::Connection` é `Send`
-/// (não `Sync`), então o `Mutex` padrão é o que permite o `spawn_blocking`.
-pub(super) type StoreHandle = Arc<StdMutex<Option<CrawlStore>>>;
+/// Store compartilhado entre o tick e as tasks; o tipo e o acesso vivem em
+/// `store_handle.rs` (catraca) e são reexportados aos módulos irmãos.
+pub(super) use super::store_handle::{with_store, StoreHandle};
 
 /// O que cada task precisa: tudo `Arc`/`Clone` para ir dentro do `spawn`.
 #[derive(Clone)]
 pub(super) struct BatchCtx {
     pub(super) engine: Arc<dyn PageEngine>,
-    pub(super) http: Arc<SidecarHttpClient>,
+    /// Quem grava a página concluída no processo. Montado UMA vez pela fiação.
+    pub(super) ingest: Option<Arc<dyn PageIngest>>,
     pub(super) store: StoreHandle,
     pub(super) cfg: MotorConfig,
 }
@@ -72,15 +79,18 @@ pub(super) struct TaskReport {
     pub(super) delivered: bool,
 }
 
-/// Uma task = uma URL: engine com prazo duro → POST → `mark_result`.
+/// Uma task = uma URL: engine com prazo duro → ingestão → `mark_result`.
 pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
     let deadline = Duration::from_millis(ctx.cfg.step_deadline_ms.max(1_000));
-    let outcome = match tokio::time::timeout(deadline, ctx.engine.execute(&row)).await {
+    // A MESMA cerca vale para as duas metades do passo: a engine para de ler e
+    // a ingestão para de gravar quando o prazo estoura.
+    let deadline_at = Instant::now() + deadline;
+    let outcome = match tokio::time::timeout_at(deadline_at, ctx.engine.execute(&row)).await {
         Ok(o) => o,
         // Prazo duro: a geração é invalidada e a linha vira erro retentável.
         Err(_) => PageOutcome::TimedOut,
     };
-    let work = match outcome {
+    let mut work = match outcome {
         PageOutcome::Work(w) => *w,
         PageOutcome::Failed(msg) => {
             eprintln!("[motor] {} {}: {}", row.site, row.url_key, msg);
@@ -101,14 +111,10 @@ pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
         return super::gate_pending::handle_gate_pending(&ctx, &row, &work).await;
     }
 
-    let delivered = match ctx.http.post_crawl_result(&work).await {
-        Ok(()) => true,
-        // Fail-open: o Node fora do ar não apaga o trabalho da página.
-        Err(e) => {
-            eprintln!("[motor] entrega recusada {}: {e}", row.url_key);
-            false
-        }
-    };
+    // Substitui o `POST /internal/crawl-result`: gravar nos dois caminhos
+    // duplicaria a página. `delivered` mantém a semântica antiga (retentável →
+    // backoff).
+    let delivered = super::deliver::deliver_page(&ctx, &row.site, &mut work, deadline_at).await;
 
     let mark = MarkResult::from_work(&row, &work, delivered, &ctx.cfg, now_ms());
     let (site, url_key, cost) = (row.site.clone(), row.url_key.clone(), work.request_cost);
@@ -119,32 +125,14 @@ pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
     TaskReport { cost, delivered }
 }
 
-/// Roda uma operação de SQLite fora da thread do runtime async.
-pub(super) async fn with_store<T, F>(store: StoreHandle, f: F) -> Result<T, MotorError>
-where
-    T: Send + 'static,
-    F: FnOnce(&CrawlStore) -> Result<T, StoreError> + Send + 'static,
-{
-    let dentro = tokio::task::spawn_blocking(move || -> Result<T, MotorError> {
-        let guard = store
-            .lock()
-            .map_err(|e| MotorError::StoreError(format!("lock do store: {e}")))?;
-        let db = guard
-            .as_ref()
-            .ok_or_else(|| MotorError::StoreError("crawl.db não está aberto".into()))?;
-        f(db).map_err(|e| MotorError::StoreError(e.to_string()))
-    })
-    .await
-    .map_err(|e| MotorError::StoreError(format!("spawn_blocking: {e}")))?;
-    dentro
-}
-
 /// Motor do raspador — loop principal.
 pub struct CrawlMotor {
     pub(super) config: MotorConfig,
     pub(super) http: Arc<SidecarHttpClient>,
     pub(super) engine: Arc<dyn PageEngine>,
     pub(super) store: StoreHandle,
+    /// Ingestão nativa plugada pela fiação. `None` = tick não reivindica URL.
+    pub(super) ingest: Option<Arc<dyn PageIngest>>,
     running: Arc<Mutex<bool>>,
     global_paused: Arc<Mutex<bool>>,
     pages_this_hour: Arc<Mutex<u32>>,
@@ -166,6 +154,7 @@ impl CrawlMotor {
             config,
             http,
             engine: Arc::new(UnwiredPageEngine),
+            ingest: None,
             store: Arc::new(StdMutex::new(None)),
             running: Arc::new(Mutex::new(false)),
             global_paused: Arc::new(Mutex::new(false)),
@@ -248,6 +237,11 @@ impl CrawlMotor {
         // Sem parser não se toca na fila: todo `mark_result` consome `tries`.
         if !self.engine.is_ready() && !self.config.degraded_write {
             return Ok(TickOutcome::Skipped("parser-pendente"));
+        }
+        // Sem ingestão também não se toca na fila: entregar a página sem quem
+        // grave queimaria `tries` de toda URL (o POST antigo não existe mais).
+        if !self.ingest_ready() {
+            return Ok(TickOutcome::Skipped("ingest-pendente"));
         }
 
         self.ensure_store()?;

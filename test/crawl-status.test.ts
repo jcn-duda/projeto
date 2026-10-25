@@ -15,6 +15,8 @@ const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
 const { PROBE_STATE_KEY } = await import('../src/providers/crawl-probe-gate.js');
 const { buildCrawlerStatus, buildSiteStatus, legacyView, STATUS_LIST_LIMIT } = await import('../src/providers/crawl-status.js');
+const { refreshCursorsView } = await import('../src/providers/crawl-cursor-load.js');
+const { stubFetch } = await import('./helpers/stub.js');
 
 const savedCrawl = { ...config.crawl };
 
@@ -338,5 +340,49 @@ describe('crawl-status: custo e limites das consultas', () => {
       store.resetForTests();
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// T3-L3: o `crawl.db` é do sidecar. A vista do card deixou de ler o banco e
+// passou a ser a última resposta de `GET /crawl/cursor?site=<id>`; o status é
+// síncrono, então a leitura roda em fundo e o fallback local cobre a espera.
+describe('cursorsView: o cursor do card vem da ponte com o sidecar', () => {
+  test('GET por site, com token; a vista da ponte vence o cursor do crawl.db', async () => {
+    freshCrawl({ sites: ['fake'] });
+    store.engine().setState('fake', 'cursor:movie', '2026-01-01');
+    const savedToken = config.jackett.testToken;
+    config.jackett.testToken = 'tok-cursor';
+    const stub = stubFetch(() => ({
+      ok: true, status: 200,
+      json: async () => ({ ok: true, site: 'fake', movie: '2026-09-01', tv_show: '2026-09-05' }),
+    }));
+    try {
+      await refreshCursorsView('fake');
+      const card = crawler.status().sites.find((s) => s.id === 'fake');
+      assert.deepEqual(card?.cursors, { movie: '2026-09-01', tv_show: '2026-09-05' });
+      assert.equal(stub.calls[0]?.url, `http://127.0.0.1:${config.crawl.sidecarPort}/crawl/cursor?site=fake`);
+      const headers = stub.calls[0]?.options.headers as Record<string, string>;
+      assert.equal(headers['X-Indexer-Test-Token'], 'tok-cursor', 'mesmo token das rotas vizinhas');
+    } finally {
+      stub.restore();
+      config.jackett.testToken = savedToken;
+    }
+  });
+
+  test('ponte fora do ar (500 ou rede): o card cai na leitura local, sem quebrar o painel', async () => {
+    freshCrawl({ sites: ['fake'] });
+    store.engine().setState('fake', 'cursor:movie', '2026-08-01');
+    store.engine().setState('fake', 'cursor:tv_show', '2026-08-02');
+    const local = { movie: '2026-08-01', tv_show: '2026-08-02' };
+    const sqlite = stubFetch(() => ({ ok: false, status: 500, json: async () => ({ ok: false, error: 'sqlite' }) }));
+    try {
+      await refreshCursorsView('fake');
+      assert.deepEqual(crawler.status().sites.find((s) => s.id === 'fake')?.cursors, local, '500 → fallback');
+    } finally { sqlite.restore(); }
+    const down = stubFetch(() => { throw new Error('ECONNREFUSED'); });
+    try {
+      await refreshCursorsView('fake');
+      assert.deepEqual(crawler.status().sites.find((s) => s.id === 'fake')?.cursors, local, 'sem resposta → fallback');
+    } finally { down.restore(); }
   });
 });

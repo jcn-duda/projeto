@@ -98,7 +98,7 @@ impl IngestHarness {
         site: &str,
         page: &CrawlWorkResult,
         now_ms: i64,
-        abort: &dyn Fn() -> bool,
+        abort: &(dyn Fn() -> bool + Send + Sync),
     ) -> Result<PageReport, IngestError> {
         let ingest = Ingest::new(
             self.store.clone(),

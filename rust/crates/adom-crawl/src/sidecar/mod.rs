@@ -11,6 +11,8 @@ pub mod activity;
 pub mod admin;
 pub mod http_client;
 pub mod server;
+/// Composição de produção das costuras (ingestão nativa do T3-L3).
+pub mod wiring;
 
 #[cfg(test)]
 mod admin_tests;
@@ -18,3 +20,4 @@ mod admin_tests;
 pub use activity::recent_user_traffic;
 pub use http_client::{SidecarHttpClient, SidecarHttpError};
 pub use server::{run as run_server, AppState};
+pub use wiring::production_ingest;

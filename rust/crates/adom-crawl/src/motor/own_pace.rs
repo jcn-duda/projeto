@@ -31,11 +31,15 @@ impl CrawlMotor {
 
     /// UM passo da lane, sem agendar — o gancho determinístico dos testes.
     ///
-    /// Devolve `None` quando não há lane ligada.
+    /// Devolve `None` quando não há lane ligada (ou sem ingestão: sem quem
+    /// grave, o passo só queimaria `tries` da página).
     pub async fn own_pace_once(&self) -> Result<Option<OwnPaceReport>, MotorError> {
         let Some(lane) = self.mico.clone() else {
             return Ok(None);
         };
+        if !self.ingest_ready() {
+            return Ok(None);
+        }
         self.ensure_store()?;
         Ok(Some(lane.step(&self.batch_ctx()).await?))
     }
@@ -46,6 +50,11 @@ impl CrawlMotor {
         let Some(lane) = self.mico.clone() else {
             return;
         };
+        // A página do Mico passa pelo MESMO `run_one`, que agora ingere: sem
+        // ingestão o passo não pode reivindicar (queimaria `tries`).
+        if !self.ingest_ready() {
+            return;
+        }
         if !lane.try_enter() {
             return; // passo anterior ainda em curso
         }
@@ -63,11 +72,11 @@ impl CrawlMotor {
         });
     }
 
-    /// Contexto de execução de UMA linha (engine + entrega + store + config).
+    /// Contexto de execução de UMA linha (engine + ingestão + store + config).
     pub(super) fn batch_ctx(&self) -> BatchCtx {
         BatchCtx {
             engine: self.engine.clone(),
-            http: self.http.clone(),
+            ingest: self.ingest.clone(),
             store: self.store.clone(),
             cfg: self.config.clone(),
         }

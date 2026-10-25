@@ -6,21 +6,22 @@
 // - `status()`: cards, catálogo e contadores lidos do `crawl.db` (o mesmo banco
 //   que o sidecar escreve) — o bloco `crawl` junta a foto do sidecar por cima;
 // - `setPaused()`: pausa manual global/por site, guardada no runtime do card;
-// - as ações locais (`crawl-actions.ts`): "reprocessar sem obra" e a
-//   simulação, que sem adaptador TS responde `sem-adaptador`. "Reprocessar
-//   erros" e "Zerar site" vão ao sidecar (`dashboard-actions-crawl.ts`).
+// - as ações locais (`crawl-actions.ts`): a simulação, que sem adaptador TS
+//   responde `sem-adaptador`. "Reprocessar sem obra", "Reprocessar erros" e
+//   "Zerar site" vão ao sidecar (`dashboard-actions-crawl.ts`).
 //
-// O `start()` só faz a limpeza one-shot de `simulated` (resto do dry-run do
-// motor TS, que o sidecar não tem); a retomada de `inflight` é do próprio
-// sidecar no boot dele.
+// O `start()` só PEDE ao sidecar a limpeza one-shot de `simulated` (resto do
+// dry-run do motor TS, que o sidecar não tem) via
+// `POST /crawl/requeue-simulated`; a retomada de `inflight` é do próprio
+// sidecar no boot dele. O Node não escreve mais no `crawl.db`.
+import config from '../config.js';
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import type { CrawlEngine } from '../utils/crawl-store.js';
-import * as recovery from './crawl-recovery.js';
 import { buildCrawlerStatus, type CrawlSiteRuntimeView, type CrawlerStatusInput } from './crawl-status.js';
 import { createCrawlActions } from './crawl-actions.js';
 import * as registry from './crawl-sites/registry.js';
-import { cursorsView } from './crawl-cursor-load.js';
+import { cursorsView, _resetForTest as resetCursorsView } from './crawl-cursor-load.js';
 import { knownSites, siteConfigOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import { readVerdict, probeGate } from './crawl-probe-gate.js';
 import {
@@ -47,6 +48,29 @@ function siteIds(): string[] {
 }
 
 /**
+ * Pedido ao sidecar (dono do `crawl.db`) para devolver à fila a linha
+ * `simulated` de um dry-run antigo do motor TS. FIRE-AND-FORGET de propósito: o
+ * boot do Node não pode falhar (nem atrasar) porque o sidecar não respondeu —
+ * quem escreve no banco é ele, e repetir o pedido é no-op.
+ */
+function requeueSimulatedInSidecar(site: string): void {
+  const url = `http://127.0.0.1:${config.crawl.sidecarPort}/crawl/requeue-simulated`;
+  void fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(config.jackett.testToken ? { 'X-Indexer-Test-Token': config.jackett.testToken } : {}),
+    },
+    body: JSON.stringify({ site }),
+    signal: AbortSignal.timeout(config.crawl.sidecarStatusTimeoutMs),
+  }).then((resp) => {
+    if (!resp.ok) log.debug(`[crawl] requeue-simulated de ${site}: sidecar respondeu HTTP ${resp.status}`);
+  }).catch(() => {
+    // sidecar fora do ar: silêncio (o sidecar devolve a fila sozinho no boot).
+  });
+}
+
+/**
  * Boot: linha `simulated` de um dry-run antigo do motor TS volta a `pending`
  * para o sidecar gravá-la. Idempotente (tocar só `simulated` repete como no-op)
  * e só com o site ativo e o dry-run desligado — a mesma condição de antes.
@@ -61,7 +85,7 @@ function start(): void {
   }
   for (const id of siteIds()) {
     const cfg = siteConfigOf(live, id);
-    if (cfg.enabled && cfg.dryRun === false) recovery.requeueSimulated(id);
+    if (cfg.enabled && cfg.dryRun === false) requeueSimulatedInSidecar(id);
   }
   log.info('[crawl] sidecar Rust é dono de todos os sites; o Node serve status e ações do painel');
 }
@@ -178,6 +202,7 @@ export function _resetForTest(): void {
   started = false;
   paused = false;
   runtimes.clear();
+  resetCursorsView();
 }
 
 export { start, status, setPaused, simulate, reprocessNoWork };
