@@ -521,6 +521,25 @@ declarar `true` sem endpoint funcional é o pior dos mundos.
 | Real-Debrid | ⚠️ dinâmico | `rdLedger.enabled && rdOracle.available()`. Com as duas, o `current()` do registry devolve `true` num clone; senão `false` (sem consulta; o play adiciona o magnet) |
 | Debrid-Link | `false` | idem |
 
+**A ponte nativa (`src/debrid/rust-remote.ts`).** O `wrap()` substitui
+`checkCached`/`resolveLink` e, quando o adaptador tem, `accountStatus` por
+chamadas à API interna do debrid em `127.0.0.1:8710` (`X-Indexer-Test-Token`;
+`DEBRID_INTERNAL_URL`/`DEBRID_INTERNAL_TOKEN` só sobrescrevem o default de
+endereço/token). **`501` não é mais "ainda
+não portado"**: na checagem devolve `unchecked()` — `cached` vazio e
+`complete:false`, que vira `known:false` — porque o prazo da resposta já foi
+gasto e, na AllDebrid, repetir a pergunta custaria outro upload real; na conta
+sobe `RustWriteError`, sem segunda pergunta ao TS. Só `auth`/`quota`/`rate_limit`
+(`isAccountRefusal`, `rust-remote-kinds.ts`) sobem como erro do serviço — recusa
+é veredito do debrid, não falha da ponte. Falha sem veredito (fora recusa e
+501) conta `rust.debrid.check.unreachable` (uma por checagem) e
+`rust.debrid.account.unreachable` (o 501 não conta), e a conta sem veredito
+sempre termina em `RustWriteError`. `GET /debrid-status.json`
+(`src/routes/diagnostics.ts`) responde **200** com
+`{ok:false, reason:'debrid-bridge', error}` nesse caso, e o bloco `general` do
+painel (`src/routes/dashboard-status-blocks.ts`, `getAccount`) também não deixa
+o erro da conta subir: marca `debrid:false` e os outros blocos seguem.
+
 **Banco de magnets por conta (`src/utils/magnetdb.ts`).** Histórico durável POR
 HASH, escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
 nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada; a família
@@ -1551,6 +1570,20 @@ nova viável, `failed` em falha real; em todos
 (e só o `brProbe` furava o gate de inatividade; `next-episode` volta a ser preemptível) — e
 renova o lease.
 
+**Preempção intradrain por rank.** Além da preempção por tráfego, uma obra NOVA
+de rank maior aceita no `enqueue` acorda o `Inner::preempt`
+(`harvest/enqueue.rs`, `PreemptSignal::outranks`, que compara com o rank da obra
+em voo) e o `serve.rs` derruba o future do `drain_one` no `tokio::select!` — a
+fila não espera o último indexer. `finish_preempted` devolve a entrada à CABEÇA
+com `resumed:true` (a intenção efetiva do slot: motivo, flag `brProbe` e FULL
+pendente; `enqueuedAt` é o ORIGINAL), debita só `take_spent()` (as consultas já
+gastas), renova o lease da sonda (`settler.note_preempted`, só quando
+`br_probe`) e **não** roda o `Settler::settle`: preempção não é desfecho de
+falha. O rank em voo é lido/escrito sob o lock da fila
+(`Inner::set_inflight_rank`/`current_inflight_rank`) porque o enqueue decide por
+ele; a MESMA obra em voo coalesce e não preempta. Cobertura:
+`harvest/preempt_tests.rs`.
+
 Na política F1 do pool seeds, `br-probe-pending` é bloqueio **transitório**: barra seleção (`seedsSelectionBlock`),
 **o fallback PERSISTIDO** (`pickLowerPoolFallbacks`), despacho (`autoFetchBrDubbed`) e dreno (`deferFn` do
 `takeDrainCandidate`) **mantendo/deferindo a fila, nunca purgando**. `dubbedOnly` continua barrando seeds
@@ -1687,6 +1720,21 @@ compartilhado mais abaixo.
 | L1+L2 streams | `streams:v21:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
+
+**O KV nativo (`NativeKv`).** É o mesmo desenho do
+`RawCacheStore`: um store no `adom-index` (`rust/crates/adom-index/src/kv.rs`)
+sobre a tabela `cache` do `data/cache.db`, com o schema e a semântica de TTL do
+`cache` do Node (`ttl_seconds <= 0` = permanente; expirado é apagado na leitura).
+Mora no `adom-index` e não no `adom-store` porque o `.node` já depende do crate
+leve; o `adom-store` só reexporta (`pub use adom_index::{kv, NativeKv}`). O
+binding napi é a classe `NativeKv` de `rust/crates/adom-napi/src/kv.rs`
+(`get_json`/`keys_matching`/`put_json`) e a ponte de LEITURA do Node é
+`src/utils/native-kv.ts` (`kvPeek`/`kvKeys`): abre o mesmo `config.cache.dbPath`
+(`:memory:` quando `CACHE_PERSIST=false`), não mantém L1 e não regrava no
+SQLite. A escrita é do gateway/worker; hoje não há consumidor de produção — só
+o tipo do `rust-core.ts` e o teste (`test/native-kv.test.ts`), e o cabeçalho do
+módulo declara como dono a fila/estado do Chupim e a posse/proteção do
+AllDebrid.
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou
@@ -2691,6 +2739,16 @@ Vaca a 1 req/página, o NerdFilmes (página de série, ~9) aparecia com 1 h no
 lugar das 9 h. Site sem custo medido não pega o do vizinho: ETA `null` com
 `etaBasis` explícito, nunca um número emprestado de outra obra.
 
+**Identificação TMDB: o porte Rust existe, a fiação NÃO.**
+`rust/crates/adom-sources/src/tmdb/` tem a busca por título (`search.rs`), o
+veredito (`identify.rs`) e o cache próprio (`search_cache.rs`), com
+`TmdbClient::identify` público. Mas o corte para aí: o `adom-crawl` não declara
+`adom-sources` no `Cargo.toml`, nenhum consumidor de produção chama
+`TmdbClient::identify` (só os testes do crate), e quem identifica o post
+continua sendo `src/providers/crawl-identify.ts`, consumido por
+`src/routes/internal-crawl-result.ts`. Não trate a identificação do crawl como
+portada; a fiação e a remoção do TS não aconteceram.
+
 ---
 
 ## Os seis invariantes que mais quebram
@@ -2984,6 +3042,7 @@ fire-and-forget) continua.
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot do Chupim), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
+| `src/providers/crawl-identify.ts` | Identificação do post do crawl (título original, ano, temporada) — ainda TS: o porte em `adom-sources::tmdb` não está fiado no `adom-crawl` |
 | ~~`src/providers/collect-orchestrator.ts`~~ | **Removido no R5.** A coleta é nativa (cinco fontes + conta); `POST /internal/search/collect` e `NodeCollector` saíram. `collection-budget`/`collection-window`/`source-selection` e `stream-file-evidence` foram junto |
 | ~~`src/providers/search-index-path.ts`~~ | **Removido no R4.** Índice/banco têm dono único no Rust; `POST /internal/search/index|index-write|fallback` saíram |
 | ~~`src/providers/magnet-bank-instant.ts`~~ | **Removido no R4.** Instantânea/reserva 📦 e a leitura do índice são nativas (`adom-search/orchestrator/fast_path.rs`, `index_source.rs`, `native_index.rs`) |
@@ -3000,6 +3059,7 @@ fire-and-forget) continua.
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
 | `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): fachada sobre o `IdxStore` (Rust) — record/lookup/status; o que faz o addon responder sem Jackett |
 | `src/utils/release-index-store.ts` | Handle único do `IdxStore` (napi), criado sob demanda; `clearIdxStore()` para a limpeza do namespace |
+| `src/utils/native-kv.ts` | Ponte de LEITURA do `NativeKv` (napi) sobre a tabela `cache` do `cache.db`: `kvPeek`/`kvKeys`, sem L1 e sem escrita no SQLite |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
 | `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
 | `src/providers/jackett.ts` | **APAGADO (Fase 5)**: consulta, cache `raw`, breaker e resolução Cardigann são nativos (`adom-sources::jackett`); `jackett-catalog.ts` e `indexer-status.ts` ficaram |
@@ -3021,6 +3081,7 @@ fire-and-forget) continua.
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
 | `src/debrid/index.ts` | Registry + seleção por request + checagem com teto dinâmico + inventário |
+| `src/debrid/rust-remote.ts` | Ponte do adaptador para a API interna do debrid (`127.0.0.1:8710`): `501` na checagem = `known:false` (`unchecked()`), na conta = `RustWriteError` — sem segunda pergunta ao TS |
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
 | `src/debrid/common.ts` | `magnetFor`/`magnetForPlay` (URI rica do banco via `magnet-bank.lookup`, com fallback ao magnet padrão), fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |

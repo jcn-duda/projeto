@@ -270,11 +270,18 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   cache" (lista passa sem ⚡, `cachedOnly` ignorado, passe tardio refaz).
   `unusable` (`auth`/`quota`) → lista volta como P2P, sem autofetch nem refresh.
   `partial:false` não prova que o debrid foi perguntado (`debridKnown`).
+- **Checagem e conta vêm da ponte nativa** (`src/debrid/rust-remote.ts`, API
+  8710), não do corpo TS do adaptador. `501` não é mais "ainda não portado": na
+  checagem devolve `unchecked()` (`known:false`, o prazo da resposta já foi
+  gasto) e na conta sobe `RustWriteError` — não existe segunda pergunta ao TS.
+  Recusa do serviço (`auth`/`quota`/`rate_limit`) segue subindo como o erro dele.
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
   resolução: TorBox e AllDebrid leem na checagem. Nome sem resolução →
   medição do cabeçalho: AllDebrid por `/link/unlock`, outros por `adapter.fileLink`.
 - **"Sumiu o ⚡ de todos" quase nunca é bug de código**: veja
-  `/debrid-status.json` (teto de magnets, chave recusada, prazo).
+  `/debrid-status.json` (teto de magnets, chave recusada, prazo). Sem veredito
+  da ponte ele responde **200** com `reason:'debrid-bridge'` (não 500) e o bloco
+  `general` do painel marca `debrid:false` sem derrubar o resto.
 - **AllDebrid**: checar cache = `/magnet/upload` real, não abortável → a checagem
   também limpa (`dropUncached`/`dropReady`). Nunca limpar: hash do autofetch
   (`protected.ts`), preexistente do usuário (`knownBefore`) e, com inventário
@@ -347,6 +354,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   lê o `raw` pela ponte napi (`raw-store-native.ts`, diagnóstico) e o `harvest`
   pela admin do gateway.
 - **`idx:v14` tem um dono só (o Rust).** O Node acessa por `IdxStore` (napi síncrono, `src/utils/release-index-store.ts`) e não grava o `idx:` no L1 nem no SQLite. O boot não carrega nem apaga linhas `idx`; `cache.clear()` e `clearNamespace('idx')` chamam o Rust. Não há `INDEX_OWNER=node`: rollback = commit/imagem anterior. Diagnóstico de chave exata: `idxHasKey` (no TS) e `hasKey` (napi).
+- **KV de estado Rust-owned: `NativeKv`** (tabela `cache` do mesmo
+  `data/cache.db`): store em `rust/crates/adom-index/src/kv.rs`, binding napi na
+  classe `NativeKv` (`adom-napi/src/kv.rs`), reexportado pelo `adom-store`. O
+  Node só LÊ (`src/utils/native-kv.ts`, `kvPeek`/`kvKeys`): sem L1 e sem gravar
+  no SQLite — a escrita é do gateway/worker. Ainda sem consumidor vivo.
 - SWR só serve lista completa, `debridKnown` e com stream **tocável** (aviso não
   conta). Hit de `raw` não pinta o card de status.
 - **Addon responde do próprio índice** quando ele cobre a obra (Jackett vira
@@ -363,7 +375,12 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   drena a fila `harvest:v1:q` no MESMO `data/cache.db` do Node (schema `cache`
   idêntico, zero migração) com Jackett, metadados, índice e banco nativos — as
   mesmas fontes do `/stream`. Guardas no tick: desligado → pausado → inflight →
-  tráfego recente (só sonda) → fila vazia → teto `HARVEST_MAX_HOUR`. Fila,
+  tráfego recente (só sonda) → fila vazia → teto `HARVEST_MAX_HOUR`.
+  **Preempção intradrain**: obra NOVA de rank maior aceita no enqueue derruba o
+  future do drain em voo (`serve.rs`); a entrada volta à cabeça com
+  `resumed:true`, só as consultas já gastas são debitadas e o lease da sonda
+  renova (`settler.note_preempted`) — preempção não é falha. O rank em voo é
+  lido sob o lock da fila (`Inner::set_inflight_rank`). Fila,
   dedupe 12h (`harvest:v1:seen:<sha>`), balde horário (`harvest:v1:hour`) e
   `br-probe` são do Rust; o namespace `harvest` é **RUST_OWNED** no Node (não
   carrega no L1, não grava no SQLite). O painel e os efeitos falam pela admin do
@@ -437,6 +454,12 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   conta 1 requisição no custo da página; desafio persistente é erro, sem laço. Pelo
   Flare o sitemap do Yoast volta como **tabela HTML (viewer)**, não XML: o
   `parseSitemapEntries` cai em `parseViewerEntries` (`vaca-sitemap-viewer.ts`).
+- **Identificação TMDB ainda é do TS.** O porte Rust existe em
+  `rust/crates/adom-sources/src/tmdb/` (`search.rs`, `identify.rs`,
+  `search_cache.rs`; `TmdbClient::identify` é público), mas NÃO está fiado: o
+  `adom-crawl` não depende de `adom-sources` e quem identifica é
+  `src/providers/crawl-identify.ts`, consumido por
+  `src/routes/internal-crawl-result.ts`. O corte não aconteceu.
 - Config por site no painel (`siteOverrides`); sites do painel nascem desligados.
 
 ---
@@ -495,9 +518,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do `dub-audit` (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
 | Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`; fila e worker do colhedor são do gateway (`adom-harvest`), o Node só tem a ponte `src/utils/harvest-native.ts` |
-| Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |
-| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |
-| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `sign.ts`, `deadline.ts`…) |
+| Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*`; a identificação ainda é `crawl-identify.ts`, consumida por `src/routes/internal-crawl-result.ts` |
+| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710) |
+| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |

@@ -891,6 +891,27 @@ git add rust/crates/adom-store rust/crates/adom-harvest rust/crates/adom-server/
 git commit -m "feat(store): quick_check, quarentena e status degradado"
 ```
 
+> **Nota de execução (2026-10-24).** Entregue em `8bf3d1cb`. Dois desvios
+> deliberados da spec:
+>
+> - **`MagnetDbStore` não quarentena.** Ele é read-only sobre o `cache.db`
+>   escrito pelo Node: renomear deixaria o Node gravando num inode órfão e
+>   criaria um `cache.db` novo e vazio. O `open_read_only_checked` só marca
+>   `degraded`, loga e responde o motivo; a recuperação fica com quem abre
+>   gravável.
+> - **O helper é parametrizado pelo schema** (`open_quarantined(path, schema)`),
+>   porque dois esquemas diferentes (`streams.db` e o `cache` do colhedor)
+>   compartilham a quarentena. O `adom-harvest` não depende de `adom-store`,
+>   então mantém um espelho documentado no próprio crate.
+>
+> Riscos residuais: (a) `HarvestStore::open` quarentena o `cache.db`
+> compartilhado — só é seguro com o gateway subindo antes do Node; no Windows,
+> se o Node estiver segurando o arquivo, o rename falha e o `open` devolve erro
+> em vez de degradar; (b) `StreamsStore::degraded()` ainda não tem consumidor no
+> gateway (só teste/log); (c) `GET /harvest` sem worker reporta
+> `degraded:false`, então a causa de um `spawn` que devolveu `None` se perde
+> nesse ramo.
+
 ### T2-L3: fase 3 residual — apagar os corpos TS inalcançáveis
 
 **Files:**
@@ -1062,6 +1083,33 @@ cd ..
 git add src rust test package.json
 git commit -m "refactor(crawl): ingestao e recorder nativos e fim do crawl-result Node"
 ```
+
+> **Nota de execução (2026-10-24).** Entregue pela metade, em dois commits, e a
+> **fiação ainda não aconteceu**:
+>
+> - `d0cdcf12` — `adom-crawl/src/ingest/` (7 arquivos, 13 testes): porte de
+>   `record` com a ordem do TS (`shouldAbort` → catálogo → filtro → captura →
+>   `flushBarrier` → índice → `br_transition` → invalidação) e uma costura
+>   `ObraCatalog` para o TMDB. `NativeStore::flush()` devolve `true` porque
+>   `capture_items` já commita; a barreira existe pela costura.
+> - `6946dfd7` — rotas administrativas no sidecar: `POST
+>   /crawl/requeue-simulated`, `POST /crawl/reprocess-no-work`, `GET|POST
+>   /crawl/cursor`. `site` é obrigatório (o TS caía no primeiro site
+>   configurado; o sidecar recusa em vez de chutar). O cursor grava no
+>   `crawl_state`, mas o motor ainda não o consome.
+> - `46c05767` — `adom-sources` passa a reexportar busca/identify/TmdbSearchApi
+>   em `lib.rs`; era o que faltava para o `adom-crawl` poder fiar o TMDB (o
+>   `#[allow(unused_imports)]` do `tmdb/mod.rs` saiu junto).
+>
+> **O que falta para fechar a T3-L3:** fiar `Ingest::apply_many` no motor/
+> sidecar com `NativeStore::from_env()` e o deadline mapeado em `should_abort`;
+> consumo do cursor pela descoberta; trocar as três chamadas do Node
+> (`dashboard-actions-crawl.ts`, `crawler.ts`, `crawl-cursor-load.ts`) pelas
+> rotas novas; **só então** apagar `crawl-recorder.ts`, `magnet-bank-hook.ts`,
+> `crawl-store*`, `crawl-recovery.ts`, `crawl-actions.ts`, `crawl-cursor*`,
+> `internal-crawl-result.ts` e `crawl-identify.ts` (com as entradas de
+> `testFiles`). Nenhum TS foi apagado nesta leva, de propósito: apagar antes da
+> fiação derrubaria a ingestão.
 
 ---
 
