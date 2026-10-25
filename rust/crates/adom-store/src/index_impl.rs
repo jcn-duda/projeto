@@ -7,7 +7,7 @@ use adom_core::{BankRow, InstantSource, InstantWork, WorkTarget};
 use adom_search::orchestrator::{
     BankFilterCtx, IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource,
 };
-use adom_search::ReleaseEntry;
+use adom_search::{RawItem, ReleaseEntry};
 use serde_json::Value;
 
 use crate::magnet_bank::{MagnetBankStore, WorkCtx};
@@ -155,6 +155,25 @@ impl MagnetBankSource for MagnetBankStore {
 
     fn has_br_row(&self, imdb: &str, targets: &[WorkTarget]) -> bool {
         MagnetBankStore::has_br_row(self, imdb, targets)
+    }
+
+    fn capture_items(
+        &self,
+        items: &[RawItem],
+        source: &str,
+        ctx: &BankFilterCtx,
+        now_ms: i64,
+    ) -> Result<usize, String> {
+        self.capture_items(
+            items,
+            source,
+            &WorkCtx {
+                imdb_id: ctx.imdb_id.clone(),
+                season: ctx.season,
+                episode: ctx.episode,
+            },
+            now_ms,
+        )
     }
 }
 

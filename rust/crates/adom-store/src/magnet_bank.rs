@@ -13,10 +13,11 @@
 //!   (`passed_filter DESC, last_seen DESC`; fontes sem ORDER BY, como lá);
 //! - **escreve** o resultado do filtro de título (`markBankFilterOutcome`):
 //!   `passed_filter` 1/0 e `last_seen` das linhas que JÁ existem, por hash e por
-//!   alvo (a obra do pedido + os packs que o título declara).
-//!
-//! Captura (`captureItems`) continua no Node: quem alimenta o acervo é a coleta
-//! viva (nativa desde a R5, sem rota interna). Este store NÃO inventa linha.
+//!   alvo (a obra do pedido + os packs que o título declara);
+//! - **captura** (`captureItems`) o lote que a coleta viva viu, em UMA
+//!   transação: o acervo passou a ser alimentado no fim da busca NATIVA (o
+//!   efeito `magnet_capture` do Node não existe mais). As regras de qual linha
+//!   gravar vivem em `magnet_bank_capture.rs`; o SQL, em `magnet_bank_write.rs`.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -27,6 +28,12 @@ use rusqlite::{params, Connection};
 
 #[path = "magnet_bank_write.rs"]
 mod write;
+// Regras puras da captura (`inputFromItem` + merges), separadas pela catraca.
+#[path = "magnet_bank_capture.rs"]
+mod capture;
+// SQL do upsert das três tabelas (também separado pela catraca).
+#[path = "magnet_bank_upsert.rs"]
+mod upsert;
 
 pub use write::WorkCtx;
 

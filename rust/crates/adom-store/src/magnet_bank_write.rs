@@ -1,16 +1,23 @@
-//! Escrita do acervo (markBankFilterOutcome): passed_filter 1/0 e last_seen nas
-//! linhas que JÁ existem, por hash e por alvo.
+//! Escrita do acervo: a captura da busca (`captureItems`) e a marca do filtro
+//! (`markBankFilterOutcome`).
 //!
 //! Separado da leitura (worksForObraMany/sourcesForMany) porque é a parte com
-//! CAS: last_seen só avança e passed_filter só cede para um lote de carimbo
-//! igual ou mais novo — o lost update da Fase 4.0.4.
+//! transação e CAS: `last_seen` só avança e `passed_filter` só cede para um lote
+//! de carimbo igual ou mais novo — o lost update da Fase 4.0.4.
+//!
+//! As REGRAS de qual linha gravar (merge de `magnet`/`magnet_source`, upgrade de
+//! título, guardrail do item) vivem em `magnet_bank_capture.rs`, pela catraca de
+//! 400 linhas; aqui fica só o SQL.
 
 use std::collections::{HashMap, HashSet};
 
 use adom_core::{extract_info_hash, magnet_display_name, release_work_targets, WorkTarget};
+use adom_search::RawItem;
 use rusqlite::params;
 use serde_json::Value;
 
+use super::capture::{self, CaptureRow, SourceRow};
+use super::upsert::{upsert_magnet, upsert_source, upsert_work};
 use super::{tuple, MagnetBankStore};
 
 /// Contexto da escrita do filtro (`markBankFilterOutcome`).
@@ -116,6 +123,97 @@ fn string_of(value: Option<&Value>) -> Option<String> {
 }
 
 impl MagnetBankStore {
+    /// `captureItems` + `applyOps`/`writeBatch`: grava a leva da busca NATIVA —
+    /// `magnet`, `magnet_source` e `magnet_work` — em UMA transação (ou entra
+    /// tudo, ou nada).
+    ///
+    /// Devolve quantos itens passaram pelo guardrail da captura (item de conta,
+    /// de reserva, foto do índice e item sem hash ficam de fora), não quantas
+    /// linhas mudaram.
+    ///
+    /// É I/O síncrono de SQLite: chame no FIM da busca, DEPOIS de montar a
+    /// resposta, e trate o `Err` como log — o usuário não espera o disco.
+    pub fn capture_items(
+        &self,
+        items: &[RawItem],
+        source: &str,
+        ctx: &WorkCtx,
+        now_ms: i64,
+    ) -> Result<usize, String> {
+        let mut magnets: Vec<CaptureRow> = Vec::new();
+        let mut magnet_at: HashMap<String, usize> = HashMap::new();
+        let mut sources: Vec<SourceRow> = Vec::new();
+        let mut source_at: HashMap<(String, String), usize> = HashMap::new();
+        let mut works: Vec<(String, i64, i64)> = Vec::new();
+        let mut work_at: HashSet<(String, i64, i64)> = HashSet::new();
+        let request = WorkTarget {
+            season: ctx.season,
+            episode: ctx.episode,
+        };
+        let mut accepted = 0usize;
+        for item in items {
+            let Some(row) = capture::capture_row(item, source) else {
+                continue;
+            };
+            accepted += 1;
+            let hash = row.hash.clone();
+            let src = capture::source_row(&row);
+            let key = (src.hash.clone(), src.indexer.clone());
+            match source_at.get(&key).copied() {
+                Some(at) => {
+                    let prev = sources[at].clone();
+                    sources[at] = capture::merge_source(prev, &src);
+                }
+                None => {
+                    source_at.insert(key, sources.len());
+                    sources.push(src);
+                }
+            }
+            match magnet_at.get(&hash).copied() {
+                Some(at) => {
+                    let prev = magnets[at].clone();
+                    magnets[at] = capture::merge_inputs(prev, row);
+                }
+                None => {
+                    magnet_at.insert(hash.clone(), magnets.len());
+                    magnets.push(row);
+                }
+            }
+            if ctx.imdb_id.is_empty() {
+                continue;
+            }
+            // A obra do PEDIDO nunca se perde; pack de temporada/série completa
+            // acrescenta a obra declarada (mesma régua do release-index).
+            let dn = item.dn();
+            let dn = (!dn.is_empty()).then_some(dn.as_str());
+            for target in release_work_targets(item.title_text(), request, dn, "") {
+                let (season, episode) = tuple(target.season, target.episode);
+                let pair = (hash.clone(), season, episode);
+                if work_at.insert(pair.clone()) {
+                    works.push(pair);
+                }
+            }
+        }
+        let mut conn = self.lock();
+        let tx = conn
+            .transaction()
+            .map_err(|err| format!("transação da captura: {err}"))?;
+        for row in &magnets {
+            upsert_magnet(&tx, row, now_ms).map_err(|err| format!("magnet {}: {err}", row.hash))?;
+        }
+        for row in &sources {
+            upsert_source(&tx, row, now_ms)
+                .map_err(|err| format!("magnet_source {}: {err}", row.hash))?;
+        }
+        for (hash, season, episode) in &works {
+            upsert_work(&tx, hash, &ctx.imdb_id, *season, *episode, now_ms)
+                .map_err(|err| format!("magnet_work {hash}: {err}"))?;
+        }
+        tx.commit()
+            .map_err(|err| format!("commit da captura: {err}"))?;
+        Ok(accepted)
+    }
+
     /// `markBankFilterOutcome`: grava `passed_filter` 1/0 e `last_seen` nas
     /// linhas que JÁ existem (fonte sem captura não cria órfão), por hash e por
     /// alvo, e devolve o boolean de `markFilterResult`. MONOTÔNICA (CAS contra o

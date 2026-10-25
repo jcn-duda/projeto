@@ -1,5 +1,6 @@
 use super::write::hash_of;
 use super::*;
+use adom_search::RawItem;
 use serde_json::json;
 
 fn h(n: u8) -> String {
@@ -265,4 +266,97 @@ impl MagnetBankStore {
     fn open_empty_memory() -> Self {
         Self::open_memory().expect("memória")
     }
+}
+
+// ─── Captura (`captureItems`) ──────────────────────────────────────────────
+
+/// Item cru mínimo da captura: hash + título + indexer (+ seeders opcional).
+fn raw(hash: &str, title: &str, indexer: &str, seeders: Option<f64>) -> RawItem {
+    RawItem {
+        title: Some(title.to_string()),
+        info_hash: Some(hash.to_string()),
+        magnet: Some(format!("magnet:?xt=urn:btih:{hash}&dn={title}")),
+        seeders,
+        indexer: Some(indexer.to_string()),
+        ..RawItem::default()
+    }
+}
+
+fn ctx() -> WorkCtx {
+    WorkCtx {
+        imdb_id: "tt1".into(),
+        season: None,
+        episode: None,
+    }
+}
+
+/// Dois itens do MESMO hash em indexers diferentes (hash repetido na leva).
+fn dois_itens(hash: &str) -> Vec<RawItem> {
+    vec![
+        raw(hash, "Filme A 1080p", "indexer-a", Some(5.0)),
+        raw(hash, "Filme A 1080p", "indexer-b", Some(9.0)),
+    ]
+}
+
+#[test]
+fn captura_grava_magnet_e_source_e_preserva_passed_filter_mais_novo() {
+    let bank = MagnetBankStore::open_empty_memory();
+    let hash = h(1);
+    // Obra já marcada 1 num carimbo ANTERIOR: a captura (mais nova) grava o
+    // magnet e a fonte, mas NÃO reabre o filtro da obra.
+    seed_work(&bank, &hash, "tt1", -1, -1, 1, 500);
+    let n = bank
+        .capture_items(&dois_itens(&hash), "jackett", &ctx(), 1_000)
+        .expect("captura");
+    assert_eq!(n, 2, "os dois itens passam pelo guardrail");
+    let rows = bank
+        .works_for_obra_many("tt1", &[movie()], 100, 300, None)
+        .expect("obras");
+    assert_eq!(rows.len(), 1, "dois indexers do mesmo hash = UMA obra");
+    assert_eq!(rows[0].passed_filter, 1, "captura não desmarca a obra");
+    assert_eq!(rows[0].last_seen, 1_000, "last_seen avança para o carimbo");
+    assert_eq!(rows[0].first_seen, 500, "first_seen é fixo");
+    let magnet = rows[0].magnet.as_ref().expect("magnet anexado");
+    assert_eq!(magnet.seeders_max, 9, "seeders_max é o máximo da leva");
+    assert_eq!(magnet.seeders_last, 9, "seeders_last é a última leva");
+    assert!(magnet.uri.contains("dn="), "uri do post preservada");
+    // `source` explícito manda no grupo: uma fonte só, mesmo com 2 indexers.
+    let sources = bank
+        .sources_for_many(std::slice::from_ref(&hash))
+        .expect("fontes");
+    assert_eq!(sources[&hash].len(), 1);
+    assert_eq!(sources[&hash][0].indexer, "jackett");
+}
+
+#[test]
+fn captura_atrasada_nao_desmarca_passed_filter_nem_reduz_last_seen() {
+    let bank = MagnetBankStore::open_empty_memory();
+    let hash = h(2);
+    seed_magnet(&bank, &hash, "Filme B 1080p", false, 7, 5_000);
+    seed_work(&bank, &hash, "tt1", -1, -1, 1, 5_000);
+    // Leva com carimbo ATRASADO (relógio para trás): nada pode regredir.
+    let n = bank
+        .capture_items(
+            &[raw(&hash, "Filme B 1080p", "bludv", Some(2.0))],
+            "",
+            &ctx(),
+            1_000,
+        )
+        .expect("captura");
+    assert_eq!(n, 1);
+    let rows = bank
+        .works_for_obra_many("tt1", &[movie()], 100, 300, None)
+        .expect("obras");
+    assert_eq!(rows[0].passed_filter, 1, "carimbo antigo não desmarca");
+    assert_eq!(rows[0].last_seen, 5_000, "last_seen é MAX");
+    let magnet = rows[0].magnet.as_ref().expect("magnet anexado");
+    assert_eq!(magnet.last_seen, 5_000, "magnet.last_seen também é MAX");
+    assert_eq!(magnet.seeders_max, 7, "máximo preservado");
+    // Seeders ausente preserva; presente (mesmo atrasado) é observação.
+    assert_eq!(magnet.seeders_last, 2);
+    // `source` vazio: o grupo sai do PRÓPRIO item (`indexer || tracker`).
+    let sources = bank
+        .sources_for_many(std::slice::from_ref(&hash))
+        .expect("fontes");
+    assert_eq!(sources[&hash][0].indexer, "bludv");
 }

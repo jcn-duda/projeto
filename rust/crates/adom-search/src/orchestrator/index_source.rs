@@ -7,7 +7,8 @@
 //!
 //! - [`ReleaseIndexSource`] — `releaseIndex.lookup`/`isPartial`/`record`;
 //! - [`MagnetBankSource`] — `worksForObraMany`/`sourcesForMany`/
-//!   `markBankFilterOutcome`.
+//!   `markBankFilterOutcome`/`captureItems` (a captura da busca é NATIVA; o
+//!   efeito `magnet_capture` do Node não existe mais).
 //!
 //! Os tipos de fio são os do núcleo (`InstantWork`/`InstantSource`/`BankRow`,
 //! `WorkTarget`) mais [`IndexedReleaseWire`], que espelha o JSON persistido pelo
@@ -21,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::internal_types::ReleaseEntry;
+use crate::RawItem;
 
 /// Uma release do índice (`idx:v14`), campo a campo como o Node grava.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +114,23 @@ pub trait MagnetBankSource: Send + Sync {
         ctx: &BankFilterCtx,
         now_ms: i64,
     ) -> bool;
+
+    /// `captureItems`: grava a leva da busca no acervo (`magnet`,
+    /// `magnet_source`, `magnet_work`) numa transação. Devolve quantos itens
+    /// passaram pelo guardrail (item de conta/reserva/foto e sem hash ficam de
+    /// fora).
+    ///
+    /// Default `Ok(0)`: implementações que só LEEM o banco (stubs de teste,
+    /// colhedor de fundo) não gravam — só o store real sobrescreve.
+    fn capture_items(
+        &self,
+        _items: &[RawItem],
+        _source: &str,
+        _ctx: &BankFilterCtx,
+        _now_ms: i64,
+    ) -> Result<usize, String> {
+        Ok(0)
+    }
 
     /// `bankHasBrRow` do Node (evidência de plausibilidade da sonda BR).
     fn has_br_row(&self, imdb: &str, targets: &[WorkTarget]) -> bool;

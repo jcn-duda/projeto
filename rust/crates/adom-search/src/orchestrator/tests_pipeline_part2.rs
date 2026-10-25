@@ -104,9 +104,11 @@ async fn effects_rust_off_nao_emite_efeitos_de_cauda() {
     let collector = StubCollector::with(vec![item_br_dublado(HASH)]);
     let tail = Arc::new(RecordingTail::default());
     let index = StubIndex::with(Vec::new());
+    let bank = StubBank::new(Vec::new(), std::collections::BTreeMap::new());
     let orch = orchestrator(config(), store, collector, &[HASH])
         .with_tail(tail.clone())
-        .with_index_source(index.clone());
+        .with_index_source(index.clone())
+        .with_bank_source(bank.clone());
     assert!(!orch.config().effects_enabled);
 
     let _ = orch.handle(request(1_000_000)).await;
@@ -118,22 +120,23 @@ async fn effects_rust_off_nao_emite_efeitos_de_cauda() {
         .map(|effect| effect.kind)
         .collect();
     assert!(
-        kinds.iter().all(|kind| kind == "harvester_enqueue"
-            || kind == "br_probe"
-            || kind == "magnet_capture"),
-        "default OFF: só o follow-up do índice e a captura do banco vivo saem: {kinds:?}"
+        kinds
+            .iter()
+            .all(|kind| kind == "harvester_enqueue" || kind == "br_probe"),
+        "default OFF: só o follow-up do índice sai: {kinds:?}"
     );
-    // A captura do banco VIVO tem gate PRÓPRIO (`MAGNET_BANK`): desligar os
+    // A captura do banco VIVO deixou de ser efeito (T2-L1): nada de
+    // `magnet_capture` no fio, mesmo com o banco ligado.
+    assert!(
+        !kinds.iter().any(|kind| kind == "magnet_capture"),
+        "o efeito `magnet_capture` não existe mais: {kinds:?}"
+    );
+    // Mas ela TEM gate PRÓPRIO (`MAGNET_BANK`) e roda no processo: desligar os
     // efeitos de cauda não pode congelar o acervo que a coleta nativa viu.
     assert!(
-        kinds.iter().any(|kind| kind == "magnet_capture"),
-        "a captura não depende de EFFECTS_RUST: {kinds:?}"
+        bank.captures() > 0,
+        "a captura nativa do acervo rodou no tail"
     );
-    let lote = efeitos_emitidos(&tail);
-    let captura = achar(&lote, "magnet_capture").expect("magnet_capture");
-    assert_eq!(captura.payload["resetPassedFilter"], json!(false));
-    assert_eq!(captura.payload["indexer"], json!("bludv"));
-    assert_eq!(captura.payload["imdbId"], json!("tt0133093"));
     // A gravação no índice NATIVO SEGUE rodando: só os efeitos são flagados.
     assert!(!index.recorded().is_empty());
 }

@@ -38,7 +38,6 @@ mod config_options;
 pub(crate) mod debrid_al_metrics;
 // Payloads dos efeitos de cauda (`EFFECTS_RUST`); a seleção mora no build.
 mod effects;
-mod effects_capture;
 mod fallback;
 mod fast_path;
 mod finish;

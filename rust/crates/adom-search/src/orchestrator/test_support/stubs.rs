@@ -294,6 +294,7 @@ pub struct StubBank {
     pub sources: std::collections::BTreeMap<String, Vec<InstantSource>>,
     pub br_row: bool,
     reads: AtomicUsize,
+    captures: AtomicUsize,
 }
 
 impl StubBank {
@@ -310,6 +311,11 @@ impl StubBank {
 
     pub fn reads(&self) -> usize {
         self.reads.load(Ordering::SeqCst)
+    }
+
+    /// Quantas vezes a captura nativa do acervo rodou no tail.
+    pub fn captures(&self) -> usize {
+        self.captures.load(Ordering::SeqCst)
     }
 }
 
@@ -356,5 +362,16 @@ impl MagnetBankSource for StubBank {
 
     fn has_br_row(&self, _imdb: &str, _targets: &[WorkTarget]) -> bool {
         self.br_row
+    }
+
+    fn capture_items(
+        &self,
+        items: &[RawItem],
+        _source: &str,
+        _ctx: &BankFilterCtx,
+        _now_ms: i64,
+    ) -> Result<usize, String> {
+        self.captures.fetch_add(1, Ordering::SeqCst);
+        Ok(items.len())
     }
 }

@@ -1,4 +1,5 @@
-//! Fila tardia: promoção, refresh de debrid, varredura pt-BR e index-write.
+//! Fila tardia: promoção, refresh de debrid, varredura pt-BR, index-write e
+//! captura do acervo (`captureItems`, nativa desde a T2-L1).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use super::collect;
 use super::finish::{release_entry, FinishValue, SearchInput};
 use super::harvest_support;
 use super::index_metrics as metrics;
+use super::index_source::BankFilterCtx;
 use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
 use super::respond::{as_ms, now_ms};
@@ -168,11 +170,11 @@ impl Orchestrator {
             };
             self.write_native_index(batch);
         }
-        // Banco VIVO (`data/magnets.db`): o lote que a coleta NATIVA viu vai ao
-        // `captureItems` do Node. Depois do índice de propósito — a marca de
-        // `passed_filter` sai primeiro e a captura (`resetPassedFilter:false`)
-        // PRESERVA o valor em vez de reabrir o filtro.
-        self.emit_magnet_capture(&meta, &plan.encoded, &full);
+        // Banco VIVO (`data/magnets.db`): a captura é NATIVA (o efeito
+        // `magnet_capture` não existe mais). Depois do índice de propósito — a
+        // marca de `passed_filter` sai primeiro e a captura
+        // (`resetPassedFilter:false`) PRESERVA o valor em vez de reabrir o filtro.
+        self.capture_native_bank(&meta, &full);
         self.emit_effects(&input, &meta, &plan.encoded, &last).await;
     }
 
@@ -209,48 +211,35 @@ impl Orchestrator {
         }
     }
 
-    /// Captura do acervo vivo: UM ponto por requisição, a partir do `full`
-    /// (lote pós-completion, com a via rápida mesclada e o que a varredura
-    /// pt-BR acrescentou). Guardrail de guardrails:
+    /// Captura do acervo vivo (`captureItems`): UM ponto por requisição, a
+    /// partir do `full` (lote pós-completion, com a via rápida mesclada e o que
+    /// a varredura pt-BR acrescentou).
     ///
     /// - gate é `MAGNET_BANK`, **não** `EFFECTS_RUST`: efeito é fila do Node,
     ///   captura é acervo — desligar os efeitos não pode congelar o banco;
     /// - `changed == false` NÃO dispensa a captura: o lote é o mesmo da 1ª
-    ///   build e continua sendo a ÚNICA observação daquela busca (a via rápida
-    ///   só LÊ o banco; nada mais neste processo captura);
-    /// - fire-and-forget: quem já recebeu a lista não depende disto e o Node só
-    ///   enfileira (`captureItems` nunca espera o disco).
-    fn emit_magnet_capture(&self, meta: &SearchMeta, encoded: &str, items: &[RawItem]) {
+    ///   build e continua sendo a ÚNICA observação daquela busca;
+    /// - `source` VAZIO de propósito: o grupo (`indexer || tracker`) sai do
+    ///   PRÓPRIO item. Passar "jackett" jogaria BLUDV/Torrentio no balde errado
+    ///   e a coluna `indexer` do acervo (painel por indexer e filtro `ji`)
+    ///   passaria a mentir;
+    /// - roda no tail (já é `tokio::spawn`), DEPOIS da resposta: o disco nunca
+    ///   entra no caminho do usuário. Falha só vira log — o acervo é acessório.
+    fn capture_native_bank(&self, meta: &SearchMeta, items: &[RawItem]) {
         if !self.config.magnet_bank_enabled {
             return;
         }
-        let effects = super::effects::magnet_capture(
-            items,
-            &meta.imdb_id,
-            meta.season,
-            meta.episode,
-            &meta.year,
-        );
-        let batches =
-            super::effects::batches_for_transport(effects, super::effects::EFFECTS_BODY_MAX_BYTES);
-        if batches.is_empty() {
+        let Some(bank) = self.bank.as_deref() else {
             return;
+        };
+        let ctx = BankFilterCtx {
+            imdb_id: meta.imdb_id.clone(),
+            season: meta.season,
+            episode: meta.episode,
+        };
+        if let Err(err) = bank.capture_items(items, "", &ctx, now_ms()) {
+            eprintln!("[search] captura do acervo falhou: {err}");
         }
-        let tail = self.tail.clone();
-        let encoded = encoded.to_string();
-        tokio::spawn(async move {
-            for effects in batches {
-                if let Err(err) = tail
-                    .effects(EffectsBatch {
-                        encoded: encoded.clone(),
-                        effects,
-                    })
-                    .await
-                {
-                    eprintln!("[search] effects (magnet_capture) falharam: {err}");
-                }
-            }
-        });
     }
 
     /// Efeitos de cauda: `dub_audit` + warmer (decididos na passada mais nova)
