@@ -13,7 +13,7 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-autofetch-obra.json",
-    "sha256": "e0831be5da298cec366038d9c0ffd99c0d0395210214a6ff99197fd1f50b3c4e",
+    "sha256": "4f29e1ba344f8f61244d62a9535125a38dcaf6ca637de7c7856dca5d54670156",
     "cases": 25
   },
   "output": {
