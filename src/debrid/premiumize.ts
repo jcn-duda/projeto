@@ -9,7 +9,6 @@ import {
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { recordTorrentTotal } from './file-sizes.js';
-import { scheduleFileLists } from './premiumize-files.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 import { apiBaseFromEnv } from './api-base.js';
@@ -58,8 +57,11 @@ async function call(apiKey: string, path: string, { method = 'GET', params = {},
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs, fileHashes }: { timeoutMs?: number; fileHashes?: string[] } = {}) {
-  const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
+async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number; fileHashes?: string[] } = {}) {
+  // A lista de arquivos (`fileHashes`) não é mais disparada daqui: quem a agenda
+  // é o serviço nativo (`adom-debrid`, `file_list`). O campo fica no TIPO porque
+  // o chamador (`cache-check.ts`) o passa neste contrato, e este corpo só roda
+  // no 501 do recorte nativo (`rust-remote.ts:307`).
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(apiKey, '/cache/check', {
@@ -73,7 +75,6 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs, fi
     const sizes = Array.isArray(data.filesize) ? data.filesize : [];
     batch.forEach((hash, idx) => { if (flags[idx]) recordTorrentTotal(hash, sizes[idx]); });
     const cached = batch.filter((_, idx) => flags[idx]);
-    scheduleFileLists(call, apiKey, cached, wantFiles);
     return cached;
   }, { timeoutMs });
 }

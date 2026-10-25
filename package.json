@@ -359,7 +359,6 @@
     "test/painel-saude-indexers.test.js",
     "test/painel-views.test.js",
     "test/pool-coverage.test.js",
-    "test/premiumize-files.test.js",
     "test/premiumize-sweep-dead.test.js",
     "test/rd-warmer-harvester-debrid.test.js",
     "test/rd-warmer-hour.test.js",
