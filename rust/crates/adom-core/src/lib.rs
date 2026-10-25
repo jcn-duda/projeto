@@ -1,5 +1,4 @@
 //! Núcleo Rust do Adom — migração TS→Rust.
-//!
 //! 25+ módulos portados com golden em `rust/golden/` (~4.000+ casos).
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 
@@ -66,6 +65,7 @@ mod net_safety;
 mod non_feature_release;
 mod pack_text_totals;
 mod play_disposition;
+pub mod pre_resolve;
 mod pt_audio_guards;
 mod pt_title_dual;
 mod release_filters;

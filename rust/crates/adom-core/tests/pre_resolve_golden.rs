@@ -1,5 +1,5 @@
-//! Paridade do golden `pre-resolve` (G4) — as duas regras que vivem no crate
-//! `adom-napi` (`pre_resolve.rs`): o score de escolha do candidato
+//! Paridade do golden `pre-resolve` (G4) — as duas regras do núcleo
+//! (`adom_core::pre_resolve`): o score de escolha do candidato
 //! (`resolveCandidateScore`) e a regex de temporada do título do laço do
 //! protetor BR.
 //!
@@ -8,19 +8,19 @@
 //! Rust contra o arquivo commitado, nunca input contra input.
 //!
 //! Cobertura por operação do corpus (`golden-kit` válida o corpus na geração):
-//! `score` → `resolve_candidate_score_napi` (a ponte pública do score);
-//! `rank` → `pre_resolve_br_napi` com o lote inteiro, comparando a ORDEM dos
+//! `score` → `resolve_candidate_score`;
+//! `rank` → `pre_resolve_br` com o lote inteiro, comparando a ORDEM dos
 //! aprovados (a do TS: score desc, ordem original no empate); `season` →
-//! `pre_resolve_br_napi` com `requested_season`, onde `keep` é o veredito e a
+//! `pre_resolve_br` com `requested_season`, onde `keep` é o veredito e a
 //! sonda 1..=6 prende o MARCADOR exato (keep só na temporada declarada no
 //! título).
 //!
 //! A regex é privada do módulo; a sonda por `requested_season` a exercita pelo
 //! caminho real (o mesmo que o rust.yml chama), sem abrir API só para teste.
 
-use adom_napi::{
-    pre_resolve_br_napi, resolve_candidate_score_napi, PreResolvePost, PreResolveQuery,
-    PreResolveSettings, REJECT_SEASON,
+use adom_core::pre_resolve::{
+    pre_resolve_br, resolve_candidate_score, PreResolvePost, PreResolveQuery, PreResolveSettings,
+    REJECT_SEASON,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -172,11 +172,7 @@ fn score_bate_com_o_oraculo_caso_a_caso() {
             continue;
         }
         let title = r["title"].as_str().unwrap_or("");
-        let got = resolve_candidate_score_napi(
-            title.to_string(),
-            opt_i64(&r["season"]),
-            opt_i64(&r["episode"]),
-        );
+        let got = resolve_candidate_score(title, opt_i64(&r["season"]), opt_i64(&r["episode"]));
         let want: Value = serde_json::from_str(&case.expected).expect("expected do score é JSON");
         assert_eq!(Value::from(got), want, "caso {} (score)", case.id);
         vistos += 1;
@@ -202,7 +198,7 @@ fn rank_bate_com_a_ordem_do_ts() {
             titles.iter().enumerate().map(|(i, t)| post(t, i)).collect();
         let mut q = query();
         q.max_resolves = titles.len() as i64;
-        let out = pre_resolve_br_napi(posts, q, settings());
+        let out = pre_resolve_br(posts, q, settings());
         assert!(out.rejected.is_empty(), "caso {}: nada é cortado", case.id);
         let got: Vec<u64> = out.approved.iter().map(|i| u64::from(*i)).collect();
         let want: Value = serde_json::from_str(&case.expected).expect("expected do rank é JSON");
@@ -236,7 +232,7 @@ fn season_bate_com_o_marcador_do_ts() {
         let kept = |season: i64| -> bool {
             let mut q = query();
             q.requested_season = Some(season);
-            let out = pre_resolve_br_napi(vec![post(title, 0)], q, settings());
+            let out = pre_resolve_br(vec![post(title, 0)], q, settings());
             if !out.approved.is_empty() {
                 return true;
             }

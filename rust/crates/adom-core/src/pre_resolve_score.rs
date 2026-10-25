@@ -1,4 +1,4 @@
-use adom_core::{
+use crate::{
     audio_from_title, parse_title_season_episode, quality_from_title, source_from_title,
     UNKNOWN_QUALITY,
 };
