@@ -37,6 +37,7 @@ impl HarvestDrainAsync for BarrierDrain {
     fn drain_one<'a>(
         &'a mut self,
         _entry: &'a HarvestEntry,
+        _queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
         let entered = self.entered.take();
         let release = self.release.take();
@@ -65,6 +66,7 @@ impl HarvestDrainAsync for ImmediateDrain {
     fn drain_one<'a>(
         &'a mut self,
         _entry: &'a HarvestEntry,
+        _queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
         let outcome = DrainOutcome {
             ok: self.ok,

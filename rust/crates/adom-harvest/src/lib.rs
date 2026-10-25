@@ -49,6 +49,7 @@ mod seen;
 mod store;
 mod types;
 mod worker;
+mod worker_types;
 
 pub use hour::{
     hour_bucket, hour_key, hour_ttl_seconds, load_hour, save_hour, HourMeter, StoredHour, HOUR_KEY,

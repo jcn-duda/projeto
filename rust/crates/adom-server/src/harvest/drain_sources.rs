@@ -3,6 +3,11 @@
 //! Não decide matching. As duas fontes viram [`RawItem`] antes do filtro
 //! conjunto. Custo BLUDV não entra no contador Jackett; BLUDV nunca certifica
 //! `jackett_complete`. `fromAccount` nunca entra.
+//!
+//! O teto horário é **rígido entre consultas**: os alvos Jackett são tentados
+//! um a um e o laço corta ANTES do próximo quando o saldo da hora acabou. O
+//! corte não é falha da entrada — o que já saiu continua valendo e o que ficou
+//! sem consultar viaja em [`SourceBatch::remaining_targets`] (registro parcial).
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -22,6 +27,9 @@ pub(super) struct SourceBatch {
     pub items: Vec<RawItem>,
     pub attempted: u32,
     pub answered: u32,
+    /// Alvos planejados que o teto horário deixou sem consultar. `> 0` impede
+    /// certificar `jackett_complete` (o índice nasce suplemento/parcial).
+    pub remaining_targets: u32,
 }
 
 /// Desfecho da escrita após as fontes (tabela 2.7). `ok` só quando Jackett
@@ -113,26 +121,38 @@ pub(super) async fn collect_bludv(
 
 impl NetworkDrain {
     /// Jackett (débito) e, só em FULL, BLUDV. Ordem: Jackett → BLUDV.
+    /// `queries_left` desce só para o Jackett: BLUDV fica FORA do contador.
     pub(super) async fn search(
         &self,
         jackett: &JackettClient,
         entry: &HarvestEntry,
         search: &SearchMeta,
+        queries_left: u32,
     ) -> SourceBatch {
-        let jackett_batch = self.search_jackett(jackett, entry, search).await;
+        let jackett_batch = self
+            .search_jackett_with_budget(jackett, entry, search, queries_left)
+            .await;
         let bludv = collect_bludv(self.bludv.as_ref(), entry, search).await;
         SourceBatch {
             items: merge_source_items(jackett_batch.items, bludv),
             attempted: jackett_batch.attempted,
             answered: jackett_batch.answered,
+            remaining_targets: jackett_batch.remaining_targets,
         }
     }
 
-    async fn search_jackett(
+    /// Alvos Jackett em ordem, no MÁXIMO `queries_left` consultas.
+    ///
+    /// O corte acontece antes de cada alvo (o balde pode ter chegado ao teto
+    /// com a entrada anterior) e não é erro: sem alvo consultado a entrada cai
+    /// no desfecho normal (`source_plan`), e os alvos que sobraram ficam em
+    /// [`SourceBatch::remaining_targets`] para a gravação sair parcial.
+    async fn search_jackett_with_budget(
         &self,
         jackett: &JackettClient,
         entry: &HarvestEntry,
         search: &SearchMeta,
+        queries_left: u32,
     ) -> SourceBatch {
         let media = JackettMediaType::parse(entry.media_type.as_str());
         // Sonda dirigida: SÓ a interseção index-only∩pt-BR (~3 consultas).
@@ -144,6 +164,7 @@ impl NetworkDrain {
                     items: Vec::new(),
                     attempted: 0,
                     answered: 0,
+                    remaining_targets: 0,
                 };
             }
             probe
@@ -158,7 +179,13 @@ impl NetworkDrain {
         let mut items = Vec::new();
         let mut attempted = 0u32;
         let mut answered = 0u32;
+        let mut remaining_targets = 0u32;
         for (position, target) in targets.iter().enumerate() {
+            // Teto rígido: corta ANTES do alvo, sem dormir o `delay_ms` à toa.
+            if attempted >= queries_left {
+                remaining_targets = (targets.len() - position) as u32;
+                break;
+            }
             if position > 0 && self.settings.delay_ms > 0 {
                 tokio::time::sleep(Duration::from_millis(self.settings.delay_ms)).await;
             }
@@ -184,6 +211,7 @@ impl NetworkDrain {
             items: raw_items_from_jackett(items),
             attempted,
             answered,
+            remaining_targets,
         }
     }
 
@@ -215,3 +243,7 @@ impl NetworkDrain {
 #[cfg(test)]
 #[path = "drain_sources_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "drain_budget_tests.rs"]
+mod budget_tests;

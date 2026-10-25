@@ -5,161 +5,30 @@
 //! - **Fora** do caminho `/stream`: só drena a fila em fundo.
 //! - Freio de tráfego injetável ([`TrafficSense`]): busy → só `take_probe`.
 //! - Teto horário: contador simples por balde UTC (`now_ms / 3_600_000`).
+//! - Teto **rígido entre consultas**: o ciclo entrega `queries_left`
+//!   (`max_per_hour − queries_this_hour`) a quem drena, que corta alvo a alvo
+//!   em vez de gastar o que já não cabe no balde. O débito continua no
+//!   `finish`, só com as consultas realmente gastas.
 //! - Trabalho real via [`HarvestDrain`] (sync) ou [`HarvestDrainAsync`]
 //!   (gateway/Jackett nativo, que pode esperar rede).
 //! - O tick abre/fecha o slot em voo ([`crate::inflight`]) em volta do drain.
 //! - A decisão do ciclo mora em `plan`, UMA vez: as duas portas não podem
 //!   divergir na ordem das guardas nem no consumo da cabeça.
 
-use std::future::Future;
-use std::pin::Pin;
-
 use crate::hour::HourMeter;
 use crate::inflight::HarvestIntent;
 use crate::queue::HarvestQueue;
 use crate::reason::entry_identity;
 use crate::types::HarvestEntry;
+use crate::worker_types::TickPlan;
 
-/// Config injetável do worker (fatia de `harvesterLive.effective()`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HarvestWorkerConfig {
-    pub enabled: bool,
-    /// `HARVEST_MAX_HOUR` — default TS: 120.
-    pub max_per_hour: u32,
-}
-
-impl Default for HarvestWorkerConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            max_per_hour: 120,
-        }
-    }
-}
-
-/// Freio de tráfego / busy — espelho stub de `activity.recentUserTraffic`.
-///
-/// Embrião: busy ⇒ tick inteiro é skip (sem `takeProbe`). A ponte real do
-/// activity window fica para a Fase E completa.
-pub trait TrafficSense {
-    fn is_busy(&self) -> bool;
-}
-
-impl TrafficSense for bool {
-    fn is_busy(&self) -> bool {
-        *self
-    }
-}
-
-impl<F> TrafficSense for F
-where
-    F: Fn() -> bool,
-{
-    fn is_busy(&self) -> bool {
-        (self)()
-    }
-}
-
-/// Stub mutável para testes / injeção.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct StubTraffic {
-    pub busy: bool,
-}
-
-impl TrafficSense for StubTraffic {
-    fn is_busy(&self) -> bool {
-        self.busy
-    }
-}
-
-/// Resultado do drain de UMA entrada (sem rede).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DrainOutcome {
-    pub ok: bool,
-    /// Consultas debitadas do teto horário (stub; Jackett real não existe aqui).
-    pub queries: u32,
-}
-
-impl DrainOutcome {
-    pub fn ok_with_queries(queries: u32) -> Self {
-        Self { ok: true, queries }
-    }
-
-    pub fn failed() -> Self {
-        Self {
-            ok: false,
-            queries: 0,
-        }
-    }
-}
-
-/// Callback do trabalho — sync (stub local, testes, drain sem I/O).
-pub trait HarvestDrain {
-    fn drain_one(&mut self, entry: &HarvestEntry) -> DrainOutcome;
-}
-
-impl<F> HarvestDrain for F
-where
-    F: FnMut(&HarvestEntry) -> DrainOutcome,
-{
-    fn drain_one(&mut self, entry: &HarvestEntry) -> DrainOutcome {
-        (self)(entry)
-    }
-}
-
-/// Callback do trabalho — async (gateway/Jackett nativo).
-///
-/// O future é **boxed** de propósito: é o que mantém o trait chamável por
-/// `&mut dyn HarvestDrainAsync`, como o [`HarvestWorker::tick_async`] recebe.
-/// A entrega boxeada é por entrada colhida, nunca por resposta HTTP.
-pub trait HarvestDrainAsync {
-    fn drain_one<'a>(
-        &'a mut self,
-        entry: &'a HarvestEntry,
-    ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>>;
-}
-
-/// Por que o tick não colheu (ou colheu).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TickOutcome {
-    SkippedDisabled,
-    SkippedPaused,
-    SkippedInFlight,
-    SkippedBusy,
-    SkippedHourlyCap,
-    SkippedEmpty,
-    /// Cabeça consumida e passada ao drain.
-    Drained {
-        entry: HarvestEntry,
-        outcome: DrainOutcome,
-    },
-}
-
-impl TickOutcome {
-    pub fn did_drain(&self) -> bool {
-        matches!(self, Self::Drained { .. })
-    }
-}
-
-/// Decisão do ciclo, antes de qualquer trabalho: ou o skip, ou a cabeça já
-/// retirada da fila.
-#[derive(Debug)]
-enum TickPlan {
-    Skip(TickOutcome),
-    Run(HarvestEntry),
-}
-
-/// Início do ciclo para quem precisa SOLTAR o lock da fila durante a rede
-/// (gateway): as guardas rodaram, a cabeça saiu e o slot em voo já está aberto.
-/// Fechar é [`HarvestWorker::finish`].
-#[derive(Debug)]
-pub enum TickStart {
-    Skip(TickOutcome),
-    Run {
-        entry: HarvestEntry,
-        identity: String,
-    },
-}
+/// Vocabulário do ciclo (config, freio, drain e decisão). Mora em
+/// [`crate::worker_types`] desde que este arquivo bateu o teto de linhas; o
+/// caminho público continua o mesmo.
+pub use crate::worker_types::{
+    DrainOutcome, HarvestDrain, HarvestDrainAsync, HarvestWorkerConfig, StubTraffic, TickOutcome,
+    TickStart, TrafficSense,
+};
 
 /// Worker do ciclo: freio + teto + `take_head` + drain.
 pub struct HarvestWorker {
@@ -252,11 +121,19 @@ impl HarvestWorker {
         if queue.is_empty() {
             return TickPlan::Skip(TickOutcome::SkippedEmpty);
         }
-        if self.queries_this_hour(now_ms) >= self.config.max_per_hour {
+        let used = self.queries_this_hour(now_ms);
+        if used >= self.config.max_per_hour {
             return TickPlan::Skip(TickOutcome::SkippedHourlyCap);
         }
+        // A conta é feita UMA vez, aqui: quem drena recebe o saldo da hora e
+        // corta antes de cada consulta, então o balde nunca é estourado por
+        // uma entrada com muitos alvos.
+        let queries_left = self.config.max_per_hour.saturating_sub(used);
         match queue.take_next(busy) {
-            Some(entry) => TickPlan::Run(entry),
+            Some(entry) => TickPlan::Run {
+                entry,
+                queries_left,
+            },
             None => TickPlan::Skip(TickOutcome::SkippedEmpty),
         }
     }
@@ -295,12 +172,19 @@ impl HarvestWorker {
         traffic: &dyn TrafficSense,
         now_ms: i64,
     ) -> TickStart {
-        let entry = match self.plan(queue, traffic, now_ms) {
+        let (entry, queries_left) = match self.plan(queue, traffic, now_ms) {
             TickPlan::Skip(skip) => return TickStart::Skip(skip),
-            TickPlan::Run(entry) => entry,
+            TickPlan::Run {
+                entry,
+                queries_left,
+            } => (entry, queries_left),
         };
         let identity = self.open_slot(queue, &entry);
-        TickStart::Run { entry, identity }
+        TickStart::Run {
+            entry,
+            identity,
+            queries_left,
+        }
     }
 
     /// Segunda metade do ciclo: debita as consultas e fecha o slot.
@@ -325,7 +209,10 @@ impl HarvestWorker {
     ) -> TickOutcome {
         let (entry, identity) = match self.begin(queue, traffic, now_ms) {
             TickStart::Skip(skip) => return skip,
-            TickStart::Run { entry, identity } => (entry, identity),
+            // O drain sync é stub/teste sem rede: o teto rígido é do async.
+            TickStart::Run {
+                entry, identity, ..
+            } => (entry, identity),
         };
 
         let outcome = drain.drain_one(&entry);
@@ -354,12 +241,16 @@ impl HarvestWorker {
         drain: &mut dyn HarvestDrainAsync,
         now_ms: i64,
     ) -> TickOutcome {
-        let (entry, identity) = match self.begin(queue, traffic, now_ms) {
+        let (entry, identity, queries_left) = match self.begin(queue, traffic, now_ms) {
             TickStart::Skip(skip) => return skip,
-            TickStart::Run { entry, identity } => (entry, identity),
+            TickStart::Run {
+                entry,
+                identity,
+                queries_left,
+            } => (entry, identity, queries_left),
         };
 
-        let outcome = drain.drain_one(&entry).await;
+        let outcome = drain.drain_one(&entry, queries_left).await;
         self.finish(queue, &identity, outcome, now_ms);
 
         TickOutcome::Drained { entry, outcome }

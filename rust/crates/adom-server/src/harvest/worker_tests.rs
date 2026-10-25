@@ -26,6 +26,7 @@ impl HarvestDrainAsync for FakeDrain {
     fn drain_one<'a>(
         &'a mut self,
         entry: &'a HarvestEntry,
+        _queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
         self.seen.push(entry.imdb_id.clone());
         let queries = self.queries;

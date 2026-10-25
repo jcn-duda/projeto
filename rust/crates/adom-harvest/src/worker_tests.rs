@@ -227,6 +227,7 @@ impl HarvestDrainAsync for AsyncDrain {
     fn drain_one<'a>(
         &'a mut self,
         entry: &'a HarvestEntry,
+        _queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
         Box::pin(async move {
             assert!(!entry.imdb_id.is_empty(), "drain async sem obra");
@@ -344,7 +345,10 @@ fn begin_abre_o_slot_e_finish_fecha_depois_da_rede() {
     let mut queue = queue_with(&["tt0111161"]);
 
     // Primeira metade: a cabeça saiu e o slot já está aberto ANTES da rede.
-    let TickStart::Run { entry, identity } = worker.begin(&mut queue, &false, NOW) else {
+    let TickStart::Run {
+        entry, identity, ..
+    } = worker.begin(&mut queue, &false, NOW)
+    else {
         panic!("esperado Run");
     };
     assert_eq!(entry.imdb_id, "tt0111161");

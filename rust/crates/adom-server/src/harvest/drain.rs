@@ -215,7 +215,11 @@ impl NetworkDrain {
     }
 
     /// Uma obra: metadados, consultas espaçadas, régua e gravação.
-    async fn run(&mut self, entry: &HarvestEntry) -> DrainOutcome {
+    ///
+    /// `queries_left` é o teto rígido da hora corrente: os alvos Jackett
+    /// param no saldo, e o que ficou sem consultar torna a gravação
+    /// suplementar (registro parcial) em vez de falhar a entrada.
+    async fn run(&mut self, entry: &HarvestEntry, queries_left: u32) -> DrainOutcome {
         self.last_found = false;
         retry_invalidations(self.streams.as_ref(), &mut self.pending_invalidate);
         let Some(index) = self.index.clone() else {
@@ -258,8 +262,11 @@ impl NetworkDrain {
             return DrainOutcome::failed();
         }
 
-        let batch = self.search(jackett, entry, &search).await;
-        let jackett_complete = jackett_targets_complete(batch.attempted, batch.answered);
+        let batch = self.search(jackett, entry, &search, queries_left).await;
+        // Cortou alvos ⇒ registro parcial: `jackett_complete` exige TODOS os
+        // alvos planejados consultados e respondidos.
+        let jackett_complete = batch.remaining_targets == 0
+            && jackett_targets_complete(batch.attempted, batch.answered);
         match source_plan(batch.answered, !batch.items.is_empty()) {
             SourcePlan::FailNoWrite => {
                 // Consultas Jackett já tentadas continuam debitadas.
@@ -314,8 +321,9 @@ impl HarvestDrainAsync for NetworkDrain {
     fn drain_one<'a>(
         &'a mut self,
         entry: &'a HarvestEntry,
+        queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
-        Box::pin(self.run(entry))
+        Box::pin(self.run(entry, queries_left))
     }
 }
 

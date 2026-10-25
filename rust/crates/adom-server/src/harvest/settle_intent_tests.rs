@@ -45,7 +45,9 @@ fn run_once(
     ok: bool,
 ) -> HarvestEntry {
     let start = match worker.begin(queue, &false, NOW) {
-        adom_harvest::TickStart::Run { entry, identity } => (entry, identity),
+        adom_harvest::TickStart::Run {
+            entry, identity, ..
+        } => (entry, identity),
         other => panic!("esperado Run, got {other:?}"),
     };
     if let Some(req) = coalesce {

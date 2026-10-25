@@ -108,7 +108,7 @@ where
     D: HarvestDrainAsync + DrainFound,
 {
     let snapshot = inner.refresh_snapshot(now).await;
-    let (entry, identity) = {
+    let (entry, identity, queries_left) = {
         let mut queue = inner.queue.lock().await;
         queue.prioritize(&snapshot, now);
         match worker.begin(&mut queue, &inner.traffic, now) {
@@ -117,11 +117,15 @@ where
                 // Skip nunca vira trabalho no mesmo ciclo.
                 return IterationOutcome::Skipped;
             }
-            TickStart::Run { entry, identity } => (entry, identity),
+            TickStart::Run {
+                entry,
+                identity,
+                queries_left,
+            } => (entry, identity, queries_left),
         }
     };
     // Sem lock: a rede do drain não bloqueia a ponte Node.
-    let outcome = drain.drain_one(&entry).await;
+    let outcome = drain.drain_one(&entry, queries_left).await;
     let br_found = drain.take_found();
     let mut queue = inner.queue.lock().await;
     // Snapshot ANTES do finish: o slot some no end, e a FULL remanescente
