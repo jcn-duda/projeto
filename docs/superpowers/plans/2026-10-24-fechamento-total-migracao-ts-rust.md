@@ -1101,15 +1101,42 @@ git commit -m "refactor(crawl): ingestao e recorder nativos e fim do crawl-resul
 >   em `lib.rs`; era o que faltava para o `adom-crawl` poder fiar o TMDB (o
 >   `#[allow(unused_imports)]` do `tmdb/mod.rs` saiu junto).
 >
-> **O que falta para fechar a T3-L3:** fiar `Ingest::apply_many` no motor/
-> sidecar com `NativeStore::from_env()` e o deadline mapeado em `should_abort`;
-> consumo do cursor pela descoberta; trocar as três chamadas do Node
-> (`dashboard-actions-crawl.ts`, `crawler.ts`, `crawl-cursor-load.ts`) pelas
-> rotas novas; **só então** apagar `crawl-recorder.ts`, `magnet-bank-hook.ts`,
-> `crawl-store*`, `crawl-recovery.ts`, `crawl-actions.ts`, `crawl-cursor*`,
-> `internal-crawl-result.ts` e `crawl-identify.ts` (com as entradas de
-> `testFiles`). Nenhum TS foi apagado nesta leva, de propósito: apagar antes da
-> fiação derrubaria a ingestão.
+> **EXECUTADA em `54209dc8`** (`feat(crawl): sidecar identifica e grava a pagina
+> nativamente`). O que foi feito:
+>
+> - **Fiação:** `PageIngest` (`motor/ingest.rs`) é o contrato; `BatchCtx.ingest`
+>   substituiu o `http` que fazia POST; `motor/deliver.rs` entrega a página com
+>   `should_abort` no MESMO `Instant` do prazo da engine (`timeout_at`); e
+>   `sidecar/wiring::production_ingest()` monta TMDB + `NativeStore::from_env()`
+>   + invalidador de streams. Sem ingestão montada o tick devolve
+>   `Skipped("ingest-pendente")` e **não reivindica URL** (cada `mark_result`
+>   consome `tries` — reivindicar sem gravar queimava a fila).
+> - **Node:** as três chamadas passaram a falar com o sidecar
+>   (`postToSidecar` + `POST /crawl/reprocess-no-work`, `requeueSimulatedInSidecar`,
+>   `readCursorFromSidecar`). O Node não escreve mais no `crawl.db`; a vista do
+>   card (`cursorsView`) usa memória → ponte → leitura local do `crawl_state`.
+> - **Apagados (10):** `internal-crawl-result.ts`, `crawl-recorder.ts`,
+>   `magnet-bank-hook.ts`, `crawl-identify.ts`, `crawl-recovery.ts` e os 5 testes
+>   deles (com as entradas de `testFiles`).
+> - **Não saíram, com motivo:** `crawl-store*`, `crawl-cursor*`, `crawl-status.ts`
+>   e `crawl-actions.ts`. O `crawl-status.ts` monta o painel com
+>   `engine.listByStatus` (done/no-work/partial/error), `errorGroups`,
+>   `latestRun` e `sumReleases`; o `GET /status` do sidecar devolve só
+>   contadores (`SiteStatus` em `motor/types.rs`). Apagar antes de existir a rota
+>   detalhada deixaria o painel sem lista de páginas e sem grupos de erro.
+>
+> **LACUNA BLOQUEANTE descoberta na auditoria (regressão de produção, não
+> dívida estética):** os parsers de descoberta (`sitemap/`, listagem paginada)
+> estão portados e testados, mas **nenhum código de produção os consome** —
+> `rg "parse_sitemap|SitemapEntry"` fora de `sitemap/` dá zero, `rg -ni discover`
+> só acha `mico_discovery`/`mico_lane`, e o `upsertUrls` do `crawl_store` não tem
+> chamador. Os 8 sites do Jackett (Vaca, Nerd, TDF, Comando, Rede, BLUDV, HDR,
+> Apache) não enfileiram URL nova desde `628392be`/`75d3d2b5`; só o Mico descobre.
+> O cursor (`cursor:movie`/`cursor:tv_show`) só é lido/escrito pela admin do
+> sidecar, nunca pela descoberta. **A ingestão nativa grava bem o que chega à
+> fila — o que falta é alimentar a fila.** Próxima fatia da fase 6, antes de
+> qualquer limpeza adicional do TS: fiar `discover` (sitemap/listing →
+> `upsertUrls`) e o consumo do cursor no motor.
 
 ---
 
