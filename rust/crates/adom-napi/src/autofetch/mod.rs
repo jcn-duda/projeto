@@ -40,6 +40,9 @@ use adom_core::{
 use napi_derive::napi;
 
 mod convert;
+// Regras puras AVULSAS (chave de mortas, portões, progresso, fila, seeds e o
+// resumo do trace) para as cascas que ainda importam `autofetch-*.ts`.
+pub mod rules;
 mod types;
 
 #[cfg(test)]

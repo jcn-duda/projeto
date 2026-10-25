@@ -207,3 +207,112 @@ fn seeds_blocked_corta_primario_e_fallback() {
     assert_eq!(d.trace.pool, "br");
     assert_eq!(d.queue.len(), 0);
 }
+
+// ---------------------------------------------------------------------------
+// Bindings das regras puras avulsas (`rules`)
+// ---------------------------------------------------------------------------
+
+/// As regras portadas ficam alcançáveis pelo napi: se alguém apagar um binding
+/// ou trocar a régua do núcleo, este teste cai. A chave leva o prefixo
+/// VERSIONADO do namespace (`autofetch:v3:dead:*`), não a forma curta do plano.
+#[test]
+fn napi_reexpoe_as_regras_puras_do_chupim() {
+    assert_eq!(
+        rules::dead_key("premiumize".into(), "acc".into(), "AABBCCDD".into()),
+        "autofetch:v3:dead:premiumize:acc:aabbccdd"
+    );
+    // Teto por obra com 720p registrado: 1080p cabe como reserva extra.
+    let fatos = vec![rules::ObraOverflowEntryIn {
+        pool: "br".into(),
+        quality: "720p".into(),
+        overflow: false,
+    }];
+    assert!(rules::overflow_upgrade_allowed(
+        fatos,
+        "br".into(),
+        "1080p".into()
+    ));
+}
+
+/// Os portões e a tabela de rollback vêm do núcleo, na ordem sagrada.
+#[test]
+fn napi_classifica_portao_e_devolve_o_rollback() {
+    let mut g = gates();
+    g.is_paused = true;
+    assert_eq!(rules::classify_enqueue(g).as_deref(), Some("paused"));
+    assert_eq!(
+        rules::rollback_for("paused".into()),
+        Some(vec!["hold".to_string()])
+    );
+    // `in-flight` retém o hold de propósito: o hash está em voo agora.
+    assert_eq!(rules::rollback_for("in-flight".into()), Some(Vec::new()));
+    assert_eq!(rules::rollback_for("unknown".into()), None);
+
+    // Sem portão fechado, o candidato é enfileirável.
+    assert_eq!(rules::classify_enqueue(gates()), None);
+}
+
+/// Posse do expirado: fora da AllDebrid a remoção histórica é preservada.
+#[test]
+fn napi_exige_prova_de_posse_do_expirado() {
+    fn base() -> rules::ExpiredFactsIn {
+        rules::ExpiredFactsIn {
+            hash_empty: false,
+            is_cleanup_protected: false,
+            adapter_is_alldebrid: true,
+            has_marker: true,
+            has_adsub: false,
+            has_snapshot: true,
+            in_snapshot: false,
+        }
+    }
+    // Marker prova a posse e o hash não é acervo do usuário: pode apagar.
+    assert!(rules::expired_removal_allowed(base()));
+    // Snapshot frio fecha o fail-safe (a MESMA autoridade do dropUncached).
+    let mut sem_snapshot = base();
+    sem_snapshot.has_snapshot = false;
+    assert!(!rules::expired_removal_allowed(sem_snapshot));
+    // Preexistente do usuário nunca é do Chupim.
+    let mut do_usuario = base();
+    do_usuario.in_snapshot = true;
+    assert!(!rules::expired_removal_allowed(do_usuario));
+}
+
+/// A memória de progresso é a do processo (o `Map` do TS) e é limpa por hash.
+#[test]
+fn napi_deriva_parada_e_esquece_o_hash() {
+    let lot = |hashes: Vec<String>| rules::ProgressLotIn {
+        adapter_id: "napi-progress".into(),
+        account: "acc".into(),
+        hashes,
+        threshold: 1.0,
+    };
+    let status = |bytes: f64| {
+        vec![rules::TorrentStatusPairIn {
+            hash: "abc".into(),
+            status: rules::TorrentStatusIn {
+                state: "downloading".into(),
+                id: Some("t1".into()),
+                progress: Some(rules::TorrentProgressIn {
+                    bytes,
+                    total: 100.0,
+                    speed: 0.0,
+                    seeders: 0.0,
+                }),
+            },
+        }]
+    };
+    // Primeira leitura só fixa a baseline: bytes parados valem 1 sinal.
+    let first = rules::derive_stall(lot(vec!["abc".into()]), status(10.0));
+    assert_eq!(first.signals, 1);
+    assert!(first.stalled.is_empty());
+    // Segunda leitura parada cruza o limiar (streak 1).
+    let second = rules::derive_stall(lot(vec!["abc".into()]), status(10.0));
+    assert_eq!(second.stalled, vec!["abc".to_string()]);
+
+    assert_eq!(
+        rules::forget_progress("napi-progress".into(), "acc".into(), "abc".into()),
+        0
+    );
+    assert_eq!(rules::progress_memory_size(), 0);
+}

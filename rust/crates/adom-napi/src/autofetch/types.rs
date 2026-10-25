@@ -197,3 +197,169 @@ pub struct AutofetchDecision {
     pub obra_status: ObraStatusOut,
     pub trace: TraceOut,
 }
+
+// ---------------------------------------------------------------------------
+// Regras puras AVULSAS (bindings de `super::rules`)
+// ---------------------------------------------------------------------------
+//
+// Cada uma espelha um tipo do `adom-core` que a régua avulsa lê ou devolve.
+// Ficam aqui pela mesma razão do lote: fronteira num arquivo só, longe da
+// decisão.
+
+/// Registro da obra visto pelo overflow do teto (só `pool`/`quality`/`overflow`).
+#[napi(object)]
+pub struct ObraOverflowEntryIn {
+    pub pool: String,
+    pub quality: String,
+    pub overflow: bool,
+}
+
+/// Fatos medidos do `expired-unready` (a guarda de posse decide sobre eles).
+#[napi(object)]
+pub struct ExpiredFactsIn {
+    pub hash_empty: bool,
+    pub is_cleanup_protected: bool,
+    pub adapter_is_alldebrid: bool,
+    pub has_marker: bool,
+    pub has_adsub: bool,
+    pub has_snapshot: bool,
+    pub in_snapshot: bool,
+}
+
+/// Lote de progresso de UM adapter+conta.
+#[napi(object)]
+pub struct ProgressLotIn {
+    pub adapter_id: String,
+    pub account: String,
+    pub hashes: Vec<String>,
+    /// `autoFetchStallStreak`; `<= 0` desliga a derivação.
+    pub threshold: f64,
+}
+
+/// Progresso medido de uma transferência.
+#[napi(object)]
+pub struct TorrentProgressIn {
+    pub bytes: f64,
+    pub total: f64,
+    pub speed: f64,
+    pub seeders: f64,
+}
+
+/// Status de UM hash na passagem (`id` chega como `string | number` no TS; a
+/// casca normaliza para texto antes da fronteira).
+#[napi(object)]
+pub struct TorrentStatusIn {
+    pub state: String,
+    pub id: Option<String>,
+    pub progress: Option<TorrentProgressIn>,
+}
+
+/// Um par `hash -> status` — o `Record` do TS vira lista na fronteira.
+#[napi(object)]
+pub struct TorrentStatusPairIn {
+    pub hash: String,
+    pub status: TorrentStatusIn,
+}
+
+/// Resultado de uma passagem de progresso.
+#[napi(object)]
+pub struct ProgressDerivationOut {
+    pub stalled: Vec<String>,
+    pub signals: i64,
+}
+
+/// Entrada da fila persistente (índice no array de streams do chamador).
+#[napi(object)]
+pub struct QueueEntryIn {
+    pub index: f64,
+    pub pool: String,
+    pub rare: bool,
+    pub slot_limit: Option<f64>,
+}
+
+/// Candidato do fallback (`pool` = `any` | `seeds`).
+#[napi(object)]
+pub struct FallbackPickIn {
+    pub index: f64,
+    pub pool: String,
+    pub rare: bool,
+    pub slot_limit: Option<f64>,
+}
+
+/// Entrada da fila já composta.
+#[napi(object)]
+pub struct QueueEntryOut {
+    pub index: i64,
+    pub pool: String,
+    pub rare: bool,
+    pub slot_limit: Option<i64>,
+}
+
+/// Opções do `toQueueCandidate`.
+#[napi(object)]
+pub struct QueueCandidateOptsIn {
+    pub imdb_id: Option<String>,
+    pub season: Option<f64>,
+    pub episode: Option<f64>,
+    pub season_fill: bool,
+    pub rare: bool,
+    pub slot_limit: Option<f64>,
+    pub size_bytes: Option<f64>,
+}
+
+/// Candidato persistido da fila (o `QueueCandidate` do núcleo).
+#[napi(object)]
+pub struct QueueCandidateRuleOut {
+    pub info_hash: String,
+    pub name: Option<String>,
+    pub title: Option<String>,
+    pub quality: Option<String>,
+    pub size: Option<f64>,
+    pub seeders: Option<i64>,
+    pub br: bool,
+    pub dubbed: bool,
+    pub bank_dub: bool,
+    pub lied: bool,
+    pub pool: String,
+    pub imdb_id: Option<String>,
+    pub season: Option<i64>,
+    pub episode: Option<i64>,
+    pub is_pack: bool,
+    pub probe_season: Option<i64>,
+    pub probe_episode: Option<i64>,
+    pub rare: bool,
+    pub slot_limit: Option<i64>,
+}
+
+/// Config viva da seleção seeds.
+#[napi(object)]
+pub struct SeedsLiveIn {
+    pub min_seeders: f64,
+    pub top_seeds_max: f64,
+    pub pt_first: bool,
+}
+
+/// Regime raro da seleção seeds.
+#[napi(object)]
+pub struct SeedsRareIn {
+    pub max: f64,
+    pub threshold: f64,
+    pub max_seeders: f64,
+}
+
+/// Opções da seleção seeds.
+#[napi(object)]
+pub struct SeedsOptsIn {
+    pub season: Option<f64>,
+    pub queue_depth: f64,
+    pub rare: SeedsRareIn,
+}
+
+/// Universo do pool seeds: streams já elegíveis + hashes viáveis (minúsculos).
+#[napi(object)]
+pub struct SeedsPoolInput {
+    pub streams: Vec<AutofetchStreamIn>,
+    pub live: SeedsLiveIn,
+    pub opts: SeedsOptsIn,
+    pub viable_hashes: Vec<String>,
+}

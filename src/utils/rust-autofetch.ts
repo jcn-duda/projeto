@@ -255,3 +255,123 @@ export function decideAutofetch<S extends AutofetchRawStream>(
     queue: (d.queue || []).map((c) => ({ stream: find(c.infoHash), pool: c.pool, rare: Boolean(c.rare), ...slot(c.slotLimit) })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Regras puras AVULSAS do Chupim: ponte das cascas `autofetch-*.ts` ao núcleo
+// ---------------------------------------------------------------------------
+//
+// As cascas antigas ainda têm chamadores fora do autofetch, então a troca é
+// feita por fatia: cada wrapper abaixo tem a MESMA assinatura pública do módulo
+// equivalente (o adaptador de tipo mora aqui) e o núcleo é obrigatório — não há
+// knob de env. As réguas são as do `adom-core`; nada é reimplementado no TS.
+
+export type ObraOverflowEntryNapi = { pool: string; quality: string; overflow: boolean };
+export type ExpiredFactsNapi = { hashEmpty: boolean; isCleanupProtected: boolean; adapterIsAlldebrid: boolean; hasMarker: boolean; hasAdsub: boolean; hasSnapshot: boolean; inSnapshot: boolean };
+export type ProgressLotNapi = { adapterId: string; account: string; hashes: string[]; threshold: number };
+export type TorrentProgressNapi = { bytes: number; total: number; speed: number; seeders: number };
+export type TorrentStatusNapi = { state: string; id?: string | number | null; progress?: TorrentProgressNapi | null };
+export type ProgressDerivationNapi = { stalled: string[]; signals: number };
+export type QueueEntryRuleNapi = { index: number; pool: string; rare: boolean; slotLimit?: number | null };
+export type QueueCandidateOptsRule = { imdbId?: string | null; season?: number | null; episode?: number | null; seasonFill: boolean; rare?: boolean; slotLimit?: number | null; sizeBytes?: number | null };
+export type QueueCandidateRuleNapi = { infoHash: string; name?: string | null; title?: string | null; quality?: string | null; size?: number | null; seeders?: number | null; br: boolean; dubbed: boolean; bankDub: boolean; lied: boolean; pool: string; imdbId?: string | null; season?: number | null; episode?: number | null; isPack: boolean; probeSeason?: number | null; probeEpisode?: number | null; rare: boolean; slotLimit?: number | null };
+export type SeedsPoolInputNapi = { streams: AutofetchStreamIn[]; live: { minSeeders: number; topSeedsMax: number; ptFirst: boolean }; opts: { season?: number | null; queueDepth: number; rare: { max: number; threshold: number; maxSeeders: number } }; viableHashes: string[] };
+export type SeedsPoolResultNapi = { candidates: number[]; immediateLimit: number; rareUsed: boolean };
+
+/** Superfície napi das réguas avulsas (camelCase; o napi converte do snake_case). */
+export type AutofetchRulesCore = {
+  deadKey(adapterId: string, account: string, infoHash: string): string;
+  overflowUpgradeAllowed(entries: ObraOverflowEntryNapi[], pool: string, quality: string): boolean;
+  expiredRemovalAllowed(facts: ExpiredFactsNapi): boolean;
+  classifyEnqueue(gates: EnqueueGatesIn): string | null;
+  rollbackFor(reason: string): string[] | null;
+  toQueueCandidate(stream: AutofetchStreamIn, pool: string, opts: QueueCandidateOptsRule): QueueCandidateRuleNapi;
+  composeQueueEntries(primary: QueueEntryRuleNapi[], fallbacks: QueueEntryRuleNapi[], depth: number): QueueEntryRuleNapi[];
+  pickSeedsPool(input: SeedsPoolInputNapi): SeedsPoolResultNapi;
+  setTraceChupim(note: string, enabled: boolean): string | null;
+  deriveStall(lot: ProgressLotNapi, statuses: Array<{ hash: string; status: TorrentStatusNapi }>): ProgressDerivationNapi;
+  forgetProgress(adapterId: string, account: string, hash: string): number;
+  progressMemorySize(): number;
+};
+
+function rulesCore(): AutofetchRulesCore {
+  return requireCore() as unknown as AutofetchRulesCore;
+}
+
+/** `autofetch-keys.deadKey` — chave folha do registro de mortas. */
+export function deadKey(adapterId: string, account: string, infoHash: string): string {
+  return rulesCore().deadKey(adapterId, account, infoHash);
+}
+
+/** `autofetch-obra-overflow.overflowUpgradeAllowed` (C11): faixa-alvo ausente e superior. */
+export function overflowUpgradeAllowed(entries: ObraOverflowEntryNapi[], input: { pool: string; quality?: string | null }): boolean {
+  return rulesCore().overflowUpgradeAllowed(entries, String(input.pool || ''), String(input.quality || ''));
+}
+
+/** `autofetch-expired.expiredRemovalAllowed` — só a guarda; o IO dos fatos fica no chamador. */
+export function expiredRemovalAllowed(facts: ExpiredFactsNapi): boolean {
+  return rulesCore().expiredRemovalAllowed(facts);
+}
+
+/** `autofetch-gates.classifyEnqueue` — motivo do portão ou `null` com todos abertos. */
+export function classifyEnqueue(gates: EnqueueGatesIn): string | null {
+  return rulesCore().classifyEnqueue(gates);
+}
+
+/** Tabela do `ENQUEUE_ROLLBACK`: o que liberar, ou `null` para motivo fora dos portões. */
+export function rollbackFor(reason: string): string[] | null {
+  return rulesCore().rollbackFor(reason);
+}
+
+/** `autofetch-fallback.toQueueCandidate` — `_size` → `_packBytes` → `size` da fila. */
+export function toQueueCandidate(
+  stream: AutofetchRawStream & { infoHash: string; size?: number },
+  pool: string,
+  opts: QueueCandidateOptsRule,
+): QueueCandidateRuleNapi {
+  const explicit = Number(stream._size) || Number(stream._packBytes) || Number(stream.size);
+  const sizeBytes = opts.sizeBytes ?? (explicit > 0 ? explicit : null);
+  return rulesCore().toQueueCandidate(toStreamIn(stream), pool, { ...opts, sizeBytes });
+}
+
+/** `composeQueueEntries` — excedente primário primeiro, fallbacks na folga. */
+export function composeQueueEntries(primary: QueueEntryRuleNapi[], fallbacks: QueueEntryRuleNapi[], depth: number): QueueEntryRuleNapi[] {
+  return rulesCore().composeQueueEntries(primary, fallbacks, depth);
+}
+
+/** `pickSeedsPool` — recebe o universo JÁ filtrado por `filterSeedsUniverse`.
+ *  Devolve ÍNDICES no array de `streams`, como o núcleo. */
+export function pickSeedsPool(input: SeedsPoolInputNapi): SeedsPoolResultNapi {
+  return rulesCore().pickSeedsPool(input);
+}
+
+/** `setTraceChupim` — resumo já sanitizado, ou `null` com o kill-switch desligado. */
+export function chupimTraceSummary(note: string, enabled: boolean): string | null {
+  return rulesCore().setTraceChupim(note, enabled);
+}
+
+/** `autofetch-progress.deriveStall` — a memória de processo mora no núcleo. */
+export function deriveStall(lot: ProgressLotNapi, statuses: Record<string, TorrentStatusNapi>): ProgressDerivationNapi {
+  const pairs = Object.entries(statuses).map(([hash, status]) => ({
+    hash,
+    status: status.id == null ? status : { ...status, id: String(status.id) },
+  }));
+  return rulesCore().deriveStall(lot, pairs);
+}
+
+/** Limpa UM hash; devolve o tamanho da memória depois (observabilidade). */
+export function forgetProgress(adapterId: string, account: string, hash: string): number {
+  return rulesCore().forgetProgress(adapterId, account, hash);
+}
+
+/** Limpa um lote inteiro (expira/evicção). */
+export function forgetLotProgress(adapterId: string, account: string, hashes: Iterable<string>): number {
+  const core = rulesCore();
+  let size = 0;
+  for (const hash of hashes) size = core.forgetProgress(adapterId, account, hash);
+  return size;
+}
+
+/** Tamanho da memória de progresso — observabilidade de vazamento. */
+export function progressMemorySize(): number {
+  return rulesCore().progressMemorySize();
+}
