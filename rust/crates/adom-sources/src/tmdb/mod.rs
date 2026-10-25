@@ -28,18 +28,15 @@ mod stub;
 #[path = "test_support.rs"]
 mod test_support;
 
-// `tmdb` ainda é `mod` privado em `lib.rs`: sem o `pub use` externo o rustc vê
-// estes reexports como não usados. Os tipos precisam seguir `pub` por causa da
-// assinatura de `TmdbClient::identify` e `TmdbSearchApi`.
-#[allow(unused_imports)]
+// Reexportados em `lib.rs` (a busca e o veredito de identificação são API do
+// crate); aqui ficam `pub` para a assinatura de `TmdbClient::identify`.
 pub use identify::{
-    identify, select_candidate, strict_name_matches, CandidateSelection, IdentifyInput,
-    IdentifyOutcome, IdentifyResult,
+    identify, select_candidate, CandidateSelection, IdentifyInput, IdentifyOutcome, IdentifyResult,
 };
-#[allow(unused_imports)]
 pub use search::{
     external_imdb_id, search_by_title, series_started_by, year_within_tolerance,
-    ExternalImdbResult, SearchByTitleOptions, SearchWorkType, TmdbSearchHit, TmdbSearchResult,
+    ExternalImdbResult, SearchByTitleOptions, SearchWorkType, TmdbSearchApi, TmdbSearchHit,
+    TmdbSearchResult,
 };
 
 use std::sync::Arc;

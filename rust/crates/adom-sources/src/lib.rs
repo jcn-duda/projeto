@@ -119,6 +119,15 @@ pub use prowlarr::{
 };
 pub use sources::MetaSources;
 pub use tmdb::TmdbClient;
+// Busca por título e veredito de identificação: consumidos pelo `adom-crawl`
+// (ingestão) e pelo `/find` do orquestrador. Reexportar aqui é o que dispensa o
+// `#[allow(unused_imports)]` do módulo (que continua `mod tmdb;`).
+pub use tmdb::{
+    external_imdb_id, identify, search_by_title, select_candidate, series_started_by,
+    year_within_tolerance, CandidateSelection, ExternalImdbResult, IdentifyInput, IdentifyOutcome,
+    IdentifyResult, SearchByTitleOptions, SearchWorkType, TmdbSearchApi, TmdbSearchHit,
+    TmdbSearchResult,
+};
 pub use torrentio::{
     TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioOutcome, TorrentioRawItem,
     TorrentioSearchArgs, TORRENTIO_DEFAULT_URL,
