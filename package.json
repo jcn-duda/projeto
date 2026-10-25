@@ -326,7 +326,6 @@
     "test/magnetdb-persist-basis.test.js",
     "test/memory-fallback-suppress.test.js",
     "test/meta-cache.test.js",
-    "test/mico-fetch-deadline.test.js",
     "test/mico.test.js",
     "test/movie-series-cam-guard.test.js",
     "test/multiwork-pack.test.js",

@@ -1,275 +1,36 @@
-// Mico Leão Dublado V2: card virtual da /configure e fonte opcional do acervo.
-// Parse do `title`, fail-open, breaker local, id inválido, o card no catálogo e
-// a separação do Jackett. Nada aqui toca rede.
+// Mico Leão Dublado V2 no Node: só o card virtual da /configure. A busca ao
+// vivo é do gateway nativo (`adom-search`) e a descoberta/captura é do raspador
+// (`adom-crawl`) — o `search` TS (fetch, breaker, captura do banco) saiu com a
+// T2-L4, quando o último chamador de `captureItems` deixou o src.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import config from '../src/config.js';
-config.seed.enabled = false;
-import * as mico from '../src/providers/mico.js';
-import * as indexerStatus from '../src/providers/indexer-status.js';
-import { stubFetch } from './helpers/stub.js';
-import * as bank from '../src/utils/magnet-bank.js';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+const config = (await import('../src/config.js')).default;
+const { catalogEntry, MICO_ID } = await import('../src/providers/mico.js');
 
-const H1 = 'a'.repeat(40);
-const H2 = 'b'.repeat(40);
-const ok = (streams: unknown[]) => ({ ok: true, status: 200, json: async () => ({ streams }) });
-
-async function withMico<T>(fn: () => Promise<T>): Promise<T> {
-  const saved = { enabled: config.mico.enabled, harvest: config.mico.harvest };
-  config.mico.enabled = true;
-  config.mico.harvest = true;
-  mico._resetBreaker();
-  try {
-    return await fn();
-  } finally {
-    config.mico.enabled = saved.enabled;
-    config.mico.harvest = saved.harvest;
-    mico._resetBreaker();
-  }
-}
-
-test('parse: título limpo, seeders do 👥, tamanho, isBr por (brazilian', async () => {
-  await withMico(async () => {
-    const stub = stubFetch((url) => {
-      assert.match(url, /\/stream\/movie\/tt7286456\.json$/);
-      return ok([
-        { name: 'Mico', title: 'Coringa.2019.1080p.BluRay (brazilian, eng) 👥 12\n💾 2.5 GB', infoHash: H1.toUpperCase() },
-        { name: 'Mico', title: 'Joker.2019.2160p.WEB-DL\n💾 29.0 GB', infoHash: H2 },
-        { name: 'Mico', title: 'sem hash', infoHash: 'xyz' },
-        { name: 'Mico', title: 'Interstelar.2014.1080p.DUAL-RICKSZ (brazili…', infoHash: 'c'.repeat(40) },
-      ]);
-    });
-    try {
-      const out = await mico.search({ type: 'movie', imdbId: 'tt7286456' });
-      assert.equal(out.length, 3);
-      assert.equal(out[2].title, 'Interstelar.2014.1080p.DUAL-RICKSZ', 'sufixo truncado pelo Mico sai');
-      assert.equal(out[2].isBr, true, '(brazili… truncado ainda é BR');
-      assert.equal(out[0].title, 'Coringa.2019.1080p.BluRay');
-      assert.equal(out[0].infoHash, H1);
-      assert.equal(out[0].seeders, 12);
-      assert.equal(out[0].size, Math.round(2.5 * 1024 ** 3));
-      assert.equal(out[0].isBr, true);
-      assert.equal(out[0].indexer, 'mico');
-      assert.equal(out[1].title, 'Joker.2019.2160p.WEB-DL');
-      assert.equal(out[1].seeders, 1, 'sem 👥 vale o neutro 1');
-      assert.equal(out[1].isBr, false);
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-test('série monta <id>:<S>:<E>; id inválido e série sem episódio não fazem fetch', async () => {
-  await withMico(async () => {
-    const stub = stubFetch(() => ok([]));
-    try {
-      await mico.search({ type: 'series', imdbId: 'tt0944947', season: 2, episode: 3 });
-      assert.match(stub.calls[0].url, /\/stream\/series\/tt0944947:2:3\.json$/);
-      assert.deepEqual(await mico.search({ type: 'movie', imdbId: '../etc' }), []);
-      assert.deepEqual(await mico.search({ type: 'series', imdbId: 'tt0944947', season: 2, episode: null }), []);
-      assert.equal(stub.calls.length, 1);
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-test('fail-open em HTTP 500 e erro de rede; breaker abre após N falhas', async () => {
-  await withMico(async () => {
-    let n = 0;
-    const stub = stubFetch(() => {
-      n += 1;
-      if (n === 1) throw new Error('boom');
-      return { ok: false, status: 500, json: async () => ({}) };
-    });
-    try {
-      for (let i = 0; i < config.mico.breakerFailures; i += 1) {
-        assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      }
-      const calls = stub.calls.length;
-      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      assert.equal(stub.calls.length, calls, 'circuito aberto não consulta');
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-// O refactor da Fase 1 extraiu o fetch para `fetchMicoStreams`, que devolve
-// `{ items, ok }`. Estes dois testes travam a semântica EXATA do breaker ao
-// vivo (a que o `search` histórico tinha): um 4xx (exceto 429) é NEUTRO — não
-// reseta nem incrementa o contador —, um 200 reseta, e 429/5xx/rede incrementa.
-test('breaker: 4xx é NEUTRO (não reseta o contador), 500 incrementa', async () => {
-  await withMico(async () => {
-    const N = config.mico.breakerFailures;
-    const queue: Array<() => any> = [];
-    const stub = stubFetch(() => (queue.shift()?.() ?? ok([])));
-    const http = (status: number) => () => ({ ok: false, status, json: async () => ({}) });
-    try {
-      // N-1 falhas 500 → contador em N-1 (circuito ainda fechado).
-      for (let i = 0; i < N - 1; i += 1) {
-        queue.push(http(500));
-        assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      }
-      // Um 4xx (404) é NEUTRO: NÃO zera o contador (se zerou, o bug voltou).
-      queue.push(http(404));
-      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      // Uma ÚNICA 500 agora leva N-1 → N: o circuito ABRE. Só abre se o 404
-      // anterior não resetou o contador.
-      queue.push(http(500));
-      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      const callsOpen = stub.calls.length;
-      // Circuito aberto: a próxima busca NÃO consulta (short-circuit).
-      queue.push(http(500));
-      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
-      assert.equal(stub.calls.length, callsOpen, '4xx não resetou: a N-ésima 500 abriu o circuito');
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-test('breaker: um 200 (mesmo sem streams) RESETA o contador de falhas', async () => {
-  await withMico(async () => {
-    const N = config.mico.breakerFailures;
-    const queue: Array<() => any> = [];
-    const stub = stubFetch(() => (queue.shift()?.() ?? ok([])));
-    const http = (status: number) => () => ({ ok: false, status, json: async () => ({}) });
-    try {
-      // N-1 falhas → contador em N-1.
-      for (let i = 0; i < N - 1; i += 1) {
-        queue.push(http(500));
-        await mico.search({ type: 'movie', imdbId: 'tt0000002' });
-      }
-      // Um 200 com `streams: []` é caminho de SUCESSO → zera o contador.
-      queue.push(() => ok([]));
-      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
-      // Pós-reset são precisas N falhas de novo: N-1 NÃO abrem o circuito.
-      for (let i = 0; i < N - 1; i += 1) {
-        queue.push(http(500));
-        await mico.search({ type: 'movie', imdbId: 'tt0000002' });
-      }
-      const calls = stub.calls.length;
-      queue.push(http(500));
-      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
-      assert.equal(stub.calls.length, calls + 1, 'ainda fechado: o 200 resetou, a N-ésima falha abriu');
-      // E a abertura se confirma: a consulta seguinte NÃO faz fetch.
-      const callsOpen = stub.calls.length;
-      queue.push(http(500));
-      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
-      assert.equal(stub.calls.length, callsOpen, 'circuito aberto após o reset não consulta');
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-test('MICO_ENABLED=false: nenhum fetch e o card some do catálogo', async () => {
+test('card: entra no catálogo como BR e virtual', () => {
   const saved = config.mico.enabled;
-  config.mico.enabled = false;
-  const stub = stubFetch(() => ok([]));
+  config.mico.enabled = true;
   try {
-    assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt7286456' }), []);
-    assert.equal(stub.calls.length, 0);
-    assert.equal(mico.catalogEntry(), null);
+    const card = catalogEntry();
+    assert.ok(card, 'card presente com MICO_ENABLED=true');
+    assert.equal(card.id, MICO_ID);
+    assert.equal(card.language, 'pt-BR');
+    assert.equal(card.isBr, true);
+    assert.equal(card.virtual, true, 'card virtual fica fora da prova de vida do Jackett');
   } finally {
-    stub.restore();
     config.mico.enabled = saved;
   }
 });
 
-test('card: entra no catálogo como BR e fora da lista do Jackett', async () => {
-  await withMico(async () => {
-    assert.deepEqual(mico.catalogEntry(), { id: 'mico', label: 'Mico Leão Dublado', language: 'pt-BR', isBr: true, virtual: true });
-    assert.deepEqual(mico.jackettOnly(['bludv-cardigann', 'MICO', 'yts']), ['bludv-cardigann', 'yts']);
-  });
-});
-
-test('card: busca viva pinta o status; a do colhedor não', async () => {
-  await withMico(async () => {
-    indexerStatus.clear();
-    const stub = stubFetch(() => ok([{ title: 'Coringa 2019 Dublado 👥 3', infoHash: H1 }]));
-    try {
-      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { recordStatus: false });
-      assert.equal(indexerStatus.get('mico'), null);
-      await mico.search({ type: 'movie', imdbId: 'tt7286456' });
-      assert.equal(indexerStatus.get('mico')?.state, 'online');
-    } finally {
-      stub.restore();
-      indexerStatus.clear();
-    }
-  });
-});
-
-test('banco vivo: item do Mico entra com fonte mico e os trackers de `sources`', async () => {
-  const savedBank = config.magnetBank.enabled;
-  config.magnetBank.enabled = true;
-  bank.resetForTests();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mico-bank-'));
-  bank.open(dir);
-  await withMico(async () => {
-    const stub = stubFetch(() => ok([{
-      title: 'Matrix 1999 1080p Dublado 👥 0',
-      infoHash: H1,
-      sources: ['tracker:udp://tracker.exemplo.org:1337/announce', 'dht:' + H1, 'lixo'],
-    }]));
-    try {
-      const out = await mico.search({ type: 'movie', imdbId: 'tt0133093' });
-      assert.match(String(out[0].magnet), /^magnet:\?xt=urn:btih:a{40}&tr=udp%3A%2F%2Ftracker\.exemplo\.org/);
-      assert.doesNotMatch(String(out[0].magnet), /[?&]dn=/, 'título do post não vira dn=');
-      bank.flushNow();
-      assert.deepEqual(bank.sourcesFor(H1).map((r: any) => r.indexer), ['mico']);
-      assert.match(String(bank.lookup(H1)?.uri), /tracker\.exemplo\.org/);
-      assert.ok(bank.worksFor(H1).some((w: any) => w.imdb === 'tt0133093'), 'obra do pedido registrada');
-    } finally {
-      stub.restore();
-      bank.resetForTests();
-      config.magnetBank.enabled = savedBank;
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-test('estado vivo: sucesso, falha e circuito aberto chegam ao onQueryResult', async () => {
-  await withMico(async () => {
-    const seen: string[] = [];
-    const onQueryResult = (info: { responded: boolean; reason?: string }) => { seen.push(info.responded ? 'ok' : String(info.reason)); };
-    let fail = false;
-    const stub = stubFetch(() => (fail ? { ok: false, status: 503, json: async () => ({}) } : ok([])));
-    try {
-      await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
-      fail = true;
-      for (let i = 0; i < config.mico.breakerFailures; i += 1) {
-        await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
-      }
-      await mico.search({ type: 'movie', imdbId: 'tt0000002' }, { onQueryResult });
-      assert.deepEqual(seen, ['ok', ...Array(config.mico.breakerFailures).fill('error'), 'breaker']);
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-test('estado vivo: Mico mede `relevant` pelo filtro de título da obra', async () => {
-  await withMico(async () => {
-    const seen: Array<number | undefined> = [];
-    const stub = stubFetch(() => ok([
-      { title: 'Coringa 2019 1080p Dublado 👥 3', infoHash: H1 },
-      { title: 'Harley Quinn S01E01 1080p 👥 9', infoHash: H2 },
-    ]));
-    const matchContext = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false, season: null, episode: null } as any;
-    try {
-      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { matchContext, onQueryResult: (i) => seen.push(i.relevant) });
-      await mico.search({ type: 'movie', imdbId: 'tt7286456' }, { onQueryResult: (i) => seen.push(i.relevant) });
-      assert.deepEqual(seen, [1, undefined], 'sem obra não há medição');
-    } finally {
-      stub.restore();
-    }
-  });
+test('MICO_ENABLED=false: o card some do catálogo', () => {
+  const saved = config.mico.enabled;
+  config.mico.enabled = false;
+  try {
+    assert.equal(catalogEntry(), null);
+  } finally {
+    config.mico.enabled = saved;
+  }
 });

@@ -1473,11 +1473,60 @@ git commit -m "feat(harvest): slot em voo duravel com lease e retorno a fila"
 
 </details>
 
-### T2-L4: `magnet_work` com dono único (`adom-store`)
+### T2-L4: `magnet_work` com dono único (`adom-store`) — EXECUTADA
 
-`magnet_work` tem hoje dois escritores com CAS. Depois da T2-L1 a captura é
-nativa e não há mais escritor TS legítimo — esta fatia **prova** isso e apaga o
-lado TS.
+**O que o plano supunha:** que a T2-L1 tivesse deixado a captura 100% nativa e
+que a T2-L2 tivesse entregado uma ponte de LEITURA do banco de magnets, de modo
+que `src/utils/magnet-bank-rows.ts` pudesse ser apagado inteiro.
+
+**Causa raiz medida** (o Step 1 mandava parar se houvesse escritor vivo; havia
+código de escrita, mas nenhum no caminho da busca):
+
+- A captura de produção JÁ é nativa: `adom-store::capture_items` e
+  `mark_filter_outcome`, chamados no fim da busca (`adom-search` `late.rs`) e
+  pelo recorder do `adom-crawl` (`ingest/store.rs`). O lado Rust de
+  `magnet_work` (`upsert_work`/`mark_work_filter`, um SQL só para a API de uma
+  linha e o lote) e os dois testes do CAS já estavam no HEAD (`ed47b1c3`).
+- O único chamador de `captureItems` no `src` era `mico.search` — e ele NÃO
+  tinha consumidor: `jackett-catalog.ts` importa o módulo só para
+  `catalogEntry()`. Código morto desde que o `/stream` virou gateway.
+- O que NÃO se confirmou: a T2-L2 entregou o `NativeKv` (cache.db), não uma
+  ponte do `magnets.db`. `magnet-bank-rows.ts` é a ENGINE SQLite de leitura
+  (painel, play, fallback, import/export); apagá-la hoje derruba o Node
+  inteiro. O delete fica para a fatia da ponte napi desse banco.
+
+**Corte executado:**
+- `src/providers/mico.ts` reduzido a `MICO_ID` + `catalogEntry()`: saíram o
+  `search` (fetch, breaker, `captureItems`), `fetchMicoStreams`, `mapStream`,
+  as URLs de stream, `retryAfterMs`, `jackettOnly` e o estado do breaker.
+- `test/mico.test.ts` cobre só o card virtual; `test/mico-fetch-deadline.test.ts`
+  apagado (a regra de `fetchJsonWithin` segue coberta em `deadline.test.ts`) e
+  as entradas saíram do `testFiles`.
+- `magnet-bank.ts`: `captureItems`/`markFilterResult` marcados como FIXTURE — a
+  produção não os chama. `flushBarrier` continua (import/export), com a fila
+  vazia em produção.
+- Com isso a prova do plano passa a valer literalmente: grep por
+  `captureItems|markFilterResult|enqueueCaptureAndFilter` no `src` só acha as
+  definições da fachada.
+
+**Pendente (declarado):** apagar a engine TS (`magnet-bank-rows.ts`, ~397
+linhas) exige a ponte napi do `magnets.db` (leitura + `writeBatch` do import).
+Sem ela, "dono único" vale para o caminho de produção — busca, crawl e play —
+mas não para o import manual do painel, que continua escrevendo pelo engine.
+
+**Arquivos (executado):**
+- Modify: `src/providers/mico.ts`, `src/utils/magnet-bank.ts`,
+  `test/mico.test.ts`, `package.json`
+- Delete: `test/mico-fetch-deadline.test.ts`
+
+**Provas:** `npm run typecheck` (3 programas), `npm run build`, `npm test`
+(2426 testes, 2425 pass, 0 fail, 1 skipped), `npm run test:complete` (273
+arquivos), `npm run lint:lines -- --check` (644 arquivos, 0 acima do teto) e
+`git diff --check`. Rust inalterado nesta fatia: `magnet_work_tests.rs` já cobre
+o CAS (`cargo test -p adom-store`).
+
+<details>
+<summary>Plano original (histórico) — premissa de que não havia escritor TS</summary>
 
 **Files:**
 - Modify: `rust/crates/adom-store/src/magnet_bank_write.rs` (extrai
@@ -1571,6 +1620,8 @@ git add src utils rust test package.json
 ```powershell
 git commit -m "refactor(store): magnet_work com dono unico e sem escritor TS"
 ```
+
+</details>
 
 ### T3-L4: estado do Chupim nativo (`adom-autofetch`)
 

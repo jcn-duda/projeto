@@ -105,13 +105,10 @@ export function flushNow(): number {
 }
 
 /**
- * Barreira OBSERVÁVEL do lote para quem precisa da verdade da persistência — o
- * crawler de gravação. Aplica a fila AGORA e devolve `ok:false` quando a escrita
- * NÃO efetivou (o ROLLBACK desfez o lote), em vez de mentir `0` como o
- * `flushNow`. É síncrono porque a fila é alimentada de forma síncrona por
- * `captureItems`/`markFilterResult`: drenar aqui captura exatamente o lote do
- * crawler (mais o que já estava na fila — persistir antes nunca faz mal) sem
- * jamais aguardar rede. O caminho ao vivo continua sem esperar o disco.
+ * Barreira OBSERVÁVEL do lote: aplica a fila AGORA e devolve `ok:false` quando o
+ * ROLLBACK desfez o lote (em vez de mentir `0` como o `flushNow`). Síncrona
+ * porque a fila é alimentada de forma síncrona; o caminho ao vivo continua sem
+ * esperar o disco. Com a captura nativa (T2-L4) a fila fica vazia em produção.
  */
 export function flushBarrier(): { ok: boolean; written: number } {
   try {
@@ -230,16 +227,20 @@ function applyOps(ops: Op[]): number {
 }
 
 // ---------------------------------------------------------------------------
-// API de captura
+// API de captura (T2-L4: fixture, não produção)
 // ---------------------------------------------------------------------------
 
-/** Captura itens com hash (caminho vivo). true=ok/no-op; false=fila cheia. */
+/** Fixture de teste — a captura de produção é NATIVA (T2-L1): `capture_items`
+ * e `mark_filter_outcome` do Rust no fim da busca e no recorder do crawl, com
+ * `magnet_work` de dono único no `adom-store`. O `mico.search`, último chamador
+ * no Node, saiu na T2-L4; a fachada sai com a ponte napi do banco. */
 export function captureItems(items: readonly RawItem[], indexer = '', ctx: WorkCtx = {}): boolean {
   if (!items || items.length === 0) return true;
   return enqueue({ kind: 'capture', items, indexer: String(indexer || '').toLowerCase(), ctx });
 }
 
-/** Marca passed_filter (caminho vivo). true=ok/no-op; false=fila cheia. */
+/** Fixture: mesma régua da captura nativa (produção não chama isto).
+ * true=ok/no-op; false=fila cheia. */
 export function markFilterResult(
   allHashes: Iterable<string>,
   survivingHashes: Iterable<string>,
