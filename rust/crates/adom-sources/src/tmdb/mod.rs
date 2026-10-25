@@ -18,6 +18,29 @@
 mod collection;
 mod find_item;
 mod home_release;
+mod identify;
+mod search;
+mod search_cache;
+#[cfg(test)]
+#[path = "tmdb_stub.rs"]
+mod stub;
+#[cfg(test)]
+#[path = "test_support.rs"]
+mod test_support;
+
+// `tmdb` ainda é `mod` privado em `lib.rs`: sem o `pub use` externo o rustc vê
+// estes reexports como não usados. Os tipos precisam seguir `pub` por causa da
+// assinatura de `TmdbClient::identify` e `TmdbSearchApi`.
+#[allow(unused_imports)]
+pub use identify::{
+    identify, select_candidate, strict_name_matches, CandidateSelection, IdentifyInput,
+    IdentifyOutcome, IdentifyResult,
+};
+#[allow(unused_imports)]
+pub use search::{
+    external_imdb_id, search_by_title, series_started_by, year_within_tolerance,
+    ExternalImdbResult, SearchByTitleOptions, SearchWorkType, TmdbSearchHit, TmdbSearchResult,
+};
 
 use std::sync::Arc;
 
@@ -35,6 +58,8 @@ pub struct TmdbClient {
     pub(crate) http: Http,
     pub(crate) config: TmdbConfig,
     pub(crate) store: Arc<dyn MetaStore>,
+    /// Cache da busca por TÍTULO e do `external_ids` (ver `search_cache.rs`).
+    pub(crate) search_cache: search_cache::SearchCache,
 }
 
 /// Resposta de um `/find`: `ok` = a API respondeu (mesmo sem resultado);
@@ -61,6 +86,7 @@ impl TmdbClient {
             http: Http::new(user_agent)?,
             config,
             store,
+            search_cache: search_cache::SearchCache::default(),
         })
     }
 
@@ -69,6 +95,7 @@ impl TmdbClient {
             http,
             config,
             store,
+            search_cache: search_cache::SearchCache::default(),
         }
     }
 
