@@ -106,6 +106,34 @@ pub struct Titles {
     pub tmdb_id: Option<u64>,
     /// O item veio de `tv_results` (não de `movie_results`).
     pub is_series: bool,
+    /// Quando o TMDB foi consultado (ms). Entrada antiga não tem: vale como
+    /// "consultada há muito tempo" na regra de [`Titles::is_unlocalized`].
+    #[serde(default)]
+    pub fetched_at_ms: Option<i64>,
+}
+
+impl Titles {
+    /// O TMDB ainda não tem título localizado: pt igual ao original e nenhum
+    /// alias BR. É estado TRANSITÓRIO em obra nova (a tradução chega semanas
+    /// depois da estreia) e, congelado no TTL de 7 dias, deixava os indexers BR
+    /// sem a query pt-BR — Lanterns (2026) ficou "Lanterns S01" nos sites BR,
+    /// que publicam "Lanternas", e o dublado nunca entrou na lista.
+    pub fn is_unlocalized(&self) -> bool {
+        let norm = |s: &Option<String>| s.as_deref().map(|t| t.trim().to_lowercase());
+        let pt = norm(&self.pt);
+        pt.is_some() && pt == norm(&self.original) && self.aliases_br.is_empty()
+    }
+
+    /// Entrada "sem tradução" mais velha que `max_age_secs` (ou sem data) deve
+    /// ser reconsultada.
+    pub fn unlocalized_is_stale(&self, max_age_secs: u64, now_ms: i64) -> bool {
+        if !self.is_unlocalized() {
+            return false;
+        }
+        let max_age_ms = i64::try_from(max_age_secs.saturating_mul(1_000)).unwrap_or(i64::MAX);
+        self.fetched_at_ms
+            .is_none_or(|at| now_ms.saturating_sub(at) >= max_age_ms)
+    }
 }
 
 /// Coleção multiobra (`belongs_to_collection` + partes).
@@ -276,5 +304,56 @@ impl LookupOptions {
             include_home_release: true,
             ..Self::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod titles_tests {
+    use super::Titles;
+
+    fn titles(pt: &str, original: &str, aliases: &[&str], at: Option<i64>) -> Titles {
+        Titles {
+            pt: Some(pt.into()),
+            original: Some(original.into()),
+            en: Some(original.into()),
+            aliases_br: aliases.iter().map(|a| a.to_string()).collect(),
+            year: Some("2026".into()),
+            original_language: None,
+            tmdb_id: None,
+            is_series: true,
+            fetched_at_ms: at,
+        }
+    }
+
+    const HORA: i64 = 3_600_000;
+
+    #[test]
+    fn sem_traducao_e_pt_igual_ao_original_sem_alias() {
+        assert!(titles("Lanterns", "Lanterns", &[], None).is_unlocalized());
+        assert!(titles(" lanterns ", "Lanterns", &[], None).is_unlocalized());
+        assert!(!titles("Lanternas", "Lanterns", &[], None).is_unlocalized());
+        assert!(
+            !titles("Lanterns", "Lanterns", &["Lanternas"], None).is_unlocalized(),
+            "alias BR já é tradução"
+        );
+    }
+
+    #[test]
+    fn sem_traducao_velho_ou_sem_data_e_reconsultado() {
+        let now = 100 * HORA;
+        let ttl = 6 * 3_600;
+        assert!(
+            titles("Lanterns", "Lanterns", &[], None).unlocalized_is_stale(ttl, now),
+            "entrada antiga (sem `at`) é reconsultada"
+        );
+        assert!(titles("Lanterns", "Lanterns", &[], Some(now - 7 * HORA))
+            .unlocalized_is_stale(ttl, now));
+        assert!(
+            !titles("Lanterns", "Lanterns", &[], Some(now - HORA)).unlocalized_is_stale(ttl, now)
+        );
+        assert!(
+            !titles("Duna", "Dune", &[], None).unlocalized_is_stale(ttl, now),
+            "com tradução o TTL longo segue valendo"
+        );
     }
 }

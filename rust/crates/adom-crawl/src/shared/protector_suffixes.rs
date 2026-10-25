@@ -24,7 +24,13 @@ pub const PROTECTOR_SUFFIXES: &[&str] = &[
 
 /// Sufixos extras específicos do VacaTorrent (base + estes).
 /// Separados para que resolvers que não são do Vaca usem apenas a base.
-pub const VACA_EXTRA_PROTECTOR_SUFFIXES: &[&str] = &["systemtech.space"];
+///
+/// `mundgostoso.site` é a 2ª metade da cadeia desde out/2026 (medido em
+/// 2026-10-24): `relay.php` → `mundgostoso.site/enc/receber.php` → artigo com
+/// contagem (`var URL_ETAPA2`) → `enc2/receber.php` → página com o magnet em
+/// `<body data-link="base64">`. Fora desta lista a etapa 2 era recusada e todo
+/// `/resolve` do Vaca acabava em "sem magnet no HTML final".
+pub const VACA_EXTRA_PROTECTOR_SUFFIXES: &[&str] = &["systemtech.space", "mundgostoso.site"];
 
 /// Verifica se um hostname é um protetor conhecido (base comum).
 ///

@@ -85,6 +85,8 @@ fn encode_titles(titles: &Titles) -> Value {
         "en": titles.en,
         "br": titles.aliases_br,
         "year": titles.year,
+        // Quando o TMDB foi consultado: decide a releitura do "sem tradução".
+        "at": titles.fetched_at_ms,
     })
 }
 
@@ -197,6 +199,7 @@ fn decode_titles(value: &Value) -> Option<Option<Titles>> {
         original_language: None,
         tmdb_id: None,
         is_series: false,
+        fetched_at_ms: object.get("at").and_then(Value::as_i64),
     }))
 }
 

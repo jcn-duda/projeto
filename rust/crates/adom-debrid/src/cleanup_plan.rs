@@ -126,31 +126,6 @@ impl CleanupPlan {
             .collect()
     }
 
-    /// Cruza o relatório REAL da fila com os alvos do plano: só o id que a API
-    /// confirmou sair vira marca devolvida ao Node. Falha de delete fica de
-    /// fora — o magnet continua na conta e o `adrm` o esconderia da checagem
-    /// à toa. Dedupe por hash (o mesmo magnet pode ter sido alvo de dois lotes).
-    pub fn removed_marks(
-        &self,
-        report: &crate::alldebrid_delete::DeleteReport,
-    ) -> Vec<crate::marks_feed::RemovedMark> {
-        let gone: HashSet<&str> = report.removed.iter().map(String::as_str).collect();
-        let mut marks: Vec<crate::marks_feed::RemovedMark> = Vec::new();
-        for target in self.ready.iter().chain(self.uncached.iter()) {
-            if !gone.contains(target.id.as_str()) {
-                continue;
-            }
-            if marks.iter().any(|mark| mark.hash == target.hash) {
-                continue;
-            }
-            marks.push(crate::marks_feed::RemovedMark {
-                hash: target.hash.clone(),
-                name: target.name.clone(),
-            });
-        }
-        marks
-    }
-
     /// Executa o plano na fila com backoff (fire-and-forget no chamador).
     pub async fn run(
         &self,
@@ -186,17 +161,16 @@ impl CleanupPlan {
                 None => String::new(),
             }
         );
-        // O Node é o dono único do `cache.db`: devolve só o que a fila PROVOU
-        // removido para ele gravar o `adrm` (anti-reenchimento). Fail-open e
-        // fora do prazo — a resposta já saiu.
-        let removed = self.removed_marks(&report);
-        if !removed.is_empty() {
-            crate::marks_feed::spawn(crate::marks_feed::MarkedBatch {
-                api_key: api_key.to_string(),
-                submitted: Vec::new(),
-                removed,
-            });
-        }
+        // NÃO devolve `removed` ao Node: este plano é só a HIGIENE da checagem
+        // (`ready` + `uncached` que o próprio `/magnet/upload` criou), e o
+        // `adrm` é para decisão sobre o CONTEÚDO (sweepUndubbed, evict,
+        // reconcile, catálogo — que o Node grava direto). O TS da checagem
+        // nunca marcava aqui (`alldebrid-check.ts::scheduleDrop`: só purga a
+        // posse). Marcar transformava todo candidato fora do cache em
+        // "apagado de propósito" por 3 dias e o Chupim não baixava mais nada
+        // (medido em 2026-10-24: o dublado do Lanternas S01E08 bloqueado).
+        // A posse (`adsub`) do que saiu fica até o TTL dela: o hash continua
+        // sendo "nosso" se voltar, que é o lado seguro.
         Some(report)
     }
 }

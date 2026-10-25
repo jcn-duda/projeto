@@ -280,7 +280,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   também limpa (`dropUncached`/`dropReady`). Nunca limpar: hash do autofetch
   (`protected.ts`), preexistente do usuário (`knownBefore`) e, com inventário
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
-  anti-reenchimento `adrm:v1`, retenção BR `adprot:v1`. Varreduras destrutivas
+  anti-reenchimento `adrm:v1` (SÓ das varreduras de conteúdo — a higiene da
+  checagem nunca marca; a ponte nativa `/internal/debrid/marked` leva só a
+  posse), retenção BR `adprot:v1`. Varreduras destrutivas
   (`sweepDead`, `sweepUndubbed`, reconcile, revalidate) têm kill-switch próprio.
   **R3**: a checagem/limpeza é NATIVA e incondicional — não existe
   `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foi apagada. A nativa

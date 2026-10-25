@@ -1,20 +1,22 @@
-//! Devolução das marcas da limpeza NATIVA da AllDebrid ao Node
+//! Devolução da POSSE da checagem NATIVA da AllDebrid ao Node
 //! (`POST /internal/debrid/marked`).
 //!
 //! A checagem da AllDebrid é um `/magnet/upload` real e, com
 //! `DEBRID_AL_CLEANUP=on` + `holds_complete` + inventário, a limpeza apaga pela
 //! fila com backoff (`alldebrid_delete`). Quem sabe o que SUBIU e o que SAIU de
 //! verdade é este lado; quem é dono do `cache.db` é o Node — a posse (`adsub:v1`)
-//! e o anti-reenchimento (`adrm:v1`) só podem ser gravados lá. Sem esta ponte o
-//! caminho nativo apaga e a busca seguinte re-sobe o mesmo hash: a limpeza vira
-//! esteira e o snapshot seguinte classifica o magnet como "do usuário" (imune).
+//! só pode ser gravada lá. Sem esta ponte o snapshot seguinte classifica o
+//! magnet que a checagem subiu como "do usuário" (imune à limpeza).
 //!
 //! A ponte é a rota interna, espelho de [`crate::holds_feed`]:
 //!
 //! - `submitted` → `adsub`: só o hash que o snapshot do lote (`knownBefore`)
-//!   provou AUSENTE antes do upload (a prova de criação do 8.15, feita aqui);
-//! - `removed` → `forgetSubmitted` + `adrm`: só o que o `DeleteReport`
-//!   CONFIRMOU removido; o nome alimenta a blindagem BR do Node (8.4).
+//!   provou AUSENTE antes do upload (a prova de criação do 8.15, feita aqui).
+//!
+//! NÃO há canal de remoção: a limpeza nativa é só a HIGIENE da checagem, e o
+//! anti-reenchimento (`adrm:v1`) é para decisão sobre o conteúdo (varreduras
+//! do Node). Devolver a higiene como `adrm` bloqueava por 3 dias todo
+//! candidato fora do cache e o Chupim parava de baixar (2026-10-24).
 //!
 //! Por que rota e não escrita direta: o `cache.db` tem dono único (o Node) e o
 //! Rust não conhece o TTL/kill-switch/memo do caminho TS. Corpo pequeno, prazo
@@ -40,14 +42,6 @@ pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
 
 const DEFAULT_TIMEOUT_MS: u64 = 1_500;
 
-/// Um hash que a limpeza removeu de propósito. `name` é o nome da release no
-/// `/magnet/upload`; é por ele que o Node reconhece (e NUNCA marca) origem BR.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RemovedMark {
-    pub hash: String,
-    pub name: Option<String>,
-}
-
 /// Lote de marcas de UMA conta. `api_key` viaja no corpo porque é a única
 /// identidade disponível nos dois pontos de gatilho (o `encoded` do usuário
 /// mora no `adom-search`); a rota é loopback + token e a chave nunca é logada.
@@ -55,29 +49,19 @@ pub struct RemovedMark {
 pub struct MarkedBatch {
     pub api_key: String,
     pub submitted: Vec<String>,
-    pub removed: Vec<RemovedMark>,
 }
 
 impl MarkedBatch {
     pub fn is_empty(&self) -> bool {
-        self.submitted.is_empty() && self.removed.is_empty()
+        self.submitted.is_empty()
     }
 
     /// Corpo do POST, no contrato da rota.
     pub fn body(&self) -> Value {
-        let removed: Vec<Value> = self
-            .removed
-            .iter()
-            .map(|mark| match &mark.name {
-                Some(name) => json!({ "hash": mark.hash, "name": name }),
-                None => json!({ "hash": mark.hash }),
-            })
-            .collect();
         json!({
             "service": "alldebrid",
             "apiKey": self.api_key,
             "submitted": self.submitted,
-            "removed": removed,
         })
     }
 }
@@ -181,9 +165,8 @@ pub fn spawn(batch: MarkedBatch) {
         };
         if let Err(err) = client.send(&batch).await {
             eprintln!(
-                "[alldebrid] marca nativa não entregue ({} subiu, {} removido(s)): {err}",
-                batch.submitted.len(),
-                batch.removed.len()
+                "[alldebrid] marca nativa não entregue ({} subiu): {err}",
+                batch.submitted.len()
             );
         }
     });

@@ -16,6 +16,7 @@
 //! solto, que abriria release de outra obra, não.
 
 mod collection;
+mod find_item;
 mod home_release;
 
 use std::sync::Arc;
@@ -27,7 +28,7 @@ use crate::cache::{set_cached, titles_key, CacheValue, MetaStore};
 use crate::config::TmdbConfig;
 use crate::http::{now_ms, url_with_path, with_query, Http};
 use crate::types::Titles;
-use crate::wire::{as_integer, nonempty_str, trimmed_title};
+use find_item::{parse_find_item, FindItem};
 
 /// Cliente do TMDB.
 pub struct TmdbClient {
@@ -42,19 +43,6 @@ struct FindResult {
     ok: bool,
     transient: bool,
     item: Option<FindItem>,
-}
-
-/// O que o `/find` entrega por obra. `title` já é o localizado do idioma
-/// consultado (`title`/`name`); `original` fica separado e NUNCA promove para
-/// o canônico inglês.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct FindItem {
-    tmdb_id: Option<u64>,
-    title: Option<String>,
-    original: Option<String>,
-    original_language: Option<String>,
-    year: Option<String>,
-    is_series: bool,
 }
 
 struct AliasResult {
@@ -92,7 +80,12 @@ impl TmdbClient {
     ///
     /// Sem chave/`imdb` devolve `None` sem rede. Miss autoritativo (a API não
     /// conhece o id) e miss transitório têm TTLs diferentes no cache negativo.
-    pub async fn get_titles(&self, imdb: &str, deadline_at_ms: i64) -> Option<Titles> {
+    pub async fn get_titles(
+        &self,
+        imdb: &str,
+        prefer_series: bool,
+        deadline_at_ms: i64,
+    ) -> Option<Titles> {
         let imdb = imdb.trim();
         if !self.config.has_api_key() || imdb.is_empty() {
             return None;
@@ -100,14 +93,21 @@ impl TmdbClient {
         let key = titles_key(imdb);
         let now = now_ms();
         if let Some(CacheValue::Titles(cached)) = self.store.get(&key, now) {
-            return cached;
+            // "Sem tradução" velho é reconsultado (inclusive entrada gravada
+            // antes desta regra, com 7 dias): é o que destrava a query pt-BR.
+            let stale = cached
+                .as_ref()
+                .is_some_and(|t| t.unlocalized_is_stale(self.config.unlocalized_ttl_secs, now));
+            if !stale {
+                return cached;
+            }
         }
 
         // Os dois `/find` no MESMO prazo absoluto: o en-US não estende o
         // orçamento e, rodando em paralelo, não soma parede de tempo.
         let (pt, en) = tokio::join!(
-            self.find(imdb, Some("pt-BR"), deadline_at_ms),
-            self.find(imdb, Some("en-US"), deadline_at_ms),
+            self.find(imdb, Some("pt-BR"), prefer_series, deadline_at_ms),
+            self.find(imdb, Some("en-US"), prefer_series, deadline_at_ms),
         );
 
         // `pt` é a consulta que dá o id numérico (aliases) e o título localizado.
@@ -192,9 +192,14 @@ impl TmdbClient {
             original_language: item.original_language,
             tmdb_id: item.tmdb_id,
             is_series: item.is_series,
+            fetched_at_ms: Some(now),
         };
 
-        let ttl = if pt_ok && en_ok && aliases.ok {
+        let ttl = if pt_ok && en_ok && aliases.ok && titles.is_unlocalized() {
+            self.config
+                .unlocalized_ttl_secs
+                .min(self.config.cache_ttl_secs)
+        } else if pt_ok && en_ok && aliases.ok {
             self.config.cache_ttl_secs
         } else {
             self.config.retry_ttl_secs()
@@ -211,7 +216,13 @@ impl TmdbClient {
 
     /// Um `/find` por idioma. `ok:true` = 2xx com corpo objeto; `item=None`
     /// significa que a API não conhece o id.
-    async fn find(&self, imdb: &str, language: Option<&str>, deadline_at_ms: i64) -> FindResult {
+    async fn find(
+        &self,
+        imdb: &str,
+        language: Option<&str>,
+        prefer_series: bool,
+        deadline_at_ms: i64,
+    ) -> FindResult {
         let Some(url) = self.find_url(imdb, language) else {
             return FindResult {
                 ok: false,
@@ -242,18 +253,21 @@ impl TmdbClient {
                 item: None,
             };
         };
-        let movie = data
-            .get("movie_results")
-            .and_then(Value::as_array)
-            .and_then(|list| list.first());
-        let (value, is_series) = match movie {
-            Some(movie) => (Some(movie), false),
-            None => (
-                data.get("tv_results")
-                    .and_then(Value::as_array)
-                    .and_then(|list| list.first()),
-                true,
-            ),
+        let first = |field: &str| {
+            data.get(field)
+                .and_then(Value::as_array)
+                .and_then(|list| list.first())
+        };
+        // O MESMO IMDb pode vir em `movie_results` E `tv_results`: o TMDB tem
+        // cadastro de filme duplicado/lixo para séries (Lanterns, tt26545992:
+        // um "filme" sem tradução nem data ao lado da série "Lanternas").
+        // Preferir sempre o filme roubava o título pt-BR da série; o tipo
+        // pedido decide, e o outro resultado só entra como fallback.
+        let (movie, tv) = (first("movie_results"), first("tv_results"));
+        let (value, is_series) = match (prefer_series, movie, tv) {
+            (true, _, Some(tv)) => (Some(tv), true),
+            (_, Some(movie), _) => (Some(movie), false),
+            (_, None, tv) => (tv, true),
         };
         FindResult {
             ok: true,
@@ -347,40 +361,4 @@ impl TmdbClient {
             .collect();
         AliasResult { titles, ok: true }
     }
-}
-
-fn parse_find_item(value: &Value, is_series: bool) -> FindItem {
-    FindItem {
-        tmdb_id: value
-            .get("id")
-            .and_then(as_integer)
-            .filter(|id| *id > 0)
-            .map(|id| id as u64),
-        // Título localizado do idioma consultado. `title` (filme) / `name`
-        // (série) — em en-US é o canônico que os trackers globais publicam.
-        title: value
-            .get("title")
-            .and_then(trimmed_title)
-            .or_else(|| value.get("name").and_then(trimmed_title)),
-        original: value
-            .get("original_title")
-            .and_then(trimmed_title)
-            .or_else(|| value.get("original_name").and_then(trimmed_title)),
-        original_language: value
-            .get("original_language")
-            .and_then(nonempty_str)
-            .map(str::to_string),
-        year: release_year(value),
-        is_series,
-    }
-}
-
-/// `(release_date || first_air_date || '').slice(0, 4) || null`.
-fn release_year(value: &Value) -> Option<String> {
-    let raw = value
-        .get("release_date")
-        .and_then(nonempty_str)
-        .or_else(|| value.get("first_air_date").and_then(nonempty_str))?;
-    let cut: String = raw.chars().take(4).collect();
-    (!cut.is_empty()).then_some(cut)
 }

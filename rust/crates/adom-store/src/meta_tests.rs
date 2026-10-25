@@ -39,6 +39,7 @@ fn titles() -> Titles {
         original_language: None,
         tmdb_id: None,
         is_series: false,
+        fetched_at_ms: Some(1_700_000_000_000),
     }
 }
 
@@ -156,6 +157,11 @@ fn valor_gravado_tem_o_formato_do_node() {
     assert_eq!(tmdb["pt"], json!("Duna"));
     assert_eq!(tmdb["br"], json!(["Duna: Parte 2"]));
     assert_eq!(tmdb["year"], json!("2021"));
+    assert_eq!(
+        tmdb["at"],
+        json!(1_700_000_000_000_i64),
+        "a data da consulta é persistida"
+    );
     assert!(
         tmdb.get("aliases").is_none(),
         "campo legado não pode voltar"
@@ -217,9 +223,14 @@ fn le_entradas_gravadas_pelo_node() {
         store.get("meta:series:tt0944947", NOW),
         Some(CacheValue::Cinemeta(Some(cinemeta_series())))
     );
+    // Entrada do formato anterior (sem `at`) lê sem data: a regra do "sem
+    // tradução" a trata como velha; Duna tem tradução, então nada muda.
     assert_eq!(
         store.get("tmdb:tt1160419", NOW),
-        Some(CacheValue::Titles(Some(titles())))
+        Some(CacheValue::Titles(Some(Titles {
+            fetched_at_ms: None,
+            ..titles()
+        })))
     );
     assert_eq!(
         store.get("tmdbc:tt1160419", NOW),

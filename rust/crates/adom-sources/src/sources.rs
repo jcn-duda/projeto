@@ -61,7 +61,8 @@ impl MetaSources {
 
         let (meta, titles, collection, home) = tokio::join!(
             self.cinemeta.get_meta(media_type, imdb, deadline_at_ms),
-            self.tmdb.get_titles(imdb, deadline_at_ms),
+            self.tmdb
+                .get_titles(imdb, media_type.is_series(), deadline_at_ms),
             async {
                 if want_collection {
                     self.tmdb.get_collection(imdb, sub_deadline).await

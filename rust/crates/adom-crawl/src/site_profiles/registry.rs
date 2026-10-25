@@ -95,7 +95,10 @@ fn strings(v: &[&str]) -> Vec<String> {
 // `candidate_hosts` espelha o `FALLBACK_SITE_SUFFIXES` de cada profile TS
 // (`resolvers/profiles/*`). Domínio de site BR muda: ao trocar lá, troque aqui.
 
-/// VacaTorrent: base + systemtech.space; assert-only: t.co, vacadb.org.
+/// VacaTorrent: base + systemtech.space + mundgostoso.site; assert-only: t.co,
+/// vacadb.org. O `mundgostoso.site` é um SALTO da cadeia do protetor (o botão
+/// segue em systemtech.space): medido em 2026-10-24, sem ele todo `/resolve` do
+/// Vaca dava `blocked_host` e o dublado sumia da lista.
 fn build_vacatorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "vacatorrent".into(),
@@ -104,7 +107,10 @@ fn build_vacatorrent() -> SiteNetworkConfig {
             "vaqueirofilmes.com",
             "vacatorrentmov.com",
         ]),
-        protector_suffixes: protector_suffixes(&["systemtech.space"]),
+        // Fonte única dos hosts do protetor do Vaca (botão + saltos).
+        protector_suffixes: protector_suffixes(
+            crate::shared::protector_suffixes::VACA_EXTRA_PROTECTOR_SUFFIXES,
+        ),
         assert_only_suffixes: strings(&["t.co", "vacadb.org"]),
         timeout_ms: 15_000,
         max_hops: 10,

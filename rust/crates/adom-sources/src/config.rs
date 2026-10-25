@@ -48,6 +48,9 @@ pub struct TmdbConfig {
     pub request_timeout_ms: u64,
     /// TTL longo das consultas completas (`TMDB_CACHE_TTL`, 7 dias).
     pub cache_ttl_secs: u64,
+    /// Títulos SEM tradução (pt = original, sem alias BR):
+    /// `TMDB_UNLOCALIZED_TTL`, 6 h — a tradução chega depois da estreia.
+    pub unlocalized_ttl_secs: u64,
     /// Miss autoritativo (`TMDB_MISS_TTL`).
     pub miss_ttl_secs: u64,
     /// Miss transitório (`TMDB_TRANSIENT_MISS_TTL`).
@@ -68,6 +71,7 @@ impl Default for TmdbConfig {
             api_key: String::new(),
             request_timeout_ms: 5_000,
             cache_ttl_secs: 604_800,
+            unlocalized_ttl_secs: 21_600,
             miss_ttl_secs: 300,
             transient_miss_ttl_secs: 30,
             collection_timeout_ms: 2_500,
@@ -142,6 +146,7 @@ impl SourcesConfig {
             api_key: get("TMDB_API_KEY").unwrap_or_default(),
             request_timeout_ms: num("TMDB_TIMEOUT_MS", 5_000),
             cache_ttl_secs: num("TMDB_CACHE_TTL", 604_800),
+            unlocalized_ttl_secs: num("TMDB_UNLOCALIZED_TTL", 21_600),
             miss_ttl_secs: num("TMDB_MISS_TTL", 300),
             transient_miss_ttl_secs: num("TMDB_TRANSIENT_MISS_TTL", 30),
             collection_timeout_ms: num("TMDB_COLLECTION_TIMEOUT_MS", 2_500),

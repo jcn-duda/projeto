@@ -166,7 +166,6 @@ pub(super) async fn check_cached(
         crate::marks_feed::spawn(crate::marks_feed::MarkedBatch {
             api_key: api_key.to_string(),
             submitted,
-            removed: Vec::new(),
         });
     }
     let plan = gate.cleanup.as_ref().map(|run| {

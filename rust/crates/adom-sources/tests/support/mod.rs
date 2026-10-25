@@ -181,9 +181,15 @@ fn find_response(imdb: &str, language: Option<&str>) -> Option<(StatusCode, Valu
         _ => {}
     }
     if imdb == SERIES {
+        // O TMDB devolve o MESMO IMDb em `movie_results` e `tv_results` quando
+        // há cadastro de filme duplicado para a série (Lanterns, tt26545992).
+        // Pedido de série tem que ler a série, nunca o "filme" sem tradução.
         return Some((
             StatusCode::OK,
-            json!({ "movie_results": [], "tv_results": [tv_item(en)] }),
+            json!({
+                "movie_results": [{ "id": 999, "title": "Filme Duplicado", "original_title": "Filme Duplicado" }],
+                "tv_results": [tv_item(en)]
+            }),
         ));
     }
     Some((
@@ -212,6 +218,7 @@ pub fn config(base: &str) -> SourcesConfig {
             api_key: "chave-teste".to_string(),
             request_timeout_ms: 2_000,
             cache_ttl_secs: 777,
+            unlocalized_ttl_secs: 333,
             miss_ttl_secs: 111,
             transient_miss_ttl_secs: 40,
             collection_timeout_ms: 1_500,

@@ -8,15 +8,11 @@ use std::time::Duration;
 use serde_json::json;
 
 use super::test_support::{listen, wait_bodies, MarksSeen};
-use super::{
-    timeout_from, InternalMarkedClient, MarkedBatch, RemovedMark, DEFAULT_BASE, TIMEOUT_ENV,
-};
+use super::{timeout_from, InternalMarkedClient, MarkedBatch, DEFAULT_BASE, TIMEOUT_ENV};
 
 const TOKEN: &str = "token-interno-marked";
 const KEY: &str = "chave-da-conta-marked";
 const HIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const MISS: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const NAME: &str = "Release.Teste.2024.1080p";
 
 /// Env com a trava única do crate (outros módulos de teste também mexem).
 struct EnvGuard {
@@ -58,31 +54,17 @@ fn batch() -> MarkedBatch {
     MarkedBatch {
         api_key: KEY.into(),
         submitted: vec![HIT.into()],
-        removed: vec![RemovedMark {
-            hash: MISS.into(),
-            name: Some(NAME.into()),
-        }],
     }
 }
 
 #[test]
-fn corpo_leva_servico_chave_e_as_duas_listas() {
+fn corpo_leva_servico_chave_e_a_posse_sem_canal_de_remocao() {
     let body = batch().body();
     assert_eq!(body["service"], json!("alldebrid"));
     assert_eq!(body["apiKey"], json!(KEY));
     assert_eq!(body["submitted"], json!([HIT]));
-    assert_eq!(body["removed"][0]["hash"], json!(MISS));
-    assert_eq!(body["removed"][0]["name"], json!(NAME));
-    // `name` ausente não vira string vazia no corpo.
-    let sem_nome = MarkedBatch {
-        api_key: KEY.into(),
-        submitted: Vec::new(),
-        removed: vec![RemovedMark {
-            hash: MISS.into(),
-            name: None,
-        }],
-    };
-    assert!(sem_nome.body()["removed"][0].get("name").is_none());
+    // A higiene da checagem nunca vira `adrm`: o campo não existe mais.
+    assert!(body.get("removed").is_none());
 }
 
 #[tokio::test]
@@ -104,7 +86,7 @@ async fn cliente_manda_token_no_header_e_as_listas_no_corpo() {
     assert_eq!(bodies[0]["service"], json!("alldebrid"));
     assert_eq!(bodies[0]["apiKey"], json!(KEY));
     assert_eq!(bodies[0]["submitted"], json!([HIT]));
-    assert_eq!(bodies[0]["removed"][0]["name"], json!(NAME));
+    assert!(bodies[0].get("removed").is_none());
     assert!(
         bodies[0].get("encoded").is_none(),
         "a marca não carrega config do usuário"
@@ -210,6 +192,5 @@ async fn spawn_so_entrega_com_cleanup_ligado() {
         let bodies = wait_bodies(&seen, 1).await;
         assert_eq!(bodies.len(), 1, "cleanup ON entrega o lote uma vez");
         assert_eq!(bodies[0]["submitted"], json!([HIT]));
-        assert_eq!(bodies[0]["removed"][0]["hash"], json!(MISS));
     }
 }

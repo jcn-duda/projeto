@@ -10,8 +10,6 @@
 
 use super::*;
 
-use crate::alldebrid_cleanup::{CleanTarget, CleanupPlan};
-use crate::alldebrid_delete::DeleteReport;
 use crate::marks_feed::test_support::{listen as marks_listen, wait_until, MarksSeen};
 
 /// Hash com primeiro char fora dos 'a'..'f' das outras suítes: os testes rodam
@@ -64,12 +62,12 @@ async fn upload_aceito_devolve_posse_ao_node() {
         .expect("a posse do upload precisa chegar ao Node");
     assert_eq!(body["service"], json!("alldebrid"));
     assert_eq!(body["apiKey"], json!(KEY));
-    assert_eq!(body["removed"], json!([]), "quem subiu não é remoção");
+    assert!(body.get("removed").is_none(), "não existe canal de remoção");
 }
 
 #[tokio::test]
 #[allow(clippy::await_holding_lock)]
-async fn limpeza_confirmada_devolve_removed_com_nome() {
+async fn limpeza_de_higiene_nao_devolve_adrm() {
     let seen = Arc::new(MarksSeen::default());
     let (ad, _env) = armed(&seen, "on").await;
     let hash = hash_of(HASH_CHAR);
@@ -100,12 +98,14 @@ async fn limpeza_confirmada_devolve_removed_com_nome() {
         .await
         .expect("fila rodou");
     assert_eq!(deleted.removed, vec![id_of(&hash)]);
-    let body = wait_until(&seen, |body| contains(body, "removed", &hash))
-        .await
-        .expect("remoção confirmada precisa chegar ao Node");
-    let mark = &body["removed"][0];
-    assert_eq!(mark["name"], json!(UPLOAD_NAME));
-    assert_eq!(body["submitted"], json!([]), "a fila só devolve remoções");
+    // Higiene da checagem NÃO vira `adrm`: o hash não foi condenado, só não
+    // estava em cache. Marcá-lo bloqueava o Chupim por 3 dias.
+    assert!(
+        wait_until(&seen, |body| contains(body, "removed", &hash))
+            .await
+            .is_none(),
+        "limpeza de higiene não pode ser devolvida como remoção intencional"
+    );
 }
 
 #[tokio::test]
@@ -143,33 +143,4 @@ async fn cleanup_off_nao_devolve_marca() {
             .all(|body| !contains(body, "submitted", &hash) && !contains(body, "removed", &hash)),
         "cleanup OFF não abre HTTP: nada subiu nem saiu de propósito"
     );
-}
-
-#[test]
-fn marca_so_o_que_o_delete_confirmou() {
-    let plan = CleanupPlan {
-        ready: vec![CleanTarget {
-            id: "97".into(),
-            hash: hash_of('a'),
-            name: Some(UPLOAD_NAME.into()),
-        }],
-        uncached: vec![CleanTarget {
-            id: "98".into(),
-            hash: hash_of('b'),
-            name: None,
-        }],
-        ..CleanupPlan::default()
-    };
-    // "97" saiu; "98" falhou (continua na conta) e NÃO pode virar `adrm`.
-    let report = DeleteReport {
-        removed: vec!["97".into()],
-        failed: vec!["98".into()],
-        ..DeleteReport::default()
-    };
-    let marks = plan.removed_marks(&report);
-    assert_eq!(marks.len(), 1, "falha de delete não marca");
-    assert_eq!(marks[0].hash, hash_of('a'));
-    assert_eq!(marks[0].name.as_deref(), Some(UPLOAD_NAME));
-    // Sem remoção confirmada não há marca nenhuma.
-    assert!(plan.removed_marks(&DeleteReport::default()).is_empty());
 }

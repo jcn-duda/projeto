@@ -284,8 +284,13 @@ Porte de `src/debrid/protected.ts` + `alldebrid-cleanup.ts` para
   **rate limit** usa o `Retry-After` (teto 30 s) e continua; 503/rede é
   transitório. O kill-switch é relido a cada tentativa.
 - `deleted` no relatório = ids PEDIDOS no plano (não prova de remoção). A prova
-  real (`removed`) vive no `DeleteReport` da fila, base para o `adrm`/purga
-  quando forem portados.
+  real (`removed`) vive no `DeleteReport` da fila e **não vira `adrm`**: o plano
+  é só a higiene da checagem (`ready` + `uncached`), que no TS também não
+  marcava (`scheduleDrop` só purgava a posse). Até 2026-10-24 a ponte
+  `/internal/debrid/marked` gravava `adrm` para tudo o que a higiene apagava, e
+  todo candidato fora do cache ficava bloqueado por 3 dias — o Chupim parou de
+  baixar o dublado. A ponte hoje só leva `submitted` → `adsub`; o `adrm` é das
+  varreduras de conteúdo do Node (`sweepUndubbed`, evict, reconcile, catálogo).
 
 ### 8.3 Métricas (`/metrics` do gateway e da 8710)
 

@@ -79,6 +79,15 @@ fn vacatorrent_allowlist_includes_extras() {
         allowlist.has_allowed_host("sub.systemtech.space"),
         "allowlist deve cobrir subdomínio de systemtech.space"
     );
+    // Salto atual da cadeia do protetor (2026-10-24): sem ele, `blocked_host`.
+    assert!(
+        allowlist.has_allowed_host("mundgostoso.site"),
+        "allowlist deve incluir o salto mundgostoso.site"
+    );
+    assert!(
+        !allowlist.has_allowed_host("evil.site"),
+        "o sufixo novo não abre o TLD inteiro"
+    );
 
     // Assert-only: t.co e vacadb.org.
     assert!(
