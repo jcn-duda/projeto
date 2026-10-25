@@ -99,6 +99,22 @@ impl EvidenceSnapshot {
     pub(crate) fn len(&self) -> usize {
         self.by_identity.len()
     }
+
+    /// Foto de teste: os IMDbs listados têm BR dublado no filme raiz.
+    #[cfg(test)]
+    pub(crate) fn with_dubbed(imdbs: &[&str]) -> Self {
+        let mut by_identity = HashMap::new();
+        for imdb in imdbs {
+            by_identity.insert(
+                obra_identity(imdb, None, None),
+                EvidenceValue {
+                    present: true,
+                    dubbed: true,
+                },
+            );
+        }
+        Self { by_identity }
+    }
 }
 
 impl BrEvidence for EvidenceSnapshot {

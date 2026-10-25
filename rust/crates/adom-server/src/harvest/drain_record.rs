@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use adom_core::{
-    filter_relevant_raw, probe_found_viable, BrGapRelease, BrProbeRelease, BrTransition,
-    RelevanceQuery, RelevanceSettings, BR_GAP_TARGET_QUALITY,
+    filter_relevant_raw, probe_found_viable, route_work_location, BrGapRelease, BrProbeRelease,
+    BrTransition, RelevanceQuery, RelevanceSettings, WorkTarget, BR_GAP_TARGET_QUALITY,
 };
 use adom_harvest::{DrainOutcome, HarvestEntry, HarvestMediaType};
 use adom_search::orchestrator::harvest_support::{record_release, release_entry_for};
@@ -44,9 +44,6 @@ pub(super) struct RecordedDrain {
 pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
     let season = args.entry.season.map(i64::from);
     let episode = args.entry.episode.map(i64::from);
-    let before = args
-        .index
-        .lookup(&args.entry.imdb_id, season, episode, args.now_ms);
     let relevance = relevance_items(&args.items);
     let query = RelevanceQuery {
         names: args.names,
@@ -60,10 +57,13 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
     };
     let kept = filter_relevant_raw(&relevance, &query, &args.settings).kept;
     let entered = args.items;
-    let survivors: Vec<RawItem> = kept
-        .iter()
-        .filter_map(|index| entered.get(*index).cloned())
-        .collect();
+    let survivors = dedupe_by_hash(
+        kept.iter()
+            .filter_map(|index| entered.get(*index).cloned())
+            .collect(),
+    );
+    let dests = write_destinations(args.entry, &survivors);
+    let before = lookup_dests(args.index, &args.entry.imdb_id, &dests, args.now_ms);
     let mut release = release_entry_for(
         &args.entry.imdb_id,
         args.entry.media_type.as_str(),
@@ -88,15 +88,22 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
                 written,
                 args.attempted
             );
-            let after = args
-                .index
-                .lookup(&args.entry.imdb_id, season, episode, args.now_ms);
-            let found = found_from_index(&before, &after);
+            let after = lookup_dests(args.index, &args.entry.imdb_id, &dests, args.now_ms);
+            let found = before
+                .iter()
+                .zip(&after)
+                .any(|(prev, next)| found_from_index(prev, next));
+            let transition = before
+                .iter()
+                .zip(&after)
+                .map(|(prev, next)| br_transition_from(prev, next))
+                .find(|step| !matches!(step, BrTransition::None))
+                .unwrap_or(BrTransition::None);
             apply_transition(
                 args.streams,
                 args.pending_invalidate,
                 &args.entry.imdb_id,
-                br_transition_from(&before, &after),
+                transition,
             );
             RecordedDrain {
                 outcome: DrainOutcome::ok_with_queries(args.attempted),
@@ -137,6 +144,53 @@ pub(super) fn retry_invalidations(
             }
         }
     }
+}
+
+/// Destinos reais da escrita: a chave da entrada e cada roteamento de survivor.
+fn write_destinations(entry: &HarvestEntry, items: &[RawItem]) -> Vec<(Option<i64>, Option<i64>)> {
+    let request = WorkTarget {
+        season: entry.season.map(i64::from),
+        episode: entry.episode.map(i64::from),
+    };
+    let mut dests = vec![(request.season, request.episode)];
+    for item in items {
+        let dn = item.dn();
+        let routed = route_work_location(
+            request,
+            item.title_text(),
+            (!dn.is_empty()).then_some(dn.as_str()),
+        );
+        let dest = (routed.season, routed.episode);
+        if !dests.contains(&dest) {
+            dests.push(dest);
+        }
+    }
+    dests
+}
+
+fn lookup_dests(
+    index: &dyn ReleaseIndexSource,
+    imdb: &str,
+    dests: &[(Option<i64>, Option<i64>)],
+    now_ms: i64,
+) -> Vec<Vec<IndexedReleaseWire>> {
+    dests
+        .iter()
+        .map(|(season, episode)| index.lookup(imdb, *season, *episode, now_ms))
+        .collect()
+}
+
+fn dedupe_by_hash(items: Vec<RawItem>) -> Vec<RawItem> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for item in items {
+        let hash = item.hash();
+        if !hash.is_empty() && !seen.insert(hash) {
+            continue;
+        }
+        out.push(item);
+    }
+    out
 }
 
 fn found_from_index(before: &[IndexedReleaseWire], after: &[IndexedReleaseWire]) -> bool {

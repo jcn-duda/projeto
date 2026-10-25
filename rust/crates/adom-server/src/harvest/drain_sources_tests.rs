@@ -334,19 +334,13 @@ fn mesmo_hash_nao_duplica_e_conta_fica_fora() {
         ..RawItem::default()
     };
     let merged = merge_source_items(vec![jackett, account.clone()], vec![bludv, account]);
-    assert_eq!(merged.len(), 1);
+    assert_eq!(merged.len(), 2, "mesmo hash fica para o filtro decidir");
     assert!(!merged.iter().any(|item| item.from_account));
-    assert_eq!(merged[0].hash(), HASH);
+    assert!(merged.iter().all(|item| item.hash() == HASH));
+    let kept = super::dedupe_by_hash(merged);
+    assert_eq!(kept.len(), 1);
 
-    let entry = release_entry_for(
-        "tt7286456",
-        "movie",
-        None,
-        None,
-        Some("2019"),
-        &merged,
-        &merged,
-    );
+    let entry = release_entry_for("tt7286456", "movie", None, None, Some("2019"), &kept, &kept);
     assert!(
         entry
             .items

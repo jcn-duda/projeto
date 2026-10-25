@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
-use adom_harvest::{EnqueueOutcome, HarvestRequest};
+use adom_harvest::{EnqueueOutcome, EnqueueReason, HarvestRequest};
 use tokio::sync::oneshot;
 
 use super::enqueue::enqueue_with_dedupe;
@@ -52,7 +52,9 @@ impl HarvestHandle {
         let snap = self.inner.snapshot();
         let mut queue = self.inner.queue.lock().await;
         let outcome = enqueue_with_dedupe(&mut queue, &self.inner.store, req, now, Some(&snap));
-        if outcome.accepted {
+        // Capacity evicta a cauda e recusa o novo: sem persistir, o L2
+        // devolve as removidas no próximo load.
+        if outcome.accepted || outcome.reason == EnqueueReason::Capacity {
             self.inner.persist_queue(&queue, now);
         }
         self.inner.publish_queue(&queue);
@@ -135,3 +137,7 @@ impl HarvestHandle {
         (queued, probe)
     }
 }
+
+#[cfg(test)]
+#[path = "handle_tests.rs"]
+mod tests;

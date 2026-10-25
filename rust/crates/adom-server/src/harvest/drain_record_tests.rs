@@ -4,11 +4,13 @@ use std::sync::{Arc, Mutex};
 
 use adom_core::RelevanceSettings;
 use adom_harvest::{HarvestEntry, HarvestMediaType};
-use adom_search::orchestrator::{BankLookup, IndexedReleaseWire, ReleaseIndexSource};
+use adom_search::orchestrator::{BankLookup, IndexedReleaseWire, RawItem, ReleaseIndexSource};
 use adom_search::ReleaseEntry;
-use adom_store::{streams_prefix, StreamsStore};
+use adom_store::{streams_prefix, NativeReleaseIndex, ReleaseIndexStore, StreamsStore};
 
 use super::{record_collected, retry_invalidations, RecordArgs};
+
+const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 const NOW: i64 = 1_700_000_000_000;
 
@@ -240,4 +242,112 @@ fn invalidacao_falha_fica_pendente_e_retry_tira() {
     pending.insert("nao-e-imdb".into());
     retry_invalidations(Some(&store), &mut pending);
     assert!(pending.contains("nao-e-imdb"));
+}
+
+fn series_season(imdb: &str) -> HarvestEntry {
+    HarvestEntry {
+        imdb_id: imdb.into(),
+        media_type: HarvestMediaType::Series,
+        season: Some(1),
+        episode: None,
+        reason: "br-gap".into(),
+        enqueued_at: NOW,
+        priority_at: Some(NOW),
+        resumed: false,
+        br_probe: true,
+        full_base: false,
+        full_intent: None,
+    }
+}
+
+fn raw(title: &str, hash: &str) -> RawItem {
+    RawItem {
+        title: Some(title.into()),
+        magnet: Some(format!("magnet:?xt=urn:btih:{hash}&dn=x")),
+        info_hash: Some(hash.into()),
+        is_br: true,
+        seeders: Some(5.0),
+        indexer: Some("bludv".into()),
+        ..RawItem::default()
+    }
+}
+
+#[test]
+fn sonda_de_temporada_anuncia_found_na_chave_do_episodio() {
+    let index = NativeReleaseIndex::from_store(ReleaseIndexStore::open_memory().expect("índice"));
+    let streams = Arc::new(StreamsStore::open_memory().unwrap());
+    put_stream(&streams, "series:tt0386676:{\"s\":1}:account:a");
+    let entry = series_season("tt0386676");
+    let mut pending = HashSet::new();
+    let out = record_collected(RecordArgs {
+        index: &index,
+        bank: None,
+        streams: Some(&streams),
+        pending_invalidate: &mut pending,
+        entry: &entry,
+        items: vec![raw("The Office S01E01 1080p Dublado", HASH)],
+        attempted: 2,
+        jackett_complete: true,
+        settings: settings(),
+        names: &[],
+        year: "2005",
+        alt_year: None,
+        multi_work_root: None,
+        home_release_at: None,
+        now_ms: NOW,
+    });
+    assert!(out.found, "delta em S1E1 conta como Found");
+    assert!(out.outcome.ok);
+    assert!(
+        index.lookup("tt0386676", Some(1), None, NOW).is_empty(),
+        "sonda de temporada não deixa a release na chave S1"
+    );
+    let episode = index.lookup("tt0386676", Some(1), Some(1), NOW);
+    assert_eq!(episode.len(), 1);
+    assert_eq!(episode[0].hash, HASH);
+    assert!(
+        streams
+            .get(
+                &format!("{}series:tt0386676:{{\"s\":1}}:account:a", streams_prefix()),
+                2_000
+            )
+            .unwrap()
+            .is_none(),
+        "invalidação usa o mesmo delta do episódio gravado"
+    );
+}
+
+#[test]
+fn dedupe_depois_do_filtro_guarda_o_titulo_relevante() {
+    let index = NativeReleaseIndex::from_store(ReleaseIndexStore::open_memory().expect("índice"));
+    let entry = movie("tt7286456");
+    let mut pending = HashSet::new();
+    let lixo = raw("Batman 2019 1080p Dual Áudio", HASH);
+    let bom = raw("Coringa 2019 1080p Dublado", HASH);
+    let out = record_collected(RecordArgs {
+        index: &index,
+        bank: None,
+        streams: None,
+        pending_invalidate: &mut pending,
+        entry: &entry,
+        items: vec![lixo, bom],
+        attempted: 1,
+        jackett_complete: true,
+        settings: settings(),
+        names: &["Coringa".into()],
+        year: "2019",
+        alt_year: None,
+        multi_work_root: None,
+        home_release_at: None,
+        now_ms: NOW,
+    });
+    assert!(out.found);
+    let found = index.lookup("tt7286456", None, None, NOW);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].hash, HASH);
+    assert!(
+        found[0].title.contains("Coringa"),
+        "título do Jackett irrelevante não sobrevive ao filtro: {}",
+        found[0].title
+    );
 }

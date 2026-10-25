@@ -52,15 +52,23 @@ pub(super) fn bludv_query(search: &SearchMeta) -> &str {
         .unwrap_or(search.query.trim())
 }
 
-/// Jackett primeiro; BLUDV depois. Mesmo hash fica com a linha Jackett.
+/// Jackett primeiro; BLUDV depois. Mesmo hash NÃO some aqui: o filtro
+/// decide qual título vale, e só então [`dedupe_by_hash`] fica com a
+/// primeira sobrevivente (Jackett, se as duas passarem).
 /// `fromAccount` sai das duas pontas — o índice nunca o recebe.
 pub(super) fn merge_source_items(jackett: Vec<RawItem>, bludv: Vec<RawItem>) -> Vec<RawItem> {
+    jackett
+        .into_iter()
+        .chain(bludv)
+        .filter(|item| !item.from_account)
+        .collect()
+}
+
+/// Primeira ocorrência do hash sobrevive. Hash vazio não colapsa linhas.
+pub(super) fn dedupe_by_hash(items: Vec<RawItem>) -> Vec<RawItem> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
-    for item in jackett.into_iter().chain(bludv) {
-        if item.from_account {
-            continue;
-        }
+    for item in items {
         let hash = item.hash();
         if !hash.is_empty() && !seen.insert(hash) {
             continue;
