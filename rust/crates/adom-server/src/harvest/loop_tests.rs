@@ -31,6 +31,8 @@ struct BarrierDrain {
     release: Option<oneshot::Receiver<()>>,
     queries: u32,
     ok: bool,
+    /// Consultas já "gastas" antes da barreira (o que a preempção debita).
+    spent: u32,
 }
 
 impl HarvestDrainAsync for BarrierDrain {
@@ -55,7 +57,11 @@ impl HarvestDrainAsync for BarrierDrain {
     }
 }
 
-impl DrainFound for BarrierDrain {}
+impl DrainFound for BarrierDrain {
+    fn take_spent(&mut self) -> u32 {
+        self.spent
+    }
+}
 
 struct ImmediateDrain {
     ok: bool,
@@ -113,6 +119,8 @@ fn test_inner(store: Arc<HarvestStore>, ttl: u64) -> Arc<Inner> {
         paused: AtomicBool::new(false),
         traffic: StreamTraffic::new(Arc::new(std::sync::atomic::AtomicI64::new(0)), 0),
         notify: tokio::sync::Notify::new(),
+        preempt: tokio::sync::Notify::new(),
+        inflight_rank: Mutex::new(None),
         drain_budget: AtomicUsize::new(0),
         drain_reply: Mutex::new(None),
         index: None,
@@ -146,7 +154,7 @@ async fn barreira_coalesce_mesma_obra_e_preserva_a_outra() {
     let inner = test_inner(store.clone(), 86_400);
     {
         let mut queue = inner.queue.lock().await;
-        assert!(enqueue_with_dedupe(&mut queue, &store, probe_req(SHAW), NOW, None).accepted);
+        assert!(enqueue_with_dedupe(&mut queue, &store, probe_req(SHAW), NOW, None, None).accepted);
     }
     let (entered_tx, entered_rx) = oneshot::channel();
     let (release_tx, release_rx) = oneshot::channel();
@@ -155,6 +163,7 @@ async fn barreira_coalesce_mesma_obra_e_preserva_a_outra() {
         release: Some(release_rx),
         queries: 2,
         ok: true,
+        spent: 0,
     };
     let loop_inner = inner.clone();
     let task = tokio::spawn(async move {
@@ -173,9 +182,10 @@ async fn barreira_coalesce_mesma_obra_e_preserva_a_outra() {
             HarvestRequest::movie(SHAW, "miss"),
             NOW,
             None,
+            None,
         );
         assert_eq!(full.reason, EnqueueReason::Coalesced);
-        let again = enqueue_with_dedupe(&mut queue, &store, probe_req(SHAW), NOW, None);
+        let again = enqueue_with_dedupe(&mut queue, &store, probe_req(SHAW), NOW, None, None);
         assert!(
             again.reason == EnqueueReason::Coalesced || again.reason == EnqueueReason::Duplicate
         );
@@ -184,6 +194,7 @@ async fn barreira_coalesce_mesma_obra_e_preserva_a_outra() {
             &store,
             HarvestRequest::movie(PADRINO, "miss"),
             NOW,
+            None,
             None,
         );
         assert_eq!(other.reason, EnqueueReason::Queued);
@@ -248,6 +259,7 @@ async fn restart_apos_save_reconstroi_fila_e_dedupe() {
                 &store,
                 HarvestRequest::movie(SHAW, "miss"),
                 NOW,
+                None,
                 None
             )
             .accepted
@@ -274,6 +286,7 @@ async fn restart_apos_save_reconstroi_fila_e_dedupe() {
             HarvestRequest::movie(SHAW, "miss"),
             NOW,
             None,
+            None,
         )
     };
     assert_eq!(again.reason, EnqueueReason::Dedupe);
@@ -285,6 +298,7 @@ async fn restart_apos_save_reconstroi_fila_e_dedupe() {
             &store,
             HarvestRequest::movie(SHAW, "miss"),
             NOW + (DEDUPE_TTL_SECONDS as i64) * 1_000 + 1,
+            None,
             None,
         )
     };
@@ -303,6 +317,7 @@ async fn ttl_da_fila_e_balde_da_hora() {
                 &store,
                 HarvestRequest::movie(SHAW, "miss"),
                 NOW,
+                None,
                 None
             )
             .accepted
@@ -325,6 +340,7 @@ async fn ttl_da_fila_e_balde_da_hora() {
                 &store,
                 HarvestRequest::movie(PADRINO, "miss"),
                 NOW,
+                None,
                 None
             )
             .accepted
@@ -356,3 +372,7 @@ async fn ttl_da_fila_e_balde_da_hora() {
     fresh.hydrate_hour(saved.count, hour_now);
     assert_eq!(fresh.queries_this_hour(hour_now), 4);
 }
+
+// Preempção intradrain: módulo filho para não estourar o teto deste arquivo.
+#[path = "preempt_tests.rs"]
+mod preempt;

@@ -51,6 +51,21 @@ impl Settler {
         }
     }
 
+    /// Preempção: renova o lease da sonda (o registro não finaliza — a obra
+    /// volta à fila e será recolhida). Fora de sonda não grava nada: `pending`
+    /// de uma obra sem sonda bloquearia seeds sem trabalho dirigido.
+    pub(crate) fn note_preempted(&self, store: &HarvestStore, entry: &HarvestEntry, now_ms: i64) {
+        if !entry.br_probe {
+            return;
+        }
+        if let Err(err) = self.probe.note_preempted(store, &probe_work(entry), now_ms) {
+            eprintln!(
+                "[harvest] sonda não renovou o lease ({}): {err}",
+                entry.imdb_id
+            );
+        }
+    }
+
     /// Aplica o desfecho de UMA obra já consumida da fila.
     pub(crate) fn settle(
         &mut self,

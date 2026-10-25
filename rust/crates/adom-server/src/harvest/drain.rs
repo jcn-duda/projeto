@@ -21,6 +21,7 @@
 use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use adom_core::RelevanceSettings;
@@ -67,6 +68,10 @@ pub(crate) struct NetworkDrain {
     pub(super) bludv: Option<BludvClient>,
     /// Evidência BR viável da última obra — o desfecho da sonda lê e zera.
     last_found: bool,
+    /// Consultas Jackett já debitadas na obra corrente. A preempção dropa o
+    /// future e o `DrainOutcome` parcial deixa de existir: este contador é o
+    /// que permite debitar o teto sem perder consulta gasta.
+    pub(super) spent: AtomicU32,
     streams: Option<Arc<StreamsStore>>,
     pending_invalidate: HashSet<String>,
     warned_no_index: bool,
@@ -139,6 +144,7 @@ impl NetworkDrain {
                 title_precision_tail_cut: build.title_precision_tail_cut,
             },
             last_found: false,
+            spent: AtomicU32::new(0),
             bludv,
             streams,
             pending_invalidate: HashSet::new(),
@@ -156,6 +162,12 @@ impl NetworkDrain {
     /// Evidência BR viável da última obra (consumida pelo desfecho da sonda).
     pub(crate) fn take_found(&mut self) -> bool {
         std::mem::take(&mut self.last_found)
+    }
+
+    /// Zera e devolve as consultas Jackett já debitadas na obra corrente.
+    /// Lido só quando o future é dropado no meio (preempção).
+    pub(crate) fn take_spent(&self) -> u32 {
+        self.spent.swap(0, Ordering::SeqCst)
     }
 
     /// Drain com clientes injetados (metadados/Jackett/BLUDV locais).
@@ -195,6 +207,7 @@ impl NetworkDrain {
                 title_precision_tail_cut: false,
             },
             last_found: false,
+            spent: AtomicU32::new(0),
             bludv,
             streams,
             pending_invalidate: HashSet::new(),
@@ -323,6 +336,10 @@ impl HarvestDrainAsync for NetworkDrain {
         entry: &'a HarvestEntry,
         queries_left: u32,
     ) -> Pin<Box<dyn Future<Output = DrainOutcome> + Send + 'a>> {
+        // Zera AQUI, não dentro de `run`: a preempção pode derrubar o future
+        // antes do primeiro poll, e o `take_spent` não pode herdar o débito da
+        // obra anterior.
+        self.spent.store(0, Ordering::SeqCst);
         Box::pin(self.run(entry, queries_left))
     }
 }

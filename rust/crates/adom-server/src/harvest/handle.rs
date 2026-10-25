@@ -9,7 +9,7 @@ use std::time::Duration;
 use adom_harvest::{EnqueueOutcome, EnqueueReason, HarvestRequest};
 use tokio::sync::oneshot;
 
-use super::enqueue::enqueue_with_dedupe;
+use super::enqueue::{enqueue_with_dedupe, PreemptSignal};
 use super::live::LiveOverlay;
 use super::{HarvestConfig, HarvestStatus, Inner};
 
@@ -47,11 +47,25 @@ impl HarvestHandle {
     /// Enqueue com o dedupe 12h do Node (só grava `seen` no aceite).
     ///
     /// Aplica a última foto ANTES de evictar — sem consultar o índice aqui.
+    /// A obra nova de rank maior que a do slot em voo preempta o drain.
     pub async fn enqueue(&self, req: HarvestRequest) -> EnqueueOutcome {
         let now = adom_sources::now_ms();
         let snap = self.inner.snapshot();
         let mut queue = self.inner.queue.lock().await;
-        let outcome = enqueue_with_dedupe(&mut queue, &self.inner.store, req, now, Some(&snap));
+        // Rank lido com o lock da fila: é o mesmo lock que o loop usa para
+        // abrir/fechar o slot, então o valor não chega pela metade.
+        let preempt = PreemptSignal {
+            notify: &self.inner.preempt,
+            inflight_rank: self.inner.current_inflight_rank(),
+        };
+        let outcome = enqueue_with_dedupe(
+            &mut queue,
+            &self.inner.store,
+            req,
+            now,
+            Some(&snap),
+            Some(preempt),
+        );
         // Capacity evicta a cauda e recusa o novo: sem persistir, o L2
         // devolve as removidas no próximo load.
         if outcome.accepted || outcome.reason == EnqueueReason::Capacity {

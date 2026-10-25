@@ -33,6 +33,8 @@ fn persist_inner(store: Arc<HarvestStore>) -> Arc<Inner> {
         paused: AtomicBool::new(false),
         traffic: StreamTraffic::new(Arc::new(std::sync::atomic::AtomicI64::new(0)), 0),
         notify: tokio::sync::Notify::new(),
+        preempt: tokio::sync::Notify::new(),
+        inflight_rank: Mutex::new(None),
         drain_budget: AtomicUsize::new(0),
         drain_reply: Mutex::new(None),
         index: None,

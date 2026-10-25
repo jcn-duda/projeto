@@ -268,6 +268,8 @@ impl Harness {
             paused: AtomicBool::new(false),
             traffic: StreamTraffic::new(Arc::new(std::sync::atomic::AtomicI64::new(0)), 0),
             notify: tokio::sync::Notify::new(),
+            preempt: tokio::sync::Notify::new(),
+            inflight_rank: Mutex::new(None),
             drain_budget: AtomicUsize::new(0),
             drain_reply: Mutex::new(None),
             index: Some(index.clone()),
@@ -283,7 +285,7 @@ impl Harness {
 
     async fn enqueue(&self, req: HarvestRequest) -> EnqueueReason {
         let mut queue = self.inner.queue.lock().await;
-        enqueue_with_dedupe(&mut queue, &self.inner.store, req, NOW, None).reason
+        enqueue_with_dedupe(&mut queue, &self.inner.store, req, NOW, None, None).reason
     }
 
     async fn tick(&mut self, req: HarvestRequest) -> IterationOutcome {

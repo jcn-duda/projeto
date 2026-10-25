@@ -10,6 +10,7 @@
 //! sem consultar viaja em [`SourceBatch::remaining_targets`] (registro parcial).
 
 use std::collections::HashSet;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use adom_harvest::HarvestEntry;
@@ -192,6 +193,11 @@ impl NetworkDrain {
             let id = target.unwrap_or(adom_sources::ALL_QUERY_INDEXER);
             let indexers: Vec<String> = target.map(|id| vec![id.to_string()]).unwrap_or_default();
             let options = self.options_for(id, search);
+            // Débito incremental ANTES da rede: se a preempção dropar o future
+            // no meio do `await`, a consulta já foi emitida e o teto horário
+            // não pode ignorá-la. Contar a mais é conservador; contar a menos
+            // estoura o balde.
+            self.spent.fetch_add(1, Ordering::SeqCst);
             let outcomes = jackett
                 .search_outcomes(&search.query, media, &indexers, &options)
                 .await;

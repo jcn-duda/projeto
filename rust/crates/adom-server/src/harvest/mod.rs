@@ -91,6 +91,15 @@ pub(crate) struct Inner {
     pub(crate) traffic: StreamTraffic,
     /// Acorda o loop para pausa/enqueue/drain imediato.
     pub(crate) notify: Notify,
+    /// Preempção intradrain: obra de rank maior chegou e o drain em voo é
+    /// dropado. Separado do [`Self::notify`] de propósito — acordar o loop não
+    /// pode interromper a obra que já está na rede.
+    pub(crate) preempt: Notify,
+    /// Rank do motivo da obra EM VOO (`None` = nenhum drain aberto), escrito
+    /// pelo loop com o lock da fila. O enqueue compara com ele para decidir a
+    /// preempção; o coalescing pode elevar o rank do slot e a comparação fica
+    /// conservadora (rank da entrada que abriu o slot).
+    pub(crate) inflight_rank: Mutex<Option<u8>>,
     /// Quantos ticks o `POST /harvest/drain` pediu (`0` = nenhum).
     pub(crate) drain_budget: AtomicUsize,
     /// Quem espera a resposta do drain pedido pela rota.
@@ -147,6 +156,23 @@ impl Inner {
         if let Err(err) = queue.save_to(&self.store, self.config().entry_ttl, now) {
             eprintln!("[harvest] fila não persistiu: {err}");
         }
+    }
+
+    /// Abre/fecha o rank da obra em voo. Chamado SEMPRE com o lock da fila —
+    /// é ele que serializa com o enqueue que decide a preempção.
+    pub(crate) fn set_inflight_rank(&self, rank: Option<u8>) {
+        *self
+            .inflight_rank
+            .lock()
+            .unwrap_or_else(|err| err.into_inner()) = rank;
+    }
+
+    /// Rank do motivo da obra em voo; `None` = nenhum drain aberto.
+    pub(crate) fn current_inflight_rank(&self) -> Option<u8> {
+        *self
+            .inflight_rank
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
     }
 }
 
@@ -225,6 +251,8 @@ pub fn spawn(
         status: Mutex::new(status),
         paused: AtomicBool::new(overlay.paused),
         notify: Notify::new(),
+        preempt: Notify::new(),
+        inflight_rank: Mutex::new(None),
         drain_budget: AtomicUsize::new(0),
         drain_reply: Mutex::new(None),
         index,

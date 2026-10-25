@@ -4,11 +4,35 @@
 //! `markRecentlyQueued`): duplicata/promoção (a fila decide) → coalescing →
 //! dedupe → push. O dedupe SÓ é gravado quando a fila aceitou, para um pedido
 //! inválido/duplicado não bloquear a obra por 12 h.
+//!
+//! Avisa o drain em voo ([`PreemptSignal`]) quando a obra nova tem rank maior:
+//! a fila não espera o último indexer da obra anterior para atender uma
+//! urgência.
 
 use adom_harvest::{
-    entry_identity, mark_recently_queued, was_recently_queued, BrEvidence, EnqueueOutcome,
-    EnqueueReason, HarvestEntry, HarvestQueue, HarvestRequest, HarvestStore,
+    entry_identity, mark_recently_queued, reason_priority, was_recently_queued, BrEvidence,
+    EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestQueue, HarvestRequest, HarvestStore,
 };
+use tokio::sync::Notify;
+
+/// Sinal de preempção entregue ao enqueue pelo gateway.
+///
+/// `None` = sem loop do colhedor do outro lado (testes, ponte sem drain):
+/// ninguém é acordado e o comportamento é o de antes da preempção.
+#[derive(Clone, Copy)]
+pub(crate) struct PreemptSignal<'a> {
+    /// [`crate::harvest::Inner::preempt`].
+    pub(crate) notify: &'a Notify,
+    /// Rank do motivo da obra em voo; `None` = nenhum drain aberto.
+    pub(crate) inflight_rank: Option<u8>,
+}
+
+impl PreemptSignal<'_> {
+    /// A entrada nova é mais urgente que a obra em voo?
+    fn outranks(self, rank: u8) -> bool {
+        self.inflight_rank.is_some_and(|current| rank > current)
+    }
+}
 
 /// Enqueue com o dedupe 12 h do TS, na ordem do Node.
 ///
@@ -21,8 +45,10 @@ pub(crate) fn enqueue_with_dedupe(
     req: HarvestRequest,
     now: i64,
     evidence: Option<&dyn BrEvidence>,
+    preempt: Option<PreemptSignal<'_>>,
 ) -> EnqueueOutcome {
     let probe = probe_entry(&req, now);
+    let rank = reason_priority(&probe.reason);
     let identity = entry_identity(&probe);
     let already_known = queue
         .entries()
@@ -42,7 +68,26 @@ pub(crate) fn enqueue_with_dedupe(
             eprintln!("[harvest] dedupe não gravou: {err}");
         }
     }
+    notify_preempt(queue, preempt, outcome, &identity, rank);
     outcome
+}
+
+/// Acorda o loop para preemptar o drain em voo.
+///
+/// Só vale para obra NOVA de rank maior: a MESMA obra em voo já coalesceu (o
+/// drain corrente a cobre) e duplicata/promoção já está na fila.
+fn notify_preempt(
+    queue: &HarvestQueue,
+    signal: Option<PreemptSignal<'_>>,
+    outcome: EnqueueOutcome,
+    identity: &str,
+    rank: u8,
+) {
+    let Some(signal) = signal else { return };
+    if !outcome.accepted || queue.inflight().is_inflight(identity) || !signal.outranks(rank) {
+        return;
+    }
+    signal.notify.notify_one();
 }
 
 /// Entrada-sonda só para identidade/dedupe (o `enqueue` monta a definitiva).

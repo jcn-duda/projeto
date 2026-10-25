@@ -111,6 +111,7 @@ fn enqueue_pela_estrutura_respeita_fila_e_dedupe() {
         HarvestRequest::movie("tt0111161", "miss"),
         now,
         None,
+        None,
     );
     assert!(first.accepted);
     assert_eq!(first.reason, adom_harvest::EnqueueReason::Queued);
@@ -121,6 +122,7 @@ fn enqueue_pela_estrutura_respeita_fila_e_dedupe() {
         &store,
         HarvestRequest::movie("tt0111161", "miss"),
         now,
+        None,
         None,
     );
     assert!(duplicate.accepted);
@@ -135,6 +137,7 @@ fn enqueue_pela_estrutura_respeita_fila_e_dedupe() {
         HarvestRequest::movie("tt0111161", "miss"),
         now,
         None,
+        None,
     );
     assert!(!dedupe.accepted);
     assert_eq!(dedupe.reason, adom_harvest::EnqueueReason::Dedupe);
@@ -146,6 +149,7 @@ fn enqueue_pela_estrutura_respeita_fila_e_dedupe() {
         HarvestRequest::movie("tt0068646", "miss"),
         now,
         None,
+        None,
     );
     assert_eq!(other.reason, adom_harvest::EnqueueReason::Queued);
     let invalid = enqueue_with_dedupe(
@@ -153,6 +157,7 @@ fn enqueue_pela_estrutura_respeita_fila_e_dedupe() {
         &store,
         HarvestRequest::movie("nao-e-imdb", "miss"),
         now,
+        None,
         None,
     );
     assert_eq!(invalid.reason, adom_harvest::EnqueueReason::Invalid);
