@@ -664,6 +664,17 @@ git add rust/crates/adom-server/src/harvest
 git commit -m "feat(harvest): preempcao intradrain devolve a entrada a cabeca"
 ```
 
+> **Nota de execução (2026-10-24).** Entregue em `c68973d9`. O rank da obra em
+> voo é lido **sob o lock da fila** (`Inner::set_inflight_rank`), senão o
+> enqueue veria slot aberto sem rank e a urgência nunca preemptava. No
+> drop do future só as consultas **já gastas** são debitadas
+> (`DrainFound::take_spent`); o `Settler::note_preempted` renova o lease e a
+> entrada volta à cabeça com `resumed: true` — nada de desfecho de falha.
+> Dois riscos declarados: (a) um `notify_one` remanescente pode preemptar o
+> ciclo seguinte numa corrida estreita (inofensivo — a entrada volta à fila);
+> (b) o rank efetivo depois do coalescing é conservador: pode **deixar de**
+> preemptar, nunca preemptar a mais.
+
 ### T2-L2: `NativeKv` e ponte de leitura napi
 
 **Files:**
@@ -724,6 +735,20 @@ git add rust/crates/adom-store rust/crates/adom-napi src/utils test package.json
 git commit -m "feat(store): kv nativo no cache.db e ponte de leitura napi"
 ```
 
+> **Nota de execução (2026-10-24).** Entregue em `30158eda`, com uma correção
+> de fronteira: o `NativeKv` **não pôde** morar no `adom-store`. O
+> `adom-napi` não depende dele (e passar a depender puxaria `adom-search` e
+> `reqwest` para dentro do `.node`). O KV foi para o **`adom-index`** (crate
+> leve de SQLite que o napi já usa) e o `adom-store` só o reexporta
+> (`pub use adom_index::{kv, NativeKv}`), então a fatia do Chupim continua
+> importando de onde o plano dizia.
+>
+> O binding napi é uma **classe** (`new NativeKv(dbPath)` + `getJson`/`keys`/
+> `setJson`), não funções soltas, para o Node não reabrir o `cache.db` a cada
+> chamada. Caminho do banco: `config.cache.persist ? dbPath : ':memory:'`.
+> `test/native-kv.test.ts` cobre leitura, miss, prefixo e TTL vencido; a regra
+> em si fica em `cargo test -p adom-index kv::`.
+
 ### T3-L2: identificação TMDB nativa (fase 6.1)
 
 **Files:**
@@ -778,6 +803,27 @@ cd ..
 git add src rust test package.json
 git commit -m "refactor(crawl): identificacao tmdb nativa e fim do TMDB search do Node"
 ```
+
+> **Nota de execução (2026-10-24).** O **porte Rust** foi entregue em
+> `c6b55f97` (`search.rs`, `identify.rs`, `search_cache.rs`, stub e 25 testes),
+> mas os Steps 4 e 5 **não fecharam** e a fatia foi partida:
+>
+> - **A fiação no `adom-crawl` não pode entrar agora**: o crate não depende de
+>   `adom-sources`, e a identificação só é usada no caminho de gravação, que
+>   hoje termina em `POST /internal/crawl-result` (Node). Fiar antes seria
+>   código morto no sidecar.
+> - **`src/providers/crawl-identify.ts` continua vivo**: quem o consome é
+>   `src/routes/internal-crawl-result.ts` (+ `test/internal-crawl-result-identify`
+>   e `test/crawl-identify`). Apagá-lo agora derrubaria a ingestão.
+> - Logo, `test/crawl-identify.test.ts` **permanece** em `testFiles` (a
+>   remoção foi revertida). O que sai de verdade — TMDB search do Node,
+>   crawl-identify e a rota `internal-crawl-result` — vai junto da **T3-L3**,
+>   quando a ingestão for nativa.
+>
+> Os reexports de `tmdb/mod.rs` estão sob `#[allow(unused_imports)]` de
+> propósito: `tmdb` ainda é módulo privado em `adom-sources/src/lib.rs`; sem o
+> `pub use` externo o rustc os vê como não usados. A T3-L3 remove a anotação ao
+> fiar de fato.
 
 ---
 
@@ -906,6 +952,23 @@ npm run test:complete
 git add src/debrid test package.json
 git commit -m "refactor(debrid): apaga corpos TS inalcancaveis atras do 501"
 ```
+
+> **Nota de execução (2026-10-24).** Antecipada para a leva 2 e entregue em
+> `99cd5477`. O desenho mudou: **501 deixou de ser "ainda não portado"** e
+> virou "sem veredito nativo" — a checagem devolve `known:false` e a conta
+> sobe `RustWriteError`; não existe segunda pergunta ao TS em nenhum dos dois.
+> Junto veio a proteção que a mudança exigia: `GET /debrid-status.json`
+> responde 200 com `reason:'debrid-bridge'` (antes, 500 `internal_error`) e o
+> bloco `general` do painel faz `catch` no `accountStatus`, senão a ponte fora
+> do ar derrubaria o painel (teste novo em `test/app-routes-admin.test.ts`).
+>
+> **Itens 3 e 4 continuam abertos, de propósito.** Os corpos de
+> `checkCached`/`resolveLink` têm chamador vivo fora do `/stream`:
+> `src/providers/live-check.ts:94` chama `checkCached` cru e
+> `src/providers/dub-audit.ts:153` chega em `resolveLink` por `actions.ts:11`.
+> Apagá-los agora quebraria o `dub-audit`; a remoção real vai com a **T3-L7**,
+> quando o `dub-audit` for nativo. O passo 1 do plano continua sendo o portão
+> (provar ausência de chamador) antes de qualquer `DeleteFile`.
 
 ### T3-L3: recorder e ingestão nativos (fase 6.2)
 
@@ -2792,12 +2855,13 @@ Step 1).
 > última medição declarada no repo (2026-10-24) e **não** substituem a medição
 > local.
 
-| Gate | Última medição declarada | Medido na Leva 0 (2026-10-24) |
-|---|---|---|
-| `npm run typecheck` | — | exit 0 nos 3 programas |
-| `npm run build` | — | `dist/` gerado + assets copiados |
-| `npm test` | 2.495 pass / 0 fail | **2.484 pass / 0 fail** |
-| `npm run test:complete` | todos os arquivos listados | **279 arquivos, 2 harnesses** |
-| `npm run lint:lines -- --check` | 0 acima do teto | **655 arquivos, 0 excedentes** |
-| `node scripts/check-rust-lines.mjs` | baseline 0 | **873 fontes, baseline 0** |
-| `cargo test --workspace --locked` | 0 falhas | **146 resultados, 0 falhas** |
+| Gate | Última medição declarada | Medido na Leva 0 (2026-10-24) | Medido na Leva 2 (2026-10-24) |
+|---|---|---|---|
+| `npm run typecheck` | — | exit 0 nos 3 programas | exit 0 nos 3 programas |
+| `npm run build` | — | `dist/` gerado + assets copiados | idem |
+| `npm test` | 2.495 pass / 0 fail | **2.484 pass / 0 fail** | **2.485 pass / 1 skip / 0 fail (2.486)** |
+| `npm run test:complete` | todos os arquivos listados | **279 arquivos, 2 harnesses** | **279 arquivos, 2 harnesses** |
+| `npm run lint:lines -- --check` | 0 acima do teto | **655 arquivos, 0 excedentes** | **655 arquivos, 0 excedentes** |
+| `node scripts/check-rust-lines.mjs` | baseline 0 | **873 fontes, baseline 0** | **888 fontes, baseline 0** |
+| `cargo test --workspace --locked` | 0 falhas | **146 resultados, 0 falhas** | **146 resultados, 0 falhas** |
+| `cargo clippy -D warnings` | — | exit 0 | exit 0 (workspace, all-targets) |
