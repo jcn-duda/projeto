@@ -11,6 +11,10 @@ autobins = false
 
 [dependencies]
 adom-core = { path = "../adom-core" }
+# A ingestão grava onde a busca grava: o item cru (`adom-search`) e os dois
+# bancos (`adom-store` = magnets.db + idx:v14 do cache.db).
+adom-search = { path = "../adom-search" }
+adom-store = { path = "../adom-store" }
 regex = "=1.13.1"
 fancy-regex = "=0.19.2"
 url = "=2.5.8"

@@ -5,6 +5,8 @@ pub mod br_core;
 pub mod flare;
 pub mod gate;
 pub mod http_session;
+// Ingestão nativa da raspagem (T3-L3): banco vivo → índice → invalidação.
+pub mod ingest;
 pub mod listing;
 pub mod mico;
 pub mod mico_discovery;
