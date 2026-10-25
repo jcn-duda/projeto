@@ -405,6 +405,13 @@ git add -A src/debrid src/providers src/utils package.json
 git commit -m "refactor(debrid): remove fileList e markFilterResult sem chamador"
 ```
 
+> **Nota de execução (2026-10-24).** `premiumize-files.ts` (e o teste) e
+> `markBankFilterOutcome` saíram, mas `markFilterResult` **ficou**: os testes
+> `test/magnet-bank.test.ts` e `test/magnet-bank-lifecycle.test.ts` o chamam
+> para exercitar `magnet_work`. A deleção dele (e desses casos) migrou para a
+> **T2-L4**, quando a escrita de `magnet_work` for de vez do napi. O commit
+> saiu como `c96aec3c` (sem o `markFilterResult`).
+
 ---
 
 ## Leva 1
@@ -589,6 +596,14 @@ cd ..
 git add src rust/crates/adom-napi test package.json
 git commit -m "refactor(autofetch): fia regras puras no nucleo e apaga o TS morto"
 ```
+
+> **Nota de execução (2026-10-24).** O Step 1 provou que os 8 módulos
+> `autofetch-*.ts` **não estão mortos**: `autofetch-candidates.ts`, `drain.ts`,
+> `recheck.ts`, `terminal.ts`, `settle.ts`, `obra.ts`, `runner.ts` e
+> `autofetch.ts` os chamam, e `autofetch-picks` é usado por
+> `src/utils/stream-ranking.ts:27-28`. A fatia entregou só a ponte napi
+> (`rules.rs`, 12 bindings, commit `c5d83cb5`); a deleção acompanha a migração
+> do worker em **T3-L4/L5/L6**.
 
 ---
 
