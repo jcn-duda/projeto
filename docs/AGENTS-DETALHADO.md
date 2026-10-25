@@ -678,9 +678,9 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   temporada no True Detective S01E01 (2026-09-24). Release de outra obra vai
   para a dela. O fallback repete o teste ANTES dos tetos
   (`fallback.items.cut.episode-mismatch`), o que também neutraliza as linhas
-  legadas. `markBankFilterOutcome` (`magnet-bank-hook.ts`) grava o
-  `passed_filter` da busca no stream-builder — é o filtro de TÍTULO, não o de
-  episódio.
+  legadas. A captura nativa (`capture_items`, no fim da busca) grava o
+  `passed_filter` de `magnet_work` — é o filtro de TÍTULO, não o de episódio;
+  a marcação avulsa (`markBankFilterOutcome`) saiu com o hook TS.
 
 **Fallback do acervo (Etapa 4).** (Registro histórico: desde o F4.4 a
 reserva é do orquestrador Rust e o TS abaixo saiu do `src/`.) O então
@@ -3555,10 +3555,12 @@ o orçamento com a resposta.
 - **Item sem resolução também pede a lista de arquivos.**
   `packHashesMissingFiles` inclui `_quality === 'sem resolução'` além de pack e
   item sem 💾: o nome do arquivo é a fonte da resolução (`probed-quality.ts`).
-  A Premiumize, que só sabia sim/não no `/cache/check`, agora lê os arquivos
-  dos pedidos PRONTOS por `/transfer/directdl` em fundo
-  (`premiumize-files.ts`, 2 por checagem, desliga com `DEBRID_QUALITY_PROBE`);
-  a busca seguinte já mostra a resolução. Medido em Widow's Bay (2026-10-04):
+  A Premiumize, que só sabia sim/não no `/cache/check`, lia os arquivos dos
+  pedidos PRONTOS por `/transfer/directdl` em fundo
+  (`premiumize-files.ts`, 2 por checagem, desligava com `DEBRID_QUALITY_PROBE`);
+  a busca seguinte já mostrava a resolução. O arquivo saiu na Task 0.3 (ficou
+  sem chamador quando a checagem nativa assumiu a lista). Medido em Widow's
+  Bay (2026-10-04):
   "S01.Dub E01-E08", 10 GB, ⚡ e sem resolução. Os arquivos também não diziam
   ("…S01.Dub.EP-1.mp4"), a medição do cabeçalho (`video-quality.ts`) chegou a
   existir só para a AllDebrid (`/link/unlock`) e foi removida do Node: não

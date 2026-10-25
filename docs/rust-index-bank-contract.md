@@ -47,12 +47,14 @@ Schema idêntico ao `src/utils/magnet-bank-rows.ts` (`magnet`, `magnet_source`,
   `sourcesForMany` em chunks de 200.
 - Extração de hash: `hashOf` (`infoHash`, `magnet`, `MagnetUri`, `Guid`, o
   primeiro válido).
-- Escrita: `markBankFilterOutcome` grava `passed_filter` (1/0) e `last_seen` nas
-  linhas que JÁ existem, por hash e por alvo (obra do pedido + packs que o
-  título declara). Fonte sem captura não cria órfão.
-- **Captura (`captureItems`) continua no Node** — colhedor e aquecimento. A
-  coleta do `/stream` é nativa desde o R5 e não passa por ela; as fontes
-  nativas ainda não capturam.
+- Escrita: `capture_items` (Rust) grava `magnet`, `magnet_source` e
+  `magnet_work` numa transação, com CAS: `passed_filter` não regride e
+  `last_seen` é `MAX`. O `/stream` chama do `late.rs` (`capture_native_bank`),
+  antes dos efeitos; erro só loga, a resposta não espera o disco.
+  `markFilterResult` (TS) segue para o colhedor/aquecimento e não cria órfão de
+  fonte não-Jackett.
+- A captura do `/stream` é **nativa**: a lista que a coleta ao vivo devolveu vai
+  para o acervo pelo próprio orquestrador, sem passar por `/internal/*`.
 
 ## O que o nativo serve
 
