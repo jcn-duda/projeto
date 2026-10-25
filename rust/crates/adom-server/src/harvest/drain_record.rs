@@ -17,6 +17,7 @@ use adom_search::orchestrator::{IndexedReleaseWire, RawItem, ReleaseIndexSource,
 use adom_store::StreamsStore;
 
 use super::drain_shape::relevance_items;
+use super::drain_sources::dedupe_by_hash;
 
 pub(super) struct RecordArgs<'a> {
     pub index: &'a dyn ReleaseIndexSource,
@@ -178,19 +179,6 @@ fn lookup_dests(
         .iter()
         .map(|(season, episode)| index.lookup(imdb, *season, *episode, now_ms))
         .collect()
-}
-
-fn dedupe_by_hash(items: Vec<RawItem>) -> Vec<RawItem> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-    for item in items {
-        let hash = item.hash();
-        if !hash.is_empty() && !seen.insert(hash) {
-            continue;
-        }
-        out.push(item);
-    }
-    out
 }
 
 fn found_from_index(before: &[IndexedReleaseWire], after: &[IndexedReleaseWire]) -> bool {
