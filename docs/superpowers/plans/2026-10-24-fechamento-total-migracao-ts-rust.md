@@ -1137,6 +1137,72 @@ git commit -m "refactor(crawl): ingestao e recorder nativos e fim do crawl-resul
 > fila — o que falta é alimentar a fila.** Próxima fatia da fase 6, antes de
 > qualquer limpeza adicional do TS: fiar `discover` (sitemap/listing →
 > `upsertUrls`) e o consumo do cursor no motor.
+>
+> **EXECUTADA (trilha de SITEMAP) em `93eeb96d`** (`feat(crawl): descoberta de
+> sitemap no motor (fase 6)`). O que foi feito:
+>
+> - **`discovery/`** (`types`, `rules`, `config`, `fetch`, `service`, `mod`):
+>   tabela dos SEIS sites de sitemap (Vaca, Nerd, TDF, Comando, Rede, BLUDV),
+>   `KindModel::PerKind` (arquivos `movie-`/`tv_show-` e `movies-`/`tvshows-`) ×
+>   `Mixed { tv_hidden_off }` (`post-sitemap*` do BLUDV esconde séries),
+>   `EntryShape::Xml`/`XmlOrViewer`, corte incremental por `lastmod` com
+>   `parse_iso_ms` sem `chrono` (`days_from_civil` do `br_core`), cursor por KIND
+>   (`cursor:movie`/`cursor:tv_show`, legado `cursor` migrado para movie) e
+>   `enqueue_discovered` (= `decideUpsert`), **nunca** `upsert_urls`.
+> - **`motor/discovery_tick.rs`**: um site por tick, rodízio justo, relógio por
+>   site (parcial volta no retry curto, completa no
+>   `CRAWL_DISCOVERY_INTERVAL_MS`), custo da rodada no MESMO teto por hora das
+>   páginas (`budget.rs`); a descoberta roda **antes** do claim (era o
+>   `sem-fila` eterno de um site recém-ligado).
+> - **`page_engine::fetch_crawl_text`**: direto primeiro e FlareSolverr só com
+>   desafio do Cloudflare (mesmo perfil do `fetchTextCrawl` do TS).
+> - **Regra dura preservada:** `urls: []` + `complete: true` nunca sai por
+>   engano — corpo ilegível, zero entradas de obra e kind trocado são FALHA.
+>   Lista vazia **depois** do corte incremental é completa legítima.
+> - **Testes:** `discovery_tests.rs`, `discovery_service_tests.rs` e
+>   `motor/discovery_tick_tests.rs` (49 testes; a lib `adom-crawl` foi de 491
+>   para **540**). Dois bugs reais apareceram aqui e foram corrigidos: a fração
+>   de segundos do `Date.parse` era ignorada, e `discover_once` fora do tick não
+>   abria o `crawl.db`.
+>
+> **Lacuna remanescente da fase 6 (não é a mesma coisa):** a trilha de
+> **LISTAGEM paginada** (HDR e Apache; cursor `lc1`, fim por contagem) continua
+> sem consumidor no motor. Esses dois sites só voltam a descobrir quando essa
+> trilha for fiada; até lá o motor deles trabalha apenas a fila existente. Nada
+> de TS a apagar nessa fatia (o motor de crawl TS já saiu em T3-L3).
+>
+> **EXECUTADA (subtarefa A da listagem) no commit desta fatia** — núcleo puro,
+> ainda sem fiação:
+>
+> - **`listing/base64url.rs`**: o crate não tem base64 e o token `lc1` precisa
+>   dele; encode/decode sem padding no alfabeto url-safe, sem dependência nova.
+> - **`listing/cursor.rs`** (porte de `crawl-cursor.ts`): `ListingCursor`
+>   (`page`/`seen`/`anchor`/`round_page`/`sweep`/`head`/`rounds`), chave
+>   `listing:<kind>:<caminho>`, token `lc1.<base64url>` com leitura estrita
+>   (fora de forma = `None`, nunca adoção de lixo) e tolerância ao token
+>   anterior aos contadores.
+> - **`listing/read.rs`** (porte de `crawl-listing-read.ts`): `read_listing_page`
+>   com a MESMA ordem do TS — round esgotado reinicia antes de consumir,
+>   `max_pages` não consome, teto do round fecha sem cobertura (exceto
+>   incremental sem âncora), âncora/fim declarado voltam para a página 1 com
+>   `anchor = head`.
+> - **`listing/walk.rs`** (porte de `listing-discover.ts`): o laço que anda a
+>   listagem sobre um `ListingPageReader` injetado (o núcleo não conhece HTML),
+>   com as duas travas de fim (CONTAGEM de cards brutos e página cheia
+>   repetida), o portão de séries (`tv_show` gasta o request e não entra na
+>   fila) e `complete && failures.is_empty()`.
+> - **`ListingPageRead`** ganhou `enqueued` e `end_of_listing` — eram campos do
+>   TS que faltavam para o orçamento e o fim por contagem chegarem ao cursor.
+> - **Testes:** 34 novos (`base64url` 3, `tests_cursor` 9, `tests_read` 10,
+>   `tests_walk` 12); a lib `adom-crawl` foi de 540 para **574** e o filtro
+>   `listing` roda 44.
+>
+> **O que continua faltando (subtarefa B):** os `readPage` dos dois sites
+> (`listing::{hdr,apache}` já existem), o marcador de séries `1:r2`/`0:r2`
+> (`crawl-listing-series.ts`), o serviço `ListingDiscovery`, a entrada de HDR e
+> Apache em `discoverable_sites()` e a escrita de `crawl_state` pelo motor
+> (`DiscoveryReport.state_writes` + `DiscoveryOptions.all_state`). Só depois
+> disso a fila desses dois sites volta a encher.
 
 ---
 

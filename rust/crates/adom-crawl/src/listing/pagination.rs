@@ -11,9 +11,20 @@ pub struct ListingPost {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListingPageRead {
+    /// Candidatos da página NA ORDEM DO SITE (primeiro = mais novo). A ordem
+    /// não é enfeite: o marco do round é o ÚLTIMO post, e ele só significa
+    /// "li até aqui" se for o mais antigo da página.
     pub posts: Vec<ListingPost>,
+    /// Cards BRUTOS, antes de qualquer filtro do adaptador. É ESTE número que
+    /// decide o fim do catálogo: contar só os aceitos fez um card pulado virar
+    /// "página calcanhar" (o Apache parou na 211 de 2123, 2026-10-01).
     pub card_count: Option<usize>,
+    /// Cards cujo formato o parser reconheceu, antes de filtros de host/tipo.
     pub recognized_count: Option<usize>,
+    /// Posts que entraram na fila (orçamento gasto). Default: `posts.len()`.
+    pub enqueued: Option<usize>,
+    /// O adaptador viu o FIM da listagem ("próxima" ausente/vazia).
+    pub end_of_listing: Option<bool>,
 }
 
 /// Trava primária de fim de catálogo por contagem.
