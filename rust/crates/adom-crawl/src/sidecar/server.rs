@@ -4,6 +4,10 @@
 //! - `GET /health` — healthcheck (sem token)
 //! - `GET /status` — status do motor (com token)
 //! - `POST /action` — ações de manutenção (com token)
+//! - `POST /crawl/requeue-simulated` / `POST /crawl/reprocess-no-work` —
+//!   reenfileiramento administrativo ([`super::admin`], com token)
+//! - `GET /crawl/cursor` / `POST /crawl/cursor` — cursor de descoberta
+//!   ([`super::admin`], com token)
 //!
 //! # Segurança
 //!
@@ -42,11 +46,7 @@ pub struct AppState {
 ///
 /// Retorna quando o servidor é encerrado (erro ou shutdown).
 pub async fn run(port: u16, state: Arc<AppState>) {
-    let app = Router::new()
-        .route("/health", get(health_handler))
-        .route("/status", get(status_handler))
-        .route("/action", post(action_handler))
-        .with_state(state);
+    let app = router(state);
 
     let addr = format!("127.0.0.1:{}", port);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
@@ -63,6 +63,30 @@ pub async fn run(port: u16, state: Arc<AppState>) {
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
+
+/// Monta o Router com todas as rotas do sidecar.
+///
+/// Extraído de [`run`] para o teste subir o MESMO roteamento numa porta efêmera
+/// (o `tower` não é dependência do crate, então não há `oneshot`).
+pub fn router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/health", get(health_handler))
+        .route("/status", get(status_handler))
+        .route("/action", post(action_handler))
+        .route(
+            "/crawl/requeue-simulated",
+            post(crate::sidecar::admin::requeue_simulated),
+        )
+        .route(
+            "/crawl/reprocess-no-work",
+            post(crate::sidecar::admin::reprocess_no_work),
+        )
+        .route(
+            "/crawl/cursor",
+            get(crate::sidecar::admin::cursor_get).post(crate::sidecar::admin::cursor_set),
+        )
+        .with_state(state)
+}
 
 /// GET /health — healthcheck para o entrypoint.sh (sem token).
 ///
@@ -274,7 +298,10 @@ async fn handle_reset(state: &AppState, site: &str) -> axum::response::Response 
 /// Retorna `Err(response)` com 401 se o token estiver inválido.
 /// Se o token esperado estiver vazio, permite (modo dev).
 #[allow(clippy::result_large_err)] // Response contém Body; é o contrato do axum handler
-fn validate_token(expected: &str, headers: &HeaderMap) -> Result<(), axum::response::Response> {
+pub(super) fn validate_token(
+    expected: &str,
+    headers: &HeaderMap,
+) -> Result<(), axum::response::Response> {
     if expected.is_empty() {
         // Token não configurado — permite (modo dev).
         return Ok(());

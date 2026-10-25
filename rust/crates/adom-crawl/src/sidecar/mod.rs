@@ -6,8 +6,14 @@
 //! e o servidor HTTP que o sidecar expõe para o painel.
 
 pub mod activity;
+/// Rotas administrativas do crawl (`/crawl/*`): requeue, reprocessar sem obra
+/// e cursor. Catraca de 400 linhas fora do `server.rs`.
+pub mod admin;
 pub mod http_client;
 pub mod server;
+
+#[cfg(test)]
+mod admin_tests;
 
 pub use activity::recent_user_traffic;
 pub use http_client::{SidecarHttpClient, SidecarHttpError};
