@@ -1197,12 +1197,48 @@ git commit -m "refactor(crawl): ingestao e recorder nativos e fim do crawl-resul
 >   `tests_walk` 12); a lib `adom-crawl` foi de 540 para **574** e o filtro
 >   `listing` roda 44.
 >
-> **O que continua faltando (subtarefa B):** os `readPage` dos dois sites
-> (`listing::{hdr,apache}` já existem), o marcador de séries `1:r2`/`0:r2`
-> (`crawl-listing-series.ts`), o serviço `ListingDiscovery`, a entrada de HDR e
-> Apache em `discoverable_sites()` e a escrita de `crawl_state` pelo motor
-> (`DiscoveryReport.state_writes` + `DiscoveryOptions.all_state`). Só depois
-> disso a fila desses dois sites volta a encher.
+> **EXECUTADA (subtarefa B da listagem) no commit desta fatia** — a fila de
+> HDR e Apache volta a encher:
+>
+> - **`discovery/types.rs`**: `DiscoveryReport.state_writes: Vec<(String,
+>   String)>` (estado durável que a rodada quer gravar, EM ORDEM) e
+>   `DiscoveryOptions` com `site_state` (lido pelo motor a partir de
+>   `state_keys`), `listing_round_max_pages` e `now`; `state(key)` trata valor
+>   vazio como ausente.
+> - **`discovery/listing/`** (`config`, `series`, `reader`, `mod`): tabela
+>   fechada dos dois sites (`/pagina/`, 20 cards por página cheia), portão de
+>   séries `1:r2`/`0:r2` com chave irmã `listing:movie:/pagina/:series`
+>   (inverter o portão apaga o cursor e recomeça da página 1), `SiteListingReader`
+>   (único ponto que conhece HTML; failover de host memoizado; `hdr_*`/`apache_*`)
+>   e `ListingDiscovery` (lê o estado, chama `walk_listing` e devolve o relatório
+>   com o marcador ANTES do cursor em `state_writes`).
+>   `complete_tv_show = emit_series && complete`: com séries desligadas as URLs
+>   foram lidas e descartadas, e `true` afirmaria cobertura que não existe.
+> - **`discovery/mod.rs`**: `SiteDiscovery::state_keys` (default vazio),
+>   `RoutedDiscovery` (listagem × sitemap por `listing_config`) e
+>   `discoverable_sites()` como UNIÃO das duas trilhas (8 sites);
+>   `sitemap_sites()` continua sendo só os seis de sitemap.
+> - **Motor** (`motor/discovery_tick.rs`): lê `state_keys` para
+>   `opts.site_state` e grava `state_writes` **só depois** de
+>   `enqueue_discovered` aceitar (`accepted`); falha de fila imprime que o estado
+>   NÃO foi gravado e a rodada é refeita — cursor que anda antes do `enqueue`
+>   avança por cima de descoberta que nunca entrou na fila.
+>   `MotorConfig::listing_max_pages_per_round` é a porta de
+>   `CRAWL_LISTING_MAX_PAGES_PER_ROUND` (default 20, `.max(1)` no sidecar).
+>   **Decisão:** o motor NÃO encurta o agendamento de rodada incompleta
+>   (`round-cap`); o retry curto faria a carga inicial consumir o teto de 1.500
+>   req/h e morrer de fome as páginas. A cobertura inicial do Apache (2.123
+>   páginas) sai a 20 páginas por intervalo — subir o knob quando a carga
+>   importar.
+> - **Testes:** 12 novos em `discovery/listing/tests_listing.rs` (tabela, união,
+>   URL da página, 4 do portão, e2e com o HTML real de HDR e Apache, página sem
+>   card = falha nunca vazio completo, reinício da página 1 com o cursor
+>   apagado, failover de host) + 1 no motor
+>   (`estado_duravel_da_trilha_e_lido_antes_e_gravado_depois`). O harness do
+>   motor saiu para `motor/discovery_tick_test_support.rs` e os casos dividiram-se
+>   em `discovery_tick_tests.rs` (relógio/rodízio) e
+>   `discovery_tick_state_tests.rs` (custo, cursores, estado durável e costura)
+>   para caber na catraca de 400 linhas. O filtro `listing` roda 56.
 
 ---
 

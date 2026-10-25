@@ -86,10 +86,16 @@ impl CrawlMotor {
 
         let (movie, tv_show) = self.load_cursors(&site).await;
         let cuts = discovery_cuts(movie.as_deref(), tv_show.as_deref());
+        let state_keys = discovery.state_keys(&site);
         let opts = DiscoveryOptions {
             since_movie: cuts.movie.clone(),
             since_tv_show: cuts.tv_show.clone(),
             emit_series: self.config.series_enabled,
+            // Estado durável da trilha (cursor e marcador da listagem) lido
+            // ANTES da rodada: a trilha é pura, quem lê o banco é o motor.
+            site_state: self.load_site_state(&site, state_keys).await,
+            listing_round_max_pages: self.config.listing_max_pages_per_round,
+            now,
         };
 
         match discovery.discover(&site, &opts).await {
@@ -118,6 +124,7 @@ impl CrawlMotor {
         let rows = report.to_rows(site, now);
         let mut added = 0u32;
         let mut refreshed = 0u32;
+        let mut accepted = true;
         if !rows.is_empty() {
             let alvo = site.to_string();
             match with_store(self.store.clone(), move |db| {
@@ -129,8 +136,27 @@ impl CrawlMotor {
                     added = r.added;
                     refreshed = r.refreshed;
                 }
-                Err(e) => eprintln!("[motor] descoberta {site}: enfileirar falhou: {e}"),
+                Err(e) => {
+                    eprintln!("[motor] descoberta {site}: enfileirar falhou: {e}");
+                    accepted = false;
+                }
             }
+        }
+        // Estado durável da rodada (cursor de listagem + marcador de séries).
+        // SÓ depois de a fila ACEITAR as URLs: cursor que anda antes do
+        // `enqueue` avança por cima de descoberta que nunca entrou na fila. A
+        // ordem dentro de `state_writes` é da trilha (marcador antes do
+        // cursor).
+        if accepted {
+            for (key, value) in &report.state_writes {
+                self.write_state(site, key, value).await;
+            }
+        } else if !report.state_writes.is_empty() {
+            eprintln!(
+                "[motor] descoberta {site}: estado durável NÃO gravado ({} chave(s)) — \
+                 a rodada será refeita",
+                report.state_writes.len()
+            );
         }
         for kind in [CrawlPageKind::Movie, CrawlPageKind::TvShow] {
             let Some(value) = next_cursor(report, kind) else {
@@ -230,8 +256,37 @@ impl CrawlMotor {
         let trimmed = value.trim();
         (!trimmed.is_empty()).then(|| trimmed.to_string())
     }
+
+    /// Estado durável que a trilha pediu, já sem valores vazios (vazio é
+    /// ausência para quem lê).
+    async fn load_site_state(&self, site: &str, keys: Vec<String>) -> Vec<(String, String)> {
+        let mut out = Vec::with_capacity(keys.len());
+        for key in keys {
+            if let Some(value) = self.read_state(site, &key).await {
+                out.push((key, value));
+            }
+        }
+        out
+    }
+
+    async fn write_state(&self, site: &str, key: &str, value: &str) {
+        let s = site.to_string();
+        let k = key.to_string();
+        let v = value.to_string();
+        if let Err(e) = with_store(self.store.clone(), move |db| db.set_state(&s, &k, &v)).await {
+            eprintln!("[motor] descoberta {site}: estado {key} não gravou: {e}");
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "discovery_tick_test_support.rs"]
+mod test_support;
 
 #[cfg(test)]
 #[path = "discovery_tick_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "discovery_tick_state_tests.rs"]
+mod state_tests;

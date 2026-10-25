@@ -27,6 +27,7 @@ fn report(urls: Vec<DiscoveredUrl>) -> DiscoveryReport {
         complete_tv_show: true,
         failures: Vec::new(),
         request_cost: 1,
+        state_writes: Vec::new(),
     }
 }
 
@@ -251,7 +252,7 @@ fn to_rows_monta_linha_pending_com_chave_da_url() {
 #[test]
 fn tabela_fecha_os_seis_sites_de_sitemap() {
     assert_eq!(
-        discoverable_sites(),
+        sitemap_sites(),
         vec![
             "vacatorrent",
             "redetorrent-cardigann",
@@ -261,7 +262,7 @@ fn tabela_fecha_os_seis_sites_de_sitemap() {
             "torrentdosfilmesv2",
         ]
     );
-    for site in discoverable_sites() {
+    for site in sitemap_sites() {
         let cfg = discovery_config(site).expect("site da lista tem config");
         assert_eq!(cfg.site_id, site);
         assert!(

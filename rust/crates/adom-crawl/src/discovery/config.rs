@@ -14,9 +14,9 @@
 //! | `torrentdosfilmesv2`  | `post-sitemap*` MISTO                  |
 //!
 //! Fora daqui, de propósito: `hdrtorrent-cardigann` e `apachetorrent-cardigann`
-//! (listagem paginada, outra trilha), `torrentgalaxy-cardigann` (perfil de rede
-//! do resolver, não site do raspador) e `mico` (lane `own_pace` com descoberta
-//! própria, `mico_discovery`).
+//! (listagem paginada — trilha própria em `discovery::listing`),
+//! `torrentgalaxy-cardigann` (perfil de rede do resolver, não site do raspador)
+//! e `mico` (lane `own_pace` com descoberta própria, `mico_discovery`).
 //!
 //! A DIFERENÇA que a `KindModel` carrega é a que muda o cursor: no sitemap por
 //! kind, o arquivo de série caído não pode travar o cursor de filme. No
@@ -141,8 +141,9 @@ pub fn discovery_config(site_id: &str) -> Option<&'static SitemapDiscoveryConfig
         .find(|c| c.site_id == site_id)
 }
 
-/// Ids com descoberta por sitemap, na ordem da tabela.
-pub fn discoverable_sites() -> Vec<&'static str> {
+/// Ids com descoberta por SITEMAP, na ordem da tabela. A lista completa que o
+/// motor percorre é `discovery::discoverable_sites` (sitemap + listagem).
+pub fn sitemap_sites() -> Vec<&'static str> {
     SITE_TABLE
         .get_or_init(build_table)
         .iter()

@@ -140,6 +140,9 @@ pub struct MotorConfig {
     /// ON e só global). Desligada, nenhuma URL `tv_show` entra na fila e o
     /// cursor de série não anda.
     pub series_enabled: bool,
+    /// Teto de páginas por RODADA da descoberta por LISTAGEM (HDR/Apache).
+    /// Porta de `CRAWL_LISTING_MAX_PAGES_PER_ROUND`; 0 desliga o teto.
+    pub listing_max_pages_per_round: u32,
 }
 
 impl Default for MotorConfig {
@@ -163,6 +166,7 @@ impl Default for MotorConfig {
             gate_hourly: 4,
             discovery_interval_ms: 3_600_000,
             series_enabled: true,
+            listing_max_pages_per_round: crate::listing::cursor::LISTING_ROUND_MAX_PAGES,
         }
     }
 }

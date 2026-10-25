@@ -178,6 +178,9 @@ impl SitemapDiscovery {
             complete_tv_show,
             failures,
             request_cost: cost,
+            // A trilha de sitemap não tem estado durável próprio: o cursor de
+            // data anda por `next_cursor`, no motor.
+            state_writes: Vec::new(),
         })
     }
 

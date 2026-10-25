@@ -37,6 +37,15 @@ pub struct DiscoveryReport {
     /// Sem isto a descoberta entraria de graça no teto por hora, que é de
     /// requisições.
     pub request_cost: u32,
+    /// Estado durável que a rodada quer gravar, EM ORDEM (chave, valor).
+    ///
+    /// Existe porque quem grava é o MOTOR, e ele só pode gravar depois de a
+    /// fila aceitar as URLs: cursor que anda antes do `enqueue` avança por cima
+    /// de descoberta que nunca entrou na fila. Valor vazio apaga (o leitor
+    /// trata vazio como ausente), e a ordem importa: o marcador de séries vai
+    /// ANTES do cursor de listagem (crash entre os dois deixa o cursor antigo
+    /// com o marcador novo — releitura barata).
+    pub state_writes: Vec<(String, String)>,
 }
 
 impl DiscoveryReport {
@@ -50,6 +59,7 @@ impl DiscoveryReport {
             complete_tv_show: true,
             failures: Vec::new(),
             request_cost: 0,
+            state_writes: Vec::new(),
         }
     }
 
@@ -81,7 +91,7 @@ impl DiscoveryReport {
 }
 
 /// O que a rodada precisa saber do estado durável e da configuração.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DiscoveryOptions {
     /// Cursor do kind (`None` = carga inicial daquele kind).
     pub since_movie: Option<String>,
@@ -90,6 +100,28 @@ pub struct DiscoveryOptions {
     /// `tv_show` é emitida — página de temporada enfileirada como filme é
     /// obra errada no acervo.
     pub emit_series: bool,
+    /// Estado durável do site (`crawl_state`), já sem valores vazios. As chaves
+    /// que interessam vêm de [`SiteDiscovery::state_keys`]
+    /// (crate::discovery::SiteDiscovery).
+    pub site_state: Vec<(String, String)>,
+    /// Teto de páginas por rodada da LISTAGEM (0 desliga). Porta de
+    /// `CRAWL_LISTING_MAX_PAGES_PER_ROUND`.
+    pub listing_round_max_pages: u32,
+    /// Relógio da rodada (epoch ms): o cursor de listagem carimba `updated_at`.
+    pub now: i64,
+}
+
+impl Default for DiscoveryOptions {
+    fn default() -> Self {
+        Self {
+            since_movie: None,
+            since_tv_show: None,
+            emit_series: false,
+            site_state: Vec::new(),
+            listing_round_max_pages: crate::listing::cursor::LISTING_ROUND_MAX_PAGES,
+            now: 0,
+        }
+    }
 }
 
 impl DiscoveryOptions {
@@ -99,5 +131,13 @@ impl DiscoveryOptions {
             CrawlPageKind::Movie => self.since_movie.as_deref(),
             CrawlPageKind::TvShow => self.since_tv_show.as_deref(),
         }
+    }
+
+    /// Valor durável gravado para `key` (`None` para ausente OU vazio).
+    pub fn state(&self, key: &str) -> Option<&str> {
+        self.site_state
+            .iter()
+            .find(|(k, v)| k == key && !v.trim().is_empty())
+            .map(|(_, v)| v.as_str())
     }
 }
