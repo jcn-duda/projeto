@@ -6,8 +6,9 @@
 //! (ou `forget` se vazia). A mutação continua em [`HarvestQueue`] em memória;
 //! este store só materializa o array.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection};
 
@@ -39,26 +40,28 @@ CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
 /// TTL default da fila (`HARVEST_ENTRY_TTL` no TS: 7 dias).
 pub const DEFAULT_ENTRY_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
+/// Cópia de auditoria da fila ilegível (`<QUEUE_KEY>:corrupt`).
+///
+/// O JSON podre é a ÚNICA evidência do que o colhedor perdeu; fica 30 dias
+/// (tempo de alguém olhar o painel) e depois o TTL expira sozinho.
+pub const CORRUPT_QUEUE_KEY: &str = "harvest:v1:q:corrupt";
+const CORRUPT_BACKUP_TTL_SECONDS: u64 = 30 * 24 * 3600;
+
 /// Banco SQLite da chave única `harvest:v1:q`.
 ///
 /// Fora do caminho `/stream` — o gateway não abre este store.
 pub struct HarvestStore {
     conn: Mutex<Connection>,
+    /// Veredito do `open`: arquivo podre = quarentenado (a fila antiga caiu).
+    store_error: Option<String>,
 }
 
 impl HarvestStore {
     pub fn open(path: &Path) -> Result<Self, String> {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|err| format!("pasta do harvest store: {err}"))?;
-            }
-        }
-        let conn = Connection::open(path).map_err(|err| format!("abrir harvest store: {err}"))?;
-        conn.execute_batch(SCHEMA)
-            .map_err(|err| format!("schema harvest store: {err}"))?;
+        let (conn, store_error) = open_quarantined(path)?;
         Ok(Self {
             conn: Mutex::new(conn),
+            store_error,
         })
     }
 
@@ -67,7 +70,18 @@ impl HarvestStore {
         conn.execute_batch(SCHEMA).map_err(|err| err.to_string())?;
         Ok(Self {
             conn: Mutex::new(conn),
+            store_error: None,
         })
+    }
+
+    /// O `cache.db` estava podre no boot: o arquivo foi para a quarentena.
+    pub fn degraded(&self) -> bool {
+        self.store_error.is_some()
+    }
+
+    /// O que o `quick_check` respondeu + o destino do arquivo.
+    pub fn degraded_error(&self) -> Option<&str> {
+        self.store_error.as_deref()
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -75,6 +89,10 @@ impl HarvestStore {
     }
 
     /// `cache.get(harvest:v1:q)` — miss/expirado → `[]`; filtra IMDb inválido.
+    ///
+    /// JSON inválido NÃO derruba o boot: o valor cru é copiado para
+    /// [`CORRUPT_QUEUE_KEY`] antes de a fila voltar vazia. O original fica onde
+    /// está (quem o apaga é o TTL) — leitura nunca destrói evidência.
     pub fn load(&self, now_ms: i64) -> Result<Vec<HarvestEntry>, String> {
         let conn = self.lock();
         let Some((value, expires_at)) = read_row(&conn, QUEUE_KEY)? else {
@@ -85,8 +103,21 @@ impl HarvestStore {
                 .map_err(|err| err.to_string())?;
             return Ok(Vec::new());
         }
-        let raw: Vec<StoredEntry> =
-            serde_json::from_str(&value).map_err(|err| format!("fila harvest inválida: {err}"))?;
+        let raw: Vec<StoredEntry> = match serde_json::from_str(&value) {
+            Ok(raw) => raw,
+            Err(err) => {
+                let problem = format!("fila harvest inválida: {err}");
+                match backup_corrupt(&conn, &value, now_ms) {
+                    Ok(()) => {
+                        eprintln!("[harvest] {problem}; valor cru copiado para {CORRUPT_QUEUE_KEY}")
+                    }
+                    Err(copy_err) => eprintln!(
+                        "[harvest] {problem}; cópia para {CORRUPT_QUEUE_KEY} falhou ({copy_err})"
+                    ),
+                }
+                return Ok(Vec::new());
+            }
+        };
         Ok(raw
             .into_iter()
             .filter(|stored| is_valid_imdb_id(&stored.entry.imdb_id))
@@ -191,142 +222,118 @@ impl HarvestStore {
     }
 }
 
+/// `Ok(None)` só para MISS (`QueryReturnedNoRows`); qualquer outro erro sobe.
+///
+/// O `.ok()` antigo tratava `SQLITE_CORRUPT` como fila vazia: o colhedor
+/// "perdia" a fila em silêncio em vez de avisar.
 fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, String> {
     let mut stmt = conn
         .prepare("SELECT value, expires_at FROM cache WHERE key = ?1")
-        .map_err(|err| err.to_string())?;
-    let row = stmt
-        .query_row(params![key], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .ok();
-    Ok(row)
+        .map_err(|err| format!("ler chave do harvest store: {err}"))?;
+    stmt.query_row(params![key], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })
+    .map(Some)
+    .or_else(|err| match err {
+        rusqlite::Error::QueryReturnedNoRows => Ok(None),
+        other => Err(format!("ler chave do harvest store: {other}")),
+    })
+}
+
+/// Copia o valor ilegível para a chave de corrupção (com TTL próprio).
+fn backup_corrupt(conn: &Connection, value: &str, now_ms: i64) -> Result<(), String> {
+    let expires_at =
+        now_ms.saturating_add((CORRUPT_BACKUP_TTL_SECONDS as i64).saturating_mul(1000));
+    conn.execute(
+        "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
+        params![CORRUPT_QUEUE_KEY, value, expires_at],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+/// Abre `path` com `PRAGMA quick_check`; arquivo podre vira quarentena + schema
+/// novo, e o erro vai no segundo item do par (o store abre DEGRADADO).
+///
+/// Espelho de `adom_store::integrity::open_quarantined`: a duplicação é de
+/// propósito — `adom-harvest` é o crate leve da fila e não carrega
+/// `adom-store` (que puxa `adom-search`/`adom-sources`) por 40 linhas.
+fn open_quarantined(path: &Path) -> Result<(Connection, Option<String>), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("pasta do harvest store: {err}"))?;
+        }
+    }
+    let mut conn = Connection::open(path).map_err(|err| format!("abrir harvest store: {err}"))?;
+    let mut store_error = None;
+    if let Err(err) = quick_check(&conn) {
+        // A conexão cai antes do rename: no Windows o arquivo aberto não move.
+        drop(conn);
+        let quarantined = quarantine(path)?;
+        store_error = Some(format!(
+            "{err}; arquivo movido para {}",
+            quarantined.display()
+        ));
+        conn = Connection::open(path).map_err(|err| format!("abrir harvest store: {err}"))?;
+    }
+    conn.execute_batch(SCHEMA)
+        .map_err(|err| format!("schema harvest store: {err}"))?;
+    Ok((conn, store_error))
+}
+
+/// `PRAGMA quick_check` só passa quando a única linha devolvida é `ok`.
+fn quick_check(conn: &Connection) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("PRAGMA quick_check")
+        .map_err(|err| format!("quick_check: {err}"))?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("quick_check: {err}"))?;
+    let mut problems = Vec::new();
+    for row in rows {
+        problems.push(row.map_err(|err| format!("quick_check: {err}"))?);
+    }
+    if problems.len() == 1 && problems[0] == "ok" {
+        return Ok(());
+    }
+    if problems.is_empty() {
+        return Err("quick_check: nenhum resultado".to_string());
+    }
+    Err(format!("quick_check: {}", problems.join("; ")))
+}
+
+/// Move `<arquivo>` (e os irmãos `-wal`/`-shm`) para `<arquivo>.corrupt-<epoch>`.
+fn quarantine(path: &Path) -> Result<PathBuf, String> {
+    let epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0);
+    let name = path
+        .file_name()
+        .ok_or_else(|| format!("caminho sem nome de arquivo: {}", path.display()))?
+        .to_string_lossy()
+        .to_string();
+    let target = path.with_file_name(format!("{name}.corrupt-{epoch}"));
+    std::fs::rename(path, &target)
+        .map_err(|err| format!("quarentena de {}: {err}", path.display()))?;
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = path.as_os_str().to_os_string();
+        sidecar.push(suffix);
+        let sidecar = PathBuf::from(sidecar);
+        if sidecar.exists() {
+            let mut target_sidecar = target.as_os_str().to_os_string();
+            target_sidecar.push(suffix);
+            let _ = std::fs::rename(&sidecar, PathBuf::from(target_sidecar));
+        }
+    }
+    Ok(target)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::queue::{HarvestQueue, HarvestQueueConfig};
-    use crate::types::{HarvestMediaType, HarvestRequest};
-
-    fn clock_fixed() -> i64 {
-        1_700_000_000_000
-    }
-
-    fn sample_entry(imdb: &str) -> HarvestEntry {
-        HarvestEntry {
-            imdb_id: imdb.into(),
-            media_type: HarvestMediaType::Movie,
-            season: None,
-            episode: None,
-            reason: "miss".into(),
-            enqueued_at: clock_fixed(),
-            priority_at: None,
-            resumed: false,
-            br_probe: false,
-            full_base: false,
-            full_intent: None,
-        }
-    }
-
-    #[test]
-    fn open_memory_save_load_roundtrip() {
-        let store = HarvestStore::open_memory().unwrap();
-        let entries = vec![sample_entry("tt0111161"), sample_entry("tt0068646")];
-        store
-            .save(&entries, DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
-            .unwrap();
-        assert!(store.has_queue(clock_fixed()).unwrap());
-        let loaded = store.load(clock_fixed()).unwrap();
-        assert_eq!(loaded.len(), 2);
-        assert_eq!(loaded[0].imdb_id, "tt0111161");
-        assert_eq!(loaded[1].imdb_id, "tt0068646");
-    }
-
-    #[test]
-    fn save_vazio_apaga_chave() {
-        let store = HarvestStore::open_memory().unwrap();
-        store
-            .save(&[sample_entry("tt0111161")], 60, clock_fixed())
-            .unwrap();
-        store.save(&[], 60, clock_fixed()).unwrap();
-        assert!(!store.has_queue(clock_fixed()).unwrap());
-        assert!(store.load(clock_fixed()).unwrap().is_empty());
-    }
-
-    #[test]
-    fn load_expirado_apaga_e_devolve_vazio() {
-        let store = HarvestStore::open_memory().unwrap();
-        store
-            .save(&[sample_entry("tt0111161")], 60, clock_fixed())
-            .unwrap();
-        let past = clock_fixed() + 60_000 + 1;
-        assert!(store.load(past).unwrap().is_empty());
-        assert!(!store.has_queue(past).unwrap());
-    }
-
-    #[test]
-    fn load_filtra_imdb_invalido() {
-        let store = HarvestStore::open_memory().unwrap();
-        // JSON cru com entrada podre (como L2 legado).
-        store
-            .put_raw_for_test(
-                r#"[{"imdbId":"nope","type":"movie","reason":"miss","enqueuedAt":1},{"imdbId":"tt0111161","type":"movie","reason":"miss","enqueuedAt":1}]"#,
-                clock_fixed() + 60_000,
-            )
-            .unwrap();
-        let loaded = store.load(clock_fixed()).unwrap();
-        assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].imdb_id, "tt0111161");
-    }
-
-    #[test]
-    fn fila_em_memoria_flush_periodico() {
-        // enqueue/take_head mutam a memória; save/load espelham cache.set do TS.
-        let store = HarvestStore::open_memory().unwrap();
-        let mut queue = HarvestQueue::with_clock(
-            HarvestQueueConfig {
-                queue_max: 10,
-                ..HarvestQueueConfig::default()
-            },
-            clock_fixed,
-        );
-        queue.enqueue(HarvestRequest::movie("tt0111161", "miss"));
-        queue.enqueue(HarvestRequest::movie("tt0068646", "br-gap"));
-        queue
-            .save_to(&store, DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
-            .unwrap();
-
-        let mut other = HarvestQueue::with_clock(
-            HarvestQueueConfig {
-                queue_max: 10,
-                ..HarvestQueueConfig::default()
-            },
-            clock_fixed,
-        );
-        other.load_from(&store, clock_fixed(), None).unwrap();
-        assert_eq!(other.depth(), 2);
-        // Ingresso já prioriza: br-gap recente sobe; o save/load preserva a ordem.
-        assert_eq!(other.take_head().expect("cabeça").imdb_id, "tt0068646");
-        assert_eq!(other.preview(1)[0].imdb_id, "tt0111161");
-    }
-
-    #[test]
-    fn open_path_persiste_em_disco() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("harvest.db");
-        {
-            let store = HarvestStore::open(&path).unwrap();
-            store
-                .save(&[sample_entry("tt0111161")], 3600, clock_fixed())
-                .unwrap();
-        }
-        let store = HarvestStore::open(&path).unwrap();
-        let loaded = store.load(clock_fixed()).unwrap();
-        assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].imdb_id, "tt0111161");
-    }
-}
+#[path = "store_tests.rs"]
+mod store_tests;
 
 #[cfg(test)]
 #[path = "store_intent_tests.rs"]

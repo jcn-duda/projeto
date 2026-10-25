@@ -26,6 +26,8 @@ use adom_search::orchestrator::KnownBroken;
 use rusqlite::Connection;
 use serde_json::Value;
 
+use crate::integrity::{self, OpenReport};
+
 /// Sufixos lidos: o que o play PROVOU quebrado (não "pode ser"). O `alive` não
 /// entra — ver o cabeçalho do módulo.
 const BROKEN_FIELDS: [&str; 2] = ["bad", "lie"];
@@ -51,6 +53,8 @@ pub fn mark_key(field: &str, adapter: &str, api_key: &str, hash: &str) -> String
 /// Leitor do `cache.db` do Node (só `mag:`), compartilhado com a busca nativa.
 pub struct MagnetDbStore {
     conn: Mutex<Connection>,
+    /// Veredito do `quick_check` na abertura (arquivo podre = sem evidência).
+    integrity: OpenReport,
 }
 
 impl MagnetDbStore {
@@ -71,16 +75,22 @@ impl MagnetDbStore {
 
     /// Banco ainda inexistente falha (o caller degrada para "sem fonte"): abrir
     /// read-only não cria arquivo.
+    ///
+    /// O `quick_check` roda aqui, mas o arquivo NÃO é quarentenado: o dono da
+    /// escrita é o Node, e renomear `cache.db` deixaria o processo dele
+    /// gravando num inode órfão. Quem recupera o arquivo é o `open` gravável
+    /// (streams/colhedor); aqui o store só nasce DEGRADADO e responde isso.
     pub fn open_read_only(path: &Path) -> Result<Self, String> {
-        let conn = Connection::open_with_flags(
-            path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|err| format!("abrir magnet db (read-only): {err}"))?;
-        conn.busy_timeout(std::time::Duration::from_millis(5_000))
-            .map_err(|err| err.to_string())?;
+        let (conn, integrity) = integrity::open_read_only_checked(path)?;
+        if let Some(err) = integrity.error.as_deref() {
+            eprintln!(
+                "[gateway] magnet db degradado ({}): {err}; poda bad/lie sem evidência",
+                path.display()
+            );
+        }
         Ok(Self {
             conn: Mutex::new(conn),
+            integrity,
         })
     }
 
@@ -96,7 +106,18 @@ impl MagnetDbStore {
         .map_err(|err| err.to_string())?;
         Ok(Self {
             conn: Mutex::new(conn),
+            integrity: OpenReport::healthy(),
         })
+    }
+
+    /// O `cache.db` reprovou o `quick_check` na abertura.
+    pub fn degraded(&self) -> bool {
+        self.integrity.degraded
+    }
+
+    /// Por que degradou — `None` quando o arquivo era íntegro.
+    pub fn degraded_error(&self) -> Option<&str> {
+        self.integrity.error.as_deref()
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {

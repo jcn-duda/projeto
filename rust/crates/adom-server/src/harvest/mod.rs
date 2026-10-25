@@ -220,6 +220,13 @@ pub fn spawn(
     if let Err(err) = queue.load_from(&store, now, None) {
         eprintln!("[harvest] fila do L2 ilegível ({err}); começando vazia");
     }
+    if store.degraded() {
+        eprintln!(
+            "[harvest] L2 DEGRADADO ({}): {}",
+            store_path.display(),
+            store.degraded_error().unwrap_or("arquivo quarentenado")
+        );
+    }
     let index = orch.index_source().cloned();
     let snap = EvidenceSnapshot::from_index(index.as_deref(), &queue_identities(&queue), now);
     queue.prioritize(&snap, now);
@@ -239,6 +246,8 @@ pub fn spawn(
         last: Vec::new(),
         queries_this_hour: worker.queries_this_hour(now),
         counters: HarvestCounters::default(),
+        // Veredito do `open` do L2: arquivo podre vira `degraded` no painel.
+        ..HarvestStatus::with_store(&store)
     };
     let inner = Arc::new(Inner {
         traffic: StreamTraffic::new(last_stream_ms, config.idle_window_ms),

@@ -40,9 +40,23 @@ pub struct HarvestStatus {
     pub last: Vec<LastDrain>,
     pub queries_this_hour: u32,
     pub counters: HarvestCounters,
+    /// O L2 abriu DEGRADADO (arquivo podre quarentenado) — o painel não pode
+    /// ler "fila vazia" como "nada a colher".
+    pub degraded: bool,
+    /// O que o `open` do store respondeu (`None` = arquivo íntegro).
+    pub store_error: Option<String>,
 }
 
 impl HarvestStatus {
+    /// Foto inicial com o veredito do `open` do L2 (`store.rs`).
+    pub fn with_store(store: &adom_harvest::HarvestStore) -> Self {
+        Self {
+            degraded: store.degraded(),
+            store_error: store.degraded_error().map(str::to_string),
+            ..Self::default()
+        }
+    }
+
     /// Registra um drain concluído e mantém `last` no tamanho do preview.
     pub fn note_drain(
         &mut self,
@@ -93,5 +107,34 @@ mod tests {
         assert_eq!(status.last[1].imdb_id, "tt3");
         assert_eq!(status.counters.drained, 3);
         assert_eq!(status.counters.failed, 2);
+    }
+
+    #[test]
+    fn status_do_harvest_mostra_store_degradado() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cache.db");
+        std::fs::write(&path, b"not a database").unwrap();
+
+        let store = adom_harvest::HarvestStore::open(&path).expect("quarentena + recria");
+        assert!(store.degraded());
+
+        let status = HarvestStatus::with_store(&store);
+        assert!(status.degraded, "GET /harvest tem que avisar o painel");
+        assert!(status.store_error.is_some(), "com o motivo do store");
+        // O contrato do painel: `degraded`/`storeError` (camelCase).
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["degraded"], true);
+        assert!(json["storeError"].as_str().unwrap().contains("quick_check"));
+    }
+
+    #[test]
+    fn status_do_harvest_saudavel_nao_e_degradado() {
+        let store = adom_harvest::HarvestStore::open_memory().unwrap();
+        let status = HarvestStatus::with_store(&store);
+        assert!(!status.degraded);
+        assert!(status.store_error.is_none());
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["degraded"], false);
+        assert!(json["storeError"].is_null());
     }
 }

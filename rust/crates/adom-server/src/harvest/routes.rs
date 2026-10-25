@@ -55,6 +55,9 @@ async fn status_now(State(state): State<Arc<AdminState>>) -> Response {
             "preview": [],
             "last": [],
             "counters": { "drained": 0, "failed": 0 },
+            // Sem colhedor (`HARVEST_ENABLED=false`) não há store a degradar.
+            "degraded": false,
+            "storeError": null,
             "store": "",
         }))
         .into_response();
@@ -76,6 +79,9 @@ async fn status_now(State(state): State<Arc<AdminState>>) -> Response {
         "preview": status.preview,
         "last": status.last,
         "counters": status.counters,
+        // Arquivo podre no boot: a fila está vazia porque o L2 foi quarentenado.
+        "degraded": status.degraded,
+        "storeError": status.store_error,
         "store": handle.store_path().to_string_lossy(),
     }))
     .into_response()

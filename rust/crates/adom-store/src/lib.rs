@@ -20,6 +20,9 @@ pub use index_impl::NativeReleaseIndex;
 // nova; aqui é só o caminho antigo de quem já importa de `adom-store`.
 pub use adom_index::kv;
 pub use adom_index::NativeKv;
+// `quick_check` + quarentena do arquivo SQLite podre (T1-A3): um banco
+// truncado deixa o store DEGRADADO em vez de derrubar o serviço.
+pub mod integrity;
 mod magnet_bank;
 mod magnet_db;
 mod meta;
@@ -31,6 +34,7 @@ pub use adom_index::{
     is_raw_key, raw_prefix, FileEvidence, IndexEntry, IndexedRelease, RawCacheStore, RecordOptions,
     ReleaseIndexStore, IDX_NAMESPACE,
 };
+pub use integrity::{open_quarantined, OpenReport};
 pub use magnet_bank::{magnet_db_path, MagnetBankStore, WorkCtx};
 pub use magnet_db::{
     default_cache_db_path as default_magnet_db_cache_path, mag_prefix, mark_key, MagnetDbStore,

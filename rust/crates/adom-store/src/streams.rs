@@ -12,6 +12,8 @@ use adom_core::{prefix, quota_for};
 use adom_search::{StoreHit, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS};
 use rusqlite::{params, Connection};
 
+use crate::integrity::{self, OpenReport};
+
 #[path = "streams_trace.rs"]
 mod trace;
 
@@ -49,6 +51,8 @@ pub fn is_streams_key(key: &str) -> bool {
 pub struct StreamsStore {
     conn: Mutex<Connection>,
     quota: u64,
+    /// Veredito do `open`: arquivo podre = quarentenado (o cache antigo caiu).
+    integrity: OpenReport,
 }
 
 impl StreamsStore {
@@ -56,19 +60,14 @@ impl StreamsStore {
         Self::open_with_quota(path, default_streams_quota())
     }
 
+    /// Abre com `quick_check`: arquivo corrompido vai para `<arquivo>.corrupt-<epoch>`
+    /// e o schema nasce de novo (ver [`crate::integrity`]).
     pub fn open_with_quota(path: &Path, quota: u64) -> Result<Self, String> {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|err| format!("pasta do streams store: {err}"))?;
-            }
-        }
-        let conn = Connection::open(path).map_err(|err| format!("abrir streams store: {err}"))?;
-        conn.execute_batch(SCHEMA)
-            .map_err(|err| format!("schema streams store: {err}"))?;
+        let (conn, integrity) = integrity::open_quarantined(path, SCHEMA)?;
         Ok(Self {
             conn: Mutex::new(conn),
             quota,
+            integrity,
         })
     }
 
@@ -82,7 +81,18 @@ impl StreamsStore {
         Ok(Self {
             conn: Mutex::new(conn),
             quota,
+            integrity: OpenReport::healthy(),
         })
+    }
+
+    /// O arquivo estava podre no boot e foi quarentenado (o store roda vazio).
+    pub fn degraded(&self) -> bool {
+        self.integrity.degraded
+    }
+
+    /// Por que degradou — `None` quando o arquivo era íntegro.
+    pub fn degraded_error(&self) -> Option<&str> {
+        self.integrity.error.as_deref()
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -262,12 +272,19 @@ impl StreamsStore {
 }
 
 /// Adapter: `StreamsStore` fala a mesma lingua do `MemorySwrStore`.
-/// Erro de I/O vira miss / no-op (o Orchestrator não carrega `Result` no trait).
+/// Erro de I/O vira miss / no-op (o Orchestrator não carrega `Result` no trait),
+/// sempre com log — silêncio aqui já escondeu corrupção de banco.
 impl SwrStore for StreamsStore {
     fn get_with_stale(&self, key: &str, grace_seconds: u64, now_ms: u64) -> Option<StoreHit> {
-        StreamsStore::get_with_stale(self, key, grace_seconds, now_ms)
-            .ok()
-            .flatten()
+        match StreamsStore::get_with_stale(self, key, grace_seconds, now_ms) {
+            Ok(hit) => hit,
+            // O trait não carrega `Result`: o miss é o contrato, mas erro de
+            // I/O/corrupção NÃO pode sumir em silêncio (era o `.ok()`).
+            Err(err) => {
+                eprintln!("[gateway] streams store: leitura falhou ({err}); seguindo sem cache");
+                None
+            }
+        }
     }
 
     fn set(&self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64) {
@@ -283,16 +300,24 @@ impl SwrStore for StreamsStore {
     }
 }
 
-fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, String> {
+/// `Ok(None)` só para MISS (`QueryReturnedNoRows`); qualquer outro erro sobe.
+///
+/// O `.ok()` antigo engolia `SQLITE_CORRUPT`/`no such table` como se a chave
+/// não existisse — cache vazio silencioso, sem log e sem pista.
+pub(crate) fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, String> {
     let mut stmt = conn
         .prepare("SELECT value, expires_at FROM cache WHERE key = ?1")
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| format!("ler chave do streams store: {err}"))?;
     let row = stmt
         .query_row(params![key], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })
-        .ok();
-    Ok(row)
+        .map(Some)
+        .or_else(|err| match err {
+            rusqlite::Error::QueryReturnedNoRows => Ok(None),
+            other => Err(format!("ler chave do streams store: {other}")),
+        });
+    row
 }
 
 /// `tt` + dígitos (o mesmo `/^tt\d+$/` do Node).
