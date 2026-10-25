@@ -220,6 +220,12 @@ pub fn spawn(
     if let Err(err) = queue.load_from(&store, now, None) {
         eprintln!("[harvest] fila do L2 ilegível ({err}); começando vazia");
     }
+    // O slot do processo anterior é morto por definição: `load_from` já o
+    // devolveu à fila. Gravar agora impede que uma queda antes do primeiro
+    // ciclo conte a MESMA morte duas vezes.
+    if let Err(err) = queue.save_to(&store, config.entry_ttl, now) {
+        eprintln!("[harvest] fila não reancorou após o boot: {err}");
+    }
     if store.degraded() {
         eprintln!(
             "[harvest] L2 DEGRADADO ({}): {}",

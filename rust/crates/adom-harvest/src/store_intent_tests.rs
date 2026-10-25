@@ -1,6 +1,6 @@
 use super::*;
 use crate::queue::{HarvestQueue, HarvestQueueConfig};
-use crate::types::{HarvestMediaType, HarvestRequest};
+use crate::types::{HarvestEntry, HarvestMediaType, HarvestRequest};
 
 fn clock_fixed() -> i64 {
     1_700_000_000_000

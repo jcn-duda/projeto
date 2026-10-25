@@ -1244,11 +1244,66 @@ git commit -m "refactor(crawl): ingestao e recorder nativos e fim do crawl-resul
 
 ## Leva 4
 
-### T1-B1: slot em voo durável (`adom-harvest`)
+### T1-B1: slot em voo durável (`adom-harvest`) — EXECUTADA
 
 Hoje o slot em voo só existe em memória (`worker.rs`), então um restart no meio
 do drain **perde** a entrada: ela sai da fila no `plan` e nunca volta. Esta fatia
 faz o `claim` ser uma escrita.
+
+**Causa raiz medida** (o plano supunha o `plan`): `take_head` tira a entrada da
+memória e o drain roda sem o lock; o `enqueue` do Node (`harvest/handle.rs`)
+persiste a fila durante o drain — sem a obra em voo — e um restart depois disso
+a perde para sempre. Não era o `plan`, era a ESCRITA do enqueue.
+
+**Desenho executado** (differe do plano em três pontos, todos deliberados):
+
+- O arquivo é `lease.rs`, não `inflight.rs` — o nome já é do coalescing volátil
+  da intenção (`HarvestInflight`), que é outra coisa.
+- O slot NÃO virou dono do L2: continua a `HarvestQueue` (dono único na memória)
+  e o `DurableSlot` é campo dela. O documento ganhou `{entries, inflight,
+  attempts, terminal}` e TODO `save` leva o claim junto — inclusive o do
+  `enqueue`. Um `HarvestStore::claim` separado voltaria a ter dois escritores.
+- O claim é escrito no `begin` (`serve.rs`, logo depois de `worker.begin`), não
+  no `plan`: é o único ponto que roda com o lock da fila e já conhece o `now`.
+
+**Arquivos:**
+- Create: `rust/crates/adom-harvest/src/lease.rs` (`Lease`, `InflightEntry`,
+  `TerminalEntry`, `DurableSlot` + `impl HarvestQueue`) e `lease_tests.rs`
+- Create: `rust/crates/adom-harvest/src/store_document.rs` (formato do valor:
+  `StoredQueue`, `load_queue`/`save_queue`, migração do array legado) — o
+  `store.rs` passou do teto com o documento embutido
+- Create: `rust/crates/adom-server/src/harvest/durable_tests.rs`
+- Modify: `queue.rs` (`slot`, `save_to`/`load_from` delegando, `clear` reseta),
+  `worker.rs` (`open_slot`/`close_slot`), `store.rs`,
+  `adom-server/src/harvest/{serve.rs,mod.rs}`, `lib.rs`
+
+**Regras**
+- Um slot só (o tick é serial). O TTL do lease (60 s) é diagnóstico.
+- Boot/restart → o dono anterior morreu → a obra volta pelo FIM da fila na hora
+  (`load_from` → `apply_stored` → `reclaim_dead_lease`); o boot regrava a fila
+  para a mesma morte não contar duas vezes.
+- `MAX_CLAIM_ATTEMPTS` (3) mortes de claim → `terminal` com
+  `reason: "lease_expired"` (TTL 7 dias, prunado na leitura). Falha de drain NÃO
+  passa por aqui — quem conta tentativa de colheita é o `Settler`.
+- `clear` do painel zera também o slot (não devolve, não vira terminal).
+- Migração: o documento novo é lido; o array cru continua aceito e é regravado
+  no formato novo. `load`/`save` antigos ficaram `#[cfg(test)]`.
+
+**Provas**
+- 9 testes no crate: restart devolve o slot (`attempts = 1`), o save do enqueue
+  não perde a obra em voo, a chave não some com fila vazia + slot vivo, finish
+  idempotente, 3 mortes → terminal, terminal expira, claim órfão volta antes do
+  próximo, `clear`, formato legado.
+- `durable_tests.rs` no gateway: barreira no drain + `persist_queue` no meio →
+  `load_queue().inflight` é a obra em voo; ao soltar, o `finish` fecha o slot.
+
+**Gate**: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets
+--locked -- -D warnings`, `cargo test --workspace --locked` (EXIT 0),
+`node scripts/check-rust-lines.mjs` (939 fontes, baseline 0) e
+`git diff --check` — todos verdes.
+
+<details>
+<summary>Plano original (histórico) — desenho com `HarvestStore::claim`</summary>
 
 **Files:**
 - Create: `rust/crates/adom-harvest/src/inflight.rs`
@@ -1415,6 +1470,8 @@ git add rust/crates/adom-harvest rust/crates/adom-server/src/harvest
 ```powershell
 git commit -m "feat(harvest): slot em voo duravel com lease e retorno a fila"
 ```
+
+</details>
 
 ### T2-L4: `magnet_work` com dono único (`adom-store`)
 

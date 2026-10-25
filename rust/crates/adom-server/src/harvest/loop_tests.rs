@@ -218,7 +218,7 @@ async fn barreira_coalesce_mesma_obra_e_preserva_a_outra() {
 
     assert_eq!(peek_probe(&store, SHAW, NOW), Some(BrProbeState::Empty));
     assert_eq!(load_hour(&store, NOW).unwrap().map(|h| h.count), Some(2));
-    let loaded = store.load(NOW).unwrap();
+    let loaded = store.load_queue(NOW).unwrap().entries;
     assert_eq!(loaded.len(), 2);
     assert!(loaded.iter().any(|e| e.imdb_id == SHAW && !e.br_probe));
 
@@ -376,3 +376,7 @@ async fn ttl_da_fila_e_balde_da_hora() {
 // Preempção intradrain: módulo filho para não estourar o teto deste arquivo.
 #[path = "preempt_tests.rs"]
 mod preempt;
+
+// Claim durável (T1-B1): mesmo motivo de teto de linhas.
+#[path = "durable_tests.rs"]
+mod durable;

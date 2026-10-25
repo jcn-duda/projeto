@@ -9,6 +9,7 @@
 use adom_core::prefix;
 
 use crate::inflight::{HarvestInflight, HarvestIntent};
+use crate::lease::DurableSlot;
 use crate::prioritize::{prioritize, BrEvidence};
 use crate::queue_config::{system_now_ms, ClockMs, NeutralEvidence};
 use crate::reason::{entry_identity, is_valid_imdb_id};
@@ -32,11 +33,15 @@ pub fn queue_key() -> String {
 pub const QUEUE_KEY: &str = "harvest:v1:q";
 
 /// Dono único do array da fila (mesmo corte TS: ciclo só toca pelas primitivas).
+///
+/// O `slot` (claim durável, [`crate::lease`]) mora aqui porque o documento
+/// persistido é UM só: qualquer `save` leva a obra em voo junto.
 pub struct HarvestQueue {
-    entries: Vec<HarvestEntry>,
+    pub(crate) entries: Vec<HarvestEntry>,
     config: HarvestQueueConfig,
     now_ms: ClockMs,
     inflight: HarvestInflight,
+    pub(crate) slot: DurableSlot,
 }
 
 impl HarvestQueue {
@@ -46,6 +51,7 @@ impl HarvestQueue {
             config,
             now_ms: system_now_ms,
             inflight: HarvestInflight::new(),
+            slot: DurableSlot::default(),
         }
     }
 
@@ -55,6 +61,7 @@ impl HarvestQueue {
             config,
             now_ms,
             inflight: HarvestInflight::new(),
+            slot: DurableSlot::default(),
         }
     }
 
@@ -84,6 +91,8 @@ impl HarvestQueue {
     pub fn clear(&mut self) -> usize {
         let n = self.entries.len();
         self.entries.clear();
+        // Zerar fila é decisão do operador: o slot não volta (nem vira terminal).
+        self.slot.reset();
         n
     }
 
@@ -119,7 +128,9 @@ impl HarvestQueue {
         now_ms: i64,
         evidence: Option<&dyn BrEvidence>,
     ) -> Result<(), String> {
-        self.replace(store.load(now_ms)?);
+        // O slot do documento é do processo ANTERIOR: `apply_stored` já o
+        // devolve à fila (a obra não pode morrer com o restart).
+        self.apply_stored(store.load_queue(now_ms)?, now_ms);
         if let Some(ev) = evidence {
             self.prioritize(ev, now_ms);
         }
@@ -132,14 +143,15 @@ impl HarvestQueue {
         self.entries = prioritize(&self.entries, &cfg, evidence, now_ms);
     }
 
-    /// `persist()` do TS: grava o snapshot inteiro (ou apaga se vazia).
+    /// `persist()` do TS: grava o snapshot inteiro (fila + slot) ou apaga se
+    /// ambos vazios.
     pub fn save_to(
         &self,
         store: &HarvestStore,
         ttl_seconds: u64,
         now_ms: i64,
     ) -> Result<(), String> {
-        store.save(&self.entries, ttl_seconds, now_ms)
+        store.save_queue(&self.stored_snapshot(), ttl_seconds, now_ms)
     }
 
     /// Amostra (cópia) — stub FIFO; priorização BR fica na Fase E real.

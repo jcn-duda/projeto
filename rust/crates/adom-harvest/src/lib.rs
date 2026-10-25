@@ -26,6 +26,7 @@
 //! | [`prioritize`] / [`BrEvidence`] | Reordenação com evidência BR injetável |
 //! | [`HarvestQueue`] | Memória: enqueue / take_head / prioritize / load_from |
 //! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
+//! | [`Lease`] / [`InflightEntry`] | Claim DURÁVEL da obra em voo (sobrevive ao restart) |
 //! | [`seen_key`] / [`was_recently_queued`] | Dedupe 12h por obra+motivo |
 //! | [`HarvestInflight`] / [`HarvestIntent`] | Coalescing da obra em voo (slot único) |
 //! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
@@ -40,6 +41,7 @@
 mod hour;
 mod inflight;
 mod intent;
+mod lease;
 mod prioritize;
 mod probe;
 mod queue;
@@ -56,6 +58,9 @@ pub use hour::{
     HOUR_MS,
 };
 pub use inflight::{HarvestInflight, HarvestIntent, PendingIntent};
+pub use lease::{
+    InflightEntry, Lease, TerminalEntry, LEASE_TTL_MS, MAX_CLAIM_ATTEMPTS, TERMINAL_TTL_SECONDS,
+};
 pub use prioritize::{
     br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
 };
@@ -73,7 +78,7 @@ pub use reason::{
 pub use seen::{
     entry_seen_key, mark_recently_queued, seen_key, was_recently_queued, DEDUPE_TTL_SECONDS,
 };
-pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
+pub use store::{HarvestStore, StoredQueue, DEFAULT_ENTRY_TTL_SECONDS};
 pub use types::{
     BrProbeRecord, BrProbeState, BrProbeWork, EnqueueOutcome, EnqueueReason, HarvestEntry,
     HarvestMediaType, HarvestRequest, PendingFull, ProbeConfig, ProbeFinal, RequestProbeResult,

@@ -147,6 +147,11 @@ where
                 // Com o lock da fila: o enqueue lê este rank para decidir a
                 // preempção e não pode ver slot aberto sem rank.
                 inner.set_inflight_rank(Some(reason_priority(&entry.reason)));
+                // `claim` = escrita (T1-B1). A obra em voo viaja no MESMO
+                // documento da fila: sem esta linha, o enqueue do Node — que
+                // persiste durante o drain — gravaria a fila sem ela e um
+                // restart a perderia para sempre.
+                inner.persist_queue(&queue, now);
                 (entry, identity, queries_left)
             }
         }

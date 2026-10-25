@@ -2,9 +2,10 @@
 //!
 //! Espelha o padrão de `adom-store` / `adom-debrid::store` (rusqlite, tabela
 //! `cache` com `key`/`value`/`expires_at`) e o contrato TS de
-//! `harvest-queue.ts`: `load` = `cache.get(QUEUE_KEY)`; `save` = `cache.set`
-//! (ou `forget` se vazia). A mutação continua em [`HarvestQueue`] em memória;
-//! este store só materializa o array.
+//! `harvest-queue.ts`: `load_queue` = `cache.get(QUEUE_KEY)`; `save_queue` =
+//! `cache.set` (ou `forget` se vazia). O FORMATO do valor (fila + slot em voo +
+//! terminais) mora em `store_document.rs`; a mutação continua em
+//! [`crate::HarvestQueue`] em memória, e este store só materializa o documento.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -13,18 +14,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection};
 
 use crate::queue::QUEUE_KEY;
-use crate::reason::is_valid_imdb_id;
-use crate::types::{HarvestEntry, PendingFull};
 
-/// Envelope privado: o preview HTTP serializa `HarvestEntry` sem `fullIntent`.
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StoredEntry {
-    #[serde(flatten)]
-    entry: HarvestEntry,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    full_intent: Option<PendingFull>,
-}
+#[path = "store_document.rs"]
+mod document;
+
+pub use document::StoredQueue;
 
 const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
@@ -88,77 +82,6 @@ impl HarvestStore {
         self.conn.lock().unwrap_or_else(|err| err.into_inner())
     }
 
-    /// `cache.get(harvest:v1:q)` — miss/expirado → `[]`; filtra IMDb inválido.
-    ///
-    /// JSON inválido NÃO derruba o boot: o valor cru é copiado para
-    /// [`CORRUPT_QUEUE_KEY`] antes de a fila voltar vazia. O original fica onde
-    /// está (quem o apaga é o TTL) — leitura nunca destrói evidência.
-    pub fn load(&self, now_ms: i64) -> Result<Vec<HarvestEntry>, String> {
-        let conn = self.lock();
-        let Some((value, expires_at)) = read_row(&conn, QUEUE_KEY)? else {
-            return Ok(Vec::new());
-        };
-        if expires_at <= now_ms {
-            conn.execute("DELETE FROM cache WHERE key = ?1", params![QUEUE_KEY])
-                .map_err(|err| err.to_string())?;
-            return Ok(Vec::new());
-        }
-        let raw: Vec<StoredEntry> = match serde_json::from_str(&value) {
-            Ok(raw) => raw,
-            Err(err) => {
-                let problem = format!("fila harvest inválida: {err}");
-                match backup_corrupt(&conn, &value, now_ms) {
-                    Ok(()) => {
-                        eprintln!("[harvest] {problem}; valor cru copiado para {CORRUPT_QUEUE_KEY}")
-                    }
-                    Err(copy_err) => eprintln!(
-                        "[harvest] {problem}; cópia para {CORRUPT_QUEUE_KEY} falhou ({copy_err})"
-                    ),
-                }
-                return Ok(Vec::new());
-            }
-        };
-        Ok(raw
-            .into_iter()
-            .filter(|stored| is_valid_imdb_id(&stored.entry.imdb_id))
-            .map(|stored| {
-                let mut entry = stored.entry;
-                entry.full_intent = stored.full_intent;
-                entry.normalize_intent();
-                entry
-            })
-            .collect())
-    }
-
-    /// `persist()` do TS: vazio → `forget`; senão grava o array com TTL.
-    pub fn save(
-        &self,
-        entries: &[HarvestEntry],
-        ttl_seconds: u64,
-        now_ms: i64,
-    ) -> Result<(), String> {
-        if entries.is_empty() {
-            return self.forget_queue();
-        }
-        let expires_at = now_ms.saturating_add((ttl_seconds as i64).saturating_mul(1000));
-        let stored: Vec<StoredEntry> = entries
-            .iter()
-            .map(|entry| StoredEntry {
-                entry: entry.clone(),
-                full_intent: entry.full_intent.clone(),
-            })
-            .collect();
-        let encoded = serde_json::to_string(&stored).map_err(|err| err.to_string())?;
-        let conn = self.lock();
-        conn.execute(
-            "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
-            params![QUEUE_KEY, encoded, expires_at],
-        )
-        .map_err(|err| err.to_string())?;
-        Ok(())
-    }
-
     pub fn forget_queue(&self) -> Result<(), String> {
         let conn = self.lock();
         conn.execute("DELETE FROM cache WHERE key = ?1", params![QUEUE_KEY])
@@ -210,7 +133,7 @@ impl HarvestStore {
 
     /// Só testes: grava JSON cru (simula L2 legado com entrada podre).
     #[cfg(test)]
-    fn put_raw_for_test(&self, value: &str, expires_at: i64) -> Result<(), String> {
+    pub(crate) fn put_raw_for_test(&self, value: &str, expires_at: i64) -> Result<(), String> {
         let conn = self.lock();
         conn.execute(
             "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
