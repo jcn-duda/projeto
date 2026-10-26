@@ -12,10 +12,14 @@
  * TS — os métodos devolvem o veredito cru do núcleo, e quem precisa do "não sei"
  * recebe `null` em vez de um falso ⚡.
  *
- * MOMENTO (T2-L5a): o Node AINDA NÃO é dono único destes namespaces — `davail`
- * e `mag` só entram em `RUST_OWNED` (`cache-keys.ts`) na fatia seguinte, T2-L5b.
- * Até lá o caminho antigo (cache L1/SQLite do Node) e esta ponte coexistem sobre
- * as mesmas chaves; a fatia que vira o dono é que decide qual deles escreve.
+ * DONO ÚNICO (T2-L5b): `davail` e `mag` estão em `RUST_OWNED` (`cache-keys.ts`),
+ * então o Node NÃO os carrega no L1 nem regrava no SQLite. A superfície do Node
+ * é só esta ponte — escrever pelo `cache` seria um segundo escritor silencioso
+ * (o `setMany` descarta a chave) e ler pelo L1 devolveria sempre vazio.
+ *
+ * `sweep` fechou o ciclo de vida que antes era da cota LRU do L1: apaga a linha
+ * VENCIDA e, acima do teto do namespace, as mais antigas por ordem de escrita.
+ * Sem ele o namespace cresceria para sempre (o Node não poda mais essas linhas).
  */
 import config from '../config.js';
 import { requireCore } from './rust-core.js';
@@ -29,6 +33,41 @@ export type DavailFlag = { hash: string; cached: boolean };
 /** Foto de um hash no banco de magnets; `null` = nenhuma evidência viva. */
 export type MagnetMark = { hash: string; state: MagnetSide | null };
 
+/** Uma linha VIVA do `mag` (enumeração de diagnóstico/painel). */
+export type MagEntry = {
+  adapter: string;
+  side: MagnetSide;
+  hash: string;
+  /** Segundos até vencer; `null` = linha sem janela. */
+  ttlRemainingSeconds: number | null;
+};
+
+/** Página da enumeração: o total casado vem junto para o painel paginar. */
+export type MagPage = { items: MagEntry[]; matched: number; truncated: boolean };
+
+/** Contagem por adapter × lado — o agregado que o painel mostra. */
+export type MagCount = {
+  adapter: string;
+  side: MagnetSide;
+  count: number;
+  /**
+   * Soma dos segundos restantes das linhas contadas. No `sweep` vem 0: a linha
+   * removida já não tem janela, então não há o que somar.
+   */
+  ttlRemainingSum: number;
+};
+
+/** O que a varredura removeu do namespace. */
+export type SweepRemoval = {
+  expired: number;
+  evicted: number;
+  /** Só o `mag`: as linhas removidas por adapter × lado (decremento exato). */
+  counts: MagCount[];
+};
+
+/** O que a varredura removeu do `davail` (sem contadores por lado). */
+export type DavailSweep = { expired: number; evicted: number };
+
 export type DavailStateHandle = {
   /** `true`/`false` = evidência medida; `null` = ausente (não é "frio"). */
   get(adapter: string, apiKey: string, hash: string, nowMs: number): boolean | null;
@@ -38,6 +77,10 @@ export type DavailStateHandle = {
   put(adapter: string, apiKey: string, hash: string, cached: boolean, ttlSeconds: number, nowMs: number): void;
   /** `ttlSeconds <= 0` não grava; a janela é UMA para todas as flags. */
   putMany(adapter: string, apiKey: string, flags: DavailFlag[], ttlSeconds: number, nowMs: number): void;
+  /** Apaga TODAS as linhas do namespace. Devolve quantas saíram. */
+  clear(): number;
+  /** Apaga vencidas e, acima de `maxEntries`, as mais antigas por escrita. */
+  sweep(maxEntries: number, nowMs: number): DavailSweep;
 };
 
 export type MagnetStateHandle = {
@@ -49,9 +92,32 @@ export type MagnetStateHandle = {
   markLie(adapter: string, apiKey: string, hash: string, ttlSeconds: number, nowMs: number): boolean;
   /** `true` = havia `bad` para apagar; `alive`/`lie` ficam. */
   forgetBad(adapter: string, apiKey: string, hash: string): boolean;
+  /**
+   * Apaga o `bad` de QUALQUER conta do adapter (reparo do rd-warmer e limpeza
+   * do painel, que enumeram por adapter e não têm a chave da conta em mãos) e
+   * devolve quantas LINHAS saíram — uma por conta.
+   */
+  forgetBadOf(adapter: string, hash: string): number;
   state(adapter: string, apiKey: string, hash: string, nowMs: number): MagnetSide | null;
   /** Uma entrada por hash pedido, na ordem pedida (inclusive os sem marca). */
   stateSnapshot(adapter: string, apiKey: string, hashes: string[], nowMs: number): MagnetMark[];
+  /** Segundos até a marca vencer; `null` = ausente, vencida ou sem janela. */
+  remaining(adapter: string, apiKey: string, side: MagnetSide, hash: string, nowMs: number): number | null;
+  /**
+   * Enumeração das linhas VIVAS, já filtrada e truncada no núcleo (o painel não
+   * atravessa 50 mil chaves para mostrar 50). `null` = sem filtro naquele eixo.
+   */
+  entries(adapter: string | null, side: MagnetSide | null, hash: string | null, limit: number, nowMs: number): MagPage;
+  /** Agregado por adapter × lado numa passada só, sem hash no payload. */
+  summary(nowMs: number): MagCount[];
+  /** Quantas linhas vivas existem no namespace (o `l1Entries` do painel). */
+  liveCount(nowMs: number): number;
+  /** Hashes da leva que têm `lie` vivo em QUALQUER conta (lie global). */
+  liveLies(hashes: string[], nowMs: number): string[];
+  /** Apaga TODAS as linhas do namespace. Devolve quantas saíram. */
+  clear(): number;
+  /** Apaga vencidas e, acima de `maxEntries`, as mais antigas por escrita. */
+  sweep(maxEntries: number, nowMs: number): SweepRemoval;
 };
 
 /** Construtor exportado pelo `.node`; todas as classes nativas abrem por caminho. */
@@ -93,12 +159,35 @@ function normalizarMagnet(bruto: MagnetStateHandle): MagnetStateHandle {
     markLie: (adapter, apiKey, hash, ttlSeconds, nowMs) =>
       bruto.markLie(adapter, apiKey, hash, ttlSeconds, nowMs),
     forgetBad: (adapter, apiKey, hash) => bruto.forgetBad(adapter, apiKey, hash),
+    forgetBadOf: (adapter, hash) => bruto.forgetBadOf(adapter, hash),
     state: (adapter, apiKey, hash, nowMs) => bruto.state(adapter, apiKey, hash, nowMs) ?? null,
     stateSnapshot: (adapter, apiKey, hashes, nowMs) =>
       bruto.stateSnapshot(adapter, apiKey, hashes, nowMs).map((mark) => ({
         hash: mark.hash,
         state: mark.state ?? null,
       })),
+    remaining: (adapter, apiKey, side, hash, nowMs) =>
+      bruto.remaining(adapter, apiKey, side, hash, nowMs) ?? null,
+    // `entries` devolve `ttlRemainingSeconds`/`matched` por `#[napi(object)]`:
+    // `Option::None` chega como `undefined`, e o contrato é `null`.
+    entries: (adapter, side, hash, limit, nowMs) => {
+      const page = bruto.entries(adapter, side, hash, limit, nowMs);
+      return {
+        items: page.items.map((item) => ({
+          adapter: item.adapter,
+          side: item.side,
+          hash: item.hash,
+          ttlRemainingSeconds: item.ttlRemainingSeconds ?? null,
+        })),
+        matched: page.matched,
+        truncated: page.truncated,
+      };
+    },
+    summary: (nowMs) => bruto.summary(nowMs),
+    liveCount: (nowMs) => bruto.liveCount(nowMs),
+    liveLies: (hashes, nowMs) => bruto.liveLies(hashes, nowMs),
+    clear: () => bruto.clear(),
+    sweep: (maxEntries, nowMs) => bruto.sweep(maxEntries, nowMs),
   };
 }
 

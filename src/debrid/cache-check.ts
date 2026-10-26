@@ -2,10 +2,9 @@ import { opts } from '../runtime.js';
 import type { DebridAdapter } from '../../types/domain.js';
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
-import { prefix } from '../utils/cache-keys.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { isAuthError, isQuotaError, isRateLimitError } from './common.js';
-import * as cache from '../utils/cache.js';
+import { davailState, type DavailFlag } from '../utils/debrid-state-native.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as magnetdb from '../utils/magnetdb.js';
@@ -142,10 +141,6 @@ function nonAbortableKey(adapter: DebridAdapter, apiKey: string, infoHashes: str
   return `${adapter.id}:${accountScope(apiKey)}:${hashes.join(',')}`;
 }
 
-function davailKey(adapterId: string, apiKey: string, hash: string) {
-  return `${prefix('davail')}${adapterId}:${accountScope(apiKey)}:${String(hash).toLowerCase()}`;
-}
-
 /**
  * O recheck acabou de confirmar que o hash ficou pronto. Semeia o positivo para
  * a próxima lista marcar ⚡ sem repetir a consulta ao debrid.
@@ -154,29 +149,25 @@ function noteAvailable(infoHash: string) {
   const adapter = current();
   const apiKey = opts().debridApiKey;
   if (!adapter || !apiKey || !infoHash) return;
-  if (config.debrid.availPosTtl > 0) {
-    cache.set(davailKey(adapter.id, apiKey, infoHash), 1, config.debrid.availPosTtl);
-  }
+  if (config.debrid.availPosTtl > 0) davailState().put(adapter.id, apiKey, infoHash, true, config.debrid.availPosTtl, Date.now());
   // Pronto de verdade é evidência durável: entra no banco de magnets além do
   // davail de TTL curto.
   magnetdb.markAlive(adapter.id, apiKey, [infoHash]);
 }
 
 /**
- * Leitura de SONDAGEM do davail, sem efeito algum: usa `cache.peek`, que não
- * promove o LRU, não conta cache.hit/miss e não lê o L2 — negativo "fresco"
- * aqui significa escrito NESTE processo, que é exatamente o que o consumidor
- * (DEBRID_ALIVE_AS_CACHE) quer usar para vetar o atalho do histórico. Não é
- * autoridade: 1 no peek não pinta ⚡ sozinho, só 0 (prova recente de que o
- * hash não está pronto) é que contradiz.
+ * Leitura de SONDAGEM do davail, sem efeito algum: a ponte lê o store do núcleo
+ * direto — não promove LRU, não conta cache.hit e não acorda o L2. Negativo
+ * "fresco" aqui foi escrito NESTA instância, que é exatamente o que o consumidor
+ * (DEBRID_ALIVE_AS_CACHE) quer para vetar o atalho do histórico; positivo
+ * sozinho não pinta ⚡, só o negativo contradiz.
  *
- * @returns {0|1|null} valor gravado e ainda válido, ou null (ausente/expirado).
+ * @returns {0|1|null} veredito vivo do store, ou null (ausente/expirado).
  */
 function peekDavail(adapterId: string, apiKey: string, hash: string): 0 | 1 | null {
-  const value = cache.peek(davailKey(adapterId, apiKey, hash));
-  if (value === 1) return 1;
-  if (value === 0) return 0;
-  return null;
+  const value = davailState().get(adapterId, apiKey, hash, Date.now());
+  if (value === null) return null;
+  return value ? 1 : 0;
 }
 
 /**
@@ -189,9 +180,7 @@ function peekDavail(adapterId: string, apiKey: string, hash: string): 0 | 1 | nu
  */
 function noteUnavailable(adapterId: string, apiKey: string, infoHash: string) {
   if (!adapterId || !apiKey || !infoHash) return;
-  if (config.debrid.availNegTtl > 0) {
-    cache.set(davailKey(adapterId, apiKey, infoHash), 0, config.debrid.availNegTtl);
-  }
+  if (config.debrid.availNegTtl > 0) davailState().put(adapterId, apiKey, infoHash, false, config.debrid.availNegTtl, Date.now());
 }
 
 function nonAbortableCheck(
@@ -284,7 +273,7 @@ async function checkCached(
   if (timeoutMs != null && timeoutMs <= 0) return { cached: new Set(), known: false };
   // Os guards de prazo voltam ANTES da camada davail, de propósito: a resposta
   // que já desistiu de perguntar mantém o contrato known:false — responder pelo
-  // L1 aqui mudaria o comportamento do applyDebrid (needsFullRefresh) sem a
+  // davail aqui mudaria o comportamento do applyDebrid (needsFullRefresh) sem a
   // rede ter sido consultada naquela janela.
   if (
     adapter.abortSafeCacheCheck === false &&
@@ -299,11 +288,15 @@ async function checkCached(
   let toAsk = infoHashes;
   if (davailOn && !forceFresh) {
     const unique = [...new Set(infoHashes.map((hash) => String(hash).toLowerCase()))];
+    // UMA travessia para a leva inteira: o store nativo já devolve só as linhas
+    // vivas, com o hash em minúsculas; ausente não é "frio".
+    const live = davailState().getMany(adapter.id, apiKey, unique, Date.now());
+    const flags = new Map(live.map((flag): [string, boolean] => [flag.hash, flag.cached]));
     const missing: string[] = [];
     for (const hash of unique) {
-      const value = cache.get(davailKey(adapter.id, apiKey, hash));
-      if (value === 1 && config.debrid.availPosTtl > 0) fromCache.add(hash);
-      else if (value === 0 && config.debrid.availNegTtl > 0) {
+      const value = flags.get(hash);
+      if (value === true && config.debrid.availPosTtl > 0) fromCache.add(hash);
+      else if (value === false && config.debrid.availNegTtl > 0) {
         // Negativo confirmado também responde sem rede, mas não entra no Set.
       } else missing.push(hash);
     }
@@ -322,12 +315,12 @@ async function checkCached(
       metrics.count('davail.fileRefetch', refetch.length);
     }
     if (toAsk.length === 0) {
-      // O atalho respondeu TUDO pela memória, mas a evidência é a mesma do
-      // caminho com rede — positivo confirmado. Sem renovar aqui, quanto mais
-      // buscado o título, mais ele era servido pelo atalho e mais cedo o
+      // O atalho respondeu TUDO sem rede, mas a evidência é a mesma do caminho
+      // que perguntou ao serviço — positivo confirmado. Sem renovar aqui, quanto
+      // mais buscado o título, mais ele era servido pelo atalho e mais cedo o
       // desempate instant morria no meio do TTL de 7 dias. A renovação é
-      // ECONÔMICA (só quem está na segunda metade do TTL): o hit do L1 não é
-      // evidência nova, e regravar todo hit de título popular era escrita
+      // ECONÔMICA (só quem está na segunda metade do TTL): o acerto do davail
+      // não é evidência nova, e regravar todo hit de título popular era escrita
       // recorrente sem ganho.
       magnetdb.renewAlive(adapter.id, apiKey, [...fromCache]);
       return { cached: fromCache, known: true };
@@ -370,17 +363,20 @@ async function checkCached(
     // Lote único: com a cota do davail saturada, uma passada de evicção (e UMA
     // transação SQLite) para a busca inteira, não uma por hash no prazo da
     // resposta. A persistência já era em lote; a evicção é que não era.
-    const writes: { key: string; value: number; ttlSeconds: number }[] = [];
+    const positives: DavailFlag[] = [];
+    const negatives: DavailFlag[] = [];
     for (const hash of new Set(toAsk.map((value) => String(value).toLowerCase()))) {
       if (result.cached.has(hash)) {
-        if (config.debrid.availPosTtl > 0) {
-          writes.push({ key: davailKey(adapter.id, apiKey, hash), value: 1, ttlSeconds: config.debrid.availPosTtl });
-        }
+        if (config.debrid.availPosTtl > 0) positives.push({ hash, cached: true });
       } else if (result.known && config.debrid.availNegTtl > 0) {
-        writes.push({ key: davailKey(adapter.id, apiKey, hash), value: 0, ttlSeconds: config.debrid.availNegTtl });
+        negatives.push({ hash, cached: false });
       }
     }
-    cache.setMany(writes);
+    // `putMany` aplica UMA janela a todas as flags: positivo e negativo (janelas
+    // próprias) saem em duas chamadas — não existe override por flag.
+    const now = Date.now();
+    if (positives.length) davailState().putMany(adapter.id, apiKey, positives, config.debrid.availPosTtl, now);
+    if (negatives.length) davailState().putMany(adapter.id, apiKey, negatives, config.debrid.availNegTtl, now);
   }
   // Positivo medido vira histórico durável (banco de magnets), independente do
   // TTL curto do davail. Serviço inutilizável não grava nada: a culpa é da

@@ -192,13 +192,19 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 //   `streams` — `data/streams.db` do gateway (F4.4a), o SWR do corte;
 //   `raw`     — RawCacheStore do gateway (F3, dono único): o escritor TS do
 //               Jackett saiu e o leitor do diagnóstico lê pela ponte napi
-//               (`raw-store-native.ts`), como o idx.
+//               (`raw-store-native.ts`), como o idx;
+//   `davail`  — DavailStore do `adom-index` (T2-L5b), no mesmo cache.db; o ⚡ do
+//               debrid sai de `debrid-state-native.ts`, não do L1;
+//   `mag`     — MagnetStateStore do `adom-index` (T2-L5b): banco de magnets,
+//               histórico e a enumeração do painel são da ponte.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
 // disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
 // superfície do Node é só a ponte (`streams-store-native.ts` /
-// `raw-store-native.ts`): a leitura do L1 nasce vazia e cai nela; escrita e
-// invalidação vão por ela.
-const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw']);
+// `raw-store-native.ts` / `debrid-state-native.ts`): a leitura do L1 nasce vazia
+// e cai nela; escrita, invalidação e poda de vencidos vão por ela. `davail` e
+// `mag` entram TAMBÉM em `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo,
+// e não o nome do namespace, que bloqueia `get`/`peek` no L1.
+const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag']);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
 //
@@ -208,7 +214,12 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw']);
 // regravá-las no SQLite: o L1 nasceria com uma fila velha e o flush sobrescreveria
 // o trabalho do Rust. O namespace continua em `NAMESPACE_VERSIONS` porque quem
 // monta a chave precisa da versão — o dono é que mudou.
-const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest')]);
+//
+// `davail:v1` e `mag:v1` (T2-L5b) entram pelo prefixo pelo mesmo motivo do
+// `harvest`, mais um: `cache.get`/`peek` só consultam ESTA lista (`isRustOwned`
+// vale para escrita/forget/persist), então sem o prefixo a leitura do L1
+// devolveria sempre vazio em vez de cair na ponte.
+const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest'), prefix('davail'), prefix('mag')]);
 
 const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
 

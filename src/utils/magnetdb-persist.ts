@@ -1,26 +1,33 @@
 // Persistência dos contadores duráveis do banco de magnets (agregado O(1) em
-// `mag_meta:v1:counts`) e o hook `cache.onForget` que os mantém sincronizados.
+// `mag_meta:v1:counts`) e o hook `cache.onPrune` que os mantém sincronizados.
 // Módulo separado do magnetdb.ts por um motivo só: aquele arquivo está no teto
 // de 400 linhas. A API continua exposta por magnetdb.ts (save/load reexportados
 // para addon e testes); nenhuma rota ou consumidor importa daqui diretamente.
 //
+// O dono das linhas `mag:v1` é o núcleo Rust: escrita e leitura vão pela ponte
+// (`debrid-state-native.ts`), então nem a gravação nem a poda passam pelo cache
+// do Node. O que sobra para cá é o AGREGADO — o único dado que este processo
+// ainda é dono — e o decremento, que a varredura nativa devolve por lado.
+//
 // `ttlRemainingBasis` resolve uma ambiguidade do diagnóstico: a soma de TTL
-// restante pode vir de dois lugares com precisão diferente. O rebuild do L1 lê
-// o restante REAL de cada chave (peekRemaining), mas essa precisão morre na
-// primeira mutação — renovação/remoção passam a subtrair o TTL nominal, não o
-// restante exato de cada chave. O painel precisa saber qual dos dois está
+// restante pode vir de dois lugares com precisão diferente. O rebuild pela
+// ponte (`summary`) soma o restante REAL de cada linha, mas essa precisão morre
+// na primeira mutação — renovação/remoção passam a subtrair o TTL nominal, não
+// o restante exato de cada chave. O painel precisa saber qual dos dois está
 // mostrando para não chamar de precisa uma média que envelhece.
 import config from '../config.js';
 import * as cache from './cache.js';
-import { prefix, magMetaCountsKey } from './cache-keys.js';
-import { emptyAdapterTotals, parseMagKey, rebuildFromL1, type AdapterTotals } from './magnetdb-counts.js';
+import { magMetaCountsKey } from './cache-keys.js';
+import { QUOTAS } from './cache-quotas.js';
+import { davailState, magnetState, type MagCount, type MagnetSide } from './debrid-state-native.js';
+import { emptyAdapterTotals, type AdapterTotals } from './magnetdb-counts.js';
 
 export type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record<string, AdapterTotals> };
 
 /**
  * Procedência da soma de TTL restante exposta no status:
- * - `l1-rebuild`: soma reconstruída do L1 com o restante real de cada chave
- *   (peekRemaining). Precisa no instante do rebuild; NÃO sobrevive a mutação.
+ * - `l1-rebuild`: soma reconstruída pela ponte com o restante real de cada
+ *   linha (`summary`). Precisa no instante do rebuild; NÃO sobrevive a mutação.
  * - `aggregate-estimate`: estimativa incremental/restaurada — escrita soma o
  *   TTL nominal, esquecimento/restauração subtraem TTL nominal ou tempo
  *   decorrido. Conservadora, mas nunca afirmativa de precisão.
@@ -119,23 +126,39 @@ const sumSides = (counts: Map<string, AdapterTotals>): number => {
 const totalDiverges = (restored: Map<string, AdapterTotals>, l1Entries: number): boolean =>
   sumSides(restored) !== l1Entries;
 
+/**
+ * Reconstrói o agregado pela ponte nativa, para quando o persistido não abre
+ * ou diverge do banco. É o único caminho em que a soma de TTL nasce PRECISA:
+ * `summary` devolve o restante real de cada linha, não o nominal.
+ */
 function adoptRebuild() {
-  for (const [id, totals] of rebuildFromL1()) adapterCounts.set(id, totals);
-  ttlBasis = 'l1-rebuild';
+  const now = Date.now();
+  // `summary` devolve o restante REAL de cada linha, não o nominal.
+  const rows: MagCount[] = magnetState().summary(now);
+  let ttlReal = true;
+  for (const row of rows) {
+    const totals = getOrCreateAdapter(row.adapter);
+    totals[row.side] += row.count;
+    if (Number.isFinite(row.ttlRemainingSum)) {
+      totals.ttlRemainingSums[row.side] += row.ttlRemainingSum;
+    } else {
+      ttlReal = false;
+    }
+  }
+  ttlBasis = ttlReal ? 'l1-rebuild' : 'aggregate-estimate';
   if (adapterCounts.size > 0) schedulePersistentSave();
 }
 
 export function loadPersistentCounts() {
-  const ns = cache.snapshot().namespaces as Record<string, { entries?: number }>;
-  const l1Entries = ns?.mag?.entries || 0;
+  const l1Entries = magnetState().liveCount(Date.now());
   if (l1Entries === 0) { adapterCounts.clear(); return; }
   const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
   adapterCounts.clear();
-  // Versão/estrutura estranha conta como agregado ausente: com o L1 cheio o
-  // dado verdadeiro está nas chaves, não num payload que este processo não
-  // sabe ler — cair no rebuild é mais honesto que restaurar lixo.
+  // Versão/estrutura estranha conta como agregado ausente: com o namespace
+  // cheio o dado verdadeiro está nas linhas, não num payload que este processo
+  // não sabe ler — cair no rebuild é mais honesto que restaurar lixo.
   if (!raw || typeof raw !== 'object' || raw.version !== 1 || !raw.adapters || typeof raw.adapters !== 'object' || Array.isArray(raw.adapters)) {
-    // Agregado ausente/ilegível com o L1 cheio: reconta do próprio L1 e
+    // Agregado ausente/ilegível com o namespace cheio: reconta pela ponte e
     // regrava. Devolver zero aqui seria mentira rotulada de `duravel`. A soma
     // nasce precisa (restante real) e vira estimativa na primeira mutação.
     adoptRebuild();
@@ -148,7 +171,7 @@ export function loadPersistentCounts() {
   // namespace, e o adapter alldebrid sumia inteiro do painel — tudo rotulado
   // `duravel`, contradizendo o `l1Entries` mostrado ao lado na mesma tela.
   //
-  // A comparação é exata de propósito: `entries` é a contagem física do
+  // A comparação é exata de propósito: `liveCount()` é a contagem física do
   // namespace mag e a soma dos lados conta a mesma coisa, então tolerância
   // aqui só serviria para deixar passar deriva pequena. O preço do desacordo é
   // uma passada O(namespace mag) por boot (29,6 ms medidos em 50 mil chaves,
@@ -164,10 +187,10 @@ export function loadPersistentCounts() {
 }
 
 /**
- * Sincroniza a amostra com o L1 antes de o status ler `adapterCounts`:
- * L1 vazio zera a amostra (o banco de verdade esvaziou); amostra vazia com L1
- * cheio carrega o agregado persistido (ex.: primeiro status de testes/runner
- * sem passar pelo load do boot).
+ * Sincroniza a amostra com o namespace antes de o status ler `adapterCounts`:
+ * namespace vazio zera a amostra (o banco de verdade esvaziou); amostra vazia
+ * com namespace cheio carrega o agregado persistido (ex.: primeiro status de
+ * testes/runner sem passar pelo load do boot).
  */
 export function ensureCountsLoaded(l1Entries: number) {
   if (l1Entries === 0) {
@@ -180,32 +203,27 @@ export function ensureCountsLoaded(l1Entries: number) {
   }
 }
 
-// Hook único de decremento: o cache (TTL, despejo por cota, forget explícito)
-// é quem tira registro do `mag` no dia a dia — sem isto os contadores só
-// crescem. Mutações degradam a base para `aggregate-estimate`: depois do
-// esquecimento, a soma já não reflete o restante real medido no rebuild.
-cache.onForget((key: string) => {
-  if (!key.startsWith(prefix('mag'))) return;
-  // `parseMagKey` e não split cru: quem CONTA (rebuildFromL1) e quem DECREMENTA
-  // têm de aceitar exatamente as mesmas chaves. Com o split, uma chave que o
-  // parse recusa — side estranho, hash fora do formato, namespace de versão
-  // futura — não entrava na recontagem mas saía decrementando o contador de um
-  // adapter real: deriva silenciosa, na direção de subcontar. É a assimetria
-  // que sobrou depois de fechar a leitura do agregado.
-  const parsed = parseMagKey(key);
-  if (!parsed) return;
-  const { side, adapterId } = parsed;
-  const totals = adapterCounts.get(adapterId);
-  if (!totals) return;
-  if (side === 'alive') {
-    totals.alive = Math.max(0, totals.alive - 1);
-    totals.ttlRemainingSums.alive = Math.max(0, totals.ttlRemainingSums.alive - config.magnetDb.aliveTtl);
-  } else if (side === 'bad') {
-    totals.bad = Math.max(0, totals.bad - 1);
-    totals.ttlRemainingSums.bad = Math.max(0, totals.ttlRemainingSums.bad - config.magnetDb.badTtl);
-  } else if (side === 'lie') {
-    totals.lie = Math.max(0, totals.lie - 1);
-    totals.ttlRemainingSums.lie = Math.max(0, totals.ttlRemainingSums.lie - config.magnetDb.lieTtl);
+// Hook único de decremento: quem tira linha do `mag`/`davail` no dia a dia é a
+// VARREDURA NATIVA (TTL vencido e teto do namespace), disparada no fim de cada
+// prune do cache do Node. O antigo `onForget` não serve mais: a escrita nativa
+// não passa pelo cache do Node, então nenhum forget daqui veria essas linhas —
+// sem este hook os contadores só cresceriam.
+const nominalTtl = (side: MagnetSide): number =>
+  side === 'alive' ? config.magnetDb.aliveTtl : side === 'bad' ? config.magnetDb.badTtl : config.magnetDb.lieTtl;
+
+cache.onPrune(() => {
+  const now = Date.now();
+  const removed = magnetState().sweep(QUOTAS.mag, now);
+  davailState().sweep(QUOTAS.davail, now);
+  if (removed.counts.length === 0) return;
+  // Quem remove é a varredura nativa, que devolve a contagem EXATA por lado:
+  // o decremento é por lado, com o TTL nominal e piso 0 — a soma restante já
+  // é estimativa, porque não há restante real por linha depois da remoção.
+  for (const c of removed.counts) {
+    const totals = adapterCounts.get(c.adapter);
+    if (!totals) continue;
+    totals[c.side] = Math.max(0, totals[c.side] - c.count);
+    totals.ttlRemainingSums[c.side] = Math.max(0, totals.ttlRemainingSums[c.side] - c.count * nominalTtl(c.side));
   }
   markMutation();
   schedulePersistentSave();

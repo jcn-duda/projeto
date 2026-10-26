@@ -8,9 +8,11 @@ import * as magnetdb from '../src/utils/magnetdb.js';
 import * as persist from '../src/utils/magnetdb-persist.js';
 import * as cache from '../src/utils/cache.js';
 import { magMetaCountsKey } from '../src/utils/cache-keys.js';
-import { accountScope } from '../src/utils/request-key.js';
+import { magnetState } from '../src/utils/debrid-state-native.js';
 
 const H = (c: string) => c.repeat(40);
+/** Esvazia o namespace `mag` — as linhas agora são do núcleo, não do `cache`. */
+const clearMag = () => magnetState().clear();
 
 test('fachada pública: magnetdb reexporta save/load e a base do TTL', () => {
   assert.equal(magnetdb.savePersistentCounts, persist.savePersistentCounts);
@@ -68,9 +70,10 @@ test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimat
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
   // Chave viva na primeira metade do TTL não seria renovada; para forçar a
-  // renovação, plantamos o alive diretamente já envelhecido (restante < ttl/2).
-  const key = `mag:v1:alive:premiumize:${accountScope('conta-basis-4')}:${H('f')}`;
-  cache.set(key, 1, 60);
+  // renovação, plantamos o alive já envelhecido (restante < ttl/2). O `nowMs`
+  // de `markAlive` é o relógio da janela: recuá-lo envelhece a marca sem
+  // precisar de sono real.
+  magnetState().markAlive('premiumize', 'conta-basis-4', [H('f')], 60, Date.now() - 45_000);
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
   magnetdb.renewAlive('premiumize', 'conta-basis-4', [H('f')]);
@@ -104,10 +107,9 @@ test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', ()
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
-  // L1 esvazia de verdade (namespace mag some): nenhum `l1-rebuild` órfão pode
-  // sobreviver sem registros que o qualifiquem.
-  const magKeys = cache.keysMatching('mag:v1:');
-  for (const k of magKeys) cache.forget(k);
+  // Namespace esvazia de verdade: nenhum `l1-rebuild` órfão pode sobreviver
+  // sem registros que o qualifiquem.
+  clearMag();
   const st = magnetdb.status();
   assert.equal(st.l1Entries, 0);
   assert.equal(st.ttlRemainingBasis, 'aggregate-estimate');
@@ -119,8 +121,7 @@ test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', ()
 // portanto aceito como verdade, somado às mutações e regravado a cada boot. O
 // rebuild-por-ilegível não cobria isso: só ilegibilidade caía na recontagem.
 test('agregado legível mas divergente do L1 cai no rebuild em vez de virar verdade', () => {
-  const magKeys = cache.keysMatching('mag:v1:');
-  for (const k of magKeys) cache.forget(k);
+  clearMag();
   persist.adapterCounts.clear();
   magnetdb.markAlive('premiumize', 'conta-deriva', [H('1'), H('2')]);
   magnetdb.markBad('alldebrid', 'conta-deriva', H('3'));
@@ -145,8 +146,7 @@ test('agregado legível mas divergente do L1 cai no rebuild em vez de virar verd
 });
 
 test('agregado que confere com o L1 continua sendo restaurado, sem rebuild à toa', () => {
-  const magKeys = cache.keysMatching('mag:v1:');
-  for (const k of magKeys) cache.forget(k);
+  clearMag();
   persist.adapterCounts.clear();
   magnetdb.markAlive('premiumize', 'conta-confere', [H('4'), H('5')]);
   persist.savePersistentCounts();
@@ -162,7 +162,7 @@ test('agregado que confere com o L1 continua sendo restaurado, sem rebuild à to
 // custo permanente sem evidência de que a deriva aconteça. Este teste existe
 // para o dia em que alguém achar que a checagem cobre mais do que cobre.
 test('sentinela é de divergência TOTAL: distribuição errada com soma igual passa', () => {
-  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
+  clearMag();
   persist.adapterCounts.clear();
   magnetdb.markAlive('premiumize', 'conta-torta', [H('6'), H('7')]);
   assert.equal(magnetdb.status().l1Entries, 2);
@@ -187,7 +187,7 @@ test('sentinela é de divergência TOTAL: distribuição errada com soma igual p
 // pode virar chave física, senão o rebuild não a conta, a sentinela acusa
 // desacordo eterno e todo boot paga a recontagem sem convergir.
 test('hash fora do formato não vira chave física nem contador', () => {
-  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
+  clearMag();
   persist.adapterCounts.clear();
   magnetdb.markAlive('premiumize', 'conta-hash', ['nao-e-hash', 'ABC', H('8')]);
   magnetdb.markBad('premiumize', 'conta-hash', 'tambem-nao');
@@ -204,23 +204,4 @@ test('hash fora do formato não vira chave física nem contador', () => {
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
   assert.equal(magnetdb.status().sizeAlive, 1, 'rebuild conta a mesma chave que a escrita criou');
-});
-
-// O hook de esquecimento usa o MESMO parse da recontagem: chave que o parse
-// recusa não pode decrementar contador de adapter nenhum.
-test('esquecer chave mag não parseável não mexe em contador de adapter', () => {
-  for (const k of cache.keysMatching('mag:v1:')) cache.forget(k);
-  persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-forget', [H('9')]);
-  assert.equal(magnetdb.status().sizeAlive, 1);
-
-  // Chave no namespace mag que parseMagKey recusa (hash curto), gravada por
-  // fora do markAlive — é o que uma versão futura do namespace pareceria.
-  const intrusa = `mag:v1:alive:premiumize:${'0'.repeat(64)}:abc`;
-  cache.set(intrusa, 1, 600);
-  cache.forget(intrusa);
-
-  assert.equal(magnetdb.status().sizeAlive, 1, 'contador do premiumize intacto');
-  const totals = persist.adapterCounts.get('premiumize');
-  assert.equal(totals?.alive, 1, 'nenhum decremento pela chave estranha');
 });

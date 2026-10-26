@@ -1931,7 +1931,7 @@ git add rust/crates/adom-harvest rust/crates/adom-server/src/harvest
 git commit -m "feat(harvest): journal de execucao e outbox de invalidacao"
 ```
 
-### T2-L5: `davail`, `mag` e `mag_meta` no Rust — L5a EXECUTADA, L5b pendente
+### T2-L5: `davail`, `mag` e `mag_meta` no Rust — L5a e L5b EXECUTADAS
 
 Os três nascem da mesma função (`checkCached`) e morrem juntos. `mag` move
 **inteiro**: `markBad` apaga o `alive` do mesmo hash na mesma função, então
@@ -1991,21 +1991,31 @@ divisão por prefixo pintaria ⚡ falso.
 7. **`putMany` da ponte aplica UMA janela** a todas as flags; positivo e
    negativo (janelas diferentes) exigem duas chamadas — documentado no wrapper.
 
-**L5b — PENDENTE (a virada de dono).** Medido no working tree: `davail` aparece
-em 22 arquivos de teste e `mag` em 15 (vários usam `davail:v1:…` como fixture
-GENÉRICA de cache e contam `cache.hit.davail`/`namespaces.davail.entries`), e
-`magnetdb-counts/-inspect/-persist` enumeram `mag:` pelo L1 (`keysMatching`).
-Viram dono Rust só depois de:
+**L5b — EXECUTADA (a virada de dono, commit desta fatia).** `davail` e `mag`
+entraram em `RUST_OWNED` (namespace **e** prefixo) e o Node deixou de ser
+segundo escritor no `cache.db`:
 
-- enumeração nativa de `mag:` (por lado/adapter) exposta na ponte, para os
-  contadores do painel e o `magnetdb-inspect`;
-- `cache-check.ts`/`br-coverage.ts` escrevendo e lendo `davail` só pela ponte
-  (saem `davailKey` e o `cache.set`/`peek` do caminho);
-- `magnetdb.ts` com `mark*`/`is*`/`forgetBad` pela ponte (saem `magKey`,
-  `aliveKey`/`badKey`/`lieKey` e o `forgetBadKey` cru);
-- `RUST_OWNED` com `davail` e `mag` + migração das fixtures (trocar o
-  namespace-amostra por outro nos testes de cache/namespace e semear o estado
-  de debrid pela ponte nos testes de comportamento).
+- `cache-check.ts`, `br-coverage.ts` e `magnetdb.ts` leem/escrevem só pela
+  ponte (`davailState()`/`magnetState()`); `magnetdb-inspect` enumera por
+  `magnetState().entries/summary`, não mais por `cache.keysMatching('mag:')`.
+- **A poda (`sweep`) é o ÚNICO caminho que apaga e contabiliza.**
+  `state`/`stateSnapshot`/`entries`/`remaining` deixavam de apagar a linha
+  vencida na leitura; apagar ali sumia com a linha SEM baixa no agregado
+  durável (`mag_meta:v1:counts`, cujo decremento só existe nos `counts` da
+  poda) e o `mark_alive` a recontava como nascida (`row_exists` por presença
+  física) — o contador ficava inflado para sempre.
+- `forget_bad_of` passou a devolver quantas LINHAS saíram (uma por conta): o
+  booleano anterior perdia a segunda conta e o agregado não baixava.
+- Teste novo `test/cache-keys-debrid-owned.test.ts` (3 testes) pina a posse
+  (`set`/`forget`/`forgetMany` no-op, sem L1) e amarra `isSupportedHash` ao
+  corpo de `is_valid_hash` do núcleo.
+- Fixtures migradas: `magnet-db-persistence`, `magnet-db-empirical-challenge`
+  (evicção provada pela ponte + poda), `dashboard-actions`, `debrid-avail` e
+  `e2e/tier2-cache-storage` (o balde-amostra virou `meta:`).
+- Gate: `typecheck` 0, `npm test` 2392 testes (2391 pass, 1 skip, 0 fail),
+  `test:complete` 273/2, `lint:lines` 641/0, `cargo test -p adom-index` 73,
+  `cargo fmt --check` 0, `clippy -p adom-index -p adom-napi --all-targets` 0,
+  catraca `.rs` 959/0.
 
 **PLANO ORIGINAL (referência, superado pelos itens acima):**
 

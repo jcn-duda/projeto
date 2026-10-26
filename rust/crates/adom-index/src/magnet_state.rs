@@ -23,6 +23,14 @@
 //! (`magnetdb.ts:86,144,202`), e `mark_bad` desligado NÃO apaga o `alive`; com
 //! TTL positivo, `expires_at` vencido (`<= now_ms`) é expirado e a leitura
 //! apaga a linha.
+//!
+//! Desde a T2-L5b o namespace é do Rust ponta a ponta: enumeração
+//! (`entries`/`summary`/`live_count`/`live_lies`) e manutenção (`clear`,
+//! `sweep`, `forget_bad_of`, `remaining`) moram no irmão
+//! [`query`](self::query), e o Node não lê nem poda mais estas linhas. Por isso
+//! a chave só aceita hash `^[a-f0-9]{40}$`: chave que a enumeração não sabe ler
+//! de volta é lixo invisível, e a guarda mora onde a chave nasce (o `davail`
+//! NÃO segue essa regra — lá qualquer hash não vazio vale).
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
@@ -54,6 +62,13 @@ pub fn magnet_key(field: &str, adapter: &str, api_key: &str, hash: &str) -> Stri
         account_scope(&Value::String(api_key.to_string())),
         hash.to_ascii_lowercase()
     )
+}
+
+/// Hash de 40 hex **minúsculo** — a única forma que a enumeração do
+/// [`query`](self::query) lê de volta como `mag:v1:<side>:<adapter>:<scope>:<hash>`.
+/// Fora disso a escrita é ignorada (não grava, não lê, não apaga).
+pub(crate) fn is_valid_hash(hash: &str) -> bool {
+    hash.len() == 40 && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Campo do `mag:v1` que uma marca ocupa.
@@ -113,13 +128,14 @@ impl MagnetStateStore {
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|err| err.into_inner())
     }
 
     /// Grava `alive` em lote e devolve quantas chaves NASCERAM (não existiam
     /// antes). Hash com `bad` vivo é recusado: o play já provou que está
-    /// quebrado e uma renovação não pode ressuscitá-lo.
+    /// quebrado e uma renovação não pode ressuscitá-lo. Hash fora de
+    /// [`is_valid_hash`] é ignorado, sem impedir os outros do lote.
     pub fn mark_alive(
         &self,
         adapter: &str,
@@ -140,18 +156,13 @@ impl MagnetStateStore {
             .map_err(|err| err.to_string())?;
         let mut born = 0usize;
         for hash in hashes {
-            let normalized = hash.to_ascii_lowercase();
-            if normalized.is_empty() {
+            if !is_valid_hash(hash) {
                 continue;
             }
-            if live_flag(
-                &tx,
-                &magnet_key("bad", adapter, api_key, &normalized),
-                now_ms,
-            )? {
+            if live_flag(&tx, &magnet_key("bad", adapter, api_key, hash), now_ms)? {
                 continue;
             }
-            let key = magnet_key("alive", adapter, api_key, &normalized);
+            let key = magnet_key("alive", adapter, api_key, hash);
             // Nascida = a linha não existia ANTES da escrita (presença física,
             // como o `cache.has` do Node); renovação de chave viva não conta.
             if !row_exists(&tx, &key)? {
@@ -173,7 +184,7 @@ impl MagnetStateStore {
         ttl_seconds: i64,
         now_ms: i64,
     ) -> Result<bool, String> {
-        if adapter.is_empty() || api_key.is_empty() || hash.is_empty() {
+        if adapter.is_empty() || api_key.is_empty() || !is_valid_hash(hash) {
             return Ok(false);
         }
         // Janela desligada: sem escrita NÃO se apaga o `alive` do mesmo hash.
@@ -207,7 +218,7 @@ impl MagnetStateStore {
         ttl_seconds: i64,
         now_ms: i64,
     ) -> Result<bool, String> {
-        if adapter.is_empty() || api_key.is_empty() || hash.is_empty() {
+        if adapter.is_empty() || api_key.is_empty() || !is_valid_hash(hash) {
             return Ok(false);
         }
         let Some(expires_at) = expires_at_for(ttl_seconds, now_ms) else {
@@ -227,7 +238,7 @@ impl MagnetStateStore {
     /// Apaga SÓ o `bad`; `alive`/`lie` do mesmo hash ficam. `true` = havia o
     /// que apagar (presença física, como o `cache.has` do reparo do Node).
     pub fn forget_bad(&self, adapter: &str, api_key: &str, hash: &str) -> Result<bool, String> {
-        if adapter.is_empty() || api_key.is_empty() || hash.is_empty() {
+        if adapter.is_empty() || api_key.is_empty() || !is_valid_hash(hash) {
             return Ok(false);
         }
         let conn = self.lock();
@@ -243,7 +254,7 @@ impl MagnetStateStore {
         hash: &str,
         now_ms: i64,
     ) -> Result<Option<MagnetState>, String> {
-        if adapter.is_empty() || api_key.is_empty() {
+        if adapter.is_empty() || api_key.is_empty() || !is_valid_hash(hash) {
             return Ok(None);
         }
         state_in(&self.lock(), adapter, api_key, hash, now_ms)
@@ -265,9 +276,17 @@ impl MagnetStateStore {
         let conn = self.lock();
         let mut out = Vec::with_capacity(hashes.len());
         for hash in hashes {
+            // O hash volta normalizado: o chamador junta a foto pelo que mandou
+            // e um hash em maiúsculas perderia a entrada. Fora do formato o
+            // veredito é `None` — a guarda da escrita não deixou marca nascer.
+            let state = if is_valid_hash(hash) {
+                state_in(&conn, adapter, api_key, hash, now_ms)?
+            } else {
+                None
+            };
             out.push(MagnetMark {
                 hash: hash.to_ascii_lowercase(),
-                state: state_in(&conn, adapter, api_key, hash, now_ms)?,
+                state,
             });
         }
         Ok(out)
@@ -281,9 +300,6 @@ fn state_in(
     hash: &str,
     now_ms: i64,
 ) -> Result<Option<MagnetState>, String> {
-    if hash.is_empty() {
-        return Ok(None);
-    }
     // Ordem = precedência: a evidência mais específica manda.
     for state in [MagnetState::Bad, MagnetState::Lie, MagnetState::Alive] {
         let key = magnet_key(state.field(), adapter, api_key, hash);
@@ -294,20 +310,23 @@ fn state_in(
     Ok(None)
 }
 
-/// A chave existe e o valor diz "marca". Expirado é apagado na leitura.
+/// A chave existe e o valor diz "marca". Vencida NÃO é apagada aqui: quem
+/// apaga e contabiliza é o `sweep`. Apagar na leitura sumia com a linha sem
+/// baixa no agregado durável do Node (o decremento só existe nos `counts` da
+/// poda) — o contador ficava inflado para sempre, e a leitura mais banal
+/// (`state`) bastava para criar o vazamento.
 fn live_flag(conn: &Connection, key: &str, now_ms: i64) -> Result<bool, String> {
     let Some((raw, expires_at)) = read_row(conn, key)? else {
         return Ok(false);
     };
     if is_expired(expires_at, now_ms) {
-        forget(conn, key)?;
         return Ok(false);
     }
     Ok(is_mark_value(&raw))
 }
 
 /// Aceita o `"1"` gravado por nós e o `"true"`/`1` crus de escritas antigas.
-fn is_mark_value(raw: &str) -> bool {
+pub(crate) fn is_mark_value(raw: &str) -> bool {
     let value = raw.trim();
     value == "1" || value.eq_ignore_ascii_case("true")
 }
@@ -321,7 +340,7 @@ fn expires_at_for(ttl_seconds: i64, now_ms: i64) -> Option<i64> {
 }
 
 /// `expires_at = 0`/ausente = sem expiração; positivo e vencido = expirado.
-fn is_expired(expires_at: Option<i64>, now_ms: i64) -> bool {
+pub(crate) fn is_expired(expires_at: Option<i64>, now_ms: i64) -> bool {
     matches!(expires_at, Some(ts) if ts > 0 && ts <= now_ms)
 }
 
@@ -335,7 +354,7 @@ fn upsert(conn: &Connection, key: &str, expires_at: i64) -> Result<(), String> {
     Ok(())
 }
 
-fn forget(conn: &Connection, key: &str) -> Result<usize, String> {
+pub(crate) fn forget(conn: &Connection, key: &str) -> Result<usize, String> {
     conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
         .map_err(|err| err.to_string())
 }
@@ -351,7 +370,10 @@ fn row_exists(conn: &Connection, key: &str) -> Result<bool, String> {
     Ok(found.is_some())
 }
 
-fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, Option<i64>)>, String> {
+pub(crate) fn read_row(
+    conn: &Connection,
+    key: &str,
+) -> Result<Option<(String, Option<i64>)>, String> {
     let mut stmt = conn
         .prepare("SELECT value, expires_at FROM cache WHERE key = ?1")
         .map_err(|err| err.to_string())?;
@@ -362,6 +384,17 @@ fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, Option<i64>)
     .map_err(|err| err.to_string())
 }
 
+// Enumeração e manutenção do namespace: leem por varredura e apagam em nome do
+// namespace inteiro (o `magnet_state.rs` fica com o ciclo de escrita e as
+// leituras por chave). Submódulo para enxergar `lock`, `read_row` e `forget`.
+#[path = "magnet_state_query.rs"]
+mod query;
+pub use query::{MagCount, MagEntry, MagPage, MagSweep};
+
 #[cfg(test)]
 #[path = "magnet_state_tests.rs"]
 mod magnet_state_tests;
+
+#[cfg(test)]
+#[path = "magnet_state_query_tests.rs"]
+mod magnet_state_query_tests;

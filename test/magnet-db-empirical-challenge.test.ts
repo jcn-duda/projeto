@@ -23,12 +23,12 @@ try {
 }
 
 // URLs absolutas dos módulos compilados. Os filhos importam cache/magnetdb SEM
-// query: assim o `./cache.js` interno do magnetdb resolve para a MESMA instância
-// que o teste importou, e os contadores do banco de magnets batem.
+// query: assim o `./cache.js` interno do magnetdb resolve para a MESMA instância.
 const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 const MAGNETDB_URL = new URL('../src/utils/magnetdb.js', import.meta.url).href;
 const CACHE_KEYS_URL = new URL('../src/utils/cache-keys.js', import.meta.url).href;
 const REQUEST_KEY_URL = new URL('../src/utils/request-key.js', import.meta.url).href;
+const DEBRID_STATE_URL = new URL('../src/utils/debrid-state-native.js', import.meta.url).href;
 
 function runMultiStageTest(scripts: string[]) {
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -313,7 +313,7 @@ test(
 );
 
 test(
-  'adversarial: eviccao via forgetMany, decremento limpo e protecao contra underflow',
+  'adversarial: evicção nativa (forgetBad/forgetBadOf/poda), sem underflow e sem segundo escritor',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
@@ -322,6 +322,7 @@ test(
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
       `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
+      `const { magnetState } = await import(${JSON.stringify(DEBRID_STATE_URL)});`,
       `const { prefix } = await import(${JSON.stringify(CACHE_KEYS_URL)});`,
       `const { accountScope } = await import(${JSON.stringify(REQUEST_KEY_URL)});`,
       "const H = (s) => createHash('sha1').update(String(s)).digest('hex');",
@@ -336,44 +337,47 @@ test(
       "assert.strictEqual(st.sizeAlive, 4);",
       "assert.strictEqual(st.sizeBad, 2);",
       "assert.strictEqual(st.sizeLie, 1);",
-      "",
-      "// Monta chaves brutas de 2 alive e 1 bad",
+      "// 1. mag é do Rust: `cache.forgetMany` com chave mag é NO-OP.",
+      "// Um segundo escritor apagaria linha fresca que o núcleo ainda conta.",
       "const scope = accountScope('acc1');",
       "const magP = prefix('mag');",
       "const aliveKey1 = `${magP}alive:realdebrid:${scope}:${H('ev-1')}`;",
       "const aliveKey2 = `${magP}alive:realdebrid:${scope}:${H('ev-2')}`;",
       "const badKey1 = `${magP}bad:realdebrid:${scope}:${H('ev-bad-1')}`;",
-      "const nonMagKey = 'stream:v11:some-other-key';",
-      "const nonExistentKey = `${magP}alive:realdebrid:${scope}:${H('not-found')}`;",
-      "",
-      "// 1. Eviccao mista em lote via cache.forgetMany",
-      "cache.forgetMany([aliveKey1, aliveKey2, badKey1, nonMagKey, nonExistentKey]);",
+      "cache.forgetMany([aliveKey1, aliveKey2, badKey1, 'stream:v11:some-other-key', `${magP}alive:realdebrid:${scope}:ghost`]);",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeAlive, 2, 'alive decrementado de 4 para 2');",
+      "assert.strictEqual(st.sizeAlive, 4, 'o Node não evicta mag: alive intacto');",
+      "assert.strictEqual(st.sizeBad, 2, 'o Node não evicta mag: bad intacto');",
+      "assert.strictEqual(magnetState().state('realdebrid', 'acc1', H('ev-1'), Date.now()), 'alive', 'a linha nativa continua lá');",
+      "// 2. Evicção de verdade: forgetBad (por conta) decrementa e é idempotente",
+      "assert.strictEqual(magnetdb.forgetBad('realdebrid', 'acc1', '" + MH('ev-bad-1') + "'), true);",
+      "st = magnetdb.status();",
       "assert.strictEqual(st.sizeBad, 1, 'bad decrementado de 2 para 1');",
-      "assert.strictEqual(st.sizeLie, 1, 'lie intocado');",
-      "",
-      "// 2. Chamar forgetMany novamente nas mesmas chaves nao pode decrementar (evita underflow)",
-      "cache.forgetMany([aliveKey1, aliveKey2, badKey1]);",
+      "assert.strictEqual(magnetdb.forgetBad('realdebrid', 'acc1', '" + MH('ev-bad-1') + "'), false, 'idempotente');",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeAlive, 2, 'sem chave no cache, nao decrementa');",
-      "assert.strictEqual(st.sizeBad, 1);",
-      "",
-      "// 3. Esvazia completamente alive para verificar comportamento em zero",
-      "const aliveKey3 = `${magP}alive:realdebrid:${scope}:${H('ev-3')}`;",
-      "const aliveKey4 = `${magP}alive:realdebrid:${scope}:${H('ev-4')}`;",
-      "cache.forgetMany([aliveKey3, aliveKey4]);",
+      "assert.strictEqual(st.sizeBad, 1, 'segunda passada não decrementa de novo (sem underflow)');",
+      "// 3. forgetBadOf (sem apiKey) apaga em TODAS as contas e baixa o agregado",
+      "assert.strictEqual(magnetdb.forgetBadOf('realdebrid', '" + MH('ev-bad-2') + "'), true);",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeAlive, 0, 'alive chega a 0');",
-      "assert.strictEqual(st.byAdapter.realdebrid?.sizeAlive, 0);",
-      "assert.strictEqual(st.byAdapter.realdebrid?.ttlRemainingSeconds.alive, null, 'sem divisao por zero');",
-      "",
-      "// 4. Teste de sobreeviccao: forgetMany com chaves inexistentes nunca decrementa abaixo de zero",
-      "cache.forgetMany([aliveKey3, aliveKey4, `${magP}alive:realdebrid:${scope}:ghost`]);",
+      "assert.strictEqual(st.sizeBad, 0);",
+      "assert.strictEqual(st.byAdapter.realdebrid?.sizeBad ?? 0, 0);",
+      "assert.strictEqual(magnetdb.forgetBadOf('realdebrid', '" + MH('ev-bad-2') + "'), false, 'idempotente');",
+      "// 4. alive/lie saem pela poda — o ÚNICO caminho que apaga e contabiliza",
+      "const realNow = Date.now;",
+      "Date.now = () => realNow() + 8 * 86400 * 1000;",
+      "try { cache.prune(); } finally { Date.now = realNow; }",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeAlive, 0, 'garantia de nao-underflow');",
-      "assert.strictEqual(st.byAdapter.realdebrid?.sizeAlive, 0);",
-      "",
+      "assert.strictEqual(st.sizeAlive, 0, 'alive chega a 0 pela poda nativa');",
+      "assert.strictEqual(st.sizeLie, 0, 'lie vencido também é contabilizado');",
+      "assert.strictEqual(st.l1Entries, 0, 'nenhuma linha viva sobrou no núcleo');",
+      "assert.deepStrictEqual(Object.keys(st.byAdapter), [], 'namespace vazio zera a amostra (sem divisão por zero)');",
+      "// 5. Poda repetida não decrementa abaixo de zero",
+      "Date.now = () => realNow() + 9 * 86400 * 1000;",
+      "try { cache.prune(); } finally { Date.now = realNow; }",
+      "st = magnetdb.status();",
+      "assert.strictEqual(st.sizeAlive, 0, 'garantia de não-underflow');",
+      "assert.strictEqual(st.sizeLie, 0);",
+      "assert.strictEqual(st.byAdapter.realdebrid?.sizeAlive ?? 0, 0);",
       "magnetdb.savePersistentCounts();",
       "cache.close();",
     ].join('\n');
@@ -385,8 +389,8 @@ test(
       `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
       "const st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 0, 'alive mantem 0 apos restart');",
-      "assert.strictEqual(st.sizeBad, 1, 'bad mantem 1 apos restart');",
-      "assert.strictEqual(st.sizeLie, 1, 'lie mantem 1 apos restart');",
+      "assert.strictEqual(st.sizeBad, 0, 'bad mantem 0 apos restart');",
+      "assert.strictEqual(st.sizeLie, 0, 'lie mantem 0 apos restart');",
       "cache.close();",
     ].join('\n');
 

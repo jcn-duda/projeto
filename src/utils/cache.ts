@@ -21,6 +21,7 @@ import { createPersistence } from './cache-db.js';
 import { isRustOwned, isForeignKey } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
 import { clearRawStore } from './raw-store-native.js';
+import { davailState, magnetState } from './debrid-state-native.js';
 
 const store = new Map();
 const namespaceCounts = new Map();
@@ -85,6 +86,10 @@ function prune() {
     metrics.count(`cache.evicted.${namespaceFor(oldest)}`);
   }
   forgetMany(dropped);
+  // Gancho de quem tem estado FORA do L1 para varrer junto: o `mag`/`davail`
+  // são do núcleo e o Node não vê mais as linhas vencidas deles. Roda depois
+  // da poda da memória e nunca no caminho de uma request.
+  for (const hook of pruneHooks) hook();
 }
 
 /** Para o /metrics.json: quanto do teto está ocupado agora. */
@@ -258,6 +263,19 @@ function onForget(hook: ForgetHook) {
   return () => { forgetHooks.delete(hook); };
 }
 
+type PruneHook = () => void;
+const pruneHooks = new Set<PruneHook>();
+
+/**
+ * Registra uma varredura que roda junto com a poda periódica. É para dono de
+ * estado que NÃO está no L1: sem isto o processo não teria onde varrer vencidos
+ * nem aplicar teto, porque `prune` é o único relógio de manutenção do cache.
+ */
+function onPrune(hook: PruneHook) {
+  pruneHooks.add(hook);
+  return () => { pruneHooks.delete(hook); };
+}
+
 function forget(key: string) {
   if (isRustOwned(namespaceFor(key)) || isForeignKey(key)) return;
   const existed = store.has(key);
@@ -292,18 +310,25 @@ function clear() {
   pending.clear();
   persistence.clearDisk();
   // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
-  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa idx e raw também.
+  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa os quatro
+  // namespaces RUST_OWNED também — `davail`/`mag` só existem lá.
   clearIdxStore();
   clearRawStore();
+  davailState().clear();
+  magnetState().clear();
 }
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  // RUST_OWNED não passa pelo L1: `idx` e `raw` têm handle nativo (IdxStore e
-  // RawStore leem o mesmo cache.db) — o clear deles é inteiro no Rust.
-  const fromRust = wanted === 'idx' ? clearIdxStore() : wanted === 'raw' ? clearRawStore() : 0;
+  // RUST_OWNED não passa pelo L1: `idx`, `raw`, `davail` e `mag` têm handle
+  // nativo sobre o MESMO cache.db — o clear deles é inteiro no núcleo.
+  const fromRust = wanted === 'idx' ? clearIdxStore()
+    : wanted === 'raw' ? clearRawStore()
+      : wanted === 'davail' ? davailState().clear()
+        : wanted === 'mag' ? magnetState().clear()
+          : 0;
   return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
 
@@ -351,6 +376,6 @@ function l2Stats() {
 }
 
 export {
-  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget,
+  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget, onPrune,
   prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close, l2Stats,
 };

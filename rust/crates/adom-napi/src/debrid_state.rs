@@ -8,7 +8,9 @@
 //!
 //! Os nomes que chegam ao JS são camelCase, por conversão default do napi-rs:
 //! `dbPath`, `apiKey`, `ttlSeconds`, `nowMs`, `markAlive`, `markBad`,
-//! `markLie`, `forgetBad`, `stateSnapshot`, `getMany`, `putMany`.
+//! `markLie`, `forgetBad`, `stateSnapshot`, `getMany`, `putMany`, `entries`,
+//! `summary`, `liveCount`, `liveLies`, `remaining`, `forgetBadOf`, `clear`,
+//! `sweep`. Os objetos de retorno moram no irmão `debrid_state_types`.
 
 use std::path::Path;
 
@@ -17,6 +19,12 @@ use adom_index::{
 };
 use napi::Error;
 use napi_derive::napi;
+
+// Objetos na fronteira: irmão por teto de linhas, declarado aqui para a fatia
+// não precisar mexer no `lib.rs` do crate.
+#[path = "debrid_state_types.rs"]
+mod debrid_state_types;
+pub use debrid_state_types::{DavailSweep, MagCount, MagEntry, MagPage, MagSweep};
 
 fn erro(err: String) -> Error {
     Error::from_reason(err)
@@ -142,6 +150,21 @@ impl DavailState {
             .put_many(&adapter, &api_key, &entries, now_ms)
             .map_err(erro)
     }
+
+    /// Apaga TODAS as linhas do namespace (`davail:v1:%`) e devolve quantas
+    /// saíram.
+    #[napi]
+    pub fn clear(&self) -> napi::Result<u32> {
+        self.inner.clear().map_err(erro)
+    }
+
+    /// Apaga as vencidas e, acima de `maxEntries` (`0` = sem teto), as mais
+    /// antigas por ordem de escrita.
+    #[napi]
+    pub fn sweep(&self, max_entries: u32, now_ms: i64) -> napi::Result<DavailSweep> {
+        let sweep = self.inner.sweep(max_entries, now_ms).map_err(erro)?;
+        Ok(sweep.into())
+    }
 }
 
 /// Banco de magnets por conta (`mag:v1`): `alive`/`bad`/`lie` com TTL.
@@ -258,6 +281,91 @@ impl MagnetStateStore {
             .state_snapshot(&adapter, &api_key, &hashes, now_ms)
             .map_err(erro)?;
         Ok(marks.into_iter().map(mark_of).collect())
+    }
+
+    /// Enumeração das linhas VIVAS: filtro e truncamento são do núcleo
+    /// (`limit == 0` = sem limite). Nulo em `adapter`/`side`/`hash` = sem filtro
+    /// naquele eixo; `matched` conta tudo o que casou antes do corte.
+    #[napi]
+    pub fn entries(
+        &self,
+        adapter: Option<String>,
+        side: Option<String>,
+        hash: Option<String>,
+        limit: u32,
+        now_ms: i64,
+    ) -> napi::Result<MagPage> {
+        let page = self
+            .inner
+            .entries(
+                adapter.as_deref(),
+                side.as_deref(),
+                hash.as_deref(),
+                limit,
+                now_ms,
+            )
+            .map_err(erro)?;
+        Ok(MagPage {
+            items: page.items.into_iter().map(MagEntry::from).collect(),
+            matched: page.matched,
+            truncated: page.truncated,
+        })
+    }
+
+    /// Agregado por adapter × lado numa passada só, sem hash no payload.
+    #[napi]
+    pub fn summary(&self, now_ms: i64) -> napi::Result<Vec<MagCount>> {
+        let counts = self.inner.summary(now_ms).map_err(erro)?;
+        Ok(counts.into_iter().map(MagCount::from).collect())
+    }
+
+    /// Quantas linhas vivas existem no namespace (o `l1Entries` do painel).
+    #[napi]
+    pub fn live_count(&self, now_ms: i64) -> napi::Result<u32> {
+        self.inner.live_count(now_ms).map_err(erro)
+    }
+
+    /// Hashes da leva com `lie` vivo em QUALQUER conta, na ordem da entrada.
+    #[napi]
+    pub fn live_lies(&self, hashes: Vec<String>, now_ms: i64) -> napi::Result<Vec<String>> {
+        self.inner.live_lies(&hashes, now_ms).map_err(erro)
+    }
+
+    /// Segundos até a marca vencer; `null` = ausente, vencida (a linha é apagada
+    /// na leitura) ou sem janela.
+    #[napi]
+    pub fn remaining(
+        &self,
+        adapter: String,
+        api_key: String,
+        side: String,
+        hash: String,
+        now_ms: i64,
+    ) -> napi::Result<Option<i64>> {
+        self.inner
+            .remaining(&adapter, &api_key, &side, &hash, now_ms)
+            .map_err(erro)
+    }
+
+    /// Apaga o `bad` do hash em QUALQUER conta do adapter (reparo sem apiKey) e
+    /// devolve quantas LINHAS saíram — o Node baixa esse número do agregado.
+    #[napi]
+    pub fn forget_bad_of(&self, adapter: String, hash: String) -> napi::Result<u32> {
+        self.inner.forget_bad_of(&adapter, &hash).map_err(erro)
+    }
+
+    /// Apaga TODAS as linhas do namespace (`mag:v1:%`) e devolve quantas saíram.
+    #[napi]
+    pub fn clear(&self) -> napi::Result<u32> {
+        self.inner.clear().map_err(erro)
+    }
+
+    /// Apaga as vencidas e, acima de `maxEntries` (`0` = sem teto), as mais
+    /// antigas por ordem de escrita; `counts` já vem por adapter × lado.
+    #[napi]
+    pub fn sweep(&self, max_entries: u32, now_ms: i64) -> napi::Result<MagSweep> {
+        let sweep = self.inner.sweep(max_entries, now_ms).map_err(erro)?;
+        Ok(sweep.into())
     }
 }
 

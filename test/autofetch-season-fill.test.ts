@@ -12,6 +12,7 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
 import { parseStremioId } from '../src/utils/format.js';
@@ -53,7 +54,6 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     ...brDubCandidate(h, 'Show Temporada Completa Dublado'),
     title: 'Show Temporada Completa Dublado',
   };
-  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
   const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
   // A lista pronta é do `streams.db` (F4.2(c)): o dublê da ponte é o único
   // lugar onde uma invalidação de `streams` poderia aparecer.
@@ -89,8 +89,8 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     assert.equal(bridge.has(keys[1]), true, 'episódio vizinho não é invalidado sem prova de temporada');
     assert.equal(bridge.count('/streams/invalidate'), 0, 'nenhum pedido de invalidação ao store nativo');
     assert.equal(
-      cache.snapshot().namespaces.davail?.entries || 0,
-      davailBefore + 1,
+      davailState().get('premiumize', apiKey, h, Date.now()),
+      true,
       'hash pronto é semeado no cache de disponibilidade mesmo sem prova de temporada',
     );
     assert.equal(

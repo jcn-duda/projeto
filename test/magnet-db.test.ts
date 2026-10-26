@@ -11,7 +11,7 @@ import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
-import { prefix } from '../src/utils/cache-keys.js';
+import { magnetState, davailState } from '../src/utils/debrid-state-native.js';
 import debrid from '../src/debrid/index.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -134,37 +134,26 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.equal(snapshot._origem.evictedQuota, 'duravel');
 });
 
-test('status: ocupação L1 do mag ≠ tamanho da amostra (órfã sem track)', () => {
-  // Chave mag plantada direto no cache não passa por mark*/track — L1 sobe,
-  // amostra não. Prova que o painel não pode fundir os dois campos.
+test('status: ocupação do namespace mag ≠ tamanho da amostra (órfã sem track)', () => {
+  // Linha escrita direto no núcleo não passa por mark*/track — o namespace
+  // sobe, a amostra não. Prova que o painel não pode fundir os dois campos.
   const before = magnetdb.status();
   const sampleBefore = before.sizeAlive + before.sizeBad + before.sizeLie;
   const l1Before = before.l1Entries;
-  const orphanKey = `${prefix('mag')}alive:orphan-l1:${'d'.repeat(16)}:${'f'.repeat(40)}`;
-  cache.set(orphanKey, 1, 3600);
+  magnetState().markAlive('orphan-l1', 'conta-orfa', ['f'.repeat(40)], 60, Date.now());
   try {
     const after = magnetdb.status();
-    assert.equal(after.l1Entries, l1Before + 1, 'L1 conta a órfã');
+    assert.equal(after.l1Entries, l1Before + 1, 'namespace conta a órfã');
     assert.equal(
       after.sizeAlive + after.sizeBad + after.sizeLie,
       sampleBefore,
-      'amostra tracked não muda com chave órfã',
+      'amostra tracked não muda com a órfã',
     );
-    assert.ok(after.l1Entries !== after.sizeAlive + after.sizeBad + after.sizeLie, 'L1 e amostra são campos distintos');
+    assert.ok(after.l1Entries !== after.sizeAlive + after.sizeBad + after.sizeLie, 'namespace e amostra são campos distintos');
   } finally {
-    cache.forget(orphanKey);
+    // Relógio à frente do TTL da órfã: a varredura nativa apaga só ela.
+    magnetState().sweep(0, Date.now() + 61_000);
   }
-});
-
-test('status: sync do tracked dropta chave evictada/forgotten', () => {
-  const conta = 'conta-sync-tracked-mag';
-  const hash = 'e'.repeat(40);
-  const key = `${prefix('mag')}alive:premiumize:${accountScope(conta)}:${hash}`;
-  const sampleBefore = magnetdb.status().sizeAlive;
-  magnetdb.markAlive('premiumize', conta, [hash]);
-  assert.equal(magnetdb.status().sizeAlive, sampleBefore + 1);
-  cache.forget(key);
-  assert.equal(magnetdb.status().sizeAlive, sampleBefore, 'peek null no status remove a fantasma do Map');
 });
 
 test('pickFile: listagem vazia é null (transferência fria), não prova de magnet quebrado', () => {
@@ -191,20 +180,18 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
   debrid.BY_ID.set('premiumize', adapter as any);
   const key = 'chave-mag-atalho';
   const hash = '7'.repeat(40);
-  const aliveKey = `${prefix('mag')}alive:premiumize:${accountScope(key)}:${hash}`;
-  // L2 residual (davail/alive) de rodada anterior faria a 1ª passada pular a
-  // rede — limpa os dois lados antes de medir o atalho.
-  cache.forget(`${prefix('davail')}premiumize:${accountScope(key)}:${hash}`);
-  cache.forget(aliveKey);
-  magnetdb.forgetBad('premiumize', key, hash);
+  // Estado limpo dos dois lados: L2 residual (davail/alive) de rodada anterior
+  // faria a 1ª passada pular a rede.
+  magnetState().clear();
+  davailState().clear();
   try {
     await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
     assert.equal(calls.length, 1, 'primeira passada vai à rede');
     assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
-    // Simula o alive expirando enquanto o davail (TTL curto) ainda cobre:
-    // sem a renovação no atalho, quanto mais buscado o título, mais cedo o
-    // desempate instant morria no meio do TTL de 7 dias.
-    cache.forget(aliveKey);
+    // Simula o alive expirando enquanto o davail (TTL curto) ainda cobre: não há
+    // `forgetAlive` na ponte, então esvaziar o namespace é o equivalente
+    // observável — o davail fica intacto e a 2ª passada tem de renovar sem rede.
+    magnetState().clear();
     assert.equal(magnetdb.isAlive('premiumize', key, hash), false);
     await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
     assert.equal(calls.length, 1, 'segunda passada é servida pelo L1 do davail, sem rede');
@@ -219,8 +206,9 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
     assert.equal(counters['magnetdb.alive.set'] == null, true, 'alive fresco não é regravado no hit do atalho');
   } finally {
     metrics.reset();
-    cache.forget(`${prefix('davail')}premiumize:${accountScope(key)}:${hash}`);
-    cache.forget(aliveKey);
+    magnetState().clear();
+    davailState().clear();
+    magnetdb.loadPersistentCounts();
     debrid.BY_ID.set('premiumize', original as any);
   }
 });
@@ -291,9 +279,8 @@ test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', asy
   const h = 'f1'.repeat(20);
   cache.clearNamespace('adprot');
   // L2 residual de lie faria o audit pular o candidato (isLie → continue).
-  for (const k of cache.keysMatching(`${prefix('mag')}lie:`)) {
-    if (k.endsWith(h)) cache.forget(k);
-  }
+  // Não há `forgetLie` na ponte: esvaziar o namespace `mag` é o equivalente.
+  magnetState().clear();
   metrics.reset();
   try {
     config.debrid.autoFetchProtectBr = true;
@@ -317,34 +304,31 @@ test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', asy
     config.debrid.autoFetchProtectBr = originalProtect;
     held.unprotect('alldebrid', account, h);
     cache.clearNamespace('adprot');
-    for (const k of cache.keysMatching(`${prefix('mag')}lie:`)) {
-      if (k.endsWith(h)) cache.forget(k);
-    }
+    magnetState().clear();
     metrics.reset();
   }
 });
 
 // Regressão: `bad` vencido que ainda espera a poda continua no store. O
-// forgetBadKey APAGA essa entrada, então precisa reportar que existia — com
-// `peek` ele devolvia false e o magnet-clear-bad dizia "cleared: 0" logo
-// depois de limpar de verdade.
-test('forgetBadKey reporta remoção de bad vencido ainda não podado', async () => {
+// forgetBadOf APAGA essa entrada, então precisa reportar que existia — com
+// uma leitura de `peek` ele devolvia false e o magnet-clear-bad dizia
+// "cleared: 0" logo depois de limpar de verdade.
+test('forgetBadOf reporta remoção de bad vencido ainda não podado', async () => {
   const apiKey = 'chave-forget-vencido';
   const h = 'b'.repeat(40);
   const originalTtl = config.magnetDb.badTtl;
   try {
     config.magnetDb.badTtl = 1;
     magnetdb.markBad('premiumize', apiKey, h);
-    // Filtra pelo hash: outros testes deste arquivo já deixaram `bad` de
-    // premiumize com o TTL cheio, e o primeiro da varredura seria um deles.
-    const key = [...cache.keysMatching(`${prefix('mag')}bad:premiumize:`)].find((k) => k.endsWith(h));
-    assert.ok(key, 'precondição: a chave bad foi gravada');
     await new Promise((r) => setTimeout(r, 1100));
-    assert.equal(cache.peek(key), null, 'precondição: vencida para quem lê valor');
-    assert.equal(cache.has(key), true, 'precondição: ainda fisicamente no store');
-    assert.equal(magnetdb.forgetBadKey(key), true, 'a remoção é reportada ao operador');
-    assert.equal(cache.has(key), false, 'chave saiu do store');
-    assert.equal(magnetdb.forgetBadKey(key), false, 'segunda passada é idempotente');
+    // `entries` ignora a vencida sem apagá-la (quem apaga é `state`/`sweep`),
+    // então esta é a prova de que a linha física ainda existe. Filtra pelo
+    // hash: outros testes deste arquivo já deixaram `bad` de premiumize com o
+    // TTL cheio e apareceriam na página.
+    const page = magnetState().entries('premiumize', 'bad', h, 0, Date.now());
+    assert.equal(page.matched, 0, 'precondição: vencida para a enumeração');
+    assert.equal(magnetdb.forgetBadOf('premiumize', h), true, 'a remoção é reportada ao operador');
+    assert.equal(magnetdb.forgetBadOf('premiumize', h), false, 'segunda passada é idempotente');
   } finally {
     config.magnetDb.badTtl = originalTtl;
   }

@@ -24,6 +24,10 @@
 //! tratado como ausente — ausência faz o chamador perguntar ao debrid, enquanto
 //! adivinhar pintaria ⚡ falso.
 //!
+//! Desde a T2-L5b o namespace é do Rust ponta a ponta: o Node não carrega nem
+//! poda mais estas linhas, então `clear` (esvaziar) e `sweep` (vencidas + teto
+//! por ordem de escrita) são daqui. Sem eles o namespace cresceria para sempre.
+//!
 //! [`kv`]: crate::kv
 
 use std::path::Path;
@@ -68,6 +72,14 @@ pub fn davail_key(adapter: &str, api_key: &str, hash: &str) -> String {
 pub struct DavailAnswer {
     pub hash: String,
     pub cached: bool,
+}
+
+/// O que a varredura removeu do `davail:v1`. Sem contagem por lado: cada linha
+/// é o veredito de um hash, não uma marca com lado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DavailSweep {
+    pub expired: u32,
+    pub evicted: u32,
 }
 
 /// Estado `davail:v1` no `cache.db` compartilhado com o Node e o gateway.
@@ -226,6 +238,77 @@ impl DavailStore {
         }
         Ok(answers)
     }
+
+    /// Esvazia o namespace inteiro (`davail:v1:%`) e devolve quantas linhas
+    /// saíram.
+    pub fn clear(&self) -> Result<u32, String> {
+        let conn = self.lock();
+        let removed = conn
+            .execute("DELETE FROM cache WHERE key LIKE ?1", params![like_all()])
+            .map_err(|err| err.to_string())?;
+        Ok(u32::try_from(removed).unwrap_or(u32::MAX))
+    }
+
+    /// Poda do namespace, agora que o Node não apaga mais estas linhas: apaga as
+    /// VENCIDAS e, acima de `max_entries` (`0` = sem teto), as mais antigas por
+    /// `rowid` (ordem de escrita). Numa transação só.
+    pub fn sweep(&self, max_entries: u32, now_ms: i64) -> Result<DavailSweep, String> {
+        let conn = self.lock();
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|err| err.to_string())?;
+        // Varredura completa ANTES de apagar: deletar enquanto o `SELECT` anda
+        // pode pular linha, e a conta do teto sairia errada.
+        let rows = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT rowid, key, expires_at FROM cache WHERE key LIKE ?1 ORDER BY rowid",
+                )
+                .map_err(|err| err.to_string())?;
+            let rows = stmt
+                .query_map(params![like_all()], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                })
+                .map_err(|err| err.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|err| err.to_string())?
+        };
+        let mut expired = 0u32;
+        let mut live: Vec<i64> = Vec::new();
+        for (rowid, key, expires_at) in rows {
+            if is_expired(expires_at, now_ms) {
+                expired = expired.saturating_add(1);
+                tx.execute("DELETE FROM cache WHERE key = ?1", params![key])
+                    .map_err(|err| err.to_string())?;
+                continue;
+            }
+            live.push(rowid);
+        }
+        // `max_entries == 0` é teto DESLIGADO, não "apaga tudo".
+        let excess = if max_entries == 0 {
+            0
+        } else {
+            live.len().saturating_sub(max_entries as usize)
+        };
+        let mut evicted = 0u32;
+        for rowid in live.into_iter().take(excess) {
+            tx.execute("DELETE FROM cache WHERE rowid = ?1", params![rowid])
+                .map_err(|err| err.to_string())?;
+            evicted = evicted.saturating_add(1);
+        }
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok(DavailSweep { expired, evicted })
+    }
+}
+
+/// Padrão do namespace inteiro. O prefixo não tem `%`/`_`, então dispensa
+/// escape.
+fn like_all() -> String {
+    format!("{}%", prefix("davail"))
 }
 
 /// `<prefixo davail><adapter>:<accountScope>:` — `None` sem conta.

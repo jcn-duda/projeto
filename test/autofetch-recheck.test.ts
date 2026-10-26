@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
 import { seasonIndexKey, seasonSearchKeys } from '../src/providers/autofetch-season-index.js';
@@ -137,7 +138,6 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     _seeders: 1,
   };
   const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
   const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
   // A lista pronta vive no `streams.db` (F4.2(c)); o store dublado permite
   // provar que NADA foi tocado no L1 (que já não guarda `streams`).
@@ -181,8 +181,8 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     );
     assert.equal(bridge.count('/streams/invalidate'), 0, 'nenhum pedido nativo neste caminho (dívida conhecida)');
     assert.equal(
-      cache.snapshot().namespaces.davail?.entries || 0,
-      davailBefore + 1,
+      davailState().get('premiumize', apiKey, h, Date.now()),
+      true,
       'o hash pronto é semeado no cache de disponibilidade',
     );
   } finally {

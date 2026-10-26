@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
 import { parseStremioId } from '../src/utils/format.js';
@@ -54,7 +55,6 @@ test('hash NÃO-pack pronto no recheck semeia davail', async () => {
     _seeders: 1,
   };
   const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
   const readyNoteBefore = metrics.snapshot().counters['autofetch.ready-note'] || 0;
   let checks = 0;
 
@@ -78,8 +78,8 @@ test('hash NÃO-pack pronto no recheck semeia davail', async () => {
     assert.equal(checks >= 2, true, 'o recheck consultou o debrid depois do aceite');
     assert.equal(cache.get(searchKey), null, 'a busca que enfileirou é invalidada quando o download fica pronto');
     assert.equal(
-      cache.snapshot().namespaces.davail?.entries || 0,
-      davailBefore + 1,
+      davailState().get('premiumize', apiKey, h, Date.now()),
+      true,
       'hash NÃO-pack pronto é semeado no cache de disponibilidade',
     );
     assert.equal(
@@ -133,7 +133,6 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     _seeders: 1,
   };
   const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const davailBefore = cache.snapshot().namespaces.davail?.entries || 0;
   const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
 
   try {
@@ -160,9 +159,9 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     testMock.timers.tick(120_000);
     await flush();
 
-    assert.equal(
-      cache.snapshot().namespaces.davail?.entries || 0,
-      davailBefore,
+    assert.notEqual(
+      davailState().get(rdAdapter.id, apiKey, h, Date.now()),
+      true,
       'adaptador com cacheCheck: false não semeia davail',
     );
     assert.equal(

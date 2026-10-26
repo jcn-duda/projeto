@@ -325,14 +325,14 @@ const PK_VALUE_INTEGRITY_SCRIPT = [
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
   'const now = Date.now();',
   "const complexo = { titulo: 'Coringa', ano: 2019, tags: ['dublado', 'dual'], notas: [9.5, 8, 7.25], nested: { a: [1, 2, 3], b: 'x' }, nulo: null, flag: true };",
-  "insert.run('davail:v1:premiumize:tt-complexa:h', JSON.stringify(complexo), now + 900000);",
-  "insert.run('davail:v1:premiumize:tt-simples:h', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
+  "insert.run('tmdb:movie:tt-complexa', JSON.stringify(complexo), now + 900000);",
+  "insert.run('tmdb:movie:tt-simples', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
   'seed.close();',
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  "assert.deepStrictEqual(cache.get('davail:v1:premiumize:tt-complexa:h'), complexo, 'objeto aninhado volta inteiro via PK');",
-  "assert.deepStrictEqual(cache.get('davail:v1:premiumize:tt-simples:h'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
+  "assert.deepStrictEqual(cache.get('tmdb:movie:tt-complexa'), complexo, 'objeto aninhado volta inteiro via PK');",
+  "assert.deepStrictEqual(cache.get('tmdb:movie:tt-simples'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
 ].join('\n');
 
 test(

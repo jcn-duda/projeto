@@ -26,11 +26,9 @@
 // Exclui deliberadamente releases com `lied`: o post prometeu PT mas os
 // arquivos provaram release EN — não é candidato BR, é ruído da medição.
 import config from '../config.js';
-import * as cache from './cache.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
-import { prefix } from './cache-keys.js';
-import { accountScope } from './request-key.js';
+import { davailState, magnetState } from './debrid-state-native.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import * as releaseIndex from './release-index.js';
 import { popularCohort } from '../providers/imdb-seed.js';
@@ -97,14 +95,13 @@ function operatorCtx(): OperatorCtx {
   return { adapterId: active ? service : null, apiKey: active ? config.debrid.apiKey : '' };
 }
 
-/** Chave do magnetdb.alive construída localmente; lida com peek (quieta). */
-function aliveKey(adapterId: string, apiKey: string, hash: string) {
-  return `${prefix('mag')}alive:${adapterId}:${accountScope(apiKey)}:${String(hash || '').toLowerCase()}`;
-}
-
 type ReleaseStatus = 'hit' | 'miss' | 'unknown';
 
-/** Classificação pura de uma release. Somente leituras quietas de L1. */
+/**
+ * Classificação pura de uma release. Somente leituras QUIETAS (sem escrita, sem
+ * rede). Roda uma vez por release da amostra e por isso paga uma leitura nativa
+ * por hash: é diagnóstico de operador, fora do caminho de busca.
+ */
 export function releaseStatus(release: { hash: string }, ctx: OperatorCtx): ReleaseStatus {
   const ledger = rdLedger.peekQuiet(release.hash);
   let hasHit = false;
@@ -115,11 +112,13 @@ export function releaseStatus(release: { hash: string }, ctx: OperatorCtx): Rele
   if (ledger === 'hit') hasHit = true;
   if (ledger === 'miss') hasMiss = true;
   if (ctx.adapterId && ctx.apiKey) {
-    const davailKey = `${prefix('davail')}${ctx.adapterId}:${accountScope(ctx.apiKey)}:${String(release.hash).toLowerCase()}`;
-    const davail = cache.peek(davailKey);
-    if (davail === 1) hasHit = true;
-    if (davail === 0) hasMiss = true;
-    if (cache.peek(aliveKey(ctx.adapterId, ctx.apiKey, release.hash)) === 1) hasHit = true;
+    const now = Date.now();
+    const davail = davailState().get(ctx.adapterId, ctx.apiKey, release.hash, now);
+    if (davail === true) hasHit = true;
+    if (davail === false) hasMiss = true;
+    // Só a marca `alive` pinta cobertura: `lie` (post PT com arquivo EN) não é
+    // ⚡, e `bad` também não vira miss aqui — o eixo medido é disponibilidade.
+    if (magnetState().state(ctx.adapterId, ctx.apiKey, release.hash, now) === 'alive') hasHit = true;
   }
   // Um positivo (qualquer fonte) vence um miss: falso negativo da cobertura é o
   // erro que a decisão de vazão pagaria. Na dúvida, unknown.

@@ -11,6 +11,7 @@ import * as rdLedger from '../debrid/rd-ledger.js';
 import * as realdebrid from '../debrid/realdebrid.js';
 import * as held from '../debrid/protected.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import { magnetState } from '../utils/debrid-state-native.js';
 import * as autofetch from './autofetch.js';
 import * as activity from './activity.js';
 import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
@@ -29,11 +30,6 @@ type WarmEntry = {
 const QUEUE_KEY = `${prefix('rdq')}wq`;
 // Teto horário durável (≠ `wq`): restart não zera o teto na mesma hora civil.
 const HOUR_KEY = `${prefix('rdq')}hour`;
-
-// Prefixo das chaves `bad` do magnetdb escopadas ao Real-Debrid (qualquer
-// conta): é o que delimita o reparo seletivo dos hashes que a varredura
-// correlaciona com o ledger `blocked`.
-const BAD_RD_PREFIX = `${prefix('mag')}bad:realdebrid:`;
 
 let queue: WarmEntry[] = [];
 let loaded = false;
@@ -273,29 +269,30 @@ async function tick(): Promise<void> {
   }
 }
 
-/** Último token 40-hex de uma chave `bad` = hash do conteúdo (sem expor digest de conta). */
-function hashFromBadKey(key: string): string {
-  const last = key.split(':').pop() || '';
-  return /^[a-f0-9]{40}$/.test(last) ? last : '';
-}
-
 /**
  * Reparo idempotente dos bads que um ramo antigo deste mesmo warmer gravou:
  * hash que o Real-Debrid recusou por lei (HTTP 451) era marcado `bad` no
  * magnetdb. Recusa legal NÃO é magnet quebrado — e o NoVideoError legítimo
  * nunca grava `blocked` no ledger, então `bad + blocked` é, por definição,
- * esse dano. Varre o L1 (carregado do SQLite no boot) uma vez por processo e
- * apaga o `bad` de todo hash RD cujo ledger diga `blocked`. Não usa clear
- * amplo nem bump de namespace; a segunda execução encontra nada e devolve 0.
- * Entradas tardias/L2 são cobertas pelo self-healing no applyDebrid.
+ * esse dano. Enumera os `bad` do realdebrid pelo núcleo (dono do `mag`) uma vez
+ * por processo e apaga o `bad` de todo hash cujo ledger diga `blocked`. Não usa
+ * clear amplo nem bump de namespace; a segunda execução encontra nada e devolve
+ * 0. Entradas tardias/L2 são cobertas pelo self-healing no applyDebrid.
+ *
+ * A chave (com o digest da conta) é montada e parseada do lado de lá: aqui só
+ * chega adapter/side/hash, e o `forgetBadOf` apaga o par (adapter, hash) em
+ * TODAS as contas — o reparo não precisa da credencial.
  */
 function scanBlockedRdBads(): number {
   if (!config.debrid.rdLedger.enabled) return 0;
   let cleared = 0;
-  for (const key of cache.keysMatching(BAD_RD_PREFIX)) {
-    const hash = hashFromBadKey(key);
-    if (!hash || rdLedger.peekQuiet(hash) !== 'blocked') continue;
-    if (magnetdb.forgetBadKey(key)) {
+  // `limit` 0 = SEM LIMITE de propósito: o reparo precisa varrer o namespace
+  // inteiro do realdebrid, não uma página do painel.
+  const page = magnetState().entries('realdebrid', 'bad', null, 0, Date.now());
+  for (const item of page.items) {
+    const hash = item.hash;
+    if (rdLedger.peekQuiet(hash) !== 'blocked') continue;
+    if (magnetdb.forgetBadOf('realdebrid', hash)) {
       cleared += 1;
       metrics.count('magnetdb.bad.clearedBlocked');
     }

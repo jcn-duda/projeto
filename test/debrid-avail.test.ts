@@ -336,7 +336,10 @@ test('medição: hit de L1 não infla o denominador do gate', async () => {
     assert.equal(counters['debrid.check.hashes'], 3, 'só o hash novo paga a janela');
     assert.equal(counters['debrid.check.repeated'] ?? 0, 0, 'repetição absorvida pelo L1 não é repetição');
     assert.equal(counters['davail.servedHashes'], 1, 'o hash respondido pelo L1 é contabilizado à parte');
-    assert.equal(counters['cache.hit.davail'], 1, 'o positivo do L1 conta como hit do namespace');
+    // O namespace `davail` é RUST_OWNED: a leitura não passa mais pelo cache do
+    // Node, então não existe `cache.hit.davail`. Quem mede o L1 é a própria
+    // `davail.servedHashes` (acima) — um hit/miss do Node aqui mediria o vazio.
+    assert.equal(counters['cache.hit.davail'] ?? 0, 0, 'a leitura nativa não inventa hit de L1');
   } finally {
     metrics.reset();
     debrid.BY_ID.set('premiumize', original);

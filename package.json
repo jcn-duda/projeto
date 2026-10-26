@@ -170,6 +170,7 @@
     "test/br-title.test.js",
     "test/cache-foreign-keys.test.js",
     "test/cache-idx-owner.test.js",
+    "test/cache-keys-debrid-owned.test.js",
     "test/cache-namespaces.test.js",
     "test/cache-sqlite.test.js",
     "test/cache.test.js",

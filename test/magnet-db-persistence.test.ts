@@ -28,6 +28,7 @@ try {
 const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 const MAGNETDB_URL = new URL('../src/utils/magnetdb.js', import.meta.url).href;
 const CACHE_KEYS_URL = new URL('../src/utils/cache-keys.js', import.meta.url).href;
+const DEBRID_STATE_URL = new URL('../src/utils/debrid-state-native.js', import.meta.url).href;
 
 function runMultiStageTest(scripts: string[]) {
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -320,6 +321,7 @@ test(
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
       `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)});`,
+      `const { magnetState } = await import(${JSON.stringify(DEBRID_STATE_URL)});`,
       "const now = Date.now;",
       "magnetdb.markAlive('premiumize', 'acc-expired', ['" + MH('alive-expired') + "']);",
       "magnetdb.markBad('premiumize', 'acc-expired', '" + MH('bad-expired') + "');",
@@ -335,9 +337,11 @@ test(
       "assert.strictEqual(after.sizeAlive, before.sizeAlive);",
       "assert.strictEqual(after.sizeBad, before.sizeBad);",
       "assert.strictEqual(after.sizeLie, before.sizeLie);",
-      "assert.strictEqual(cache.keysMatching('mag:v1:alive:premiumize:').length, 1);",
-      "assert.strictEqual(cache.keysMatching('mag:v1:bad:premiumize:').length, 1);",
-      "assert.strictEqual(cache.keysMatching('mag:v1:lie:premiumize:').length, 1);",
+      "// Enumeração nativa: regravar não pode duplicar linha (o `keysMatching` do",
+      "// cache não enxerga mais mag — o namespace é do núcleo).",
+      "for (const side of ['alive', 'bad', 'lie']) {",
+      "  assert.strictEqual(magnetState().entries('premiumize', side, null, 0, Date.now()).matched, 1, 'uma linha por lado: ' + side);",
+      "}",
       "cache.close();",
     ].join('\n');
 

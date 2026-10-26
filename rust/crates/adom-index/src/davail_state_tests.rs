@@ -1,6 +1,8 @@
 //! Provas do `davail_state`: TTL 0 DESLIGA a janela (nada grava), hash vazio
 //! não é chave, negativo vence cedo e sai do lote, conta diferente não enxerga o
 //! cache da outra e o valor legado do Node (`true`/`false` cru) continua legível.
+//! `clear`/`sweep` fecham o ciclo de vida do namespace (o Node não poda mais
+//! estas linhas).
 
 use adom_core::{account_scope, prefix};
 use rusqlite::params;
@@ -16,6 +18,11 @@ fn veredito(lote: &[DavailAnswer], hash: &str) -> Option<bool> {
     lote.iter()
         .find(|item| item.hash == hash)
         .map(|item| item.cached)
+}
+
+/// Leitura de um hash na conta fixa dos testes (`k1` do premiumize).
+fn get(store: &DavailStore, hash: &str, now_ms: i64) -> Option<bool> {
+    store.get("premiumize", "k1", hash, now_ms).expect("get")
 }
 
 #[test]
@@ -336,4 +343,44 @@ fn lote_tem_teto_de_hashes_por_chamada() {
         Some(true),
         "o hash vazio não encurtou o recorte"
     );
+}
+
+#[test]
+fn clear_esvazia_o_namespace() {
+    let store = store();
+    store
+        .put("premiumize", "k1", "pos-hit", true, 600, 1_000)
+        .expect("put positivo");
+    store
+        .put("torbox", "k2", "neg-hit", false, 600, 1_000)
+        .expect("put negativo");
+    assert_eq!(get(&store, "pos-hit", 2_000), Some(true));
+
+    assert_eq!(store.clear().expect("clear"), 2);
+    assert_eq!(get(&store, "pos-hit", 2_000), None);
+    assert_eq!(
+        store.get("torbox", "k2", "neg-hit", 2_000).expect("get"),
+        None
+    );
+    assert_eq!(store.clear().expect("clear vazio"), 0, "idempotente");
+}
+
+#[test]
+fn sweep_apaga_vencida_e_aplica_teto() {
+    let store = store();
+    // Vencida escrita primeiro (expires_at = 61_000) e três vivas depois.
+    for hash in ["velho", "primeiro", "segundo", "terceiro"] {
+        let ttl = if hash == "velho" { 60 } else { 3_600 };
+        store
+            .put("premiumize", "k1", hash, true, ttl, 1_000)
+            .expect("put");
+    }
+
+    let sweep = store.sweep(2, 61_000).expect("sweep");
+    assert_eq!((sweep.expired, sweep.evicted), (1, 1));
+    // A vencida saiu sem esperar leitura; do resto, a mais antiga por rowid sai.
+    assert_eq!(get(&store, "velho", 62_000), None);
+    assert_eq!(get(&store, "primeiro", 62_000), None);
+    assert_eq!(get(&store, "segundo", 62_000), Some(true));
+    assert_eq!(get(&store, "terceiro", 62_000), Some(true));
 }
