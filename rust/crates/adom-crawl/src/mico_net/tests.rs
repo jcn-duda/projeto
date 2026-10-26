@@ -49,6 +49,33 @@ mod throttle_tests {
         );
     }
 
+    /// Retry-After acima do teto espera só o teto: o throttle segura a cadeia
+    /// inteira (e a descoberta da lane) durante a espera.
+    #[tokio::test]
+    async fn throttle_corta_retry_after_no_teto() {
+        let throttle = MicoThrottle::new(0).with_max_retry_after(100);
+        throttle.wait().await;
+        throttle.record_call();
+
+        // 1 h pedida pela API: o teto de 100ms vence.
+        throttle.honor_retry_after(3_600_000);
+
+        let start = Instant::now();
+        throttle.wait().await;
+        let elapsed = start.elapsed().as_millis() as u64;
+        assert!(elapsed >= 80, "o teto ainda espera: {elapsed}ms");
+        assert!(elapsed < 2_000, "não esperou a hora pedida: {elapsed}ms");
+    }
+
+    /// Sem teto explícito vale o default (10 min), nunca a espera ilimitada.
+    #[test]
+    fn teto_default_do_retry_after_e_dez_minutos() {
+        use crate::mico_net::throttle::DEFAULT_MAX_RETRY_AFTER_MS;
+        use crate::mico_net::types::MicoClientConfig;
+        assert_eq!(DEFAULT_MAX_RETRY_AFTER_MS, 600_000);
+        assert_eq!(MicoClientConfig::default().max_retry_after_ms, 600_000);
+    }
+
     /// Serialização: duas chamadas em paralelo → segunda espera a primeira.
     #[tokio::test]
     async fn throttle_serializes_concurrent_calls() {

@@ -165,13 +165,18 @@ async fn main() {
             base_url: mico_cfg.base_url.clone(),
             timeout_ms: env_u64("MICO_TIMEOUT_MS", 15_000),
             min_gap_ms: env_u64("MICO_CRAWL_MIN_GAP_MS", 1_000),
+            max_retry_after_ms: env_u64(
+                "MICO_RETRY_AFTER_MAX_MS",
+                adom_crawl::mico_net::throttle::DEFAULT_MAX_RETRY_AFTER_MS,
+            ),
         }));
         let lane = Arc::new(MicoLane::new(client.clone(), mico_cfg.clone()));
         eprintln!(
-            "[adom-sidecar] mico: lane ligada (base={}, gap={}ms, full_sweep={}h)",
+            "[adom-sidecar] mico: lane ligada (base={}, gap={}ms, full_sweep={}h, prazo da descoberta={}s)",
             mico_cfg.base_url,
             env_u64("MICO_CRAWL_MIN_GAP_MS", 1_000),
-            mico_cfg.full_sweep_hours
+            mico_cfg.full_sweep_hours,
+            mico_cfg.discovery_deadline_ms / 1000
         );
         (client, lane)
     });
@@ -335,5 +340,10 @@ fn mico_config() -> MicoCrawlConfig {
         // (do topo, parando em páginas só com obras na fila). Não existe no TS
         // porque lá a rodada era o próprio ciclo de 60 min do crawler.
         discovery_interval_ms: env_u64("MICO_CRAWL_DISCOVERY_INTERVAL_MS", 3_600_000) as i64,
+        // Prazo próprio, não o `CRAWL_DISCOVERY_DEADLINE_MS` do sidecar: aquele
+        // vale 5 min para sitemap e cortaria toda varredura completa do Mico.
+        discovery_deadline_ms: env_u64("MICO_CRAWL_DISCOVERY_DEADLINE_MS", 7_200_000).max(1_000)
+            as i64,
+        slow_step_ms: env_u64("MICO_CRAWL_SLOW_STEP_MS", 300_000) as i64,
     }
 }

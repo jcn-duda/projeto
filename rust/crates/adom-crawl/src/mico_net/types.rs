@@ -88,6 +88,8 @@ pub struct MicoClientConfig {
     pub timeout_ms: u64,
     /// Intervalo mínimo entre chamadas em milissegundos (default: 1_000).
     pub min_gap_ms: u64,
+    /// Teto do `Retry-After` honrado, em milissegundos (default: 10 min).
+    pub max_retry_after_ms: u64,
 }
 
 impl Default for MicoClientConfig {
@@ -96,6 +98,7 @@ impl Default for MicoClientConfig {
             base_url: "https://mico-leao-dublado-apiv-2.vercel.app".to_string(),
             timeout_ms: 15_000,
             min_gap_ms: 1_000,
+            max_retry_after_ms: crate::mico_net::throttle::DEFAULT_MAX_RETRY_AFTER_MS,
         }
     }
 }

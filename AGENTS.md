@@ -423,8 +423,12 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   `CRAWL_MAX_PARALLEL`. Só site sem Jackett/FlareSolverr pode ter `ownPace`.
 - **Passo tem prazo duro** (`boundedStep`, `stepDeadlineFor`): linha
   `CRAWL_STEP_DEADLINE_MS` (~700s, conta do Mico), faixa Flare
-  `CRAWL_FLARE_STEP_DEADLINE_MS` (~44 min), descoberta
-  `CRAWL_DISCOVERY_DEADLINE_MS` (2h). Ao vencer, a geração é invalidada: escrita
+  `CRAWL_FLARE_STEP_DEADLINE_MS` (~44 min), descoberta de sitemap/listagem
+  `CRAWL_DISCOVERY_DEADLINE_MS` (5 min no sidecar) e descoberta do Mico
+  `MICO_CRAWL_DISCOVERY_DEADLINE_MS` (2 h, macio entre páginas + duro de 1 min
+  a mais; ela roda DENTRO do passo da lane — sem prazo, a lane ficou ~18 h sem
+  ler em 2026-10-26). `Retry-After` do Mico tem teto (`MICO_RETRY_AFTER_MAX_MS`,
+  10 min) e passo lento da lane vai ao log. Ao vencer, a geração é invalidada: escrita
   tardia é barrada pela cerca (`isAborted`, que também para os laços de
   botão/episódio) e marker/cursor de descoberta só grava via `commit` diferido.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com

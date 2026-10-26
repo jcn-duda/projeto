@@ -40,7 +40,8 @@ impl MicoClient {
             .build()
             .expect("failed to build reqwest client");
 
-        let throttle = MicoThrottle::new(config.min_gap_ms);
+        let throttle =
+            MicoThrottle::new(config.min_gap_ms).with_max_retry_after(config.max_retry_after_ms);
         let imdb_re = Regex::new(IMDB_ID_PATTERN).expect("invalid IMDb ID regex");
 
         Self {

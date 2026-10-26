@@ -56,6 +56,12 @@ pub struct MicoCrawlConfig {
     pub series_max_buttons: u32,
     /// Intervalo entre rodadas de descoberta (incremental), em ms.
     pub discovery_interval_ms: i64,
+    /// Prazo DURO de UMA rodada de descoberta (os dois tipos), em ms. A
+    /// descoberta roda no passo da lane, que não lê página enquanto ela dura:
+    /// sem prazo, uma rodada travada segurou o Mico ~18 h sem ler (2026-10-26).
+    pub discovery_deadline_ms: i64,
+    /// Passo da lane acima disto vira log (`passo lento`), em ms.
+    pub slow_step_ms: i64,
 }
 
 impl Default for MicoCrawlConfig {
@@ -74,6 +80,12 @@ impl Default for MicoCrawlConfig {
             series_max_seasons: 2,
             series_max_buttons: 40,
             discovery_interval_ms: 3_600_000,
+            // 2 h: o prazo histórico da descoberta do Mico no motor TS
+            // (`CRAWL_DISCOVERY_DEADLINE_MS`). A varredura completa medida
+            // levou 17 min na VPS; 5 min (o prazo dos sitemaps) a cortaria
+            // sempre, e sem fim provado o marcador nunca seria gravado.
+            discovery_deadline_ms: 7_200_000,
+            slow_step_ms: 300_000,
         }
     }
 }

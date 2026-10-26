@@ -2117,7 +2117,10 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   `CRAWL_STEP_DEADLINE_MS` (default derivado dos botões, timeout e gap do Mico:
   700000 ms nos defaults). A descoberta tem prazo separado,
   `CRAWL_DISCOVERY_DEADLINE_MS` (default 7200000 ms), para não cortar os dois
-  catálogos completos legítimos. Ao expirar, a geração perde a posse, a obra
+  catálogos completos legítimos. (No sidecar Rust esse knob ficou com 5 min e
+  vale só para sitemap/listagem; o Mico ganhou `MICO_CRAWL_DISCOVERY_DEADLINE_MS`,
+  2 h, depois de a lane ficar ~18 h presa numa descoberta sem prazo em
+  2026-10-26 — ver `motor/mico_lane.rs`.) Ao expirar, a geração perde a posse, a obra
   recebe `step-timeout` retentável com progresso preservado e resultados
   tardios não podem gravar fila, índice ou banco. O motor pede `deferCommit`:
   marcadores `full-sweep:*` do Mico e cursores de listagem HDR/Apache só são

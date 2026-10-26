@@ -18,15 +18,23 @@ struct ThrottleState {
     not_before: Option<Instant>,
 }
 
+/// Teto default do `Retry-After` honrado (10 min). O throttle segura a
+/// cadeia inteira durante a espera, e a descoberta roda no passo da lane: um
+/// `Retry-After` de horas parava o Mico pelo mesmo tanto, sem log.
+pub const DEFAULT_MAX_RETRY_AFTER_MS: u64 = 600_000;
+
 /// Throttle serializado para chamadas ao Mico.
 ///
 /// Garante:
 /// - Intervalo mínimo entre chamadas (`min_gap_ms`).
-/// - Respeito ao `Retry-After` de respostas 429 (`not_before`).
+/// - Respeito ao `Retry-After` de respostas 429 (`not_before`), limitado a
+///   `max_retry_after_ms`.
 /// - Serialização via `chain` (duas chamadas concorrentes → segunda espera a primeira).
 pub struct MicoThrottle {
     /// Intervalo mínimo entre chamadas, em milissegundos.
     min_gap_ms: u64,
+    /// Teto da espera de um `Retry-After`, em milissegundos.
+    max_retry_after_ms: u64,
     /// Estado mutável (last_call_at, not_before).
     state: StdMutex<ThrottleState>,
     /// Mutex que serializa as chamadas (uma por vez na cadeia).
@@ -38,12 +46,19 @@ impl MicoThrottle {
     pub fn new(min_gap_ms: u64) -> Self {
         Self {
             min_gap_ms,
+            max_retry_after_ms: DEFAULT_MAX_RETRY_AFTER_MS,
             state: StdMutex::new(ThrottleState {
                 last_call_at: None,
                 not_before: None,
             }),
             chain: TokioMutex::new(()),
         }
+    }
+
+    /// Troca o teto do `Retry-After` (`MICO_RETRY_AFTER_MAX_MS`).
+    pub fn with_max_retry_after(mut self, max_retry_after_ms: u64) -> Self {
+        self.max_retry_after_ms = max_retry_after_ms;
+        self
     }
 
     /// Espera o intervalo mínimo e/ou o `Retry-After` antes de permitir a chamada.
@@ -110,6 +125,15 @@ impl MicoThrottle {
     /// O `not_before` é o maior valor entre o atual e `now + retry_after_ms`,
     /// para não encurtar um adiamento anterior.
     pub fn honor_retry_after(&self, retry_after_ms: u64) {
+        let pedido = retry_after_ms;
+        let retry_after_ms = pedido.min(self.max_retry_after_ms);
+        if retry_after_ms < pedido {
+            eprintln!(
+                "[motor] mico: Retry-After de {}s acima do teto; esperando {}s",
+                pedido / 1000,
+                retry_after_ms / 1000
+            );
+        }
         let now = Instant::now();
         let deadline = now + Duration::from_millis(retry_after_ms);
         let mut state = self.state.lock().unwrap();
