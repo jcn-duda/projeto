@@ -154,7 +154,7 @@ impl MicoClient {
                     );
                     return MicoOutcome::Http(status);
                 }
-                match serde_json::from_slice::<Value>(&bytes) {
+                match parse_body(&bytes) {
                     // JSON sem `streams` é resposta vazia válida: o TS lê
                     // `Array.isArray(data?.streams) ? … : []` e conta sucesso.
                     Ok(data) => {
@@ -271,7 +271,7 @@ async fn fetch_streams_with(
                     retry_after_ms: retry_after_ms(retry.as_deref(), now_ms()),
                 });
             }
-            match serde_json::from_slice::<Value>(&bytes) {
+            match parse_body(&bytes) {
                 Ok(data) => Ok(MicoFetchOutcome {
                     items: collect_streams(&data),
                     ok: true,
@@ -329,6 +329,15 @@ fn classify(error: reqwest::Error) -> FetchFailure {
     } else {
         FetchFailure::Network(error.to_string())
     }
+}
+
+/// Corpo da resposta como o `res.json()` do TS o lia: UTF-8 tolerante e
+/// surrogate órfão fora (o Mico corta título no meio do emoji; ver
+/// `adom_core::json_text`). Sem isso uma obra com `\ud83d…` virava
+/// `InvalidJson` e falha no breaker.
+fn parse_body(bytes: &[u8]) -> serde_json::Result<Value> {
+    let text = String::from_utf8_lossy(bytes);
+    serde_json::from_str(&adom_core::json_text::drop_lone_surrogate_escapes(&text))
 }
 
 fn collect_streams(data: &Value) -> Vec<MicoRawItem> {

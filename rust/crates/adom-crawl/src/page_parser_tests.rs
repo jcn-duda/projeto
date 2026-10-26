@@ -90,3 +90,18 @@ fn test_parse_crawl_page_bludv_misto_preserva_legados() {
     assert!(res.releases[0].magnet.starts_with("magnet:"));
     assert_eq!(res.gate, None, "portão não vira pendência quando há link");
 }
+
+/// A API do Mico corta o título no meio do emoji (`\ud83d…`, medido em
+/// produção 2026-10-26). O `JSON.parse` do TS aceitava; o `serde_json` recusava
+/// a página inteira ("mico json inválido: unexpected end of hex escape").
+#[test]
+fn mico_com_emoji_cortado_no_titulo_nao_vira_erro() {
+    let hash = "a".repeat(40);
+    let json = format!(
+        r#"{{"streams":[{{"infoHash":"{hash}","title":"Filme X - Douglasvip (brazilian) \ud83d…\n👥 0 · 📦 4.1 GB"}}]}}"#
+    );
+    let res = parse_mico_content("https://mico.example/tt28803690/movie", false, &json);
+    assert_eq!(res.status, "done", "erro: {:?}", res.error);
+    assert_eq!(res.releases.len(), 1);
+    assert_eq!(res.releases[0].title, "Filme X - Douglasvip (brazilian)");
+}

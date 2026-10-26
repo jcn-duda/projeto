@@ -115,11 +115,15 @@ impl MicoClient {
             });
         }
 
-        // Parse JSON.
-        let data: Value = response
-            .json()
+        // Parse JSON tolerante a surrogate órfão (nome cortado no meio do
+        // emoji), como o `JSON.parse` do TS: ver `adom_core::json_text`.
+        let text = response
+            .text()
             .await
             .map_err(|e| MicoError::JsonParseError(e.to_string()))?;
+        let data: Value =
+            serde_json::from_str(&adom_core::json_text::drop_lone_surrogate_escapes(&text))
+                .map_err(|e| MicoError::JsonParseError(e.to_string()))?;
 
         // Extrai metas[].id e filtra por IMDb ID válido.
         let metas = data

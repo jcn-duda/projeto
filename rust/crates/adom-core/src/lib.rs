@@ -1,6 +1,4 @@
-//! Núcleo Rust do Adom — migração TS→Rust.
-//! 25+ módulos portados com golden em `rust/golden/` (~4.000+ casos).
-//! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
+//! Núcleo Rust do Adom (migração TS→Rust, golden em `rust/golden/`); o Node chega aqui pelo `adom-napi`.
 
 mod audio_cleanup_verdicts;
 mod audio_lang;
@@ -52,6 +50,7 @@ mod instant_bank;
 mod inventory_filter;
 mod js_text;
 mod js_text16;
+pub mod json_text;
 mod latin_table;
 mod magnet_display_name;
 mod magnet_uri;

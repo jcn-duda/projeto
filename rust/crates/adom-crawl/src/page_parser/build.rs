@@ -257,7 +257,8 @@ pub(super) fn parse_mico_content(url: &str, is_series: bool, json_text: &str) ->
     let parsed_url = parse_mico_url(url, None);
     let imdb = parsed_url.as_ref().map(|p| p.imdb.clone());
 
-    let v: serde_json::Value = match serde_json::from_str(json_text) {
+    let json_text = adom_core::json_text::drop_lone_surrogate_escapes(json_text);
+    let v: serde_json::Value = match serde_json::from_str(&json_text) {
         Ok(val) => val,
         Err(e) => return CrawlPageParsed::error(url, &format!("mico json inválido: {e}")),
     };
