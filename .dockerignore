@@ -12,5 +12,6 @@ dist
 test
 *.md
 jackett-screenshot.png
-# Workspace Rust: nunca vai ao contexto de build.
-rust/target
+# Workspace Rust: nunca vai ao contexto de build (inclui target-wt de
+# worktree, que ficava fora do padrão e mandava ~15 GB pro daemon).
+rust/target*
