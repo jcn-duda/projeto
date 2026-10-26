@@ -22,7 +22,7 @@
  */
 import config from '../config.js';
 import { prefix } from '../utils/cache-keys.js';
-import * as cache from '../utils/cache.js';
+import { kvForget, kvKeys, kvPeek, kvRemaining, kvSet } from '../utils/native-kv.js';
 import * as metrics from '../utils/metrics.js';
 
 const held = new Map();
@@ -70,8 +70,8 @@ function isHeld(hash: string, account = 'none') {
 }
 
 // ---------------------------------------------------------------------------
-// Proteção durável (`adprot:v1`) — registros persistidos no cache L1/L2. A
-// leitura usa `cache.peek`, SEM promover LRU nem contar hit/miss: uma sonda de
+// Proteção durável (`adprot:v1`) — chaves do núcleo (`RUST_OWNED`, T2-L6). A
+// leitura usa `kvPeek`, SEM promover LRU nem contar hit/miss: uma sonda de
 // limpeza não pode reordenar o cache nem inflar os contadores do painel.
 // ---------------------------------------------------------------------------
 
@@ -94,8 +94,8 @@ function protectBr(adapterId: string, account: string, hash: string) {
   const h = String(hash || '').toLowerCase();
   if (!enabled(adapterId) || !h) return;
   const k = dKey(adapterId, account, h);
-  if (cache.peek(k)) return;
-  cache.set(k, { acceptedAt: Date.now(), readyAt: null }, config.debrid.autoFetchProtectBrTtl);
+  if (kvPeek(k)) return;
+  if (!kvSet(k, { acceptedAt: Date.now(), readyAt: null }, config.debrid.autoFetchProtectBrTtl)) return;
   metrics.count('adprot.set');
 }
 
@@ -111,21 +111,21 @@ function noteReady(adapterId: string, account: string, hash: string) {
   const h = String(hash || '').toLowerCase();
   if (!h) return;
   const k = dKey(adapterId, account, h);
-  const rec = cache.peek(k) as DurableProtection | null;
+  const rec = kvPeek(k) as DurableProtection | null;
   if (!rec || typeof rec !== 'object') return;
   const ttl = config.debrid.autoFetchProtectBrTtl;
-  const remaining = cache.peekRemaining(k);
+  const remaining = kvRemaining(k);
   const wasReady = Number(rec.readyAt) > 0;
   // Ready aparece em toda checagem futura. Regravar só na transição ou quando
   // metade do TTL venceu evita uma escrita SQLite por busca sem deixar o acervo
   // expirar silenciosamente enquanto continua sendo usado.
   if (wasReady && remaining != null && remaining > ttl / 2) return;
-  cache.set(
+  const wrote = kvSet(
     k,
     { acceptedAt: Number(rec.acceptedAt) || Date.now(), readyAt: wasReady ? rec.readyAt : Date.now() },
     ttl,
   );
-  metrics.count(wasReady ? 'adprot.renewed' : 'adprot.ready');
+  if (wrote) metrics.count(wasReady ? 'adprot.renewed' : 'adprot.ready');
 }
 
 /**
@@ -149,10 +149,10 @@ function reconcile(adapterId: string, account: string, hash: string) {
   const h = String(hash || '').toLowerCase();
   if (!h) return;
   const k = dKey(adapterId, account, h);
-  const rec = cache.peek(k) as DurableProtection | null;
+  const rec = kvPeek(k) as DurableProtection | null;
   if (!rec || typeof rec !== 'object') return;
   if (Number(rec.readyAt) > 0) {
-    cache.forget(k);
+    kvForget(k);
     metrics.count('adprot.regressed');
     return;
   }
@@ -160,7 +160,7 @@ function reconcile(adapterId: string, account: string, hash: string) {
   // registro não pode sobreviver MAIS que o contrato que o criou.
   const pendingMs = Date.now() - (Number(rec.acceptedAt) || 0);
   if (pendingMs >= config.debrid.autoFetchTtl * 1000) {
-    cache.forget(k);
+    kvForget(k);
     metrics.count('adprot.pendingExpired');
   }
 }
@@ -170,8 +170,8 @@ function unprotect(adapterId: string, account: string, hash: string) {
   const h = String(hash || '').toLowerCase();
   if (!h) return;
   const k = dKey(adapterId, account, h);
-  if (!cache.peek(k)) return;
-  cache.forget(k);
+  if (!kvPeek(k)) return;
+  kvForget(k);
   metrics.count('adprot.cleared');
 }
 
@@ -180,7 +180,7 @@ function isDurablyProtected(adapterId: string, account: string, hash: string): b
   if (!enabled(adapterId)) return false;
   const h = String(hash || '').toLowerCase();
   if (!h) return false;
-  return cache.peek(dKey(adapterId, account, h)) != null;
+  return kvPeek(dKey(adapterId, account, h)) != null;
 }
 
 /**
@@ -264,20 +264,20 @@ function pruneMissing(adapterId: string, account: string, presentHashes: Iterabl
   }
   const p = `${adprotPrefix}${adapterId}:${account}:`;
   let removed = 0;
-  for (const k of cache.keysMatching(p)) {
+  for (const k of kvKeys(p)) {
     const hash = k.slice(p.length).toLowerCase();
     if (!hash || present.has(hash)) continue;
     if (isHeld(hash, account)) continue;
-    const rec = cache.peek(k);
+    const rec = kvPeek(k);
     if (!rec || typeof rec !== 'object') {
       // Registro já expirado/corrompido: não é acervo vivo, sobe direto.
-      cache.forget(k);
+      kvForget(k);
       continue;
     }
     const acceptedMs = Number((rec as DurableProtection).acceptedAt);
     const ageMs = Date.now() - acceptedMs;
     if (graceMs > 0 && acceptedMs && ageMs <= graceMs) continue;
-    cache.forget(k);
+    kvForget(k);
     metrics.count('adprot.pruned');
     removed += 1;
   }

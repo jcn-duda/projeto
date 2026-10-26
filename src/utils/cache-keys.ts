@@ -204,7 +204,7 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // e cai nela; escrita, invalidação e poda de vencidos vão por ela. `davail` e
 // `mag` entram TAMBÉM em `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo,
 // e não o nome do namespace, que bloqueia `get`/`peek` no L1.
-const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag']);
+const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot']);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
 //
@@ -219,7 +219,12 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag']);
 // `harvest`, mais um: `cache.get`/`peek` só consultam ESTA lista (`isRustOwned`
 // vale para escrita/forget/persist), então sem o prefixo a leitura do L1
 // devolveria sempre vazio em vez de cair na ponte.
-const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest'), prefix('davail'), prefix('mag')]);
+//
+// `adsub:v1` e `adprot:v1` (T2-L6) têm o mesmo desenho: a posse e a retenção BR
+// sobrevivem ao restart no MESMO `cache.db`, e o `adom-debrid` já as lê por
+// lá; deixar o Node escrever no L1 criava segundo escritor para um estado que
+// decide o que a limpeza da conta pode apagar.
+const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest'), prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot')]);
 
 const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
 

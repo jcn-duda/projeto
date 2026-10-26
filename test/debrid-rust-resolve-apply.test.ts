@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvPeek, kvSet } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
@@ -189,8 +190,8 @@ test('DubLieError marca lie, destrava o adprot da conta e invalida a obra', asyn
   const hash = 'a7'.repeat(20);
   const key = streamKey(IMDB_LIE, 1, 1);
   const markerKey = `${prefix('adprot')}alldebrid:${accountScope(API_KEY)}:${hash}`;
-  cache.set(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
-  assert.ok(cache.peek(markerKey), 'precondição: retenção durável de pé');
+  kvSet(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
+  assert.ok(kvPeek(markerKey), 'precondição: retenção durável de pé');
   const bridge = createStreamsBridge({
     entries: [{ type: 'series', id: `${IMDB_LIE}:1:1`, key, cache: { partial: false } }],
   });
@@ -202,7 +203,7 @@ test('DubLieError marca lie, destrava o adprot da conta e invalida a obra', asyn
     );
 
     assert.equal(magnetdb.isLie('alldebrid', API_KEY, hash), true, 'a mentira vai para o banco de magnets');
-    assert.equal(cache.get(markerKey), null, 'a prova de release EN destrava a proteção durável');
+    assert.equal(kvPeek(markerKey), null, 'a prova de release EN destrava a proteção durável');
     assert.ok(stub.counts.includes('resolve.streamsInvalidated.obra.requested'));
     await flushNativeStreamStores();
     assert.equal(bridge.has(key), false, 'streams da obra da dica foram invalidados no store nativo');

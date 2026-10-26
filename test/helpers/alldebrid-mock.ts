@@ -8,6 +8,7 @@
 // cada tentativa (é o que expõe sobreposição entre chamadas concorrentes).
 import config from '../../src/config.js';
 import { prefix } from '../../src/utils/cache-keys.js';
+import { kvForget } from '../../src/utils/native-kv.js';
 import * as metrics from '../../src/utils/metrics.js';
 import * as cache from '../../src/utils/cache.js';
 import * as autofetch from '../../src/providers/autofetch.js';
@@ -200,7 +201,7 @@ export async function runSuppressed1b(opts: Revalidate1BOpts) {
       restore();
       api.restore();
       suppressed.forgetSuppressed('alldebrid', account, hash);
-      cache.forget(`${prefix('adsub')}${account}:${hash}`);
+      kvForget(`${prefix('adsub')}${account}:${hash}`);
       cache.forget(autofetch.deadKey('alldebrid', account, hash));
       metrics.reset();
     },

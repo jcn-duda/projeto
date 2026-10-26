@@ -9,6 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvSet } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
@@ -203,7 +204,7 @@ test('1b BYO: status terminal por TEXTO remove via gate e limpa o represado', as
     uploadDate: Math.floor((Date.now() - 3600_000) / 1000),
     status: 'Download took more than 3 days',
     before: ({ account, hash }) => {
-      cache.set(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600);
+      kvSet(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600);
       autofetch.blacklist('alldebrid', account, hash); // o que o collapseTerminal deixou
     },
   });
@@ -272,7 +273,7 @@ test('1b BYO: re-add do usuário (uploadDate > adsub+margem) não remove e liqui
   const r = await runSuppressed1b({
     key: 'byo-1b-readd', seed: 'ac', id: 512, filename: 'Readd.2024.1080p', uploadDate: quando,
     status: 'Download took more than 3 days',
-    before: ({ account, hash }) => cache.set(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600),
+    before: ({ account, hash }) => kvSet(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600),
   });
   try {
     assert.deepEqual([...r.api.deleted], [], 'magnet readicionado pelo usuário nunca sai');
@@ -291,7 +292,7 @@ test('1b BYO: terminal recém-chegado (idade < piso) não é removido', async ()
     uploadDate: Math.floor((Date.now() - 5 * 60_000) / 1000),
     status: 'Download took more than 3 days',
     patch: { suppressedRevalidateMinAgeMs: 30 * 60_000 },
-    before: ({ account, hash }) => cache.set(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600),
+    before: ({ account, hash }) => kvSet(`${prefix('adsub')}${account}:${hash}`, { at: Date.now() }, 3600),
   });
   try {
     assert.deepEqual([...r.api.deleted], [], 'piso de idade protegendo o recém-aceito');
@@ -326,8 +327,8 @@ test('1b BYO: contas isoladas — a rodada de uma não alcança o represado da o
     // Prova de posse das DUAS contas: terminal só é removido com `adsub` (a
     // exigência nova do 1b). Sem ela nenhum delete aconteceria e o teste não
     // provaria o isolamento.
-    cache.set(`${prefix('adsub')}${accA}:${hA}`, { at: Date.now() }, 3600);
-    cache.set(`${prefix('adsub')}${accB}:${hB}`, { at: Date.now() }, 3600);
+    kvSet(`${prefix('adsub')}${accA}:${hA}`, { at: Date.now() }, 3600);
+    kvSet(`${prefix('adsub')}${accB}:${hB}`, { at: Date.now() }, 3600);
     suppressed.noteSuppressed('alldebrid', accA, hA, '505');
     suppressed.noteSuppressed('alldebrid', accB, hB, '506');
     scheduleSuppressedRevalidate(KEY_A);
@@ -338,8 +339,8 @@ test('1b BYO: contas isoladas — a rodada de uma não alcança o represado da o
     restore(); api.restore();
     suppressed.forgetSuppressed('alldebrid', accA, hA);
     suppressed.forgetSuppressed('alldebrid', accB, hB);
-    cache.forget(`${prefix('adsub')}${accA}:${hA}`);
-    cache.forget(`${prefix('adsub')}${accB}:${hB}`);
+    kvForget(`${prefix('adsub')}${accA}:${hA}`);
+    kvForget(`${prefix('adsub')}${accB}:${hB}`);
     metrics.reset();
   }
 });
@@ -376,7 +377,7 @@ test('1b BYO: o registro não guarda a chave e o boot reindexa sem credencial pe
   const restore = withDebrid({ ...BYO_1B_PATCH });
   try {
     // Prova de posse (adsub) — sem ela o terminal não sai pelo fail-safe 8.15.
-    cache.set(`${prefix('adsub')}${account}:${h}`, { at: Date.now() }, 3600);
+    kvSet(`${prefix('adsub')}${account}:${h}`, { at: Date.now() }, 3600);
     // Semeia DIRETO no cache (como o registro persistido de um processo antigo):
     // o índice de processo não o conhece — é o `reindexSuppressed` do boot que o
     // reencontra, sem nenhuma chave de API no endereço/valor.
@@ -392,7 +393,7 @@ test('1b BYO: o registro não guarda a chave e o boot reindexa sem credencial pe
   } finally {
     restore(); api.restore();
     suppressed.forgetSuppressed('alldebrid', account, h);
-    cache.forget(`${prefix('adsub')}${account}:${h}`);
+    kvForget(`${prefix('adsub')}${account}:${h}`);
     metrics.reset();
   }
 });

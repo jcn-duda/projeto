@@ -7,6 +7,7 @@ import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvSet } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { mockAccountWith, settle, flushImmediate, type FileEntry } from './helpers/alldebrid-account-mock.js';
 
@@ -24,7 +25,7 @@ const retain = (
   hash: string,
   { readyAt = null, acceptedAt = Date.now() }: { readyAt?: number | null; acceptedAt?: number } = {},
 ) => {
-  cache.set(`${prefix('adprot')}alldebrid:${account}:${hash}`, { acceptedAt, readyAt }, 3600);
+  kvSet(`${prefix('adprot')}alldebrid:${account}:${hash}`, { acceptedAt, readyAt }, 3600);
 };
 
 const KEY = 'chave-de-teste';

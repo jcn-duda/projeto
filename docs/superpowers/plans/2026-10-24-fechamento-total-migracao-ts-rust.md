@@ -2374,106 +2374,86 @@ git add rust/crates/adom-harvest rust/crates/adom-server/src/harvest
 git commit -m "feat(harvest): replay de runs pendentes com retomada exata"
 ```
 
-### T2-L6: `adsub`/`adprot` no Rust e fim do feed de holds
+### T2-L6: `adsub`/`adprot` no dono único — EXECUTADA (feed de holds mantido)
 
 Posse (`adsub`) e proteção BR (`adprot`) são pré-requisito do delete da
-AllDebrid. O Rust já **lê** os dois (`cleanup_durable.rs:148-227`); esta fatia
-move a **escrita** e apaga o feed HTTP que hoje transporta os holds do Node.
+AllDebrid: o `CleanupGate` nativo já as **lia** do `cache.db`
+(`cleanup_durable.rs:148-227`), mas quem **escrevia** era o Node, com o
+`cache.ts` mantendo um L1 paralelo para o mesmo estado. Esta fatia tirou o
+segundo escritor.
 
-**Files:**
-- Create: `rust/crates/adom-debrid/src/ownership.rs`
-- Create: `rust/crates/adom-debrid/src/ownership_tests.rs`
-- Modify: `rust/crates/adom-debrid/src/cleanup_durable.rs` (lê do store próprio)
-- Modify: `rust/crates/adom-debrid/src/api.rs` (rota `POST /debrid/holds` some)
-- Delete: `src/routes/internal-debrid-holds.ts`
-- Modify: `src/addon.ts` (remove o registro da rota)
-- Modify: `src/debrid/alldebrid-inventory.ts:112` (para de escrever `adsub`)
-- Modify: `src/utils/protected.ts:98,123` (para de escrever `adprot`)
-- Modify: `src/utils/cache-keys.ts` (`adsub`/`adprot` em `RUST_OWNED`)
-- Modify: `.env.example` (`DEBRID_AL_HOLDS` documenta o novo dono)
+**DESVIO MEDIDO no código (antes de executar) — o plano original pedia três
+coisas que o código não sustenta:**
 
-- [ ] **Step 1: escrever os testes que falham**
+1. **O feed `POST /internal/debrid/holds` NÃO sai nesta fatia.** Ele não
+   transporta só `adsub`/`adprot`: carrega também o **hold volátil** do
+   autofetch (`held`, em memória em `protected.ts`) e o `knownBefore` (snapshot
+   de pré-existência da conta), que só migram em T3-L5/T3-L6. Apagar a rota
+   agora deixaria o `HoldsFacts::covers` sem cobertura de `evaluated` e o
+   `may_delete` fecharia para TUDO. `src/routes/internal-debrid-holds.ts` e a
+   rota em `adom-debrid/src/api.rs` **permanecem**.
+2. **`OwnershipStore` (`adom-debrid/src/ownership.rs`) não foi criado.** Um
+   store novo num crate que já lê o MESMO `cache.db` por `DurablePeek` seria um
+   terceiro leitor do mesmo arquivo sem ganho — o que faltava não era leitor, era
+   **dono único da escrita**. A escrita passou ao `NativeKv` do `adom-index`, que
+   o `.node` já embarca (crate leve; `adom-debrid` puxaria reqwest/tokio para
+   dentro do addon Node — o mesmo veto do T2-L5).
+3. **`adprot` não é `{expires_at}` no corpo.** O registro é
+   `{acceptedAt, readyAt}` e o vencimento mora na coluna `expires_at` do KV, como
+   no `cache.set` do Node. Mudar o formato quebraria o `DurablePeek` nativo
+   existente — e o TTL da retenção BR é o `DEBRID_AUTOFETCH_PROTECT_BR_TTL`.
 
-Em `ownership_tests.rs`:
+**Escopo executado:**
 
-```rust
-#[test]
-fn posse_dura_sobrevive_e_protege_do_delete() {
-    let store = OwnershipStore::open_memory().unwrap();
-    store.record_owned("aaaa", "tt1", 1_000).unwrap();
-    assert!(store.owns("aaaa", 2_000).unwrap().is_some());
-    let snapshot = store.hold_snapshot(2_000).unwrap();
-    assert!(snapshot.complete);
-    assert!(snapshot.hashes.contains("aaaa"));
-}
+- `adom-index/src/kv.rs`: `remaining_seconds` (mesma régua do
+  `cache.peekRemaining`: ausente, permanente e vencida devolvem `None`; delta
+  arredondado com `.5` para cima) e `forget_prefix` (DELETE por prefixo,
+  devolvendo quantas linhas saíram). Testes em `kv_tests.rs` (crate em 75).
+- `adom-napi/src/kv.rs`: `forget`, `remainingSeconds` e `forgetPrefix` na
+  classe `NativeKv` (camelCase), somados ao `getJson`/`keys`/`setJson`.
+- `src/utils/native-kv.ts`: superfície TS completa. **`kvSet` devolve `boolean`
+  e NUNCA lança** — `protectBr`/`noteReady`/`persistSubmitted` são chamados no
+  caminho do autofetch e o `cache.set` anterior também não lançava; a métrica só
+  conta quando a linha entrou (`adprot.set`, `adprot.renewed`, `adsub.persisted`).
+  `kvSetForTest` **lança** (semeadura de teste deve gritar).
+- `src/utils/cache-keys.ts`: `adsub` e `adprot` em `RUST_OWNED` **e** em
+  `RUST_OWNED_PREFIXES` (o prefixo é o que faz `cache.get/peek` cair na ponte em
+  vez de devolver o L1 vazio).
+- `src/utils/cache.ts`: `clear()` apaga os dois prefixos pelo nativo;
+  `clearNamespace('adsub'|'adprot')` delega e soma a contagem do handle.
+- `src/debrid/protected.ts` (9 sítios) e `src/debrid/alldebrid-inventory.ts`
+  (`persistSubmitted`, `submittedAt`, `persistedSubmitted`, `forgetSubmitted`):
+  leitura e escrita só pela ponte.
+- Testes migrados (12 arquivos: `alldebrid-*`, `debrid-*` e o mock): quem
+  semeava `cache.set(adsub/adprot)` usa `kvSet`; quem lia usa `kvPeek`.
+- `test/debrid-kv-owned.test.ts` (novo, 4 testes, entrada em `testFiles`):
+  posse por namespace/prefixo, roundtrip com TTL e `kvForget` idempotente,
+  recusa de escrita/leitura pelo `cache` do Node e `clearNamespace` contando o
+  que o núcleo apagou.
 
-#[test]
-fn snapshot_incompleto_nao_autoriza_delete() {
-    let store = OwnershipStore::open_memory().unwrap();
-    // inventário nunca carregado: `complete == false` → may_delete false
-    let snapshot = store.hold_snapshot(1_000).unwrap();
-    assert!(!snapshot.complete);
-    assert_eq!(crate::cleanup_durable::may_delete(&snapshot), false);
-}
+**Duas armadilhas medidas (custaram um debug):**
 
-#[test]
-fn protecao_br_expira_e_nao_protege_para_sempre() {
-    let store = OwnershipStore::open_memory().unwrap();
-    store.protect_br("bbbb", 1_000, 3_600).unwrap();
-    assert!(store.holds("bbbb", 2_000).unwrap());
-    assert!(!store.holds("bbbb", 3_601_000).unwrap());
-}
-```
+4. **`src/config.ts` é SNAPSHOT.** O import estático de `native-kv` (que puxa
+   `config`) no topo de um teste que depois muda `CACHE_PERSIST`/
+   `CACHE_DB_PATH` congela os valores ANTIGOS: o `persistence.open()` nunca abre
+   o arquivo temporário, o `INSERT` estoura "no such table" e o `finally` mascara
+   com `EBUSY` (handle `DatabaseSync` vazado). Por isso o teste da posse mora em
+   arquivo próprio, com `:memory:` (o `setup-env` pina `CACHE_PERSIST=false`).
+5. **`kvPeek` engole erro** (devolve `null`), então o `try/catch` de
+   `heldHashesFor` que derrubava `complete` fica inalcançável pela ponte. Não é
+   regressão de prova: o `CleanupGate` do Rust lê `adprot` direto do mesmo
+   `cache.db` por `DurablePeek`, e o `cache.peek` anterior também nunca lançava.
 
-- [ ] **Step 2: rodar e ver falhar**
+**Gate executado:** `typecheck` 0, `build` 0, `npm test` 2395/0 (2396 testes,
+1 skip, 78 suítes), `test:complete` 274 arquivos/2 harnesses,
+`lint:lines -- --check` 642/0, `cargo fmt --all -- --check` 0,
+clippy e `cargo test` do workspace 0, `cargo test -p adom-index` 75/0,
+catraca `.rs` 959/0, `git diff --check` 0.
 
-```powershell
-cd rust
-cargo test -p adom-debrid --locked posse_dura_sobrevive
-```
-Expected: FAIL — `OwnershipStore` inexistente.
+**Pendências que ficam para T3-L5/T3-L6:** hold volátil e `knownBefore`
+nativos (só então o feed `/debrid/holds` e `src/routes/internal-debrid-holds.ts`
+saem), e o `adrm` (anti-reenchimento) segue no `cache` do Node — é T2-L7.
 
-- [ ] **Step 3: implementar**
-
-`ownership.rs` sobre `NativeKv`, chaves `adsub:v1:<hash>` (posse durável, TTL
-zero = não expira) e `adprot:v1:<hash>` (`{expires_at}` real). Métodos:
-`record_owned`, `forget_owned`, `owns`, `protect_br`, `holds`,
-`hold_snapshot -> HoldSnapshot { hashes, complete, inventory_at }`.
-`complete` só é `true` quando houve carga de inventário válida registrada em
-`adsub:v1:__inventory` — sem inventário, `may_delete` devolve `false`
-(fail-closed, mesma regra do `holdsComplete` de hoje).
-
-No `api.rs`, apagar a rota de holds: o `adom-debrid` passa a ler do próprio
-store. Em `src/addon.ts`, remover o registro. Apagar
-`src/routes/internal-debrid-holds.ts` com `DeleteFile`.
-
-`alldebrid-inventory.ts` e `protected.ts` perdem a escrita: a leitura continua
-pela ponte napi (T2-L2) onde o painel precisa. `adsub`/`adprot` entram em
-`RUST_OWNED` — o Node não guarda mais essas chaves no L1.
-
-- [ ] **Step 4: gate + commit**
-
-```powershell
-npm run typecheck
-npm run build
-npm test
-npm run test:complete
-npm run lint:lines -- --check
-```
-
-```powershell
-cd rust
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ..
-```
-
-```powershell
-git add src rust test .env.example
-```
-```powershell
-git commit -m "feat(debrid): posse e protecao BR nativas e fim do feed de holds"
-```
 
 ### T3-L6: worker do Chupim (recheck, evict, seeds) e fim do autofetch TS
 

@@ -3,7 +3,7 @@ import { accountScope } from '../utils/request-key.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { raceWithDeadline } from '../utils/deadline.js';
-import * as cache from '../utils/cache.js';
+import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 import { prefix } from '../utils/cache-keys.js';
 import { call, type AllDebridMagnet } from './alldebrid-api.js';
 
@@ -109,15 +109,17 @@ function persistSubmitted(account: string, normalized: string) {
   // restart. TTL 0 = só memória (rollback de uma linha no .env).
   const ttlMs = config.debrid.alldebridSubmittedTtlMs;
   if (ttlMs > 0) {
-    cache.set(adsubKey(account, normalized), { at }, Math.floor(ttlMs / 1000));
-    metrics.count('adsub.persisted');
+    // Write-through durável: só conta a métrica se a linha entrou de fato.
+    if (kvSet(adsubKey(account, normalized), { at }, Math.floor(ttlMs / 1000))) {
+      metrics.count('adsub.persisted');
+    }
   }
 }
 
 /** Prova durável de posse: registro `adsub` ainda válido para este hash. */
 function persistedSubmitted(account: string, hash: string): boolean {
   if (config.debrid.alldebridSubmittedTtlMs <= 0) return false;
-  return cache.peek(adsubKey(account, hash)) != null;
+  return kvPeek(adsubKey(account, hash)) != null;
 }
 
 /**
@@ -146,7 +148,7 @@ export function submittedAt(account: string, hash: string): number | null {
   const memoria = submitted.get(account)?.get(normalized) ?? 0;
   let duravel = 0;
   if (config.debrid.alldebridSubmittedTtlMs > 0) {
-    const registro = cache.peek(adsubKey(account, normalized)) as { at?: number } | null;
+    const registro = kvPeek(adsubKey(account, normalized)) as { at?: number } | null;
     if (registro && Number(registro.at) > 0) duravel = Number(registro.at);
   }
   if (memoria && duravel) return Math.max(memoria, duravel);
@@ -164,7 +166,7 @@ export function forgetSubmitted(account: string, hash: string): void {
   const normalized = String(hash || '').toLowerCase();
   if (!normalized) return;
   submitted.get(account)?.delete(normalized);
-  if (config.debrid.alldebridSubmittedTtlMs > 0) cache.forget(adsubKey(account, normalized));
+  if (config.debrid.alldebridSubmittedTtlMs > 0) kvForget(adsubKey(account, normalized));
 }
 
 /**

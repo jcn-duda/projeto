@@ -67,4 +67,24 @@ impl NativeKv {
             .put_json(&key, &value, ttl_seconds, now_ms)
             .map_err(erro)
     }
+
+    /// Remove a chave (`cache.forget` do Node). `false` = não havia nada.
+    #[napi]
+    pub fn forget(&self, key: String) -> napi::Result<bool> {
+        self.inner.forget(&key).map_err(erro)
+    }
+
+    /// TTL restante em segundos (régua do `cache.peekRemaining`); `null` para
+    /// ausente, permanente ou vencida.
+    #[napi]
+    pub fn remaining_seconds(&self, key: String, now_ms: i64) -> napi::Result<Option<i64>> {
+        self.inner.remaining_seconds(&key, now_ms).map_err(erro)
+    }
+
+    /// Apaga o namespace inteiro (`clearNamespace` de um dono Rust) e devolve
+    /// quantas linhas saíram.
+    #[napi]
+    pub fn forget_prefix(&self, prefix: String) -> napi::Result<u32> {
+        self.inner.forget_prefix(&prefix).map_err(erro)
+    }
 }

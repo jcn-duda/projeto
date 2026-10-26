@@ -18,10 +18,11 @@ import {
   namespaceFor, quotaFor, incrementNamespace as bumpNamespace, removeFromStore as dropFromStore, quotaOverflow,
 } from './cache-quotas.js';
 import { createPersistence } from './cache-db.js';
-import { isRustOwned, isForeignKey } from './cache-keys.js';
+import { isRustOwned, isForeignKey, prefix } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
 import { clearRawStore } from './raw-store-native.js';
 import { davailState, magnetState } from './debrid-state-native.js';
+import { kvClearPrefix } from './native-kv.js';
 
 const store = new Map();
 const namespaceCounts = new Map();
@@ -310,25 +311,30 @@ function clear() {
   pending.clear();
   persistence.clearDisk();
   // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
-  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa os quatro
-  // namespaces RUST_OWNED também — `davail`/`mag` só existem lá.
+  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa os namespaces
+  // RUST_OWNED também — `davail`/`mag`/`adsub`/`adprot` só existem lá.
   clearIdxStore();
   clearRawStore();
   davailState().clear();
   magnetState().clear();
+  kvClearPrefix(prefix('adsub'));
+  kvClearPrefix(prefix('adprot'));
 }
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  // RUST_OWNED não passa pelo L1: `idx`, `raw`, `davail` e `mag` têm handle
-  // nativo sobre o MESMO cache.db — o clear deles é inteiro no núcleo.
+  // RUST_OWNED não passa pelo L1: `idx`, `raw`, `davail`, `mag`, `adsub` e
+  // `adprot` têm handle nativo sobre o MESMO cache.db — o clear deles é
+  // inteiro no núcleo.
   const fromRust = wanted === 'idx' ? clearIdxStore()
     : wanted === 'raw' ? clearRawStore()
       : wanted === 'davail' ? davailState().clear()
         : wanted === 'mag' ? magnetState().clear()
-          : 0;
+          : wanted === 'adsub' ? kvClearPrefix(prefix('adsub'))
+            : wanted === 'adprot' ? kvClearPrefix(prefix('adprot'))
+              : 0;
   return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
 

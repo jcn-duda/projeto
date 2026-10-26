@@ -11,8 +11,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import {
   preexisting,
@@ -51,8 +51,8 @@ after(() => {
 function resetar() {
   resetSubmittedForTests();
   preexisting.clear();
-  cache.forget(adsubKey(ACCOUNT, NOSSO));
-  cache.forget(adsubKey(ACCOUNT, DO_USUARIO));
+  kvForget(adsubKey(ACCOUNT, NOSSO));
+  kvForget(adsubKey(ACCOUNT, DO_USUARIO));
 }
 
 /** Dublê só do /magnet/status: devolve a lista de magnets da conta. */
@@ -82,7 +82,7 @@ test('8.15: upload com prova de criação é etiquetado em memória E persistido
     // Snapshot fresco que NÃO contém o hash: o upload criou.
     preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
     rememberSubmitted(ACCOUNT, NOSSO);
-    assert.notEqual(cache.get(adsubKey(ACCOUNT, NOSSO)), null, 'registro adsub gravado');
+    assert.notEqual(kvPeek(adsubKey(ACCOUNT, NOSSO)), null, 'registro adsub gravado');
   } finally {
     resetar();
   }
@@ -96,7 +96,7 @@ test('8.15/B-1: hash JÁ presente no snapshot NÃO é etiquetado (pode ser acerv
     // a polaridade invertida.
     preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
     rememberSubmitted(ACCOUNT, DO_USUARIO);
-    assert.equal(cache.get(adsubKey(ACCOUNT, DO_USUARIO)), null, 'nada persistido sem prova de criação');
+    assert.equal(kvPeek(adsubKey(ACCOUNT, DO_USUARIO)), null, 'nada persistido sem prova de criação');
   } finally {
     resetar();
   }
@@ -109,7 +109,7 @@ test('8.15: sem inventário (conta fria) não etiqueta — fail-safe fecha no la
     // autoriza a etiqueta: o pior caso é o lixo ficar protegido até a próxima
     // busca com inventário, nunca o contrário.
     rememberSubmitted(ACCOUNT, NOSSO);
-    assert.equal(cache.get(adsubKey(ACCOUNT, NOSSO)), null);
+    assert.equal(kvPeek(adsubKey(ACCOUNT, NOSSO)), null);
   } finally {
     resetar();
   }
@@ -169,7 +169,7 @@ test('8.15/B-1 e2e: magnet do usuário tocado por busca continua protegido após
     // proveniência recusa a etiqueta (hash presente no snapshot).
     preexisting.set(ACCOUNT, { hashes: new Set([DO_USUARIO]), loadedAt: Date.now() });
     rememberSubmitted(ACCOUNT, DO_USUARIO);
-    assert.equal(cache.get(adsubKey(ACCOUNT, DO_USUARIO)), null, 'sem registro durável');
+    assert.equal(kvPeek(adsubKey(ACCOUNT, DO_USUARIO)), null, 'sem registro durável');
 
     // Restart + snapshot: o magnet do usuário precisa continuar na referência
     // protegida — se sumisse, o dropReady o apagaria na busca seguinte.
@@ -241,7 +241,7 @@ test('enqueue estrito: snapshot contém o hash do usuário ⇒ sem adsub; ausent
     // Hash ausente do snapshot: o upload criou — etiqueta com prova.
     await enqueue(KEY, NOSSO);
     assert.notEqual(submittedAt(ACCOUNT, NOSSO), null, 'hash novo é etiquetado');
-    assert.notEqual(cache.get(adsubKey(ACCOUNT, NOSSO)), null, 'etiqueta persistida');
+    assert.notEqual(kvPeek(adsubKey(ACCOUNT, NOSSO)), null, 'etiqueta persistida');
   } finally {
     restaurar();
     resetar();
@@ -278,7 +278,7 @@ test('forgetSubmitted purga a posse em memória E no registro durável', () => {
 
     forgetSubmitted(ACCOUNT, NOSSO);
     assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'posse em memória purgada');
-    assert.equal(cache.peek(adsubKey(ACCOUNT, NOSSO)), null, 'registro durável purgado');
+    assert.equal(kvPeek(adsubKey(ACCOUNT, NOSSO)), null, 'registro durável purgado');
   } finally {
     resetar();
   }

@@ -10,18 +10,17 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { debrid } from '../src/config/debrid.js';
 import * as cache from '../src/utils/cache.js';
-import { prefix } from '../src/utils/cache-keys.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as held from '../src/debrid/protected.js';
-import { rememberSubmitted, resetSubmittedForTests, submittedAt, preexisting } from '../src/debrid/alldebrid-inventory.js';
+import {
+  rememberSubmitted, resetSubmittedForTests, submittedAt, preexisting, forgetSubmitted, hasDurableOwnership,
+} from '../src/debrid/alldebrid-inventory.js';
 import { scheduleReconcile } from '../src/debrid/alldebrid-reconcile.js';
 import { checkCached } from '../src/debrid/alldebrid-check.js';
 import {
   adrmKey, counter, mag, mockAd, withDebrid, inventario, soltaInventario, assenta, esperaMetrica, gate,
 } from './helpers/alldebrid-mock.js';
-
-const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
 
 // Timestamp único do arquivo: as janelas dos testes (600s × 24h) são largas
 // demais para a duração da suíte deslocar qualquer limiar.
@@ -51,7 +50,7 @@ function limpa(KEY: string, hashes: string[]) {
   soltaInventario(ACCOUNT);
   resetSubmittedForTests();
   for (const hash of hashes) {
-    cache.forget(adsubKey(ACCOUNT, hash));
+    forgetSubmitted(ACCOUNT, hash);
     cache.forget(adrmKey(ACCOUNT, hash));
   }
 }
@@ -122,7 +121,7 @@ test('reconcile: ready com posse remanescente sai, é purgado do adsub e marcado
     await assenta();
     assert.deepEqual([...api.deleted], [601], 'o magnet com posse remanescente saiu da conta');
     assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'posse purgada em memória');
-    assert.equal(cache.peek(adsubKey(ACCOUNT, NOSSO)), null, 'registro adsub purgado');
+    assert.equal(hasDurableOwnership(ACCOUNT, NOSSO), false, 'registro adsub purgado');
     assert.ok(cache.peek(adrmKey(ACCOUNT, NOSSO)) != null, 'adrm marcado (8.14)');
   } finally {
     restore();

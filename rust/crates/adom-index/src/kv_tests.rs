@@ -60,3 +60,55 @@ fn keys_matching_por_prefixo_apaga_expirado() {
         "prefixo alheio não é tocado pela varredura"
     );
 }
+
+#[test]
+fn remaining_seconds_segue_a_regua_do_peek_remaining() {
+    let kv = NativeKv::open_memory().unwrap();
+    kv.put_json("adprot:v1:alldebrid:a:h1", &json!({"a": 1}), 3_600, 1_000)
+        .unwrap();
+    kv.put_json("adprot:v1:alldebrid:a:h2", &json!({"a": 1}), 0, 1_000)
+        .unwrap();
+
+    // 3_599_500 ms restantes = 3599,5 s: o Node arredonda para 3600.
+    assert_eq!(
+        kv.remaining_seconds("adprot:v1:alldebrid:a:h1", 1_500)
+            .unwrap(),
+        Some(3_600)
+    );
+    assert_eq!(
+        kv.remaining_seconds("adprot:v1:alldebrid:a:h2", 1_500)
+            .unwrap(),
+        None,
+        "permanente não tem o que renovar"
+    );
+    assert_eq!(
+        kv.remaining_seconds("adprot:v1:alldebrid:a:h1", 4_000_000)
+            .unwrap(),
+        None,
+        "vencida devolve None sem apagar"
+    );
+    assert!(
+        kv.get_json("adprot:v1:alldebrid:a:h1", 1_600)
+            .unwrap()
+            .is_some(),
+        "a sonda de TTL não apaga a linha"
+    );
+}
+
+#[test]
+fn forget_prefix_apaga_so_o_namespace_e_conta_linhas() {
+    let kv = NativeKv::open_memory().unwrap();
+    kv.put_json("adsub:v1:a:h1", &json!({"at": 1}), 0, 1_000)
+        .unwrap();
+    kv.put_json("adsub:v1:b:h2", &json!({"at": 2}), 0, 1_000)
+        .unwrap();
+    kv.put_json("adsub:v1x:a:h3", &json!({"at": 3}), 0, 1_000)
+        .unwrap();
+
+    assert_eq!(kv.forget_prefix("adsub:v1:").unwrap(), 2);
+    assert_eq!(kv.forget_prefix("adsub:v1:").unwrap(), 0, "idempotente");
+    assert!(
+        kv.get_json("adsub:v1x:a:h3", 2_000).unwrap().is_some(),
+        "prefixo mais longo não casa"
+    );
+}

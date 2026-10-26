@@ -145,6 +145,35 @@ impl NativeKv {
         }
         Ok(live)
     }
+
+    /// TTL restante em segundos, com a MESMA régua do `cache.peekRemaining` do
+    /// Node: ausente, permanente (`expires_at = 0`) e vencida devolvem `None`;
+    /// o resto é o delta arredondado (`.5` para cima). Não apaga nada — quem
+    /// varre é `keys_matching`; esta é sonda de painel/renovação.
+    pub fn remaining_seconds(&self, key: &str, now_ms: i64) -> Result<Option<i64>, String> {
+        let conn = self.lock();
+        let Some((_, expires_at)) = read_row(&conn, key)? else {
+            return Ok(None);
+        };
+        let Some(expires) = expires_at.filter(|ts| *ts > 0 && *ts > now_ms) else {
+            return Ok(None);
+        };
+        Ok(Some(((expires - now_ms) + 500) / 1_000))
+    }
+
+    /// Apaga TODAS as chaves com o prefixo (reset de namespace pela ponte) e
+    /// devolve quantas linhas saíram — o `clearNamespace` do Node conta o que
+    /// removeu, e namespace Rust-owned não tem L1 para contabilizar.
+    pub fn forget_prefix(&self, prefix: &str) -> Result<u32, String> {
+        let conn = self.lock();
+        let removed = conn
+            .execute(
+                "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
+                params![prefix],
+            )
+            .map_err(|err| err.to_string())?;
+        Ok(u32::try_from(removed).unwrap_or(u32::MAX))
+    }
 }
 
 /// `ttl <= 0` = permanente (`expires_at = 0`); o resto soma segundos ao relógio.

@@ -13,8 +13,8 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { mockAccountWith, settle, flushImmediate } from './helpers/alldebrid-account-mock.js';
 
@@ -45,7 +45,7 @@ test('B-1: snapshot fresco com o hash do usuário; eco não pronto — zero dele
 
     assert.deepEqual(api.deleted, [], 'o não-pronto do usuário é protegido pelo snapshot (fail-safe do dropDownload)');
     assert.equal(
-      cache.get(`${prefix('adsub')}${accountScope(KEY)}:${DO_USUARIO}`),
+      kvPeek(`${prefix('adsub')}${accountScope(KEY)}:${DO_USUARIO}`),
       null,
       'zero etiqueta: hash presente no snapshot não é etiquetado como nosso',
     );
