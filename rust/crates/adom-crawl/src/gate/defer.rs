@@ -1,4 +1,4 @@
-//! Recuo da entrega recusada pelo Node. Separado do `gate.rs` pela catraca de
+//! Recuo da entrega recusada pela ingestão. Separado do `gate.rs` pela catraca de
 //! 400 linhas; continua sendo `impl GateExecutor`.
 
 use super::{with_store, GateExecutor, RowOutcome};

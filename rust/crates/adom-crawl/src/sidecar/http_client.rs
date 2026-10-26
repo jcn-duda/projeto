@@ -1,4 +1,6 @@
-//! Cliente HTTP que comunica resultados do crawl ao Node e consulta atividade.
+//! Cliente HTTP do sidecar para o Node: consulta de atividade (freio de
+//! tráfego) e healthcheck. A entrega de página saiu na T3-L3 — é a ingestão nativa
+//! (`motor::PageIngest`), no motor e no executor de portões.
 //!
 //! Todas as requisições incluem o token de administração no header
 //! `X-Indexer-Test-Token` para autenticação com o endpoint interno do Node.
@@ -7,12 +9,10 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::fmt;
 
-use crate::motor::types::CrawlWorkResult;
-
 /// Token de autenticação enviado em cada requisição ao Node.
 const TOKEN_HEADER: &str = "X-Indexer-Test-Token";
 
-/// Cliente HTTP que envia resultados ao Node e consulta atividade do usuário.
+/// Cliente HTTP que consulta a atividade do usuário no Node.
 pub struct SidecarHttpClient {
     client: Client,
     node_url: String,
@@ -64,39 +64,6 @@ impl SidecarHttpClient {
             node_url,
             admin_token,
         }
-    }
-
-    /// POST `/internal/crawl-result` com o `CrawlWorkResult` serializado em JSON.
-    ///
-    /// O token é enviado no header `X-Indexer-Test-Token`.
-    pub async fn post_crawl_result(
-        &self,
-        result: &CrawlWorkResult,
-    ) -> Result<(), SidecarHttpError> {
-        let url = format!("{}/internal/crawl-result", self.node_url);
-
-        let resp = self
-            .client
-            .post(&url)
-            .header(TOKEN_HEADER, &self.admin_token)
-            .json(result)
-            .send()
-            .await
-            .map_err(|e| classify_reqwest_error(&e))?;
-
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp
-                .text()
-                .await
-                .unwrap_or_else(|_| "<corpo ilegível>".into());
-            return Err(SidecarHttpError::HttpError {
-                status: status.as_u16(),
-                body,
-            });
-        }
-
-        Ok(())
     }
 
     /// GET `/internal/activity` — consulta se houve tráfego de usuário recente.

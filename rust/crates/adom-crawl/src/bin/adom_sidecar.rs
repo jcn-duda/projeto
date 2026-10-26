@@ -186,8 +186,11 @@ async fn main() {
     // Ingestão NATIVA (T3-L3): a página é gravada no processo (banco vivo →
     // índice → invalidação). Sem ela o motor fica em `ingest-pendente` e não
     // reivindica URL — o POST antigo para o Node não existe mais.
-    if let Some(ingest) = adom_crawl::sidecar::production_ingest() {
-        motor = motor.with_ingest(ingest);
+    // A MESMA instância vai ao executor de portões (6b): ele grava o post pago
+    // por aqui, não por HTTP.
+    let ingest = adom_crawl::sidecar::production_ingest();
+    if let Some(ingest) = &ingest {
+        motor = motor.with_ingest(ingest.clone());
     }
     if let Some((_, lane)) = &mico {
         motor = motor.with_mico(lane.clone());
@@ -252,15 +255,19 @@ async fn main() {
             gate_cfg.resolver_timeout_ms,
         ));
         let flare: Arc<dyn FlareProbe> = html_engine.clone();
-        let executor = Arc::new(GateExecutor::new(
+        let mut executor = GateExecutor::new(
             gate_cfg,
             config,
             gate_store,
             Arc::new(SidecarHttpClient::new(node_url, auth_token)),
             resolver,
             flare,
-        ));
-        tokio::spawn(executor.run());
+        );
+        // Sem ingestão o executor pula toda rodada (`ingest-pendente`).
+        if let Some(ingest) = ingest {
+            executor = executor.with_ingest(ingest);
+        }
+        tokio::spawn(Arc::new(executor).run());
     } else {
         eprintln!("[adom-sidecar] executor de portão desligado (CRAWL_GATE_HOURLY=0)");
     }

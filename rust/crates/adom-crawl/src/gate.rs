@@ -13,17 +13,21 @@
 //! (`gate-magnet:<gate>`) ANTES da entrega; se a entrega falhar, a rodada
 //! seguinte re-entrega SEM pagar de novo. Pendência nunca vira veneno: erro do
 //! resolver não toca `tries` nem backoff — o post segue `gate-pending`. Já a
-//! ENTREGA recusada pelo Node recua (`error_backoff_ms` do motor) antes de
+//! ENTREGA recusada pela ingestão recua (`error_backoff_ms` do motor) antes de
 //! voltar ao lote: a re-entrega não gasta teto, então sem recuo virava laço.
 //!
 //! A resolução usa o RESOLVER LOCAL ([`HttpGateResolver`], porta 8700 do
 //! bludv, modo bloqueante `wait=1`). Ao resolver, a release é gravada no
-//! acervo pela MESMA via do raspador (`POST /internal/crawl-result` ao Node)
-//! — commit diferido.
+//! acervo pela MESMA ingestão nativa do motor ([`PageIngest`]) — commit
+//! diferido. Até 2026-10-26 a entrega ainda era o `POST /internal/crawl-result`
+//! ao Node, que saiu na T3-L3: todo portão pago caía em 404 e o post voltava a
+//! `gate-pending` para sempre. Sem ingestão montada a rodada não paga nada
+//! (`ingest-pendente`), pela mesma razão do tick do motor.
 
 mod config;
 mod defer;
 mod resolver;
+mod work;
 
 pub use config::GateExecutorConfig;
 pub use resolver::{FlareProbe, GateFuture, GateResolver, HttpGateResolver};
@@ -35,9 +39,9 @@ use std::time::Duration;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::interval;
 
-use crate::motor::types::{now_ms, CrawlRawItem, CrawlResultStatus, CrawlWorkResult, MotorConfig};
-use crate::page_engine::kind_from;
-use crate::profile_parsers::{release_title, ResolverLink};
+use crate::ingest::IngestOptions;
+use crate::motor::types::{now_ms, MotorConfig};
+use crate::motor::PageIngest;
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;
 use crate::store::ops::{CrawlStore, GateRow, MarkResult, StoreError};
@@ -51,7 +55,7 @@ const PAID_STATE_PREFIX: &str = "gate-magnet:";
 pub struct GateRoundReport {
     /// Posts tomados da fila de pendências.
     pub claimed: usize,
-    /// Pagamentos concluídos (magnet entregue ao Node e linha fechada).
+    /// Pagamentos concluídos (magnet gravado pela ingestão e linha fechada).
     pub paid: usize,
     /// Motivo de pular a rodada INTEIRA (antes de tomar qualquer post).
     pub skipped: Option<&'static str>,
@@ -83,7 +87,10 @@ pub struct GateExecutor {
     /// Régua do motor para o `MarkResult::from_work` (o fechamento da linha
     /// paga tem que bater com o que o motor faria).
     tuning: MotorConfig,
+    /// Só o freio de tráfego (`/internal/activity`); a entrega é `ingest`.
     http: Arc<SidecarHttpClient>,
+    /// A MESMA ingestão do motor (`production_ingest`), plugada pela fiação.
+    ingest: Option<Arc<dyn PageIngest>>,
     resolver: Arc<dyn GateResolver>,
     flare: Arc<dyn FlareProbe>,
     store: Arc<StdMutex<CrawlStore>>,
@@ -123,6 +130,7 @@ impl GateExecutor {
             cfg,
             tuning,
             http,
+            ingest: None,
             resolver,
             flare,
             store,
@@ -132,6 +140,13 @@ impl GateExecutor {
                 paid_window: HashSet::new(),
             }),
         }
+    }
+
+    /// Liga a ingestão nativa (a mesma instância do motor). Sem isto a rodada
+    /// devolve `ingest-pendente` e nenhum portão é pago.
+    pub fn with_ingest(mut self, ingest: Arc<dyn PageIngest>) -> Self {
+        self.ingest = Some(ingest);
+        self
     }
 
     /// Loop do executor. Roda em task própria (`tokio::spawn`); erro de rodada
@@ -166,6 +181,14 @@ impl GateExecutor {
     pub async fn run_round(&self) -> Result<GateRoundReport, String> {
         let now = now_ms();
         self.roll_window(now).await;
+        // 0. Sem quem grave, pagar só gastaria FlareSolverr e teto.
+        if self.ingest.is_none() {
+            return Ok(GateRoundReport {
+                claimed: 0,
+                paid: 0,
+                skipped: Some("ingest-pendente"),
+            });
+        }
         // 1. Faixa Flare ocupada: nem consulta o Node. O solver é um por vez.
         if self.flare.flare_busy() {
             return Ok(GateRoundReport {
@@ -306,15 +329,25 @@ impl GateExecutor {
         }
     }
 
-    /// Entrega ao acervo pela MESMA via do raspador (`POST
-    /// /internal/crawl-result`) e fechamento da linha no store (padrão de
-    /// commit diferido: o Node primeiro, o store depois — igual ao `run_one`).
+    /// Entrega ao acervo pela MESMA ingestão nativa do motor e fechamento da
+    /// linha no store (commit diferido: a ingestão primeiro, o store depois —
+    /// igual ao `run_one`). Relatório `retryable` ou erro voltam como recusa:
+    /// o chamador recua (`defer_delivery`), sem novo pagamento.
     async fn deliver(&self, g: &GateRow, magnet: &str) -> Result<(), String> {
-        let work = self.work_of(g, magnet);
-        self.http
-            .post_crawl_result(&work)
+        let work = work::work_of(g, magnet);
+        let ingest = self.ingest.as_ref().ok_or("ingest-pendente")?;
+        let options = IngestOptions { should_abort: None };
+        match ingest
+            .apply_page(&g.row.site, &work, now_ms(), options)
             .await
-            .map_err(|e| format!("entrega ao node: {e}"))?;
+        {
+            Ok(report) if !report.retryable => {}
+            Ok(report) => {
+                let motivo = report.reason.as_deref().unwrap_or("reentrega");
+                return Err(format!("ingest: {motivo}"));
+            }
+            Err(e) => return Err(format!("ingest: {e}")),
+        }
         let mark = MarkResult::from_work(&g.row, &work, true, &self.tuning, now_ms());
         let (site, url_key) = (g.row.site.clone(), g.row.url_key.clone());
         with_store(self.store.clone(), move |db| {
@@ -324,50 +357,6 @@ impl GateExecutor {
         })
         .await
         .map_err(|e| format!("store: {e}"))
-    }
-
-    /// `CrawlWorkResult` do post pago, com o título da release pela MESMA
-    /// régua do raspador (`release_title`: post dá nome/ano, magnet completa).
-    fn work_of(&self, g: &GateRow, magnet: &str) -> CrawlWorkResult {
-        // Post sem `<h1>` colhido: o magnet (dn=) é a matéria-prima honesta.
-        let bruto = if g.title.trim().is_empty() {
-            magnet.to_string()
-        } else {
-            g.title.clone()
-        };
-        let post_year = (g.year > 0).then_some(g.year as u32);
-        let link = ResolverLink {
-            url: magnet.to_string(),
-            ..Default::default()
-        };
-        let titulo = release_title(&bruto, post_year, &link, None);
-        CrawlWorkResult {
-            url: g.row.url.clone(),
-            url_key: g.row.url_key.clone(),
-            site: g.row.site.clone(),
-            status: CrawlResultStatus::Done,
-            imdb: (!g.imdb.is_empty()).then(|| g.imdb.clone()),
-            title: (!g.title.is_empty()).then(|| g.title.clone()),
-            year: (g.year > 0).then_some(g.year),
-            kind: kind_from(&g.kind),
-            releases: vec![CrawlRawItem {
-                title: titulo,
-                magnet: Some(magnet.to_string()),
-                link: None,
-                size: None,
-                seeders: None,
-                tracker: Some("BLUDV".to_string()),
-                // Acervo é BR-dublado e o post é do BLUDV (100% BR).
-                is_br: true,
-            }],
-            groups: Vec::new(),
-            unlocated: Vec::new(),
-            progress: None,
-            // Um pagamento custou um pedido ao solver (régua do `to_work`).
-            request_cost: 1,
-            error: String::new(),
-            gate: None,
-        }
     }
 }
 

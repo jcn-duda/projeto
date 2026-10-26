@@ -1,19 +1,19 @@
-//! Infra de teste do executor de portões: crawl.db temporário, Node falso
-//! (captura do `POST /internal/crawl-result` — a MESMA via em que o acervo é
-//! gravado) e resolver/sonda falsos com contagem de pagamentos. Separado do
-//! `gate_tests.rs` pela catraca de 400 linhas; itens `pub(super)` para o
-//! irmão `tests` consumir.
+//! Infra de teste do executor de portões: crawl.db temporário, ingestão
+//! falsa (captura a página que iria ao acervo — a MESMA porta `PageIngest` do
+//! motor), Node falso só com `/internal/activity` (sem `/internal/crawl-result`,
+//! como em produção) e resolver/sonda falsos com contagem de pagamentos.
+//! Separado do `gate_tests.rs` pela catraca de 400 linhas; itens `pub(super)`
+//! para o irmão `tests` consumir.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{Json, Router};
 
-use crate::motor::types::MotorConfig;
+use crate::ingest::{IngestOptions, PageReport};
+use crate::motor::types::{CrawlWorkResult, MotorConfig};
+use crate::motor::{IngestFuture, PageIngest};
 use crate::sidecar::http_client::SidecarHttpClient;
 use crate::store::ops::{CrawlStore, GatePendingRecord, UrlRow};
 
@@ -111,75 +111,87 @@ impl FlareProbe for FlareFake {
     }
 }
 
-/// Entregas capturadas do Node falso.
+/// Páginas que a ingestão falsa recebeu, em JSON (o que iria ao acervo).
 pub(super) type Entregues = Arc<StdMutex<Vec<serde_json::Value>>>;
 
-/// Handler do POST /internal/crawl-result: captura e responde ok.
-async fn entrega(
-    State(entregues): State<Entregues>,
-    Json(v): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    entregues.lock().unwrap().push(v);
-    Json(serde_json::json!({ "ok": true }))
+/// Quando a ingestão falsa recusa (relatório `retryable`, como o TMDB fora).
+#[derive(Clone, Copy)]
+pub(super) enum Recusa {
+    Nunca,
+    Primeira,
+    Sempre,
 }
 
-/// Handler que RECUSA a primeira entrega (500) e aceita as seguintes —
-/// para provar o re-pagamento evitado pelo dedupe durável.
-async fn entrega_falha_primeira(
-    State((entregues, falhas)): State<(Entregues, Arc<AtomicUsize>)>,
-    Json(v): Json<serde_json::Value>,
-) -> Response {
-    entregues.lock().unwrap().push(v);
-    if falhas.fetch_add(1, Ordering::SeqCst) == 0 {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+/// Ingestão falsa: captura cada página e responde conforme a `Recusa`.
+pub(super) struct IngestFake {
+    pub(super) entregues: Entregues,
+    recusa: Recusa,
+    chamadas: AtomicUsize,
+}
+
+impl IngestFake {
+    pub(super) fn novo(recusa: Recusa) -> Arc<Self> {
+        Arc::new(Self {
+            entregues: Arc::new(StdMutex::new(Vec::new())),
+            recusa,
+            chamadas: AtomicUsize::new(0),
+        })
     }
-    (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+
+    pub(super) fn chamadas(&self) -> usize {
+        self.chamadas.load(Ordering::SeqCst)
+    }
 }
 
-/// Node falso: freio de tráfego (`recent`) + captura de entregas.
-pub(super) async fn node_falso(entregues: Entregues, recent: bool) -> String {
-    let app = Router::new()
-        .route(
-            "/internal/activity",
-            get(move || async move { Json(serde_json::json!({ "recent": recent })) }),
-        )
-        .route("/internal/crawl-result", post(entrega))
-        .with_state(entregues);
+impl PageIngest for IngestFake {
+    fn apply_page<'a>(
+        &'a self,
+        _site: &'a str,
+        page: &'a CrawlWorkResult,
+        _now_ms: i64,
+        _options: IngestOptions<'a>,
+    ) -> IngestFuture<'a> {
+        let n = self.chamadas.fetch_add(1, Ordering::SeqCst);
+        let json = serde_json::to_value(page).expect("página serializável");
+        self.entregues.lock().unwrap().push(json);
+        let recusa = match self.recusa {
+            Recusa::Nunca => false,
+            Recusa::Primeira => n == 0,
+            Recusa::Sempre => true,
+        };
+        let report = if recusa {
+            PageReport {
+                reason: Some("tmdb-indisponivel".to_string()),
+                retryable: true,
+                ..PageReport::default()
+            }
+        } else {
+            PageReport::default()
+        };
+        Box::pin(async move { Ok(report) })
+    }
+}
+
+/// A ingestão falsa na forma que o executor recebe.
+pub(super) fn plug(ingest: &Arc<IngestFake>) -> Option<Arc<dyn PageIngest>> {
+    Some(ingest.clone())
+}
+
+/// Node falso: SÓ o freio de tráfego (`recent`). Não há
+/// `/internal/crawl-result` — uma entrega por HTTP cairia em 404, como em
+/// produção depois da T3-L3.
+pub(super) async fn node_falso(recent: bool) -> String {
+    let app = Router::new().route(
+        "/internal/activity",
+        get(move || async move { Json(serde_json::json!({ "recent": recent })) }),
+    );
     bind_node(app).await
 }
 
-/// Node falso que recusa a primeira entrega (dedupe durável).
-pub(super) async fn node_recusa_primeira(entregues: Entregues) -> String {
-    let app = Router::new()
-        .route(
-            "/internal/activity",
-            get(|| async { Json(serde_json::json!({ "recent": false })) }),
-        )
-        .route(
-            "/internal/crawl-result",
-            post(entrega_falha_primeira).get(|| async { "nao-usado" }),
-        )
-        .with_state((entregues, Arc::new(AtomicUsize::new(0))));
-    bind_node(app).await
-}
-
-/// Node falso que recusa TODA entrega (500), como o `catalogo-sem-nomes` de
-/// uma obra que o catálogo não nomeia; conta as tentativas recebidas.
-pub(super) async fn node_recusa_sempre(recebidas: Arc<AtomicUsize>) -> String {
-    let app = Router::new()
-        .route(
-            "/internal/activity",
-            get(|| async { Json(serde_json::json!({ "recent": false })) }),
-        )
-        .route(
-            "/internal/crawl-result",
-            post(|State(n): State<Arc<AtomicUsize>>| async move {
-                n.fetch_add(1, Ordering::SeqCst);
-                StatusCode::INTERNAL_SERVER_ERROR
-            }),
-        )
-        .with_state(recebidas);
-    bind_node(app).await
+/// A fila de portões ficou vazia (pendência resolvida)?
+pub(super) fn db_gate_vazia(caminho: &str) -> bool {
+    let db = CrawlStore::open(caminho).expect("reabrir");
+    db.take_gate_batch(10).expect("lote").is_empty()
 }
 
 /// Vence o recuo de uma linha (o relógio do teste não espera minutos).
@@ -205,6 +217,7 @@ async fn bind_node(app: Router) -> String {
 pub(super) fn executor(
     caminho: &str,
     node: &str,
+    ingest: Option<Arc<dyn PageIngest>>,
     resolver: Arc<dyn GateResolver>,
     flare: Arc<dyn FlareProbe>,
     cap: u32,
@@ -222,7 +235,7 @@ pub(super) fn executor(
         admin_token: "token-de-teste".to_string(),
         ..Default::default()
     };
-    GateExecutor::new(
+    let ex = GateExecutor::new(
         cfg,
         tuning,
         store,
@@ -232,7 +245,11 @@ pub(super) fn executor(
         )),
         resolver,
         flare,
-    )
+    );
+    match ingest {
+        Some(ingest) => ex.with_ingest(ingest),
+        None => ex,
+    }
 }
 
 pub(super) fn falso(chamadas: Arc<AtomicUsize>, falha: bool) -> Arc<ResolverFake> {

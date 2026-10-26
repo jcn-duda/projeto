@@ -1,32 +1,36 @@
 //! Testes do executor de fundo dos portões (`gate-pending`).
 //!
-//! Exercitam o executor REAL contra um `crawl.db` temporário, um Node falso
-//! e um resolver falso com contagem de pagamentos. A infra (semeadores,
-//! falsos, handlers) vive em [`super::support`], separada pela catraca de
-//! 400 linhas; o acervo "in_memory" aqui é a captura do Node — é por ela que
-//! a release chega ao índice no mundo real.
+//! Exercitam o executor REAL contra um `crawl.db` temporário, uma ingestão
+//! falsa (a MESMA porta `PageIngest` do motor), um Node falso só com o freio
+//! de tráfego e um resolver falso com contagem de pagamentos. A infra vive em
+//! [`super::support`], separada pela catraca de 400 linhas; o acervo aqui é a
+//! captura da ingestão — é por ela que a release chega ao índice.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
 
 use super::support::*;
 use super::*;
 use crate::store::ops::CrawlStore;
 
 /// (b) Post pendente de portão: o executor paga pelo resolver e a release é
-/// GRAVADA NO ACERVO (captura do POST ao Node) com a linha fechada como `done`.
+/// GRAVADA NO ACERVO pela ingestão nativa com a linha fechada como `done`. O
+/// Node falso não tem `/internal/crawl-result` (404, como em produção): a
+/// regressão de 2026-10-26 entregava por lá e nunca fechava a linha.
 #[tokio::test]
 async fn executor_paga_e_grava_no_acervo() {
     let dir = tempfile::tempdir().expect("tempdir");
     let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
     semear_gate(&caminho, "post-1", GATE);
 
-    let entregues: Entregues = Arc::new(StdMutex::new(Vec::new()));
-    let node = node_falso(entregues.clone(), false).await;
+    let ingest = IngestFake::novo(Recusa::Nunca);
+    let entregues = ingest.entregues.clone();
+    let node = node_falso(false).await;
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         4,
@@ -87,6 +91,7 @@ async fn teto_esgotado_nao_chama_o_resolver() {
     let ex = executor(
         &caminho,
         "http://127.0.0.1:1",
+        plug(&IngestFake::novo(Recusa::Nunca)),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         0, // teto já esgotado (e kill-switch do knob)
@@ -116,12 +121,13 @@ async fn teto_estourado_no_meio_da_rodada() {
     semear_gate(&caminho, "post-1", GATE);
     semear_gate(&caminho, "post-2", GATE);
 
-    let entregues: Entregues = Arc::new(StdMutex::new(Vec::new()));
-    let node = node_falso(entregues.clone(), false).await;
+    let ingest = IngestFake::novo(Recusa::Nunca);
+    let node = node_falso(false).await;
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         1, // um pagamento por hora
@@ -156,12 +162,14 @@ async fn falha_do_resolver_mantem_pendente_sem_veneno() {
     let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
     semear_gate(&caminho, "post-1", GATE);
 
-    let entregues: Entregues = Arc::new(StdMutex::new(Vec::new()));
-    let node = node_falso(entregues.clone(), false).await;
+    let ingest = IngestFake::novo(Recusa::Nunca);
+    let entregues = ingest.entregues.clone();
+    let node = node_falso(false).await;
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), true),
         Arc::new(FlareFake { ocupado: false }),
         4,
@@ -210,18 +218,19 @@ async fn pagamento_nao_se_repete_quando_a_entrega_falha() {
     let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
     semear_gate(&caminho, "post-1", GATE);
 
-    let entregues: Entregues = Arc::new(StdMutex::new(Vec::new()));
-    let node = node_recusa_primeira(entregues.clone()).await;
+    let ingest = IngestFake::novo(Recusa::Primeira);
+    let node = node_falso(false).await;
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         4,
     );
 
-    // 1ª rodada: paga (FlareSolverr gastou) mas a entrega ao Node falha.
+    // 1ª rodada: paga (FlareSolverr gastou) mas a ingestão pede reentrega.
     let report = ex.run_round().await.expect("primeira rodada");
     assert_eq!(report.paid, 0);
     assert_eq!(chamadas.load(Ordering::SeqCst), 1, "um pagamento");
@@ -257,12 +266,13 @@ async fn entrega_recusada_sempre_recua_sem_laco() {
     let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
     semear_gate(&caminho, "post-1", GATE);
 
-    let recebidas = Arc::new(AtomicUsize::new(0));
-    let node = node_recusa_sempre(recebidas.clone()).await;
+    let ingest = IngestFake::novo(Recusa::Sempre);
+    let node = node_falso(false).await;
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         4,
@@ -275,11 +285,11 @@ async fn entrega_recusada_sempre_recua_sem_laco() {
     assert_eq!(tries1, 1);
     assert!(next1 - antes >= base, "1º recuo = base");
 
-    // Rodadas seguidas dentro do recuo: nenhuma entrega nova ao Node.
+    // Rodadas seguidas dentro do recuo: nenhuma entrega nova à ingestão.
     for _ in 0..5 {
         assert_eq!(ex.run_round().await.expect("rodada no recuo").claimed, 0);
     }
-    assert_eq!(recebidas.load(Ordering::SeqCst), 1, "uma entrega só");
+    assert_eq!(ingest.chamadas(), 1, "uma entrega só");
 
     vencer_recuo(&caminho, "post-1");
     let antes2 = now_ms();
@@ -288,7 +298,7 @@ async fn entrega_recusada_sempre_recua_sem_laco() {
     assert_eq!(status, "gate-pending", "recua, não envenena");
     assert_eq!(tries2, 2);
     assert!(next2 - antes2 >= 2 * base, "2º recuo dobra");
-    assert_eq!(recebidas.load(Ordering::SeqCst), 2);
+    assert_eq!(ingest.chamadas(), 2);
     assert_eq!(chamadas.load(Ordering::SeqCst), 1, "portão pago uma vez só");
 }
 
@@ -303,6 +313,7 @@ async fn flare_ocupado_pula_a_rodada() {
     let ex = executor(
         &caminho,
         "http://127.0.0.1:1",
+        plug(&IngestFake::novo(Recusa::Nunca)),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: true }),
         4,
@@ -330,12 +341,13 @@ async fn usuario_ativo_pula_a_rodada() {
     let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
     semear_gate(&caminho, "post-1", GATE);
 
-    let entregues: Entregues = Arc::new(StdMutex::new(Vec::new()));
-    let node = node_falso(entregues.clone(), true).await; // recent: true
+    let ingest = IngestFake::novo(Recusa::Nunca);
+    let node = node_falso(true).await; // recent: true
     let chamadas = Arc::new(AtomicUsize::new(0));
     let ex = executor(
         &caminho,
         &node,
+        plug(&ingest),
         falso(chamadas.clone(), false),
         Arc::new(FlareFake { ocupado: false }),
         4,
@@ -359,7 +371,27 @@ async fn usuario_ativo_pula_a_rodada() {
     assert_eq!(status, "gate-pending");
 }
 
-fn db_gate_vazia(caminho: &str) -> bool {
-    let db = CrawlStore::open(caminho).expect("reabrir");
-    db.take_gate_batch(10).expect("lote").is_empty()
+/// Sem ingestão montada (TMDB sem chave, bancos fora): a rodada nem toca o
+/// resolver — pagar sem quem grave só gastaria FlareSolverr e teto.
+#[tokio::test]
+async fn sem_ingestao_nao_paga() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
+    semear_gate(&caminho, "post-1", GATE);
+    let chamadas = Arc::new(AtomicUsize::new(0));
+    let flare = Arc::new(FlareFake { ocupado: false });
+    let ex = executor(
+        &caminho,
+        "http://127.0.0.1:1",
+        None,
+        falso(chamadas.clone(), false),
+        flare,
+        4,
+    );
+
+    let report = ex.run_round().await.expect("rodada");
+    assert_eq!(report.skipped, Some("ingest-pendente"));
+    assert_eq!(report.claimed, 0);
+    assert_eq!(chamadas.load(Ordering::SeqCst), 0, "nada pago");
+    assert_eq!(ler_linha(&caminho, "post-1").0, "gate-pending");
 }
