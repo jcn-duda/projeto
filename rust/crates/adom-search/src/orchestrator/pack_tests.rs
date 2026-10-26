@@ -97,6 +97,7 @@ async fn coleta_vazia_dispara_o_pack_da_temporada() {
         key: "k".into(),
         now_ms: 0,
         deadline_at: Some(super::super::respond::now_ms() + 5_000),
+        fence: Default::default(),
     };
     let out = orch.pack_fallback(&input, &serie(), &[], false).await;
     assert!(out.is_some(), "episódio vazio → pack");

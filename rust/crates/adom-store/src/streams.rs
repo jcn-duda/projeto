@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use adom_core::{prefix, quota_for};
-use adom_search::{StoreHit, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS};
+use adom_search::{Fence, StoreHit, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS};
 use rusqlite::{params, Connection};
 
 use crate::integrity::{self, OpenReport};
@@ -126,27 +126,7 @@ impl StreamsStore {
         grace_seconds: u64,
         now_ms: u64,
     ) -> Result<Option<StoreHit>, String> {
-        let conn = self.lock();
-        let Some((value, expires_at)) = read_row(&conn, key)? else {
-            return Ok(None);
-        };
-        let expires_at = expires_at as u64;
-        if now_ms > expires_at {
-            let grace_ms = grace_seconds.saturating_mul(1000);
-            if now_ms > expires_at.saturating_add(grace_ms) {
-                conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
-                    .map_err(|err| err.to_string())?;
-                return Ok(None);
-            }
-            return Ok(Some(StoreHit {
-                value: decode_entry(&value)?,
-                stale: true,
-            }));
-        }
-        Ok(Some(StoreHit {
-            value: decode_entry(&value)?,
-            stale: false,
-        }))
+        get_with_stale_conn(&self.lock(), key, grace_seconds, now_ms)
     }
 
     /// Grava a entrada com o TTL decidido pelo chamador (`commit_decision`). Só aceita chave `streams:v21:`.
@@ -224,10 +204,89 @@ impl SwrStore for StreamsStore {
     fn len(&self) -> usize {
         StreamsStore::len(self).unwrap_or(0)
     }
+
+    fn fence_for_key(&self, key: &str) -> Fence {
+        match StreamsStore::fence_for_key(self, key) {
+            Ok(fence) => fence,
+            Err(err) => {
+                eprintln!(
+                    "[gateway] streams store: geração falhou ({err}); seguindo com a fence zero"
+                );
+                Fence::default()
+            }
+        }
+    }
+
+    fn get_fenced(&self, key: &str, grace_seconds: u64, now_ms: u64) -> (Option<StoreHit>, Fence) {
+        // Leitura e geração na MESMA seção crítica da conexão: fora dela, a
+        // invalidação que cai entre as duas chamadas passaria despercebida.
+        let conn = self.lock();
+        let fence = crate::streams_fence::read(&conn, key).unwrap_or_else(|err| {
+            eprintln!("[gateway] streams store: geração falhou ({err}); seguindo com a fence zero");
+            Fence::default()
+        });
+        let hit = match get_with_stale_conn(&conn, key, grace_seconds, now_ms) {
+            Ok(hit) => hit,
+            Err(err) => {
+                eprintln!("[gateway] streams store: leitura falhou ({err}); seguindo sem cache");
+                None
+            }
+        };
+        (hit, fence)
+    }
+
+    fn set_fenced(
+        &self,
+        key: &str,
+        value: &StreamsEntry,
+        ttl_seconds: u64,
+        now_ms: u64,
+        fence: Fence,
+    ) -> bool {
+        match StreamsStore::set_fenced(self, key, value, ttl_seconds, now_ms, &fence) {
+            Ok(wrote) => wrote,
+            Err(err) => {
+                // Fail-closed: sem prova de escrita, o chamador NÃO pode servir
+                // a lista como se ela estivesse no cache.
+                eprintln!("[gateway] streams store: escrita com fence falhou ({err})");
+                false
+            }
+        }
+    }
+}
+
+/// `get_with_stale` sobre uma conexão já travada. Existe para o `get_fenced`
+/// ler a lista e a geração na MESMA seção crítica (o Mutex não é reentrante,
+/// então dois métodos públicos não podem ser chamados em sequência).
+pub(crate) fn get_with_stale_conn(
+    conn: &Connection,
+    key: &str,
+    grace_seconds: u64,
+    now_ms: u64,
+) -> Result<Option<StoreHit>, String> {
+    let Some((value, expires_at)) = read_row(conn, key)? else {
+        return Ok(None);
+    };
+    let expires_at = expires_at as u64;
+    if now_ms > expires_at {
+        let grace_ms = grace_seconds.saturating_mul(1000);
+        if now_ms > expires_at.saturating_add(grace_ms) {
+            conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
+                .map_err(|err| err.to_string())?;
+            return Ok(None);
+        }
+        return Ok(Some(StoreHit {
+            value: decode_entry(&value)?,
+            stale: true,
+        }));
+    }
+    Ok(Some(StoreHit {
+        value: decode_entry(&value)?,
+        stale: false,
+    }))
 }
 
 /// `Ok(None)` só para MISS (`QueryReturnedNoRows`); qualquer outro erro sobe.
-///
 /// O `.ok()` antigo engolia `SQLITE_CORRUPT`/`no such table` como se a chave
 /// não existisse — cache vazio silencioso, sem log e sem pista.
 pub(crate) fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, String> {

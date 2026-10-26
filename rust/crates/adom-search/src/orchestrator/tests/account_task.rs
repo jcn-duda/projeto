@@ -54,6 +54,7 @@ fn input(deadline_ms: i64) -> SearchInput {
         key: "k".into(),
         now_ms: now,
         deadline_at: Some(now + deadline_ms),
+        fence: Default::default(),
     }
 }
 

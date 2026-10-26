@@ -9,37 +9,27 @@
 //! Os contadores moram em `streams_meta`, FORA da tabela `cache`, para o
 //! `clear_all` não apagar o próprio contador que ele incrementa.
 
-use adom_search::StreamsEntry;
+use adom_search::{fence_valid, obra_of_key, StreamsEntry};
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::streams::{enforce_quota, is_imdb_id, is_streams_key, streams_prefix, StreamsStore};
+use crate::streams::{enforce_quota, is_streams_key, streams_prefix, StreamsStore};
+
+// A [`Fence`] é do trait do `adom-search` (o orquestrador precisa dela sem
+// depender deste crate); aqui segue no MESMO caminho de antes.
+pub use adom_search::cache::Fence;
 
 /// Chave do contador global (limpeza de instalação, hash, sufixo).
 pub const EPOCH_KEY: &str = "gen:epoch";
-
-/// Gerações observadas por uma busca antes de coletar.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Fence {
-    /// Geração da obra (tipo + imdbId) da chave.
-    pub obra: u64,
-    /// Geração global, andada por toda limpeza (`clear_all`, hash, sufixo).
-    pub epoch: u64,
-}
 
 /// Contador de obra da chave de cache (`gen:obra:<tipo>:<tt…>`).
 ///
 /// A geração é por **tipo + imdbId**, não por chave inteira: o escopo (config
 /// serializada + conta) fica no fim da chave e muda a cada instalação, então
 /// incluí-lo partiria a mesma obra em contadores que a invalidação não alcança.
-/// Fora do formato (`movie`/`series` + `tt…`) → `None`: não há geração a andar.
+/// O parse é o MESMO do store em memória (`obra_of_key`): um lado não pode
+/// reconhecer a obra que o outro não reconhece.
 pub(crate) fn gen_key_for(cache_key: &str) -> Option<String> {
-    let rest = cache_key.strip_prefix(streams_prefix())?;
-    let (kind, after) = rest.split_once(':')?;
-    if kind != "movie" && kind != "series" {
-        return None;
-    }
-    let id = after.split(':').next()?;
-    is_imdb_id(id).then(|| format!("gen:obra:{kind}:{id}"))
+    obra_of_key(cache_key).map(|obra| format!("gen:obra:{obra}"))
 }
 
 fn bump(conn: &Connection, key: &str) -> Result<(), String> {
@@ -50,18 +40,6 @@ fn bump(conn: &Connection, key: &str) -> Result<(), String> {
     )
     .map_err(|err| format!("geração {key}: {err}"))?;
     Ok(())
-}
-
-fn read_value(conn: &Connection, key: &str) -> Result<u64, String> {
-    let raw: Option<i64> = conn
-        .query_row(
-            "SELECT value FROM streams_meta WHERE key = ?1",
-            params![key],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|err| format!("ler geração {key}: {err}"))?;
-    Ok(raw.unwrap_or(0).max(0) as u64)
 }
 
 /// Incrementa os contadores das DUAS formas da obra (filme e série).
@@ -80,7 +58,21 @@ pub(crate) fn bump_epoch(conn: &Connection) -> Result<(), String> {
     bump(conn, EPOCH_KEY)
 }
 
-fn read(conn: &Connection, cache_key: &str) -> Result<Fence, String> {
+fn read_value(conn: &Connection, key: &str) -> Result<u64, String> {
+    let raw: Option<i64> = conn
+        .query_row(
+            "SELECT value FROM streams_meta WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("ler geração {key}: {err}"))?;
+    Ok(raw.unwrap_or(0).max(0) as u64)
+}
+
+/// Geração da chave sobre uma conexão já travada — o `get_fenced` do trait lê
+/// a lista e a fence juntos.
+pub(crate) fn read(conn: &Connection, cache_key: &str) -> Result<Fence, String> {
     let obra = match gen_key_for(cache_key) {
         Some(key) => read_value(conn, &key)?,
         None => 0,
@@ -121,7 +113,7 @@ impl StreamsStore {
             .unchecked_transaction()
             .map_err(|err| err.to_string())?;
         let atual = read(&tx, key)?;
-        if fence.epoch < atual.epoch || fence.obra < atual.obra {
+        if !fence_valid(*fence, atual) {
             return Ok(false);
         }
         let expires_at = now_ms.saturating_add(ttl_seconds.saturating_mul(1000)) as i64;

@@ -280,6 +280,7 @@ async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
         key: "k".into(),
         now_ms: 1_000,
         deadline_at: Some(1_000_000),
+        fence: Default::default(),
     };
 
     let fast = orch

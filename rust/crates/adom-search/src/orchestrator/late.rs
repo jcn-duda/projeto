@@ -289,10 +289,13 @@ impl Orchestrator {
     /// Sem novidade no lote tardio: promove a entrada parcial existente com as
     /// regras do núcleo (`late_promotion_decision`). `live` é o estado FINAL da
     /// coleta; a decisão só lê `has_any_failure`/`needs_fallback`, como o TS.
-    fn promote_late(&self, input: &SearchInput, live: Option<&LiveBatchState>) {
+    pub(super) fn promote_late(&self, input: &SearchInput, live: Option<&LiveBatchState>) {
         let now = input.now_ms;
-        // `cache.get` do TS: entrada expirada some (graça 0).
-        let Some(hit) = self.store.get_with_stale(&input.key, 0, as_ms(now)) else {
+        // `cache.get` do TS: entrada expirada some (graça 0). A geração sai da
+        // MESMA leitura: é ela que autoriza a escrita logo abaixo — a
+        // invalidação que cair entre as duas descarta a promoção.
+        let (hit, fence) = self.store.get_fenced(&input.key, 0, as_ms(now));
+        let Some(hit) = hit else {
             return;
         };
         let live = live.map(|state| adom_core::LiveState {
@@ -316,12 +319,18 @@ impl Orchestrator {
                 entry.partial = false;
                 entry.debrid_known = Some(decision.debrid_known);
                 // `trace`/`searchMeta` sobrevivem à promoção (o TS copia).
-                self.store.set(
-                    &input.key,
-                    &to_cacheable_entry(&entry),
-                    decision.ttl.max(0) as u64,
-                    as_ms(now),
-                );
+                let promovida = to_cacheable_entry(&entry);
+                let ttl = decision.ttl.max(0) as u64;
+                if !self
+                    .store
+                    .set_fenced(&input.key, &promovida, ttl, as_ms(now), fence)
+                {
+                    metrics::global_metrics().inc(metrics::COMMIT_DROPPED, 1);
+                    eprintln!(
+                        "[search] promoção tardia descartada: geração da obra andou ({})",
+                        input.key
+                    );
+                }
             }
             LateAction::Forget => self.store.forget(&input.key),
             LateAction::None => {}

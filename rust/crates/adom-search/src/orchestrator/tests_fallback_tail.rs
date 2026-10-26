@@ -35,6 +35,7 @@ async fn tail_reconstroi_com_estado_final_e_reinjeta_a_reserva() {
         key: "fallback-wiring".into(),
         now_ms: 1_000_000,
         deadline_at: None,
+        fence: Default::default(),
     };
     let shared = shared_live_state();
     merge_into_shared(&shared, &live(&["bludv"], &["pendente"], &[]));

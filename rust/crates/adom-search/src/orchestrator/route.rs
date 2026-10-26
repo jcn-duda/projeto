@@ -37,9 +37,13 @@ impl Orchestrator {
 
         // SWR: `getWithStale` (não `get`) — a entrada expirada DENTRO da graça
         // é justamente a que o SWR quer servir enquanto revalida.
-        let hit = self
+        //
+        // A geração vem do MESMO instante da leitura (`get_fenced`): capturá-la
+        // antes ou depois abriria a janela em que a invalidação passaria
+        // despercebida, e é essa fence que autoriza o commit no fim da busca.
+        let (hit, fence) = self
             .store
-            .get_with_stale(&key, self.config.stale_grace_seconds, as_ms(now));
+            .get_fenced(&key, self.config.stale_grace_seconds, as_ms(now));
         match swr_lookup(hit) {
             SwrLookup::Serve { entry, revalidate } => {
                 if revalidate {
@@ -59,6 +63,7 @@ impl Orchestrator {
             key: key.clone(),
             now_ms: now,
             deadline_at,
+            fence,
         };
         // A busca corre numa TASK própria: o `timeout` abaixo corta só a
         // ESPERA. Se o prazo vencer, a task continua e o passe tardio grava.

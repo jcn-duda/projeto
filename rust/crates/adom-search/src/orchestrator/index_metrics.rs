@@ -33,6 +33,9 @@ pub const EFFECTS: &str = "index.rust.effects";
 /// `idx:v14`/`magnets.db` sem store injetado: degradação SEM índice/banco
 /// (não existe mais caminho Node).
 pub const SOURCE_MISSING: &str = "index.rust.source_missing";
+/// Commit recusado pela fence: a obra foi invalidada durante a busca (T1-C2).
+/// Não é erro — é a lista velha deixando de entrar no cache.
+pub const COMMIT_DROPPED: &str = "search.rust.commit.dropped";
 
 const KEYS: &[&str] = &[
     LOOKUP,
@@ -58,6 +61,7 @@ const KEYS: &[&str] = &[
     BR_GAP_SERVED,
     EFFECTS,
     SOURCE_MISSING,
+    COMMIT_DROPPED,
 ];
 
 /// Contadores do índice/banco. `Clone` barato (`Arc<Mutex<..>>`).

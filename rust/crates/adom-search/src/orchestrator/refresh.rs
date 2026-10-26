@@ -23,11 +23,12 @@ impl Orchestrator {
             let now = now_ms();
             // Revalida ANTES de pagar a busca: passe tardio, recheck do
             // autofetch ou outra requisição podem ter reescrito a entrada.
-            let ainda_stale = this
-                .store
-                .get_with_stale(&key, this.config.stale_grace_seconds, as_ms(now))
-                .map(|hit| hit.stale)
-                .unwrap_or(true);
+            // A geração sai da MESMA leitura (`get_fenced`): é ela que o
+            // commit da revalidação leva consigo.
+            let (hit, fence) =
+                this.store
+                    .get_fenced(&key, this.config.stale_grace_seconds, as_ms(now));
+            let ainda_stale = hit.map(|hit| hit.stale).unwrap_or(true);
             if ainda_stale {
                 let input = SearchInput {
                     kind: req.kind.clone(),
@@ -40,6 +41,7 @@ impl Orchestrator {
                     // Passe de fundo tem o orçamento COMPLETO (sem deadlineAt
                     // encurtado), como no `scheduleStaleRefresh`.
                     deadline_at: None,
+                    fence,
                 };
                 let in_flight = this.in_flight.clone();
                 in_flight

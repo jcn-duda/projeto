@@ -98,6 +98,10 @@ pub struct StoreHit {
     pub stale: bool,
 }
 
+// A fence mora em `cache_fence` só pelo teto de linhas; o caminho público
+// continua `crate::cache::{Fence, fence_valid, obra_of_key}`.
+pub use crate::cache_fence::{fence_valid, obra_of_key, Fence};
+
 /// Store do cache da busca. `now_ms` entra como parâmetro: a semântica de
 /// prazo tem que ser testável sem relógio real.
 pub trait SwrStore: Send + Sync {
@@ -113,12 +117,44 @@ pub trait SwrStore: Send + Sync {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Geração atual da obra dona de `key`.
+    fn fence_for_key(&self, key: &str) -> Fence;
+    /// Leitura SWR **e** fence no mesmo instante. É este par que a busca leva
+    /// até o commit: capturar antes/depois da leitura abriria a janela em que a
+    /// invalidação passa despercebida.
+    fn get_fenced(&self, key: &str, grace_seconds: u64, now_ms: u64) -> (Option<StoreHit>, Fence) {
+        let fence = self.fence_for_key(key);
+        (self.get_with_stale(key, grace_seconds, now_ms), fence)
+    }
+    /// Grava só se a geração capturada na leitura ainda vale. `false` NÃO é
+    /// erro: é a corrida perdida de propósito (nada foi escrito).
+    fn set_fenced(
+        &self,
+        key: &str,
+        value: &StreamsEntry,
+        ttl_seconds: u64,
+        now_ms: u64,
+        fence: Fence,
+    ) -> bool;
 }
 
 /// Implementação em memória, para testes e para a fatia sem persistência.
+///
+/// Os contadores de geração moram no MESMO `Mutex` das entradas: `get_fenced`
+/// lê lista e fence numa seção crítica só (o `StreamsStore` faz o mesmo com a
+/// transação).
 #[derive(Default)]
 pub struct MemorySwrStore {
-    inner: Mutex<HashMap<String, MemoryRecord>>,
+    inner: Mutex<MemoryState>,
+}
+
+#[derive(Default)]
+struct MemoryState {
+    records: HashMap<String, MemoryRecord>,
+    /// Contador por obra — espelho de `streams_meta` no store SQL.
+    obra_gen: HashMap<String, u64>,
+    /// `gen:epoch`: a invalidação global.
+    epoch: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -128,36 +164,24 @@ struct MemoryRecord {
     expires_at_ms: u64,
 }
 
-impl MemorySwrStore {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl SwrStore for MemorySwrStore {
-    fn get_with_stale(&self, key: &str, grace_seconds: u64, now_ms: u64) -> Option<StoreHit> {
-        let mut map = self.inner.lock().expect("store envenenado");
-        let record = map.get(key)?;
-        if now_ms > record.expires_at_ms {
-            if now_ms > record.expires_at_ms + grace_seconds.saturating_mul(1000) {
-                // Passou da graça: apaga, como o `forget` do `getWithStale` —
-                // é justamente a entrada que o SWR NÃO quer mais servir.
-                map.remove(key);
-                return None;
-            }
-            return Some(StoreHit {
-                value: record.value.clone(),
-                stale: true,
-            });
+impl MemoryState {
+    fn fence_of(&self, key: &str) -> Fence {
+        let obra = obra_of_key(key)
+            .and_then(|obra| self.obra_gen.get(&obra).copied())
+            .unwrap_or(0);
+        Fence {
+            obra,
+            epoch: self.epoch,
         }
-        Some(StoreHit {
-            value: record.value.clone(),
-            stale: false,
-        })
     }
 
-    fn set(&self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64) {
-        self.inner.lock().expect("store envenenado").insert(
+    fn bump(&mut self, obra: &str) {
+        let counter = self.obra_gen.entry(obra.to_string()).or_insert(0);
+        *counter = counter.saturating_add(1);
+    }
+
+    fn insert(&mut self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64) {
+        self.records.insert(
             key.to_string(),
             MemoryRecord {
                 value: value.clone(),
@@ -166,12 +190,107 @@ impl SwrStore for MemorySwrStore {
         );
     }
 
+    fn read(&mut self, key: &str, grace_seconds: u64, now_ms: u64) -> Option<StoreHit> {
+        let (expires_at_ms, value) = {
+            let record = self.records.get(key)?;
+            (record.expires_at_ms, record.value.clone())
+        };
+        if now_ms > expires_at_ms {
+            if now_ms > expires_at_ms + grace_seconds.saturating_mul(1000) {
+                // Passou da graça: apaga, como o `forget` do `getWithStale` —
+                // é justamente a entrada que o SWR NÃO quer mais servir.
+                self.records.remove(key);
+                return None;
+            }
+            return Some(StoreHit { value, stale: true });
+        }
+        Some(StoreHit {
+            value,
+            stale: false,
+        })
+    }
+}
+
+impl MemorySwrStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Mesma semântica do `StreamsStore::invalidate_for_obra` (T1-C1): anda a
+    /// geração das DUAS kinds — a chave pode ainda NÃO existir (quem vai
+    /// criá-la é a busca em voo, e é ela que precisa perder a corrida) — e
+    /// apaga as listas da obra.
+    pub fn invalidate_for_obra(&self, imdb_id: &str) {
+        let movie = format!("movie:{imdb_id}");
+        let series = format!("series:{imdb_id}");
+        let mut state = self.inner.lock().expect("store envenenado");
+        state.bump(&movie);
+        state.bump(&series);
+        state.records.retain(|key, _| match obra_of_key(key) {
+            Some(obra) => obra != movie && obra != series,
+            None => true,
+        });
+    }
+
+    /// `clear_all` do store SQL: o epoch anda e TODAS as listas caem.
+    pub fn clear_all(&self) {
+        let mut state = self.inner.lock().expect("store envenenado");
+        state.records.clear();
+        state.epoch = state.epoch.saturating_add(1);
+    }
+}
+
+impl SwrStore for MemorySwrStore {
+    fn get_with_stale(&self, key: &str, grace_seconds: u64, now_ms: u64) -> Option<StoreHit> {
+        self.inner
+            .lock()
+            .expect("store envenenado")
+            .read(key, grace_seconds, now_ms)
+    }
+
+    fn set(&self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64) {
+        self.inner
+            .lock()
+            .expect("store envenenado")
+            .insert(key, value, ttl_seconds, now_ms);
+    }
+
     fn forget(&self, key: &str) {
-        self.inner.lock().expect("store envenenado").remove(key);
+        self.inner
+            .lock()
+            .expect("store envenenado")
+            .records
+            .remove(key);
     }
 
     fn len(&self) -> usize {
-        self.inner.lock().expect("store envenenado").len()
+        self.inner.lock().expect("store envenenado").records.len()
+    }
+
+    fn fence_for_key(&self, key: &str) -> Fence {
+        self.inner.lock().expect("store envenenado").fence_of(key)
+    }
+
+    fn get_fenced(&self, key: &str, grace_seconds: u64, now_ms: u64) -> (Option<StoreHit>, Fence) {
+        let mut state = self.inner.lock().expect("store envenenado");
+        let fence = state.fence_of(key);
+        (state.read(key, grace_seconds, now_ms), fence)
+    }
+
+    fn set_fenced(
+        &self,
+        key: &str,
+        value: &StreamsEntry,
+        ttl_seconds: u64,
+        now_ms: u64,
+        fence: Fence,
+    ) -> bool {
+        let mut state = self.inner.lock().expect("store envenenado");
+        if !fence_valid(fence, state.fence_of(key)) {
+            return false;
+        }
+        state.insert(key, value, ttl_seconds, now_ms);
+        true
     }
 }
 
@@ -242,3 +361,7 @@ pub fn to_cacheable_entry(entry: &StreamsEntry) -> StreamsEntry {
 #[cfg(test)]
 #[path = "cache_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "cache_fence_tests.rs"]
+mod fence_tests;

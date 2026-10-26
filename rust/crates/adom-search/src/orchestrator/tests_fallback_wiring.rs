@@ -59,6 +59,7 @@ async fn raw_item_da_reserva_preserva_flags_no_extra() {
         key: "fallback-wire".into(),
         now_ms: 1_000_000,
         deadline_at: None,
+        fence: Default::default(),
     };
     let items = orch
         .with_fallback(&input, &meta(), vec![], Some(&live(&["bludv"], &[], &[])))
@@ -120,6 +121,7 @@ async fn banco_ausente_mantem_o_lote_vivo() {
         key: "fallback-missing".into(),
         now_ms: wall_now_ms(),
         deadline_at: None,
+        fence: Default::default(),
     };
     let out = orch
         .with_fallback(
@@ -150,6 +152,7 @@ async fn banco_sem_linhas_mantem_o_lote_vivo() {
         key: "fallback-empty".into(),
         now_ms: wall_now_ms(),
         deadline_at: None,
+        fence: Default::default(),
     };
     let out = orch
         .with_fallback(

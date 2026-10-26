@@ -221,6 +221,7 @@ fn input() -> SearchInput {
         key: "streams:v21:teste".into(),
         now_ms: 1_700_000_000_000,
         deadline_at: Some(1_700_000_003_000),
+        fence: Default::default(),
     }
 }
 

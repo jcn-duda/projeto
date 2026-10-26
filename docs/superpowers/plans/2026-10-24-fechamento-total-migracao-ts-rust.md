@@ -2806,110 +2806,56 @@ git commit -m "refactor(autofetch): rd-warmer e dub-audit nativos e fim dos efei
 ### T1-C2: captura e uso da fence nos commits do orquestrador
 
 O contador existe (C1), mas ninguém o usa. Esta fatia fecha a 5H no caminho
-quente: a busca captura a geração ao começar e **descarta** a lista se a obra foi
-invalidada no meio.
+quente: a busca captura a geração **na mesma leitura** do cache e **descarta**
+a lista se a obra foi invalidada no meio.
 
-**Files:**
-- Modify: `rust/crates/adom-search/src/cache.rs:103-116` (`SwrStore` ganha
-  `fence_for_key` e `set_fenced`)
-- Modify: `rust/crates/adom-search/src/cache.rs` (`MemorySwrStore`: dois
-  `Mutex<HashMap<String, u64>>`)
-- Modify: `rust/crates/adom-search/src/orchestrator/route.rs:40` (captura)
-- Modify: `rust/crates/adom-search/src/orchestrator/refresh.rs:32` (captura)
-- Modify: `rust/crates/adom-search/src/orchestrator/input.rs` (`SearchInput.fence`)
-- Modify: `rust/crates/adom-search/src/orchestrator/finish.rs:187-193` (commit)
-- Modify: `rust/crates/adom-search/src/orchestrator/late.rs:330-335` (commit tardio)
-- Modify: `rust/crates/adom-search/src/orchestrator/rescue.rs` (`StaleRescue`)
-- Create: `rust/crates/adom-search/tests/fence_commit.rs`
+**Status:** EXECUTADA. Gate completo verde (fmt, clippy `-D warnings`,
+`cargo test --workspace` 0 failed, `stream_e2e_parity` 5/5,
+`search_budget_metadata` 7/7, catraca `.rs` 969 fontes sem excedente,
+`typecheck`/`build`/`npm test` 2395 pass/0 fail/`test:complete`/`lint:lines`/
+`git diff --check`).
 
-- [ ] **Step 1: escrever os testes que falham**
+**Files (como ficou):**
+- Create: `rust/crates/adom-search/src/cache_fence.rs` (`Fence`, `fence_valid`,
+  `obra_of_key`; reexportados por `cache`)
+- Create: `rust/crates/adom-search/src/cache_fence_tests.rs` (6 testes)
+- Create: `rust/crates/adom-search/src/orchestrator/fence_tests.rs` (3 testes)
+- Modify: `rust/crates/adom-search/src/cache.rs` (trait com `fence_for_key`,
+  `get_fenced`, `set_fenced`; `MemorySwrStore` com `Mutex<MemoryState>`
+  guardando `records` + `obra_gen` + `epoch`)
+- Modify: `rust/crates/adom-search/src/orchestrator/{mod,finish,route,refresh,late}.rs`
+- Modify: `rust/crates/adom-search/src/orchestrator/index_metrics.rs`
+  (`search.rust.commit.dropped`)
+- Modify: `rust/crates/adom-store/src/{streams,streams_fence}.rs`
 
-Em `tests/fence_commit.rs`:
+**Desvios medidos (o plano estava errado nestes pontos):**
 
-```rust
-#[test]
-fn commit_com_fence_velha_nao_grava_lista() {
-    let store = MemorySwrStore::new();
-    let ctx = ctx_for("tt1");
-    let fence = store.fence_for_key(&ctx.cache_key);
-    store.invalidate_for_obra("tt1").unwrap();
-    let wrote = commit_with_fence(&store, &ctx, &list_for(&["aaaa"]), &fence);
-    assert!(!wrote);
-    assert!(store.get_with_stale(&ctx.cache_key, 0, 1_000).unwrap().is_none());
-}
+1. **`Fence` não pode morar no `adom-store`.** O grafo é `adom-store →
+   adom-search` (o store importa `StoreHit`/`StreamsEntry`/`SwrStore`); o tipo
+   foi para `adom_search::cache` (módulo `cache_fence`) e o `adom-store`
+   reexporta. Sem ciclo.
+2. **`get_fenced` em vez de "capturar antes de `get_with_stale`".** Capturar
+   antes da leitura deixa a janela aberta (o próprio plano admitia); o par
+   leitura+fence sai da MESMA seção crítica — `Mutex<Connection>` no SQLite,
+   `Mutex<MemoryState>` na memória. Um lock, zero janela.
+3. **Não existe `orchestrator/rescue.rs`.** `StaleRescue` é um `CommitKind` do
+   `LatestWriter`; a fence no closure de commit já cobre o resgate, sem código
+   novo. O teste de corrida usa `RaceStore` (invalida logo após a leitura).
+4. **Testes in-crate, não `tests/fence_commit.rs`.** `finish`/`promote_late` e
+   `SearchInput` são `pub(super)`/internos; o teste de integração não alcança.
+   Ficaram `cache_fence_tests.rs` (store) e `orchestrator/fence_tests.rs`
+   (busca).
+5. **`MemorySwrStore` não tinha `put_stale`.** Entrada stale é criada por
+   `set(..., ttl, now)` com TTL já vencido.
 
-#[test]
-fn rescue_nao_serve_lista_de_geracao_anterior() {
-    let store = MemorySwrStore::new();
-    let ctx = ctx_for("tt1");
-    let fence = store.fence_for_key(&ctx.cache_key);
-    store.put_stale(&ctx.cache_key, &list_for(&["aaaa"]), 1_000);
-    store.invalidate_for_obra("tt1").unwrap();
-    assert!(rescue_may_serve(&store, &ctx, &fence, 2_000).is_none());
-}
+**Semântica entregue:**
+- `set_fenced` devolve `false` quando `!fence_valid(captured, current)` e NADA
+  grava; o commit soma `search.rust.commit.dropped` e loga. `false` não é erro.
+- Contadores só crescem ⇒ `>=`: fence da geração atual continua válida.
+- `invalidate_for_obra(imdb)` anda `movie:` **e** `series:` (a chave em voo pode
+  ainda não existir) e apaga as listas da obra; `clear_all` anda o epoch.
+- Chave fora do formato `streams:v21:<tipo>:tt…`: sem obra, vale só o epoch.
 
-#[test]
-fn commit_com_fence_atual_grava_e_serve() {
-    let store = MemorySwrStore::new();
-    let ctx = ctx_for("tt1");
-    let fence = store.fence_for_key(&ctx.cache_key);
-    assert!(commit_with_fence(&store, &ctx, &list_for(&["aaaa"]), &fence));
-    assert!(store.get_with_stale(&ctx.cache_key, 60, 1_000).unwrap().is_some());
-}
-```
-
-- [ ] **Step 2: rodar e ver falhar**
-
-```powershell
-cd rust
-cargo test -p adom-search --locked commit_com_fence_velha
-```
-Expected: FAIL — `fence_for_key` não existe no trait.
-
-- [ ] **Step 3: implementar**
-
-Adicione **dois métodos** ao trait existente (nada mais nele muda):
-
-```rust
-fn fence_for_key(&self, key: &str) -> Fence;
-fn set_fenced(
-    &self,
-    key: &str,
-    value: &StreamsEntry,
-    ttl_seconds: u64,
-    now_ms: u64,
-    fence: Fence,
-) -> bool;
-```
-
-- `StreamsSwr` delega para `StreamsStore::fence_for_key`/`set_fenced` (C1).
-- `MemorySwrStore` guarda `obra_gen: Mutex<HashMap<String, u64>>` e
-  `epoch: AtomicU64`; `invalidate_for_obra` incrementa a chave da obra, o
-  `clear_all` incrementa o epoch.
-- `SearchInput` ganha `fence: Fence`; `route.rs` e `refresh.rs` capturam
-  **antes** de `get_with_stale` (se capturar depois, a invalidação no meio da
-  leitura passa despercebida).
-- `finish.rs` e `late.rs` chamam `set_fenced`; o retorno `false` **não é erro**:
-  registra `stale_commit_dropped` no trace e segue sem servir a lista.
-- `StaleRescue` compara a fence da captura com a atual antes de servir; geração
-  antiga → não serve.
-
-- [ ] **Step 4: gate + commit**
-
-```powershell
-cd rust
-cargo fmt --all
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cargo test -p adom-search --test stream_e2e_parity
-cargo test -p adom-search --test search_budget_metadata
-cd ..
-node scripts/check-rust-lines.mjs
-```
-
-```powershell
-git add rust/crates/adom-search rust/crates/adom-store
-```
 ```powershell
 git commit -m "feat(search): commit com fence de geracao e rescue sem lista velha"
 ```

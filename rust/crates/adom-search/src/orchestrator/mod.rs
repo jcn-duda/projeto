@@ -77,6 +77,10 @@ mod tail;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+// T1-C2: commit/promoção só gravam com a geração da obra capturada na leitura.
+#[cfg(test)]
+#[path = "fence_tests.rs"]
+mod fence_tests;
 // Gate de paridade congelada do `/stream` (`docs/stream-frozen-gate.md`): o
 // alvo de integração `tests/stream_frozen_parity.rs` chama `run_all()` daqui,
 // então o módulo NÃO é `cfg(test)` — `doc(hidden)` só evita que ele apareça

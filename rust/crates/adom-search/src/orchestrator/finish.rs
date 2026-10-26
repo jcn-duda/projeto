@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use crate::cache::{to_cacheable_entry, StreamsEntry};
+use crate::cache::{to_cacheable_entry, Fence, StreamsEntry};
 use crate::internal_types::{EffectEntry, ReleaseEntry};
 use crate::latest_writer::LatestWriter;
 use crate::list_builder::{build_stream_list, BuildContext};
@@ -14,6 +14,7 @@ use crate::resolve_url::ResolveSigner;
 
 use super::config::{build_options_from, DebridContext, OrchestratorConfig};
 pub(super) use super::finish_build::finish_value;
+use super::index_metrics as metrics;
 use super::meta::SearchMeta;
 use super::respond::as_ms;
 use super::Orchestrator;
@@ -30,6 +31,10 @@ pub(super) struct SearchInput {
     pub(super) now_ms: i64,
     /// `None` = passe tardio, sem prazo de cliente.
     pub(super) deadline_at: Option<i64>,
+    /// Geração da obra capturada JUNTO da leitura do cache (`get_fenced`). É a
+    /// única fence que este passe pode usar para gravar: se a obra foi
+    /// invalidada enquanto a coleta corria, o commit é descartado (5H).
+    pub(super) fence: Fence,
 }
 
 /// O que a passada de build produziu, além da entrada gravável.
@@ -165,6 +170,7 @@ impl Orchestrator {
         let store = self.store.clone();
         let key = input.key.clone();
         let now = input.now_ms;
+        let fence = input.fence;
         let (value, _commit) = writer.run(
             phase,
             || {
@@ -186,9 +192,20 @@ impl Orchestrator {
             },
             |value: &FinishValue| !value.entry.streams.is_empty(),
             |value: &FinishValue| {
-                if value.commit_write {
-                    let entry = to_cacheable_entry(&value.entry);
-                    store.set(&key, &entry, value.commit_ttl.max(0) as u64, as_ms(now));
+                if !value.commit_write {
+                    return;
+                }
+                let entry = to_cacheable_entry(&value.entry);
+                let ttl = value.commit_ttl.max(0) as u64;
+                if !store.set_fenced(&key, &entry, ttl, as_ms(now), fence) {
+                    // Corrida perdida de propósito: a obra foi invalidada
+                    // enquanto esta busca coletava. A lista sai na RESPOSTA,
+                    // mas não entra no cache — gravar aqui ressuscitaria a
+                    // invalidação que o operador (ou a outbox) acabou de pedir.
+                    metrics::global_metrics().inc(metrics::COMMIT_DROPPED, 1);
+                    eprintln!(
+                        "[search] commit descartado: geração da obra andou durante a busca ({key})"
+                    );
                 }
             },
         );

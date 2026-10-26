@@ -22,6 +22,8 @@
 //! base64url) / do `encoded` no corpo das rotas internas — NUNCA do `.env`; e
 //! o HOST nunca entra na chave de cache.
 pub mod cache;
+// Fence de geração (`Fence`/`fence_valid`/`obra_of_key`), reexportada por `cache`.
+pub mod cache_fence;
 pub mod coalesce;
 pub mod collection_window;
 pub mod contract;
@@ -40,8 +42,8 @@ pub mod request;
 pub mod resolve_url;
 
 pub use cache::{
-    has_playable_stream, relative_url, swr_lookup, to_cacheable_entry, MemorySwrStore, StoreHit,
-    StreamsEntry, SwrLookup, SwrStore, STREAM_STALE_GRACE_SECONDS,
+    fence_valid, has_playable_stream, obra_of_key, relative_url, swr_lookup, to_cacheable_entry,
+    Fence, MemorySwrStore, StoreHit, StreamsEntry, SwrLookup, SwrStore, STREAM_STALE_GRACE_SECONDS,
 };
 pub use coalesce::InFlight;
 // Porte de `src/utils/latest-writer.ts`: parcial na resposta, tardio mescla.

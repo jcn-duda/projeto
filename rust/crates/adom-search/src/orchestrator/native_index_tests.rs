@@ -209,6 +209,7 @@ fn input(kind: &str, options: Value) -> SearchInput {
         key: "streams:v21:movie:tt1234567".to_string(),
         now_ms: now_ms(),
         deadline_at: None,
+        fence: Default::default(),
     }
 }
 

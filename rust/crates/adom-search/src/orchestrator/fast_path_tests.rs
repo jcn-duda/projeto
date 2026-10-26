@@ -137,6 +137,7 @@ fn tail_input_troca_o_prazo_da_resposta_pelo_do_tail() {
         key: "k".into(),
         now_ms: 0,
         deadline_at: Some(1),
+        fence: Default::default(),
     };
     let before = crate::orchestrator::respond::now_ms();
     let tail = orch.tail_input(&input);
