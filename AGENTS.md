@@ -430,8 +430,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por
-  site; seleção pura em `crawl-site-select.ts` (com limite de fome para a
-  descoberta). Fila serve novidade primeiro.
+  site; seleção pura no sidecar (`adom-crawl::policy::crawl_site_select`, com
+  limite de fome para a descoberta). Fila serve novidade primeiro. O Node não
+  escolhe site nem anda cursor: o card só lê (`crawl-cursor-load.ts`).
 - A régua do `<h1>` (`adom-crawl::work_name`) é **compartilhada** por 7 sites —
   mexer nela mexe em todos. TorrentDosFilmes (ano no meio, IMDb armadilha) tem
   régua própria.

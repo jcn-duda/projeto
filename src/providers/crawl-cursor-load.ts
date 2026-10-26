@@ -1,28 +1,25 @@
-// Carga dos cursores POR SITE a partir do `crawl_state`. Extraído de
-// `crawler.ts` pela catraca de linhas e porque o motor passou a ter DOIS
-// momentos de carga, não um:
+// Cursores POR SITE para o CARD do painel. O `crawl.db` é do sidecar Rust, que
+// também descobre e anda os cursores (sitemap e listagem, `adom-crawl`
+// `discovery/`): o Node só os MOSTRA.
 //
-// 1. boot com o site ativo (`primeSite`), como sempre;
-// 2. site que fica ativo DEPOIS do boot — motor religado no painel, ou site do
-//    catálogo ligado por override. Antes só o (1) existia: com o container
-//    subindo desligado, o cursor gravado nunca era lido, a primeira rodada
-//    saía `initial` e relia o sitemap inteiro em vez do incremental.
-//
-// A carga é única por processo (`cursorsLoaded`): depois dela a memória é a
-// verdade (o `advanceCursors` persiste junto), e recarregar por cima de um
-// "Zerar site" traria de volta um cursor que o operador acabou de descartar.
-//
-// O `crawl.db` é do sidecar Rust: a vista do CARD (`cursorsView`) não lê mais o
-// banco — ela serve a última resposta de `GET /crawl/cursor?site=<id>` e pede
-// um refresh em fundo. O status do painel é SÍNCRONO (`crawler.status()`), e
+// A vista serve a última resposta de `GET /crawl/cursor?site=<id>` e pede um
+// refresh em fundo. O status do painel é SÍNCRONO (`crawler.status()`), e
 // esperar HTTP ali seguraria o `/dashboard-status.json` inteiro. Sem resposta
 // da ponte, a leitura local do `crawl_state` continua valendo (é o MESMO banco
-// que o sidecar lê, então o fallback não inventa estado). A carga do motor
-// (`primeCursors`) e o avanço (`advanceCursors`) seguem locais nesta fatia.
+// que o sidecar lê, então o fallback não inventa estado).
 import config from '../config.js';
 import type { CrawlEngine } from '../utils/crawl-store.js';
-import { CURSOR_STATE_KEY, LEGACY_CURSOR_KEY, loadCursorsFromStore, type CursorMap } from './crawl-cursor.js';
-import type { SiteRuntime } from './crawl-site-runtime.js';
+
+export type CrawlKind = 'movie' | 'tv_show';
+export type CursorMap = Record<CrawlKind, string>;
+
+/** Chaves do cursor incremental por kind no `crawl_state` (as do sidecar). */
+const CURSOR_STATE_KEY: Record<CrawlKind, string> = {
+  movie: 'cursor:movie',
+  tv_show: 'cursor:tv_show',
+};
+/** Cursor único da Fase 6: instalação antiga pode tê-lo só nesta chave. */
+const LEGACY_CURSOR_KEY = 'cursor';
 
 /** Última vista devolvida pela ponte, por site. */
 const bridge = new Map<string, CursorMap>();
@@ -62,28 +59,17 @@ export function refreshCursorsView(site: string): Promise<void> {
   return job;
 }
 
-/** Carrega os cursores do site uma vez por processo (idempotente). */
-export function primeCursors(rt: SiteRuntime): void {
-  if (rt.cursorsLoaded) return;
-  rt.cursorsLoaded = true;
-  loadCursorsFromStore(rt.id, rt.cursors);
-}
-
 /**
- * Cursores para o CARD do painel. Com a carga feita, a memória; sem ela (site
- * nunca ativo neste processo), a vista da ponte do sidecar — e, enquanto ela
- * não chega (ou se nunca responder), a leitura quieta do `crawl_state`. O
- * status só LÊ: nem carrega o runtime nem migra o cursor legado (quem migra é
- * a carga de verdade). Sem isso o card de um site desligado dizia "carga
- * inicial" com cursor gravado no banco.
+ * Cursores para o CARD do painel: a vista da ponte do sidecar e, enquanto ela
+ * não chega (ou se nunca responder), a leitura quieta do `crawl_state`. Só
+ * LÊ: não migra o cursor legado (quem grava é o sidecar).
  */
-export function cursorsView(rt: SiteRuntime, engine: CrawlEngine): CursorMap {
-  if (rt.cursorsLoaded) return { ...rt.cursors };
-  void refreshCursorsView(rt.id);
-  const fromBridge = bridge.get(rt.id);
+export function cursorsView(site: string, engine: CrawlEngine): CursorMap {
+  void refreshCursorsView(site);
+  const fromBridge = bridge.get(site);
   if (fromBridge) return { ...fromBridge };
-  const movie = engine.getState(rt.id, CURSOR_STATE_KEY.movie) || engine.getState(rt.id, LEGACY_CURSOR_KEY) || '';
-  const tvShow = engine.getState(rt.id, CURSOR_STATE_KEY.tv_show) || '';
+  const movie = engine.getState(site, CURSOR_STATE_KEY.movie) || engine.getState(site, LEGACY_CURSOR_KEY) || '';
+  const tvShow = engine.getState(site, CURSOR_STATE_KEY.tv_show) || '';
   return { movie, tv_show: tvShow };
 }
 

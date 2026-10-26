@@ -30,7 +30,6 @@ import {
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { AutoPauseReason } from './crawl-pauses.js';
-import { skipReasonFor } from './crawl-site-select.js';
 
 let started = false;
 /** Pausa MANUAL GLOBAL: não persiste — restart volta ao `.env`. */
@@ -159,7 +158,7 @@ function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine)
     ready: rt.ready,
     paused: rt.paused,
     autoPause: rt.autoPause,
-    cursors: cursorsView(rt, engine),
+    cursors: cursorsView(id, engine),
     nextDiscoveryAt: rt.nextDiscoverAt,
     pagesThisHour: rt.hourPages.current(),
     openRunId: rt.openRunId,
@@ -175,7 +174,9 @@ function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine)
     // O gate lê crawl_state pela mesma engine do card (sem ela virava null).
     probe: probeGate(cfg.requireProbe, readVerdict(engine, id)),
     lastActiveAt: rt.lastActiveAt,
-    skipReason: skipReasonFor(rt, cfg, live.enabled),
+    // A seleção de site é do sidecar; daqui só sai a exclusão pela config do
+    // operador (pausa e teto do sidecar chegam pela foto dele no bloco `crawl`).
+    skipReason: live.enabled && cfg.enabled ? null : 'desabilitado',
     site: registry.siteInfo(id),
   };
 }

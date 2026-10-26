@@ -26,8 +26,8 @@
 // a query, então uma página que o site distinga SÓ por query (`?p=123`) cai na
 // mesma linha da vizinha. Nenhum site BR rastreado usa essa forma (todos têm
 // permalink por caminho); a superfície que realmente pagina por query — a
-// listagem — é percorrida pelo cursor opaco de listagem
-// (`providers/crawl-cursor.ts`) e nunca entra na `crawl_url`. Se um site
+// listagem — é percorrida pelo cursor opaco de listagem do sidecar
+// (`adom-crawl` `listing/cursor.rs`) e nunca entra na `crawl_url`. Se um site
 // passar a precisar de identidade por query, o caminho é acrescentar aqui (e
 // revisar a migração), não o motor.
 import type { CrawlUrlRow, CrawlUrlStatus } from '../providers/crawl-types.js';

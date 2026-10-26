@@ -32,31 +32,6 @@ export function isSiteLevelError(text: string): boolean {
   return SITE_LEVEL_ERROR_RE.test(String(text || ''));
 }
 
-/**
- * Maior lastmod (ISO) da leva descoberta; `''` quando nenhum é legível.
- * Compara por `Date.parse` (ISO-8601 ordena, mas a data pode vir torta do
- * sitemap) e, com ilegíveis misturados, mantém o primeiro — não inventa data
- * nem deixa um lastmod corrompido regredir o cursor.
- */
-export function maxLastmod(urls: readonly { lastmod?: string }[]): string {
-  let best = '';
-  let bestTime = -Infinity;
-  for (const entry of Array.isArray(urls) ? urls : []) {
-    const lastmod = String(entry?.lastmod || '');
-    if (!lastmod) continue;
-    const time = Date.parse(lastmod);
-    if (Number.isFinite(time)) {
-      if (time > bestTime) {
-        bestTime = time;
-        best = lastmod;
-      }
-    } else if (!best) {
-      best = lastmod;
-    }
-  }
-  return best;
-}
-
 /** Motivo de pausa automática (a pausa manual é outra coisa: `setPaused`). */
 export type AutoPauseReason = 'error-streak' | 'layout';
 

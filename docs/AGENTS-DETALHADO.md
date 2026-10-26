@@ -2196,7 +2196,10 @@ A FASE da rodada (`crawl_run.phase`, o "Carga inicial" do painel) vem do
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
 `lastActiveAt`, flags de recuperação. O que é GLOBAL continua global por
 desenho: um `busy` (uma operação em voo), o freio de tráfego e o `delayMs`
-mínimo. A **seleção** (`crawl-site-select.ts`) é pura e a ordem das regras é a
+mínimo. (Desde 2026-10-25 o estado e a seleção são do sidecar Rust:
+`adom-crawl::policy::crawl_site_select`; o `crawl-site-runtime.ts` ficou só com
+o que o card do painel lê, e o `crawl-site-select.ts` saiu.) A **seleção** é
+pura e a ordem das regras é a
 ordem do código: desligado → pausado → auto-pausa → teto (por site **e**
 global agregado) → **gate da sonda** → adaptador em janela de retry → sem
 trabalho. Entre os elegíveis vence o mais antigo por `lastActiveAt`, e a
@@ -2212,7 +2215,7 @@ tivesse fila: na VPS (2026-09-30) Apache, HDR, Vaca e NerdFilmes estavam com
 `lastActiveAt` 0, atrás das ~34 mil páginas do Comando e do TorrentDosFilmes.
 Descoberta vencida de site que nunca rodou, ou sem vez há mais que o próprio
 `incrementalIntervalMin`, passa na frente dos itens; dentro do intervalo a
-precedência segue (`crawl-site-select.ts`, `test/crawl-select-starvation.test.ts`).
+precedência segue (`crawl_site_select/select.rs`, `tests_starvation.rs`).
 Medido no Docker local com o Vaca a 1.866 pendentes: em 90 s o Apache descobriu
 389 páginas e o HDR 20, e os três passaram a revezar. O "sem torrent" alto do
 acervo antigo de HDR/Apache é real: esses posts só publicam MEGA, TeraBox,
@@ -2534,6 +2537,9 @@ Nacional WEB-DL" é a forma dominante.
 e relia o sitemap inteiro. A carga é única por processo (`cursorsLoaded`) —
 recarregar por cima de um "Zerar site" traria de volta o cursor descartado —
 e o card de site nunca ativo lê o cursor quiet, sem migrar o legado.
+Desde 2026-10-25 a carga (`primeCursors`) e o avanço saíram com o motor TS:
+o `crawl-cursor-load.ts` só monta a vista do card (ponte do sidecar →
+leitura local do `crawl_state`), e o `crawl-cursor.ts` foi apagado.
 
 **A identidade da página é `(site, url_key)`** e `url_key` é o **caminho**
 (`crawl-url-key.ts`): sem esquema, sem host, sem query, sem fragmento, barra

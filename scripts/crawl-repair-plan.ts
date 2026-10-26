@@ -43,8 +43,41 @@
 // Idempotência: linha já na locação certa não gera ação; título já saneado
 // não muda; linha excluída não existe na segunda passada.
 import { parseTitleSeasonEpisode } from '../src/utils/episode-matching.js';
-import { decodeEvidence } from '../src/providers/crawl-sites/vaca-series-locate.js';
 import { liveActionYearContradicts } from '../src/utils/matching-tokens.js';
+import { decodeEntities } from '../src/utils/title-normalization.js';
+
+/**
+ * Ordinal com entidade DESTRUÍDA ("4ordf", "4#170") de volta a "4ª"/"4º". A
+ * régua do raspador é o `repair_mangled_entities` do `adom-crawl`
+ * (`br_core/vaca_formas.rs`); esta cópia serve só ao reparo. Não é um
+ * decodificador genérico.
+ */
+function repairMangledEntities(value: string): string {
+  return value
+    .replace(/(?<![a-z])(\d{1,2})\s*ordf(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*ordm(?![a-z0-9])/gi, '$1º')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:170|xaa|x00aa)(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:186|xba|x00ba)(?![a-z0-9])/gi, '$1º');
+}
+
+/**
+ * Decodifica ENTIDADES HTML da evidência ANTES de inferir temporada. Os sites
+ * BR publicam o ordinal como entidade ("4&ordf; Temporada") e a evidência
+ * chega com resíduos: o dn pode vir duplamente codificado ("&amp;ordf;") e o
+ * slug solta a entidade sem o ";" final ("4ordf"). Sem decodificar,
+ * `parseTitleSeasonEpisode` não lê temporada nenhuma (TWD: work na S1/S5 em
+ * vez da S4, medido em produção 2026-09-27).
+ *
+ * Duas passadas: a primeira repara ";" ausente (sem tocar "&" solto — "Tom &
+ * Jerry", "A&B"), e `decodeEntities` roda duas vezes porque "&amp;#170;" só
+ * vira "ª" na segunda.
+ */
+function decodeEvidence(text: string): string {
+  const mangled = repairMangledEntities(String(text || ''));
+  const repaired = mangled
+    .replace(/&(#[0-9]+|#x[0-9a-f]+|[a-z]{2,8})(?![a-z0-9;])/gi, '&$1;');
+  return decodeEntities(decodeEntities(repaired));
+}
 
 export interface RepairRow {
   hash: string;

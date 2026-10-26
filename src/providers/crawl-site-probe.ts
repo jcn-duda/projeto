@@ -1,57 +1,19 @@
-﻿// Sonda AMOSTRAL por site (plano "Raspagem total", Fase 8 — item 8.3).
+// Contrato da SONDA AMOSTRAL por site (plano "Raspagem total", Fase 8 — item
+// 8.3): o veredito gravado no `crawl_state` e o codec que o portão lê.
 //
-// Pergunta que ela responde, antes de ligar qualquer site novo na rotação: "se o
-// motor raspar este site por 12 h, o que ele volta?" — medida numa amostra
-// ESPALHADA de páginas, com o MESMO adaptador que a produção usa, sem gravar
-// uma linha de acervo.
+// A sonda que MEDIA (amostra espalhada, classificação de página, Wilson,
+// `decide`) saiu junto com o motor TS do raspador: os nove sites são do
+// sidecar Rust, e o `adom-crawl probe` lê uma URL só. O que sobra aqui é a
+// leitura FECHADA do veredito já gravado — o `crawl-probe-gate.ts` só libera
+// site com `go` válido, e a régua (oráculo do golden `crawl-policy`) vive no
+// branch `esm`.
 //
-// Onde mora: aqui fica o CONTRATO — o que é gravado no `crawl_state`, a
-// classificação de página, os limiares e o codec. A agregação (Wilson,
-// `summarize`, média e p95 de custo) vive em `crawl-site-probe-stats.ts` e é
-// reexportada aqui, que é a superfície pública do módulo. A rede e a gravação
-// do veredito ficam no operador (`scripts/crawl-site-probe.ts`). Nenhum import
-// daqui abre banco nem rede — é por isso que o teste cobre tudo sem stub.
-//
-// DENOMINADORES (decisão registrada, e a parte que mais importa do desenho):
-// cada taxa responde a uma pergunta diferente e por isso NÃO divide pela
-// amostra inteira:
-//   - `validRate`       = páginas válidas ÷ AMOSTRA. "O site responde?";
-//   - `magnetRate`      = páginas com release ÷ páginas COM BOTÃO DE TORRENT.
-//     Página só de streaming (`no-torrent`) não tem botão: contá-la no
-//     denominador faria um site 60% streaming e 100% produtivo parecer 40%;
-//   - `magnetsPerPage`  = magnets OBSERVADOS ÷ páginas COM BOTÃO — mesma régua;
-//   - `identifyRate`    = identificadas ÷ páginas COM RELEASE, MENOS as páginas
-//     em que o TMDB NÃO respondeu. `no-work` (a obra não veio) é RESPOSTA da
-//     identificação e entra no denominador como negativa; só `error` com
-//     `tmdb-indisponivel` fica de fora, porque mediria a NOSSA dependência e
-//     não o site (e `tmdbDown` sai no relatório à parte).
-//
-// v2 — BUMP DELIBERADO (medido na rodada real do NerdFilmes, 2026-09-28). A v1
-// tratava `no-work` como "identificação não respondida" E o desfecho devolvia 0
-// releases nessa página. Com 40 páginas (20 de série) isso produziu
-// identificação 19/19 = 100% FALSO e `magnetsPerPage` 22/40 = 0.55: a sonda
-// afirmava que o site identificava tudo e rendia pouco, quando a verdade é a
-// inversa — 21 das 40 eram série que o TMDB não resolve por título, e elas
-// rendiam sim. O gate passa a recusar v1 (falhando fechado, `sem-veredito`):
-// veredito medido com o denominador errado não autoriza rotação, e remedir é o
-// procedimento normal da sonda.
-//
-// O `GO` exige o LIMITE INFERIOR do intervalo de Wilson 95%, não a taxa bruta:
-// com 40 páginas, 22 acertos dariam 55% — acima de qualquer limiar razoável —
-// e o site entraria na rotação por sorte. O ponto e o limite saem os dois no
-// relatório, para o operador ver o que passou e por quanto.
-//
-// Erro de página NUNCA vira botão quebrado sem prova, e o botão quebrado
-// NUNCA vira "site fora": as duas confusões custam caro em direções opostas
-// (falso GO de uma fonte morta; falso NO-GO de um site bom num dia ruim). Onde
-// a prova falta, a classificação é CONSERVADORA — a página não conta como boa —
-// e `counts` traz o detalhe para o olho humano auditar.
+// v2 — BUMP DELIBERADO (rodada real do NerdFilmes, 2026-09-28): a v1 media a
+// identificação com o denominador errado (`no-work` fora) e afirmava 100% de
+// identificação num site que identificava menos da metade. O gate recusa v1
+// (falhando fechado, `sem-veredito`): veredito medido com o denominador
+// errado não autoriza rotação.
 import type { CrawlPageKind } from './crawl-types.js';
-
-// A estatística mora no módulo irmão; a reexportação mantém a superfície
-// pública da sonda num import só (o gate e o painel importam daqui).
-import { costOf, classesOf, emptyClasses, emptyCost, evenlySpaced, percentile, summarize, wilsonLower } from './crawl-site-probe-stats.js';
-export { costOf, classesOf, emptyClasses, emptyCost, evenlySpaced, percentile, summarize, wilsonLower };
 
 // --- Contrato gravado no crawl_state ----------------------------------------
 
@@ -143,131 +105,45 @@ export interface ProbeThresholds {
 }
 
 /**
- * Defaults. A taxa bruta é meta de LEITURA; o que aprova é o limite inferior
- * (ver o cabeçalho). `magnetsPerPage >= 1` é o piso de produtividade: abaixo
- * disso a fonte não compensa o custo de manter o site no teto por hora.
+ * Limiares da régua da sonda: o codec os entrega quando o veredito gravado não
+ * traz os seus. A taxa bruta é meta de LEITURA; o que aprovava era o limite
+ * inferior de Wilson. `magnetsPerPage >= 1` é o piso de produtividade.
  */
 export const DEFAULT_PROBE_THRESHOLDS: ProbeThresholds = {
   validRate: 0.6, magnetRate: 0.5, identifyRate: 0.5, magnetsPerPage: 1,
 };
 
-/** Amostra do plano (mede 40 como foi feito no Vaca) e o piso para veredito. */
+/** Amostra do plano (mede 40 como foi feito no Vaca): o gate exige exatamente ela. */
 export const PROBE_SAMPLE = 40;
-export const PROBE_MIN_SAMPLE = 20;
-/** Abaixo disto o site provavelmente estava fora/desafio: inconclusivo, não NO-GO. */
-export const PROBE_MIN_VALID_PAGES = 8;
 
-// --- Classificação de página -----------------------------------------------
-
-export type PageBucket = 'withRelease' | 'buttonNoMagnet' | 'noTorrent' | 'pageError' | 'siteDown';
-
-export interface PageReading {
-  bucket: PageBucket;
-  /** A CLASSE do desfecho, para o relatório separar o que o balde agrupa. */
-  class: ProbeClass;
-  /** Releases ÚNICAS que o adaptador viu nesta página (0 se não houve). */
-  magnets: number;
-  /** A identificação foi RESPONDIDA (false = TMDB fora, fora do denominador). */
-  identifyAnswered: boolean;
-  identified: boolean;
-  requests: number;
-  /** Latência MEDIDA da leitura da página (ms), cronometrada pela CLI. */
-  latencyMs: number;
-  /** Slug da página — o relatório nunca carrega a URL completa. */
-  slug: string;
+/** Denominadores EFETIVOS de cada taxa, gravados junto do veredito. */
+export interface ProbeDenominators {
+  sample: number;
+  buttonPages: number;
+  identifyAnswered: number;
+  validPages: number;
 }
 
-/** Desfechos do `processCrawlPage` que só existem DEPOIS de haver release. */
-const RELEASE_KINDS: ReadonlySet<string> = new Set(['done', 'simulated', 'no-work', 'partial']);
-
-export interface ClassifyInput {
-  kind: string;
-  siteLevelError?: boolean;
-  detail?: string | null;
-  /** Releases vistas no desfecho — o observado, nunca o gravado. */
-  releases?: number;
-  requests?: number;
-  /** Latência medida da página em ms (a CLI cronometra; ausente = 0). */
-  latencyMs?: number;
-  slug: string;
+/** Classes zeradas — a base do histograma, com TODAS as chaves presentes. */
+export function emptyClasses(): ProbeClasses {
+  return {
+    identificada: 0, 'no-work': 0, 'tmdb-down': 0, 'botao-sem-magnet': 0,
+    'sem-botao': 0, 'erro-pagina': 0, 'site-fora': 0,
+  };
 }
 
-/**
- * O adaptador sinaliza "havia botão e nenhum magnet saiu" pelo TEXTO do erro —
- * não há campo estruturado para isso no contrato `CrawlWorkResult` (a promessa
- * é `no-torrent`/`error`, e o "erro" cobre layout E botão morto). A lista é
- * declarativa e versionada com a sonda: o marcador do adaptador é a única
- * prova disponível, e sem ele a página cai em `pageError` (conservadora).
- */
-export const NO_MAGNET_MARKERS: readonly RegExp[] = [
-  /nenhum\s+magnet/i,
-  /botão\(ões\)\s+anunciados/i,
-  /nenhum\s+(?:botão|magnet)/i,
-];
-
-const TMDB_DOWN_RE = /^tmdb-indisponivel/i;
-
-export function classifyPage(input: ClassifyInput): PageReading {
-  const slug = String(input.slug || '');
-  const requests = Math.max(0, Math.trunc(Number(input.requests) || 0));
-  const releases = Math.max(0, Math.trunc(Number(input.releases) || 0));
-  const latency = Math.max(0, Math.round(Number(input.latencyMs) || 0));
-  const detail = String(input.detail || '');
-  const base = { magnets: 0, identifyAnswered: false, identified: false, requests, latencyMs: latency, slug };
-  const kind = String(input.kind || '');
-
-  if (kind === 'no-torrent') return { ...base, class: 'sem-botao', bucket: 'noTorrent' };
-  if (RELEASE_KINDS.has(kind)) {
-    // Houve release na página. `no-work` é a resposta NEGATIVA da identificação
-    // (o TMDB respondeu que não é esta obra): conta no denominador de
-    // identificação como não identificada, e as releases que o adaptador viu
-    // entram em `magnets` — sem isso a média de magnets/página contava a
-    // série (que é onde a maior parte do acervo BR está) como se fosse vazia.
-    if (kind === 'no-work') {
-      return { ...base, class: 'no-work', bucket: 'withRelease', magnets: releases, identifyAnswered: true, identified: false };
-    }
-    return { ...base, class: 'identificada', bucket: 'withRelease', magnets: releases, identifyAnswered: true, identified: true };
-  }
-  if (kind === 'error' || kind === '') {
-    if (input.siteLevelError) return { ...base, class: 'site-fora', bucket: 'siteDown' };
-    if (TMDB_DOWN_RE.test(detail)) {
-      // Página COM release (o `PageOutcome` carrega o lote) e identificação
-      // NÃO respondida: fora do denominador, e conta em `tmdbDown` — o que o
-      // `no-work` NÃO pode fazer, porque aqui a resposta nunca chegou.
-      return { ...base, class: 'tmdb-down', bucket: 'withRelease', magnets: releases };
-    }
-    if (NO_MAGNET_MARKERS.some((re) => re.test(detail))) {
-      return { ...base, class: 'botao-sem-magnet', bucket: 'buttonNoMagnet' };
-    }
-    return { ...base, class: 'erro-pagina', bucket: 'pageError' };
-  }
-  return { ...base, class: 'erro-pagina', bucket: 'pageError' };
+/** Custo zerado — o que o codec entrega quando o veredito não traz `cost`.
+ *  Zeros explícitos (e não um objeto vazio) para o painel ler sem adivinhar. */
+export function emptyCost(): ProbeCost {
+  return {
+    requests: 0, requestsPerPage: 0, p95RequestsPerPage: 0, latencyMs: 0,
+    meanLatencyMs: 0, p95LatencyMs: 0, maxLatencyMs: 0, measuredPages: 0,
+  };
 }
-
-export interface ProbeSummary {
-  counts: ProbeCounts;
-  rates: ProbeRates;
-  bounds: ProbeBounds;
-  /** Denominadores EFFECTIVOS de cada taxa — impressos para não haver dúvida. */
-  denominators: { sample: number; buttonPages: number; identifyAnswered: number; validPages: number };
-  /** Histograma por classe (o `no-work` separado do `tmdb-down`). */
-  classes: ProbeClasses;
-  /** Custo medido por página (requisições e latência, com p95). */
-  cost: ProbeCost;
-}
-
-// `evenlySpaced` e a agregação (Wilson, `summarize`, classes, custo) foram para
-// `crawl-site-probe-stats.ts` — reexportadas no topo deste arquivo.
 
 // --- Veredito ---------------------------------------------------------------
 
 export type ProbeStop = 'amostra-completa' | 'descoberta-pequena' | 'site-fora' | 'tmdb-indisponivel' | 'erro';
-
-export interface ProbeDecision {
-  verdict: ProbeVerdictName;
-  /** Códigos curtos e ESTÁVEIS (o painel agrupa por eles, nunca pelo texto). */
-  reasons: string[];
-}
 
 export interface ProbeVerdict {
   v: 2;
@@ -278,7 +154,7 @@ export interface ProbeVerdict {
   counts: ProbeCounts;
   rates: ProbeRates;
   bounds: ProbeBounds;
-  denominators: ProbeSummary['denominators'];
+  denominators: ProbeDenominators;
   thresholds: ProbeThresholds;
   reasons: string[];
   stop: ProbeStop;
@@ -295,55 +171,6 @@ export interface ProbeVerdict {
  * não precisa tratar "medido" e "não medido" como o mesmo zero.
  */
 export type ParsedProbeVerdict = ProbeVerdict & { classes: ProbeClasses; cost: ProbeCost };
-
-/**
- * Regra do veredito, na ordem em que as travas valem:
- *   1. amostra pequena demais → inconclusivo (não se mede com 8 páginas);
- *   2. poucas páginas válidas → inconclusivo: o SITE estava fora/desafio, e
- *      isso não é veredito sobre a fonte (remede outro dia);
- *   3. site responde e não tem botão nenhum → NO-GO, que é veredito honesto;
- *   4. release com identificação nunca respondida → inconclusivo (é o TMDB);
- *   5. fora isso, cada eixo compara o LIMITE INFERIOR com o limiar.
- * `site-fora`/`tmdb-parcial`/`no-work-dominante` são informativos: explicam a
- * nota sem mudar o veredito, e o painel mostra por quê. `no-work-dominante`
- * aponta a lacuna que é NOSSA (o TMDB não resolve série por título), para
- * ninguém ler a taxa de identificação baixa como falha do site.
- */
-export function decide(
-  summary: ProbeSummary,
-  thresholds: ProbeThresholds = DEFAULT_PROBE_THRESHOLDS,
-): ProbeDecision {
-  const { counts, rates, bounds, denominators } = summary;
-  const reasons: string[] = [];
-  // Informativos: explicam a nota sem mudar o veredito.
-  if (counts.siteLevel > 0) reasons.push('site-fora');
-  if (counts.tmdbDown > 0) reasons.push('tmdb-parcial');
-  if (counts.noWork > counts.identified) reasons.push('no-work-dominante');
-
-  if (counts.sample < PROBE_MIN_SAMPLE) return { verdict: 'inconclusive', reasons: [...reasons, 'amostra-pequena'] };
-  if (counts.valid < PROBE_MIN_VALID_PAGES) return { verdict: 'inconclusive', reasons: [...reasons, 'poucas-paginas-validas'] };
-  if (denominators.buttonPages === 0) return { verdict: 'no-go', reasons: [...reasons, 'sem-botao-de-torrent'] };
-  if (counts.withRelease > 0 && denominators.identifyAnswered === 0) {
-    return { verdict: 'inconclusive', reasons: [...reasons, 'tmdb-indisponivel'] };
-  }
-
-  if (bounds.valid < thresholds.validRate) reasons.push('abaixo-limiar:valid');
-  if (bounds.magnet < thresholds.magnetRate) reasons.push('abaixo-limiar:magnet');
-  if (denominators.identifyAnswered > 0 && bounds.identify < thresholds.identifyRate) {
-    reasons.push('abaixo-limiar:identify');
-  }
-  if (rates.magnetsPerPage < thresholds.magnetsPerPage) reasons.push('abaixo-limiar:magnets-por-pagina');
-  return {
-    verdict: reasons.some((r) => r.startsWith('abaixo-limiar:')) ? 'no-go' : 'go',
-    reasons,
-  };
-}
-
-// --- Codec do crawl_state ---------------------------------------------------
-
-export function renderProbeVerdict(v: ProbeVerdict): string {
-  return JSON.stringify(v);
-}
 
 const PROBE_STOPS: readonly ProbeStop[] = ['amostra-completa', 'descoberta-pequena', 'site-fora', 'tmdb-indisponivel', 'erro'];
 
@@ -387,7 +214,7 @@ export function parseProbeVerdict(raw: string | null | undefined): ParsedProbeVe
     counts: { ...counts } as ProbeCounts,
     rates: o.rates as ProbeRates,
     bounds: (o.bounds ?? { valid: 0, magnet: 0, identify: 0 }) as ProbeBounds,
-    denominators: (o.denominators ?? { sample: 0, buttonPages: 0, identifyAnswered: 0, validPages: 0 }) as ProbeSummary['denominators'],
+    denominators: (o.denominators ?? { sample: 0, buttonPages: 0, identifyAnswered: 0, validPages: 0 }) as ProbeDenominators,
     thresholds: (o.thresholds ?? DEFAULT_PROBE_THRESHOLDS) as ProbeThresholds,
     reasons: o.reasons as string[],
     stop: o.stop as ProbeStop,
