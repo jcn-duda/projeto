@@ -24,7 +24,6 @@ import { buildServices } from '../src/routes/services.js';
 import { registerInternalDebridHolds } from '../src/routes/internal-debrid-holds.js';
 import { registerInternalDebridMarked } from '../src/routes/internal-debrid-marked.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
@@ -316,12 +315,12 @@ test('marked: submitted grava adsub; `removed` de binário antigo é ignorado (n
       assert.equal(out.status, 202);
       assert.deepEqual(out.json, { ok: true, service: 'alldebrid', submitted: 1 });
       assert.notEqual(kvPeek(adsubKey(account, subiu)), null, 'posse gravada em adsub:v1');
-      assert.equal(cache.peek(adrmKey(account, saiu)), null, 'higiene da checagem não bloqueia re-upload');
-      assert.equal(cache.peek(adrmKey(account, subiu)), null, 'quem subiu não vira bloqueado');
+      assert.equal(kvPeek(adrmKey(account, saiu)), null, 'higiene da checagem não bloqueia re-upload');
+      assert.equal(kvPeek(adrmKey(account, subiu)), null, 'quem subiu não vira bloqueado');
     } finally {
       for (const hash of [subiu, saiu]) {
         kvForget(adsubKey(account, hash));
-        cache.forget(adrmKey(account, hash));
+        kvForget(adrmKey(account, hash));
       }
     }
   });

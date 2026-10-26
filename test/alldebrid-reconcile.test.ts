@@ -9,8 +9,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { debrid } from '../src/config/debrid.js';
-import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as held from '../src/debrid/protected.js';
 import {
@@ -51,7 +51,7 @@ function limpa(KEY: string, hashes: string[]) {
   resetSubmittedForTests();
   for (const hash of hashes) {
     forgetSubmitted(ACCOUNT, hash);
-    cache.forget(adrmKey(ACCOUNT, hash));
+    kvForget(adrmKey(ACCOUNT, hash));
   }
 }
 
@@ -122,7 +122,7 @@ test('reconcile: ready com posse remanescente sai, é purgado do adsub e marcado
     assert.deepEqual([...api.deleted], [601], 'o magnet com posse remanescente saiu da conta');
     assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'posse purgada em memória');
     assert.equal(hasDurableOwnership(ACCOUNT, NOSSO), false, 'registro adsub purgado');
-    assert.ok(cache.peek(adrmKey(ACCOUNT, NOSSO)) != null, 'adrm marcado (8.14)');
+    assert.ok(kvPeek(adrmKey(ACCOUNT, NOSSO)) != null, 'adrm marcado (8.14)');
   } finally {
     restore();
     api.restore();
@@ -340,7 +340,7 @@ test('reconcile: com o marcador 8.14 desligado, ainda remove e purga — só nã
     await assenta();
     assert.deepEqual([...api.deleted], [681], 'a remoção não depende do reuploadBlock');
     assert.equal(submittedAt(ACCOUNT, NOSSO), null, 'a purga da posse também não depende');
-    assert.equal(cache.peek(adrmKey(ACCOUNT, NOSSO)), null, 'sem marcador com o kill-switch desligado');
+    assert.equal(kvPeek(adrmKey(ACCOUNT, NOSSO)), null, 'sem marcador com o kill-switch desligado');
   } finally {
     restore();
     api.restore();

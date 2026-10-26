@@ -9,8 +9,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { preexisting } from '../src/debrid/alldebrid-inventory.js';
 import { deleteMagnets } from '../src/debrid/alldebrid-cleanup.js';
@@ -50,11 +50,11 @@ test('8.16: removedIds marcam adrm; delete recusado não marca e conta failed', 
     await esperaMetrica('debrid.evicted.failed');
     await assenta();
     assert.equal(counter('debrid.evicted.perSearch'), 1, 'perSearch conta o que saiu de verdade');
-    assert.ok(cache.peek(adrmKey(ACCOUNT, G1)) != null, 'o que saiu recebe "não re-subir"');
-    assert.equal(cache.peek(adrmKey(ACCOUNT, G2)), null, 'falha de delete não marca (o magnet continua lá)');
+    assert.ok(kvPeek(adrmKey(ACCOUNT, G1)) != null, 'o que saiu recebe "não re-subir"');
+    assert.equal(kvPeek(adrmKey(ACCOUNT, G2)), null, 'falha de delete não marca (o magnet continua lá)');
   } finally {
     restore();
-    cache.forget(adrmKey(ACCOUNT, G1));
+    kvForget(adrmKey(ACCOUNT, G1));
     api.restore();
     soltaInventario(ACCOUNT);
     metrics.reset();

@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import { markerKey } from '../src/providers/autofetch-marker.js';
 import { obraRecord, obraKey } from '../src/providers/autofetch-obra.js';
@@ -118,7 +119,7 @@ test('F6: delete falho mantém marker/adsub/obra e não grava adrm', async () =>
     assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, h)), 'marker mantido na falha');
     assert.equal(hasDurableOwnership(ACCOUNT, h), true, 'posse mantida na falha');
     assert.equal(obraRecord(identity).some((e) => e.hash === h), true, 'registro mantido na falha');
-    assert.equal(cache.peek(adrmKey(ACCOUNT, h)), null, 'sem adrm quando o delete falha');
+    assert.equal(kvPeek(adrmKey(ACCOUNT, h)), null, 'sem adrm quando o delete falha');
     assert.equal(counter('autofetch.evict.removed'), 0);
     assert.equal(counter('autofetch.evict.skipped.delete-failed'), 1);
   } finally {

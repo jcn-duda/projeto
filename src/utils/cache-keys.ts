@@ -196,15 +196,18 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 //   `davail`  — DavailStore do `adom-index` (T2-L5b), no mesmo cache.db; o ⚡ do
 //               debrid sai de `debrid-state-native.ts`, não do L1;
 //   `mag`     — MagnetStateStore do `adom-index` (T2-L5b): banco de magnets,
-//               histórico e a enumeração do painel são da ponte.
+//               histórico e a enumeração do painel são da ponte;
+//   `adrm`    — KV durável do anti-reenchimento (T2-L7): o gateway lê a marca
+//               no mesmo `cache.db` para tirar o hash do `/magnet/upload`.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
 // disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
 // superfície do Node é só a ponte (`streams-store-native.ts` /
-// `raw-store-native.ts` / `debrid-state-native.ts`): a leitura do L1 nasce vazia
-// e cai nela; escrita, invalidação e poda de vencidos vão por ela. `davail` e
-// `mag` entram TAMBÉM em `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo,
-// e não o nome do namespace, que bloqueia `get`/`peek` no L1.
-const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot']);
+// `raw-store-native.ts` / `debrid-state-native.ts` / `native-kv.ts`): a leitura
+// do L1 nasce vazia e cai nela; escrita, invalidação e poda de vencidos vão por
+// ela. `davail`, `mag`, `adsub`, `adprot` e `adrm` entram TAMBÉM em
+// `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo, e não o nome do
+// namespace, que bloqueia `get`/`peek` no L1.
+const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm']);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
 //
@@ -224,7 +227,15 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // sobrevivem ao restart no MESMO `cache.db`, e o `adom-debrid` já as lê por
 // lá; deixar o Node escrever no L1 criava segundo escritor para um estado que
 // decide o que a limpeza da conta pode apagar.
-const RUST_OWNED_PREFIXES = Object.freeze([prefix('harvest'), prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot')]);
+//
+// `adrm:v1` (T2-L7) é o mesmo caso com um agravante: o gateway lê a marca por
+// `DurablePeek` no `cache.db` no INSTANTE da checagem, e o `cache.set` do Node
+// só despeja no SQLite no próximo `setImmediate`. Escrever pela ponte (`kvSet`,
+// síncrono) fecha a janela em que a marca recém-gravada ainda não barrava o
+// `/magnet/upload`.
+const RUST_OWNED_PREFIXES = Object.freeze([
+  prefix('harvest'), prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot'), prefix('adrm'),
+]);
 
 const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
 

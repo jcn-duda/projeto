@@ -10,8 +10,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
@@ -123,7 +123,7 @@ before(() => {
 after(() => clearInterval(keepAlive));
 
 const limpar = (...hashes: string[]) => {
-  for (const h of hashes) cache.forget(adrmKey(ACCOUNT, h));
+  for (const h of hashes) kvForget(adrmKey(ACCOUNT, h));
 };
 
 // --- Roundtrip e blindagem BR ----------------------------------------------
@@ -133,7 +133,7 @@ test('8.14: roundtrip mark/block/forget sobre a chave adrm real', () => {
   try {
     assert.equal(reuploadBlocked(ACCOUNT, BLOQUEADO), false, 'sem marca, não bloqueia');
     assert.equal(markReuploadBlocked(ACCOUNT, BLOQUEADO, LIXO), true, 'grava e reporta a marca');
-    assert.notEqual(cache.peek(adrmKey(ACCOUNT, BLOQUEADO)), null, 'registro sob o namespace adrm');
+    assert.notEqual(kvPeek(adrmKey(ACCOUNT, BLOQUEADO)), null, 'registro sob o namespace adrm');
     assert.equal(reuploadBlocked(ACCOUNT, 'AB'.repeat(20)), true, 'leitura normaliza caixa');
     assert.equal(counter('debrid.reupload.marked'), 1);
     forgetReuploadBlock(ACCOUNT, BLOQUEADO);
@@ -242,7 +242,7 @@ test('8.14: TTL 0 desliga o bloqueio inteiro (gravação e leitura)', () => {
     restore();
   }
   // Registro pré-existente (TTL mudou depois de gravar): leitura também off.
-  cache.set(adrmKey(ACCOUNT, LIVRE), { at: Date.now() }, 3600);
+  assert.equal(kvSet(adrmKey(ACCOUNT, LIVRE), { at: Date.now() }, 3600), true, 'semeia a marca pela ponte');
   const restoreTtl = withDebrid({ alldebridReuploadBlockTtlMs: 0 });
   try {
     assert.equal(reuploadBlocked(ACCOUNT, LIVRE), false, 'registro órfão não bloqueia com TTL 0');
@@ -305,7 +305,7 @@ test('8.14: sweepUndubbed bem-sucedida marca o hash apagado', async () => {
     assert.equal(reuploadBlocked(CONTA, ACERVO), false, 'o acervo não é marcado');
   } finally {
     api.restore();
-    cache.forget(adrmKey(CONTA, LIXO_HASH));
+    kvForget(adrmKey(CONTA, LIXO_HASH));
     metrics.reset();
   }
 });

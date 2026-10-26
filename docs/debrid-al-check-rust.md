@@ -367,7 +367,8 @@ exports (nome ⇒ consumidores fora do próprio arquivo, em `src/`, `test/` e
 |---|---|---|
 | `index.ts` | Node | fica inteiro: objeto default = fachada do registry (31 chaves, todas com consumidor) |
 | `rust-remote.ts` | Node (ponte HTTP da 8710) | fica: `wrap` (registry), `RustWriteError`/`pullMetrics` (diagnóstico). `remoteOptions` deixou de ser público (auxiliar interno) |
-| `alldebrid-inventory.ts`, `alldebrid-reupload.ts`, `alldebrid-delete-gate.ts`, `protected.ts` | ainda Node | **não** apagados: são `knownBefore`/`adsub`/`adprot`/`adrm` do feed (`§8.4`), lidos a cada checagem nativa |
+| `alldebrid-inventory.ts`, `alldebrid-delete-gate.ts`, `protected.ts` | ainda Node | **não** apagados: são `knownBefore`/`adsub`/`adprot` do feed (`§8.4`), lidos a cada checagem nativa |
+| `alldebrid-reupload.ts` | Node com estado do núcleo | fica: é o chamador das varreduras de conteúdo (evict, reconcile, sweepUndubbed, catálogo). Desde a T2-L7 a marca `adrm` é gravada/lida/expurgada pelo KV nativo (`§8.6`) |
 | `davail-panel.ts`, `debrid-marked.ts` | — | não existem no checkout (o plano previa; a leitura é `internal-debrid-marked.ts`, viva) |
 
 Superfície pública reduzida em 20 exports sem consumidor, todos mantidos como
@@ -377,3 +378,37 @@ tipos/auxiliares **internos** (`accountStatusFor`, `AccountTestOutcome`,
 `remoteOptions`) e um símbolo morto apagado de fato (`activeTorrentCount` do
 Real-Debrid: a sonda usa `probeInstant`).
 
+### 8.6 Dono do `adrm` (T2-L7)
+
+O anti-reenchimento é **estado durável do núcleo**: a linha
+`adrm:v1:<accountScope>:<hash>` (registro `{ at, name? }`) mora na tabela `cache`
+do `data/cache.db` e é escrita pelo `NativeKv` do `adom-index`, pela ponte
+`src/utils/native-kv.ts`. `adrm` entrou em `RUST_OWNED` **e** em
+`RUST_OWNED_PREFIXES` (`src/utils/cache-keys.ts`), então o Node não carrega a
+marca no L1 nem regrava no SQLite: `cache.get/peek` devolvem `null` e
+`cache.set/forget` recusam.
+
+| Quem | O quê | Como |
+|---|---|---|
+| Node (`alldebrid-reupload.ts`) | **escreve** em deleção INTENCIONAL (sweepUndubbed, evict, reconcile, fallback-evict, catálogo/painel) | `kvSet` (síncrono) |
+| Node (mesma unidade) | **lê** (partição do `/magnet/upload`, enqueue/Chupim) e **expurga** (prova no `dinv`, `--unblock`) | `kvPeek` / `kvForget` |
+| Gateway (Rust) | **lê** e tira o hash do `/magnet/upload`; devolve os bloqueados em `blocked` | `DurablePeek` no mesmo arquivo |
+| Higiene da checagem nativa | **nunca** escreve `adrm` | `marks_feed` só leva `submitted` → `adsub` |
+
+Duas invariantes, ambas com teste:
+
+1. **Só varredura de CONTEÚDO marca.** A higiene da checagem nativa (o
+   `/magnet/upload` que a própria checagem faz) não devolve `removed` e não
+   grava: marcar ali transformava todo candidato fora do cache em "apagado de
+   propósito" por 3 dias e o Chupim parava de baixar o dublado. Prova em
+   `rust/crates/adom-debrid/src/alldebrid_marks_tests.rs::limpeza_de_higiene_nao_devolve_adrm`
+   e `test/debrid-al-holds-feed.test.ts` (`removed` de binário antigo é
+   ignorado).
+2. **A marca é visível ao gateway no instante da checagem.** O `cache.set`
+   anterior só despejava no SQLite no próximo `setImmediate`; o `kvSet` faz
+   `INSERT` imediato. Sem isso, a marca recém-gravada podia não barrar o upload
+   seguinte.
+
+Escrita que falha (núcleo ausente/disco) devolve `false` e conta
+`debrid.reupload.markFailed` — nunca `marked`, para o painel não mentir. O memo
+`dinv` é invalidado mesmo nesse caso: o magnet saiu da conta de qualquer jeito.

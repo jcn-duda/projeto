@@ -17,6 +17,9 @@ import { scheduleSuppressedRevalidate } from '../../src/debrid/alldebrid-suppres
 import { accountScope } from '../../src/utils/request-key.js';
 import { preexisting } from '../../src/debrid/alldebrid-inventory.js';
 
+// Chave do anti-reenchimento (T2-L7: dona do KV nativo). Quem lê/semeia usa
+// `kvPeek`/`kvSet`/`kvForget` — `cache.peek` devolve `null` para chave de outro
+// dono e `cache.set`/`forget` recusam.
 export const adrmKey = (account: string, hash: string) => `${prefix('adrm')}${account}:${hash}`;
 export const counter = (name: string) => metrics.snapshot().counters[name] ?? 0;
 

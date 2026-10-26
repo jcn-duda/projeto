@@ -111,8 +111,9 @@ async function main() {
 
   // Expurgo do anti-reenchimento (8.14): modo independente da varredura —
   // misturar "liberar hash" com "apagar baldes" na mesma execução convidaria ao
-  // engano. Usa a MESMA conta escopada do addon e o MESMO cache (peek/forget
-  // em L1+L2); nunca toca a conta de magnets e nunca imprime a chave.
+  // engano. Usa a MESMA conta escopada do addon e o MESMO `cache.db`, agora pelo
+  // KV do núcleo (T2-L7: `kvForget` é síncrono, não há fila de despejo a
+  // fechar); nunca toca a conta de magnets e nunca imprime a chave.
   if (args.unblock.length) {
     const hashes = args.unblock
       .flatMap((bruto) => bruto.split(/[,\s]+/))
@@ -124,7 +125,6 @@ async function main() {
     }
     const reupload = await import('../src/debrid/alldebrid-reupload.js');
     const { accountScope } = await import('../src/utils/request-key.js');
-    const cacheStore = await import('../src/utils/cache.js');
     const account = accountScope(key);
     let liberados = 0;
     let semMarcador = 0;
@@ -137,8 +137,6 @@ async function main() {
         semMarcador += 1;
       }
     }
-    // Fecha o L2 para o forget não se perder na fila de despejo ao sair.
-    cacheStore.close();
     console.log(`Anti-reenchimento: ${liberados} hash(es) liberado(s)${semMarcador ? ` | sem marcador: ${semMarcador}` : ''}`);
     return;
   }

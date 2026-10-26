@@ -7,6 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
@@ -24,7 +25,7 @@ const BLOQUEADO = 'ab'.repeat(20);
 const LIXO = 'Old Movie 2019 TrueFrench 1080p WEBRip x264';
 
 const limpar = (...hashes: string[]) => {
-  for (const h of hashes) cache.forget(adrmKey(ACCOUNT, h));
+  for (const h of hashes) kvForget(adrmKey(ACCOUNT, h));
 };
 
 let keepAlive: NodeJS.Timeout;

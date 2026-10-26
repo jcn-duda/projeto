@@ -18,12 +18,18 @@
 //     aqui esconderia para sempre o acervo que a limpeza errou ao apagar.
 //
 // Namespace `adrm:v1:<accountScope>:<hash>` (sem adapter na chave de propósito:
-// só o AllDebrid marca, e leitura de outra conta não encontra registro). A
-// leitura usa `cache.peek` — sonda síncrona, sem promover LRU nem contar
-// hit/miss: o prazo da busca não pode pagar nada por esta consulta.
+// só o AllDebrid marca, e leitura de outra conta não encontra registro).
+//
+// DONO ÚNICO (T2-L7): a marca mora no KV do núcleo (`NativeKv` sobre a tabela
+// `cache` do mesmo `data/cache.db`), escrito por `kvSet`. O gateway lê a mesma
+// linha por `DurablePeek` no INSTANTE do `/magnet/upload` — o `cache.set`
+// anterior só despejava no SQLite no próximo `setImmediate`, e a marca
+// recém-gravada podia não barrar o upload. A leitura é `kvPeek` (sonda
+// síncrona, sem promover LRU nem contar hit/miss): o prazo da busca não pode
+// pagar nada por esta consulta.
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
+import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { brOriginMark } from '../utils/br-origin.js';
@@ -48,15 +54,15 @@ function enabled(): boolean {
 }
 
 /**
- * O hash está bloqueado para re-upload NESTA conta? Leitura limpa (peek):
- * nunca rede, nunca efeito no cache. Adaptador não-AllDebrid não tem quem
- * marque, então a resposta é sempre false lá — a consulta é um peek de Map.
+ * O hash está bloqueado para re-upload NESTA conta? Leitura limpa (peek do KV
+ * nativo): nunca rede, nunca efeito no cache. Adaptador não-AllDebrid não tem
+ * quem marque, então a resposta é sempre false lá — a consulta é um peek.
  */
 function reuploadBlocked(account: string, hash: string): boolean {
   if (!enabled() || !account) return false;
   const h = String(hash || '').toLowerCase();
   if (!h) return false;
-  return cache.peek(key(account, h)) != null;
+  return kvPeek(key(account, h)) != null;
 }
 
 /**
@@ -89,10 +95,17 @@ function markReuploadBlocked(account: string, hash: string, filename?: string, a
   const registro: ReuploadBlock = { at: Date.now() };
   const nome = String(filename || '').trim();
   if (nome) registro.name = nome.slice(0, 160);
-  cache.set(key(account, h), registro, Math.floor(config.debrid.alldebridReuploadBlockTtlMs / 1000));
+  const gravado = kvSet(key(account, h), registro, Math.floor(config.debrid.alldebridReuploadBlockTtlMs / 1000));
   // Memo dinv não pode sobreviver à deleção: hash "pronto" no memo com o
-  // magnet já fora da conta é a prova falsa que o H1 fecha aqui mesmo.
+  // magnet já fora da conta é a prova falsa que o H1 fecha aqui mesmo. Vale
+  // mesmo se a marca não entrou — o magnet saiu de qualquer jeito.
   if (apiKey) inventoryMemoForget(adapterId, apiKey, h);
+  if (!gravado) {
+    // Núcleo ausente/falha de disco: sem a linha, a próxima checagem re-sobe o
+    // hash. Contar `marked` aqui mentiria no painel.
+    metrics.count('debrid.reupload.markFailed');
+    return false;
+  }
   metrics.count('debrid.reupload.marked');
   return true;
 }
@@ -102,7 +115,7 @@ function forgetReuploadBlock(account: string, hash: string): void {
   if (!account) return;
   const h = String(hash || '').toLowerCase();
   if (!h) return;
-  cache.forget(key(account, h));
+  kvForget(key(account, h));
 }
 
 /**

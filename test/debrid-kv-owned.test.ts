@@ -1,14 +1,17 @@
-// Posse do KV de debrid (T2-L6): `adsub:v1` (posse do que o addon subiu) e
-// `adprot:v1` (retenção BR durável) passaram a ser do núcleo Rust — o mesmo
+// Posse do KV de debrid (T2-L6) e anti-reenchimento (T2-L7): `adsub:v1`
+// (posse do que o addon subiu), `adprot:v1` (retenção BR durável) e `adrm:v1`
+// (hash apagado de propósito) passaram a ser do núcleo Rust — o mesmo
 // `cache.db`, pelo `NativeKv` do `adom-index`. O Node só fala pela ponte
 // (`native-kv.ts`).
 //
-// Por que o dono importa: as duas chaves decidem o que a limpeza da conta pode
-// apagar. Segundo escritor no L1 faria um `forget`/prune do Node derrubar a
-// linha fresca do núcleo, e o `adom-debrid` lê o MESMO arquivo por
-// `DurablePeek` — o resultado seria limpar magnet do usuário.
+// Por que o dono importa: as chaves decidem o que a limpeza da conta pode
+// apagar e o que volta ao `/magnet/upload`. Segundo escritor no L1 faria um
+// `forget`/prune do Node derrubar a linha fresca do núcleo, e o `adom-debrid`
+// lê o MESMO arquivo por `DurablePeek` — no `adrm` com um agravante: o
+// `cache.set` do Node só despeja no SQLite no próximo tick, e a marca
+// recém-gravada podia não barrar o upload que o gateway fazia em seguida.
 //
-// Invariantes: `cache.set/forget` recusam as duas; `cache.get/peek` devolvem
+// Invariantes: `cache.set/forget` recusam as três; `cache.get/peek` devolvem
 // `null` (nada de valor velho no L1); a ponte faz roundtrip com TTL e
 // `clearNamespace`/prefixo apagam o namespace inteiro.
 import { test } from 'node:test';
@@ -22,9 +25,10 @@ const OUTRO = 'b'.repeat(40);
 const conta = 'conta-t2-l6';
 const subKey = `${prefix('adsub')}${conta}:${HASH}`;
 const protKey = `${prefix('adprot')}alldebrid:${conta}:${HASH}`;
+const rmKey = `${prefix('adrm')}${conta}:${HASH}`;
 
-test('adsub e adprot são dono único do núcleo por namespace e por prefixo', () => {
-  for (const ns of ['adsub', 'adprot'] as const) {
+test('adsub, adprot e adrm são dono único do núcleo por namespace e por prefixo', () => {
+  for (const ns of ['adsub', 'adprot', 'adrm'] as const) {
     assert.equal(isRustOwned(ns), true, `${ns} é RUST_OWNED`);
     assert.ok(RUST_OWNED.includes(ns), `${ns} está na lista do dono`);
     assert.equal(isForeignKey(`${prefix(ns)}alldebrid:${conta}:${HASH}`), true, `${ns} bloqueia o L1`);
@@ -65,6 +69,39 @@ test('cache do Node não escreve nem lê adsub/adprot (sem valor velho no L1)', 
   } finally {
     kvClearPrefix(prefix('adsub'));
     kvClearPrefix(prefix('adprot'));
+  }
+});
+
+test('adrm é do núcleo: a ponte grava, o L1 do Node não vê e o forget do Node não apaga', () => {
+  try {
+    cache.set(rmKey, { at: 1 }, 600);
+    assert.equal(cache.has(rmKey), false, 'set do Node recusa adrm');
+
+    assert.equal(kvSet(rmKey, { at: 2, name: 'Foreign.Movie.2019.1080p' }, 600), true);
+    assert.deepEqual(kvPeek(rmKey), { at: 2, name: 'Foreign.Movie.2019.1080p' }, 'a marca sai da ponte');
+    assert.equal(cache.peek(rmKey), null, 'peek do Node não inventa marca');
+
+    cache.forget(rmKey);
+    assert.notEqual(kvPeek(rmKey), null, 'forget do Node não apaga a marca do núcleo');
+  } finally {
+    kvForget(rmKey);
+  }
+});
+
+test('clearNamespace(adrm) apaga as marcas e deixa os vizinhos', () => {
+  const vizinho = `${prefix('adrm')}${conta}:${OUTRO}`;
+  try {
+    kvSet(rmKey, { at: 1 }, 600);
+    kvSet(vizinho, { at: 2 }, 600);
+    kvSet(subKey, { at: 3 }, 600);
+    assert.equal(cache.clearNamespace('adrm'), 2, 'as duas marcas saíram');
+    assert.equal(kvPeek(rmKey), null);
+    assert.equal(kvPeek(vizinho), null);
+    assert.deepEqual(kvPeek(subKey), { at: 3 }, 'adsub é outro namespace e fica');
+  } finally {
+    kvForget(rmKey);
+    kvForget(vizinho);
+    kvForget(subKey);
   }
 });
 

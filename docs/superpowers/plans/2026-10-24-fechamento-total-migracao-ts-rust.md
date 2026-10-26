@@ -2151,11 +2151,30 @@ git add src rust test package.json
 git commit -m "feat(debrid): davail, mag e mag_meta nativos e ponte de leitura"
 ```
 
-### T3-L5: worker do Chupim — enfileiramento, pickers e gate
+### T3-L5: worker do Chupim — enfileiramento, pickers e gate — BLOQUEADA (medido)
 
 O estado é nativo (T3-L4). Esta fatia faz o **enfileiramento** ser nativo: os
 efeitos `autofetch`/`autofetch_batch` deixam de atravessar HTTP e o Node não tem
 mais fila própria. O **drain** (rede e debrid) continua no TS até a T3-L6.
+
+**BLOQUEIO MEDIDO no código (2026-10-26) — não é ambiguidade, é modelo de fila
+divergente:**
+
+1. O crate `adom-autofetch` (T3-L4) grava **uma fila única** `autofetch:v1:q`
+   com `QueueEntry { imdb_id, season, episode }` (`queue.rs::queue_key`),
+   dedupe por obra+episódio.
+2. A fila REAL do Node é por **busca**: `autofetch:v3:q:<sha256(searchKey)>`
+   com `QueueCandidate[]` — `src/providers/autofetch.ts` (`queueKey`,
+   `readQueue`, `writeQueue`) carrega infoHash, pool, br/dubbed/lied, tamanho,
+   seeders, `slotLimit`, `probeSeason`/`probeEpisode` etc. O dreno TS
+   (`autofetch-drain.ts`) só conhece esse formato.
+3. Fiar o enfileiramento nativo agora gravaria em `autofetch:v1:q`, que o dreno
+   TS nunca lê — **o Chupim pararia de baixar** (regressão de produção), sem
+   erro visível. As duas fatias precisam cair juntas, ou o crate precisa antes
+   adotar a chave e o payload reais (`v3` por sha da busca + `QueueCandidate`).
+
+Não execute esta fatia isolada; a ordem segura é (a) portar o formato da fila
+para o crate, (b) T3-L5 e T3-L6 na mesma leva.
 
 **Files:**
 - Create: `rust/crates/adom-server/src/autofetch/mod.rs`
@@ -2630,80 +2649,89 @@ git add rust/crates/adom-store
 git commit -m "feat(store): contador de geracao por obra e escrita com fence"
 ```
 
-### T2-L7: `adrm` no Rust e dono das varreduras
+### T2-L7: `adrm` no dono único do KV — EXECUTADA (desvio: sem `OwnershipStore`)
 
 `adrm` é o anti-reenchimento das varreduras **de conteúdo**: o hash que a
-varredura apagou não volta a ser tentado. Hoje é escrito pelo Node
-(`alldebrid-reupload.ts:92`) e lido pelo Rust (`cleanup_durable.rs`).
+varredura apagou não volta a ser tentado. Era escrito pelo Node
+(`alldebrid-reupload.ts:92`, `cache.set`) e lido pelo Rust (`cleanup_durable.rs`,
+`DurablePeek`).
 
-**Files:**
-- Modify: `rust/crates/adom-debrid/src/ownership.rs` (chaves `adrm:v1:<hash>`
-  com `{reason, at}`)
-- Modify: `rust/crates/adom-debrid/src/cleanup.rs` (marca só nas varreduras de
-  conteúdo)
-- Modify: `rust/crates/adom-debrid/src/ownership_tests.rs`
-- Modify: `src/debrid/alldebrid-reupload.ts:92` (para de escrever)
-- Modify: `src/utils/cache-keys.ts` (`adrm` em `RUST_OWNED`)
-- Modify: `docs/debrid-al-check-rust.md` (dono novo + invariantes)
+**DESVIOS MEDIDOS no código (antes de executar):**
 
-- [ ] **Step 1: escrever o teste que falha**
+1. **`OwnershipStore`/`SweepKind` NÃO foram criados.** O plano pedia
+   `adom-debrid/src/ownership.rs` com `mark_removed(hash, SweepKind)` e
+   `candidates_excluding_removed`. As varreduras de CONTEÚDO ainda são do Node
+   (evict, reconcile, fallback-evict, `sweepUndubbed`, catálogo/painel) e só
+   migram na T3-L8: um store Rust **sem escritor** seria um terceiro leitor do
+   mesmo `cache.db` — o mesmo veto da T2-L6 (#2). O que faltava não era leitor,
+   era **dono único da escrita**. A escrita passou ao `NativeKv` do
+   `adom-index`, que o `.node` já embarca.
+2. **A chave manteve o escopo de conta.** Continua
+   `adrm:v1:<accountScope>:<hash>` com `{ at, name? }` — não `adrm:v1:<hash>`
+   com `{ reason, at }`. Mudar o formato perderia as marcas vivas (TTL de 3
+   dias), o `name` é o diagnóstico do operador e o `DurablePeek` nativo já lê o
+   formato atual.
+3. **A invariante "higiene nunca marca" não virou API nova.** Ela já é
+   estrutural: `marks_feed` só tem canal de `submitted` → `adsub` e o
+   `/internal/debrid/marked` ignora `removed`. Provas existentes:
+   `alldebrid_marks_tests::limpeza_de_higiene_nao_devolve_adrm`,
+   `alldebrid_cleanup_tests_part3::blocked_hashes_so_devolve_adrm_vivo_da_propria_conta`
+   e `test/debrid-al-holds-feed.test.ts` (`removed` de binário antigo é
+   ignorado).
+4. **Ganho real não previsto: a janela de visibilidade.** O `cache.set` grava
+   no L1 e **agenda** o `INSERT` para o próximo `setImmediate` (`cache-db.ts::
+   flushPending`), enquanto o gateway lê a marca por `DurablePeek` no INSTANTE
+   do `/magnet/upload`. A marca recém-gravada podia não barrar o upload
+   seguinte. `kvSet` faz `INSERT` imediato.
+5. **`marked` deixou de mentir.** `kvSet` devolve `false` quando o núcleo está
+   ausente ou o disco falha: nesse caso conta `debrid.reupload.markFailed` e a
+   função devolve `false` (o chamador não soma em `marcados`). O memo `dinv` é
+   invalidado do mesmo jeito — o magnet saiu da conta.
 
-```rust
-#[test]
-fn marca_adrm_so_nas_varreduras_de_conteudo() {
-    let store = OwnershipStore::open_memory().unwrap();
-    store.mark_removed("aaaa", SweepKind::Hygiene, 1_000).unwrap();
-    assert!(store.removed("aaaa", 1_001).unwrap().is_none(), "higiene nunca marca");
-    store.mark_removed("bbbb", SweepKind::Content, 1_000).unwrap();
-    assert!(store.removed("bbbb", 1_001).unwrap().is_some());
-}
+**Files (executado):**
+- Modify: `src/utils/cache-keys.ts` (`adrm` em `RUST_OWNED` **e** em
+  `RUST_OWNED_PREFIXES`)
+- Modify: `src/debrid/alldebrid-reupload.ts` (escrita/leitura/expurgo pela
+  ponte; saiu o import de `cache.ts`)
+- Modify: `src/utils/cache.ts` (`clear()` e `clearNamespace('adrm')` pelo
+  `kvClearPrefix`)
+- Modify: `scripts/clean-undubbed.ts` (`--unblock` perde o `cache.close()`: o
+  `kvForget` é síncrono)
+- Modify: `test/alldebrid-reupload.test.ts`,
+  `test/alldebrid-reupload-inventory.test.ts`, `test/alldebrid-reconcile.test.ts`,
+  `test/alldebrid-evict.test.ts`, `test/alldebrid-delete-gate.test.ts`,
+  `test/debrid-al-holds-feed.test.ts`, `test/autofetch-evict.test.ts`,
+  `test/autofetch-evict-executor.test.ts` (10 leituras/escritas de `adrm` na
+  ponte) e `test/helpers/alldebrid-mock.ts` (comentário do dono)
+- Modify: `test/debrid-kv-owned.test.ts` (2 testes novos: dono do `adrm` e
+  `clearNamespace('adrm')`)
+- Modify: `docs/debrid-al-check-rust.md` (§8.6 com a tabela de donos e as duas
+  invariantes)
 
-#[test]
-fn hash_marcado_sai_dos_candidatos_antes_dos_pools() {
-    let store = OwnershipStore::open_memory().unwrap();
-    mark_removed(&store, "aaaa", SweepKind::Content, 1_000).unwrap();
-    let candidatos = candidates_excluding_removed(&store, &["aaaa", "bbbb"], 1_001).unwrap();
-    assert_eq!(candidatos, vec!["bbbb"]);
-}
-```
+**Por que não há teste Rust novo:** nenhuma linha de Rust mudou. A leitura do
+`adrm` pelo gateway já estava coberta
+(`verdict_tests_part2::alldebrid_opts_blocked_vem_do_adrm_com_limpeza_off`,
+`verdict_tests_part2::adrm_tira_o_hash_do_upload_mesmo_com_limpeza_off`) e a
+higiene já tinha as duas provas citadas no desvio 3.
 
-- [ ] **Step 2: rodar e ver falhar**
+- [x] **Step 1–3: implementação + testes**
 
-```powershell
-cd rust
-cargo test -p adom-debrid --locked marca_adrm_so_nas_varreduras
-```
-Expected: FAIL.
+O `adrm` virou estado do núcleo sem tocar no formato nem no leitor nativo: o
+Node só trocou de porta (`cache.*` → `kv*`) e o namespace saiu do L1. A
+`debrid-kv-owned.test.ts` prova as três invariantes do dono: `cache.set`
+recusa, `cache.peek` devolve `null`, `cache.forget` não apaga a linha do
+núcleo; mais o `clearNamespace('adrm')` contando o que o núcleo apagou.
 
-- [ ] **Step 3: implementar**
+- [x] **Step 4: gate + commit**
 
-`SweepKind::{Hygiene, Content}` explícito no chamador; `mark_removed` só grava
-`adrm:v1:<hash>` para `Content` (a higiene da checagem **nunca** marca — é a
-mesma regra do TS hoje). `removed(hash, now)` devolve `Option<Reason>`.
+Medido: `npm run typecheck` 0; `npm run build` 0; `npm test` **2398 testes /
+2397 pass / 0 fail / 1 skip** (78 suítes); `npm run test:complete` 274
+arquivos/2 harnesses; `npm run lint:lines -- --check` 642/0; `git diff --check`
+0 (só aviso de CRLF); `cargo fmt --all -- --check` 0; `cargo clippy
+--workspace --all-targets --locked -- -D warnings` 0; `cargo test --workspace
+--locked` 0 (149 blocos `test result: ok`, nenhum `FAILED`); catraca `.rs` 969
+fontes/0 acima.
 
-No TS, `alldebrid-reupload.ts` perde a escrita (`adrm` entra em `RUST_OWNED`);
-a leitura de painel continua pela ponte. Atualizar `docs/debrid-al-check-rust.md`
-com a tabela de quem marca.
-
-- [ ] **Step 4: gate + commit**
-
-```powershell
-npm run typecheck
-npm run build
-npm test
-npm run test:complete
-```
-
-```powershell
-cd rust
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ..
-```
-
-```powershell
-git add src rust test docs/debrid-al-check-rust.md
-```
 ```powershell
 git commit -m "refactor(debrid): adrm nativo e varreduras com dono unico"
 ```

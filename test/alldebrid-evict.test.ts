@@ -11,8 +11,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { debrid } from '../src/config/debrid.js';
-import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as held from '../src/debrid/protected.js';
 import { scheduleEvict } from '../src/debrid/alldebrid-evict.js';
@@ -163,7 +163,7 @@ test('8.16: seleção só do estrangeiro condenado — não-preexistente, não-a
     assert.deepEqual([...api.ordem], [501], 'só o gringo provado e desprotegido saiu');
     assert.deepEqual([...api.deleted], [501]);
     assert.equal(counter('debrid.evicted.perSearch'), 1);
-    assert.ok(cache.peek(adrmKey(ACCOUNT, GRINGO)) != null, 'removido recebe adrm (8.14)');
+    assert.ok(kvPeek(adrmKey(ACCOUNT, GRINGO)) != null, 'removido recebe adrm (8.14)');
     const ficam: Array<[string, number]> = [
       ['preexistente', 502], ['ativo', 503], ['held', 504], ['adprot', 505],
       ['atual', 506], ['sem data', 507], ['unknown', 508], ['BR', 509],
@@ -175,7 +175,7 @@ test('8.16: seleção só do estrangeiro condenado — não-preexistente, não-a
     restore();
     held.release(HELD_H, ACCOUNT);
     held.unprotect('alldebrid', ACCOUNT, ADPROT_H);
-    cache.forget(adrmKey(ACCOUNT, GRINGO));
+    kvForget(adrmKey(ACCOUNT, GRINGO));
     api.restore();
     soltaInventario(ACCOUNT);
     metrics.reset();

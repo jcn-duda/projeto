@@ -15,6 +15,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import { markerKey } from '../src/providers/autofetch-marker.js';
 import { obraRecord } from '../src/providers/autofetch-obra.js';
@@ -82,7 +83,7 @@ test('F6: BR ready remove só fallbacks any/seeds da MESMA obra, pelo gate e com
     assert.equal(counter('autofetch.evict.removed'), 2);
     for (const h of [F_ANY, F_SEEDS]) {
       assert.equal(cache.peek(markerKey('alldebrid', ACCOUNT, h)), null, 'marker esquecido no sucesso');
-      const adrm = cache.peek(adrmKey(ACCOUNT, h)) as { name?: string } | null;
+      const adrm = kvPeek(adrmKey(ACCOUNT, h)) as { name?: string } | null;
       assert.ok(adrm, 'adrm gravado no sucesso');
       assert.match(String(adrm?.name || ''), /1080p/, 'adrm carrega o filename REAL');
     }
