@@ -74,6 +74,11 @@ pub(crate) struct NetworkDrain {
     pub(super) spent: AtomicU32,
     streams: Option<Arc<StreamsStore>>,
     pending_invalidate: HashSet<String>,
+    /// Journal + outbox durável da execução. `None` = drain sem journal (teste)
+    /// ou colhedor ainda sem store: journal e outbox ficam em no-op.
+    journal: Option<Arc<adom_harvest::HarvestStore>>,
+    /// Execução aberta pelo loop (`begin_run`); sem ela o passo não é gravado.
+    current_run: Option<String>,
     warned_no_index: bool,
     warned_no_meta: bool,
     warned_no_jackett: bool,
@@ -84,6 +89,7 @@ impl NetworkDrain {
         orch: &Orchestrator,
         harvest: &HarvestConfig,
         streams: Option<Arc<StreamsStore>>,
+        journal: Option<Arc<adom_harvest::HarvestStore>>,
     ) -> Self {
         let store: Arc<dyn MetaStore> = match MetaCacheStore::from_env() {
             Ok(store) => Arc::new(store),
@@ -148,10 +154,23 @@ impl NetworkDrain {
             bludv,
             streams,
             pending_invalidate: HashSet::new(),
+            journal,
+            current_run: None,
             warned_no_index: false,
             warned_no_meta: false,
             warned_no_jackett: false,
         }
+    }
+
+    /// Abre a execução corrente (chamado pelo loop antes do `drain_one`).
+    /// Sem ela o journal e a outbox ficam em no-op, como no drain de teste.
+    pub(super) fn begin_run(&mut self, run_id: &str) {
+        self.current_run = Some(run_id.to_string());
+    }
+
+    /// Fecha a execução corrente: o próximo ciclo só journaliza com id novo.
+    pub(super) fn end_run(&mut self) {
+        self.current_run = None;
     }
 
     /// Pausa entre indexers (`harvestIndexerDelayMs` do painel).
@@ -211,6 +230,8 @@ impl NetworkDrain {
             bludv,
             streams,
             pending_invalidate: HashSet::new(),
+            journal: None,
+            current_run: None,
             warned_no_index: false,
             warned_no_meta: false,
             warned_no_jackett: false,
@@ -234,7 +255,14 @@ impl NetworkDrain {
     /// suplementar (registro parcial) em vez de falhar a entrada.
     async fn run(&mut self, entry: &HarvestEntry, queries_left: u32) -> DrainOutcome {
         self.last_found = false;
-        retry_invalidations(self.streams.as_ref(), &mut self.pending_invalidate);
+        // A retentativa é do início do ciclo: `now` da obra é lido depois.
+        let retry_now = now_ms();
+        retry_invalidations(
+            self.streams.as_ref(),
+            &mut self.pending_invalidate,
+            self.journal.as_deref(),
+            retry_now,
+        );
         let Some(index) = self.index.clone() else {
             if !self.warned_no_index {
                 self.warned_no_index = true;
@@ -315,6 +343,8 @@ impl NetworkDrain {
                     multi_work_root: search.multi_work_root.as_deref(),
                     home_release_at: search.home_release_at,
                     now_ms: now,
+                    journal: self.journal.as_deref(),
+                    run_id: self.current_run.as_deref().unwrap_or(""),
                 });
                 self.last_found = recorded.found;
                 if succeed {

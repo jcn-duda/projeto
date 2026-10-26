@@ -131,6 +131,35 @@ impl HarvestStore {
         Ok(expires_at > now_ms)
     }
 
+    /// Chaves vivas que começam por `prefix`; a expirada fica de fora.
+    ///
+    /// Não apaga nada: quem poda a linha vencida é o [`Self::get_value`].
+    pub fn keys_with_prefix(&self, prefix: &str, now_ms: i64) -> Result<Vec<String>, String> {
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT key FROM cache WHERE key LIKE ?1 || '%' AND expires_at > ?2 ORDER BY key",
+            )
+            .map_err(|err| format!("listar chaves do harvest store: {err}"))?;
+        let rows = stmt
+            .query_map(params![prefix, now_ms], |row| row.get::<_, String>(0))
+            .map_err(|err| format!("listar chaves do harvest store: {err}"))?;
+        let mut keys = Vec::new();
+        for row in rows {
+            keys.push(row.map_err(|err| format!("listar chaves do harvest store: {err}"))?);
+        }
+        Ok(keys)
+    }
+
+    /// Apaga a linha `key`; `false` = não havia nada para apagar.
+    pub fn forget_key(&self, key: &str) -> Result<bool, String> {
+        let conn = self.lock();
+        let rows = conn
+            .execute("DELETE FROM cache WHERE key = ?1", params![key])
+            .map_err(|err| format!("apagar chave do harvest store: {err}"))?;
+        Ok(rows > 0)
+    }
+
     /// Só testes: grava JSON cru (simula L2 legado com entrada podre).
     #[cfg(test)]
     pub(crate) fn put_raw_for_test(&self, value: &str, expires_at: i64) -> Result<(), String> {

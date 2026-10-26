@@ -14,12 +14,13 @@ use std::time::Duration;
 
 use adom_harvest::{
     reason_priority, save_hour, DrainOutcome, HarvestDrainAsync, HarvestEntry, HarvestQueueConfig,
-    HarvestWorker, PendingIntent, TickStart,
+    HarvestWorker, PendingIntent, TickStart, OUTBOX_BATCH_LIMIT,
 };
 use adom_search::orchestrator::Orchestrator;
 use adom_store::StreamsStore;
 
 use super::drain::NetworkDrain;
+use super::drain_outbox::drain_outbox;
 use super::evidence::order_and_publish;
 use super::settle::{Settlement, Settler};
 use super::Inner;
@@ -48,6 +49,12 @@ pub(crate) trait DrainFound {
     fn take_spent(&mut self) -> u32 {
         0
     }
+
+    /// Run do journal aberto para a obra corrente (no-op no fake do loop).
+    fn begin_run(&mut self, _run_id: &str) {}
+
+    /// Fecha o run corrente; chamado nos dois desfechos (drain e preempção).
+    fn end_run(&mut self) {}
 }
 
 impl DrainFound for NetworkDrain {
@@ -58,6 +65,14 @@ impl DrainFound for NetworkDrain {
     fn take_spent(&mut self) -> u32 {
         NetworkDrain::take_spent(self)
     }
+
+    fn begin_run(&mut self, run_id: &str) {
+        NetworkDrain::begin_run(self, run_id);
+    }
+
+    fn end_run(&mut self) {
+        NetworkDrain::end_run(self);
+    }
 }
 
 pub(super) async fn serve(
@@ -66,9 +81,19 @@ pub(super) async fn serve(
     orch: Orchestrator,
     streams: Option<Arc<StreamsStore>>,
 ) {
-    let mut drain = NetworkDrain::new(&orch, &inner.config(), streams);
+    let mut drain = NetworkDrain::new(
+        &orch,
+        &inner.config(),
+        streams.clone(),
+        Some(inner.store.clone()),
+    );
     let mut settler = Settler::new(adom_harvest::DEFAULT_PROBE_TTL_SECONDS);
     loop {
+        // Primeiro passo do tick, ANTES de qualquer guarda: a outbox é do
+        // processo, não da obra. O drain que gravou o índice e morreu antes de
+        // invalidar deixou o alvo aqui, e ele tem que sair mesmo com a fila
+        // vazia, com pausa ou com teto estourado.
+        drain_outbox_step(&inner, streams.as_ref());
         if inner.live_dirty.swap(false, Ordering::SeqCst) {
             apply_live_to_loop(&inner, &mut worker, &mut drain).await;
         }
@@ -156,6 +181,13 @@ where
             }
         }
     };
+    // Run do journal: registra o que a execução FEZ, não o que ela tentou.
+    // A outbox é a garantia de propagação; o journal é a trilha auditável.
+    let run_id = format!("{identity}-{now}");
+    if let Err(err) = inner.store.journal_begin(&run_id, &entry.imdb_id, now) {
+        eprintln!("[harvest] journal: run {run_id} não abriu: {err}");
+    }
+    drain.begin_run(&run_id);
     // Sem lock: a rede do drain não bloqueia a ponte Node. Uma obra de rank
     // maior enfileirada agora derruba o future — a entrada interrompida volta
     // à cabeça em vez de segurar a fila até o último indexer.
@@ -164,8 +196,16 @@ where
         _ = inner.preempt.notified() => None,
     };
     let Some(outcome) = finished else {
-        return finish_preempted(inner, worker, drain, settler, entry, identity, now).await;
+        let slot = RunSlot { identity, run_id };
+        return finish_preempted(inner, worker, drain, settler, entry, slot, now).await;
     };
+    drain.end_run();
+    // ANTES do `worker.finish`: o run fecha no journal mesmo que o processo
+    // morra no fechamento do slot durável.
+    let run_status = if outcome.ok { "done" } else { "failed" };
+    if let Err(err) = inner.store.journal_finish(&run_id, run_status, now) {
+        eprintln!("[harvest] journal: run {run_id} não fechou: {err}");
+    }
     let br_found = drain.take_found();
     let mut queue = inner.queue.lock().await;
     // Snapshot ANTES do finish: o slot some no end, e a FULL remanescente
@@ -195,6 +235,14 @@ where
     IterationOutcome::Drained { ok: outcome.ok }
 }
 
+/// Identidade da obra + run do journal aberto para ela. Andam sempre juntos
+/// (`run_id` nasce de `identity` + `now`), e o par viaja junto para a
+/// preempção fechar o run SEM reconstruir a chave.
+struct RunSlot {
+    identity: String,
+    run_id: String,
+}
+
 /// Preempção: o drain foi dropado no meio. A obra volta à CABEÇA com a
 /// intenção que o slot acumulou (`resumed: true`), o lease da sonda renova e só
 /// as consultas JÁ GASTAS são debitadas. Não é falha — a obra não saiu da fila,
@@ -205,13 +253,20 @@ async fn finish_preempted<D>(
     drain: &mut D,
     settler: &Settler,
     entry: HarvestEntry,
-    identity: String,
+    slot: RunSlot,
     now: i64,
 ) -> IterationOutcome
 where
     D: DrainFound,
 {
+    let RunSlot { identity, run_id } = slot;
     let spent = drain.take_spent();
+    // Preempção não é falha da obra, mas o run não terminou: fecha `failed` em
+    // vez de deixar "running" por 24 h. A obra volta à fila e abre run novo.
+    drain.end_run();
+    if let Err(err) = inner.store.journal_finish(&run_id, "failed", now) {
+        eprintln!("[harvest] journal: run de {identity} não fechou na preempção: {err}");
+    }
     let mut queue = inner.queue.lock().await;
     // Snapshot do slot ANTES do finish: é a intenção efetiva da execução (o
     // que coalesceu em voo), e o `end` do finish apaga o slot.
@@ -268,6 +323,30 @@ fn resumed_entry(entry: &HarvestEntry, intent: Option<&PendingIntent>) -> Harves
         full_base: full_intent.is_some(),
         full_intent,
     }
+}
+
+/// Dreno da outbox com o relato colado no status do painel.
+///
+/// Roda no topo do tick, sem o lock da fila e antes de qualquer guarda: o
+/// alvo pendente é do processo, não da obra. Erro do store não perde nada — o
+/// `take` já gravou `tries` e a dead-letter acontece sozinha.
+fn drain_outbox_step(inner: &Inner, streams: Option<&Arc<StreamsStore>>) {
+    let now = adom_sources::now_ms();
+    let report = drain_outbox(&inner.store, streams, OUTBOX_BATCH_LIMIT, now);
+    if let Some(err) = report.store_error.as_deref() {
+        eprintln!("[harvest] outbox: store falhou ({err}); alvos seguem na fila");
+    }
+    if report.acked > 0 || report.failed > 0 {
+        eprintln!(
+            "[harvest] outbox: {} propagado(s), {} pendente(s), {} morto(s)",
+            report.acked, report.failed, report.dead
+        );
+    }
+    inner
+        .status
+        .lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .outbox_dead = report.dead;
 }
 
 pub(crate) fn persist_hour(inner: &Inner, worker: &mut HarvestWorker, now: i64) {

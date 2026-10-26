@@ -45,6 +45,9 @@ pub struct HarvestStatus {
     pub degraded: bool,
     /// O que o `open` do store respondeu (`None` = arquivo íntegro).
     pub store_error: Option<String>,
+    /// Alvos de invalidacao que estouraram as 5 tentativas e pararam na
+    /// dead-letter — nada some em silencio; o painel mostra a contagem.
+    pub outbox_dead: usize,
 }
 
 impl HarvestStatus {
@@ -125,6 +128,17 @@ mod tests {
         let json = serde_json::to_value(&status).unwrap();
         assert_eq!(json["degraded"], true);
         assert!(json["storeError"].as_str().unwrap().contains("quick_check"));
+    }
+
+    #[test]
+    fn status_do_harvest_expoe_outbox_dead() {
+        let status = HarvestStatus {
+            outbox_dead: 3,
+            ..Default::default()
+        };
+        // O contrato do painel: `outboxDead` (camelCase).
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["outboxDead"], 3);
     }
 
     #[test]

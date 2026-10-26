@@ -1808,11 +1808,43 @@ git commit -m "feat(autofetch): crate de estado nativo sobre o kv do cache.db"
 
 ## Leva 5
 
-### T1-B2: journal de execução e outbox de invalidação
+### T1-B2: journal de execução e outbox de invalidação — EXECUTADA
 
 O drain que grava índice e morre antes da invalidação deixa lista velha no
 `streams`. Esta fatia separa **o que já foi feito** (journal) do **que falta
 propagar** (outbox), e a outbox é drenada mesmo sem busca.
+
+**Desenho executado** (differe do plano em quatro pontos, todos deliberados):
+
+- **O journal não ficou no `worker.rs`.** Quem conhece `identity`, o run e os
+  DOIS desfechos (drain concluído e preempção) é o loop do gateway
+  (`harvest/serve.rs`); o `HarvestWorker` do crate não vê a escrita do índice
+  nem a outbox. `journal_begin` abre logo após o claim, `journal_finish` fecha
+  logo após o `drain_one` e **antes** do `worker.finish`. O run fecha também na
+  preempção — como `failed`, senão ficaria `running` por 24 h.
+- **O dreno ganhou arquivo próprio** (`harvest/drain_outbox.rs`, fora do plano)
+  com `OutboxReport {acked, failed, dead, store_error}`; `status.rs` expõe
+  `outboxDead` (camelCase) e o loop escreve a contagem em cada passagem.
+  Sem `StreamsStore` (diagnóstico), ninguém é ackado: os `tries` sobem e o alvo
+  vai para a dead-letter — o painel mostra, nada some em silêncio.
+- **`journal_tests.rs` cobre journal E outbox** (dono: `journal.rs`): os dois são
+  o estado do MESMO drain, e um segundo arquivo de teste só gastaria a catraca.
+- **`store.rs` ganhou `keys_with_prefix`/`forget_key`** — base das duas listas.
+  `keys_with_prefix` filtra e **não apaga**: leitura não escreve; a linha
+  vencida sai no `get_value`. `RunSlot {identity, run_id}` viaja junto para a
+  preempção fechar o run sem reconstruir a chave (e o clippy não contar 8 args).
+
+**Arquivos entregues:**
+- Create: `rust/crates/adom-harvest/src/{journal.rs,outbox.rs,journal_tests.rs}`
+- Create: `rust/crates/adom-server/src/harvest/drain_outbox.rs`
+- Modify: `rust/crates/adom-harvest/src/{store.rs,lib.rs}`,
+  `rust/crates/adom-server/src/harvest/{serve.rs,mod.rs,status.rs,drain.rs,drain_record.rs}`
+  e `drain_record_tests.rs` (mecânico: `RecordArgs`/`retry_invalidations` +
+  `outbox_registra_o_alvo_antes_de_invalidar`)
+
+**Sequência do journal:** `begin` → `index` (só após a escrita confirmada) →
+`invalidated` (só após o `ack`) → `finish`. A outbox recebe o alvo **antes** da
+tentativa de invalidar: é o `pending` em memória que morre com o processo.
 
 **Files:**
 - Create: `rust/crates/adom-harvest/src/journal.rs`
@@ -1823,7 +1855,7 @@ propagar** (outbox), e a outbox é drenada mesmo sem busca.
 - Modify: `rust/crates/adom-server/src/harvest/drain.rs` (injeta o dreno da
   outbox no início do tick, **antes** do teto)
 
-- [ ] **Step 1: escrever os testes que falham**
+- [x] **Step 1: escrever os testes que falham**
 
 Em `journal_tests.rs`:
 
@@ -1852,7 +1884,7 @@ fn outbox_sobrevive_e_entrega_uma_vez() {
 }
 ```
 
-- [ ] **Step 2: rodar e ver falhar**
+- [x] **Step 2: rodar e ver falhar**
 
 ```powershell
 cd rust
@@ -1860,7 +1892,7 @@ cargo test -p adom-harvest --locked journal_guarda_um_estado_final
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: implementar**
+- [x] **Step 3: implementar**
 
 Journal em `harvest:v1:run:<run_id>` (TTL 24 h, cota do namespace `harvest`),
 com `{obra, started_ms, finished_ms?, status: running|done|failed, steps: []}`.
@@ -1881,7 +1913,7 @@ O worker chama `journal_begin` no claim, `journal_step("index")` após a escrita
 do índice, `journal_step("invalidated")` após o `ack` da outbox e
 `journal_finish` no fim do tick — **antes** de `store.finish(&entry_id)`.
 
-- [ ] **Step 4: gate + commit**
+- [x] **Step 4: gate + commit**
 
 ```powershell
 cd rust

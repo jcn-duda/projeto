@@ -32,6 +32,7 @@
 
 mod config;
 mod drain;
+mod drain_outbox;
 mod drain_record;
 mod drain_shape;
 mod drain_sources;

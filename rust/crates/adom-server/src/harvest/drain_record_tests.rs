@@ -2,13 +2,13 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use adom_core::RelevanceSettings;
-use adom_harvest::{HarvestEntry, HarvestMediaType};
+use adom_core::{BrTransition, RelevanceSettings};
+use adom_harvest::{HarvestEntry, HarvestMediaType, HarvestStore};
 use adom_search::orchestrator::{BankLookup, IndexedReleaseWire, RawItem, ReleaseIndexSource};
 use adom_search::ReleaseEntry;
 use adom_store::{streams_prefix, NativeReleaseIndex, ReleaseIndexStore, StreamsStore};
 
-use super::{record_collected, retry_invalidations, RecordArgs};
+use super::{apply_transition, record_collected, retry_invalidations, RecordArgs};
 
 const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -128,6 +128,8 @@ fn run(
         multi_work_root: None,
         home_release_at: None,
         now_ms: NOW,
+        journal: None,
+        run_id: "",
     })
 }
 
@@ -237,10 +239,10 @@ fn invalidacao_falha_fica_pendente_e_retry_tira() {
     let store = Arc::new(StreamsStore::open_memory().unwrap());
     let mut pending = HashSet::new();
     pending.insert("tt0111161".into());
-    retry_invalidations(Some(&store), &mut pending);
+    retry_invalidations(Some(&store), &mut pending, None, NOW);
     assert!(pending.is_empty());
     pending.insert("nao-e-imdb".into());
-    retry_invalidations(Some(&store), &mut pending);
+    retry_invalidations(Some(&store), &mut pending, None, NOW);
     assert!(pending.contains("nao-e-imdb"));
 }
 
@@ -295,6 +297,8 @@ fn sonda_de_temporada_anuncia_found_na_chave_do_episodio() {
         multi_work_root: None,
         home_release_at: None,
         now_ms: NOW,
+        journal: None,
+        run_id: "",
     });
     assert!(out.found, "delta em S1E1 conta como Found");
     assert!(out.outcome.ok);
@@ -340,6 +344,8 @@ fn dedupe_depois_do_filtro_guarda_o_titulo_relevante() {
         multi_work_root: None,
         home_release_at: None,
         now_ms: NOW,
+        journal: None,
+        run_id: "",
     });
     assert!(out.found);
     let found = index.lookup("tt7286456", None, None, NOW);
@@ -350,4 +356,31 @@ fn dedupe_depois_do_filtro_guarda_o_titulo_relevante() {
         "título do Jackett irrelevante não sobrevive ao filtro: {}",
         found[0].title
     );
+}
+
+#[test]
+fn outbox_registra_o_alvo_antes_de_invalidar() {
+    let journal = HarvestStore::open_memory().unwrap();
+    let store = Arc::new(StreamsStore::open_memory().unwrap());
+    let mut pending = HashSet::new();
+    // `invalidate_for_obra` recusa IMDb inválido: a invalidação FALHA — e é
+    // exatamente aí que o alvo durável precisa já estar na outbox, senão o
+    // `pending` em memória leva o alvo junto no restart.
+    apply_transition(
+        Some(&store),
+        &mut pending,
+        "nao-e-imdb",
+        BrTransition::Br,
+        Some(&journal),
+        "run-1",
+        NOW,
+    );
+    assert!(pending.contains("nao-e-imdb"), "retentativa em memória");
+    let alvos: Vec<String> = journal
+        .outbox_pending(NOW)
+        .unwrap()
+        .into_iter()
+        .map(|item| item.target)
+        .collect();
+    assert_eq!(alvos, vec!["obra:nao-e-imdb".to_string()]);
 }

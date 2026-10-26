@@ -11,7 +11,7 @@ use adom_core::{
     filter_relevant_raw, probe_found_viable, route_work_location, BrGapRelease, BrProbeRelease,
     BrTransition, RelevanceQuery, RelevanceSettings, WorkTarget, BR_GAP_TARGET_QUALITY,
 };
-use adom_harvest::{DrainOutcome, HarvestEntry, HarvestMediaType};
+use adom_harvest::{DrainOutcome, HarvestEntry, HarvestMediaType, HarvestStore, OutboxItem};
 use adom_search::orchestrator::harvest_support::{record_release, release_entry_for};
 use adom_search::orchestrator::{IndexedReleaseWire, RawItem, ReleaseIndexSource, SharedBank};
 use adom_store::StreamsStore;
@@ -35,6 +35,10 @@ pub(super) struct RecordArgs<'a> {
     pub multi_work_root: Option<&'a str>,
     pub home_release_at: Option<i64>,
     pub now_ms: i64,
+    /// Journal/outbox da execução; `None` = drain sem journal (teste).
+    pub journal: Option<&'a HarvestStore>,
+    /// Execução corrente (`begin_run` do loop); vazia sem journal.
+    pub run_id: &'a str,
 }
 
 pub(super) struct RecordedDrain {
@@ -89,6 +93,9 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
                 written,
                 args.attempted
             );
+            // Passo `index` só depois da escrita confirmada; erro do journal
+            // nunca derruba o drain.
+            note_step(args.journal, args.run_id, "index", args.now_ms);
             let after = lookup_dests(args.index, &args.entry.imdb_id, &dests, args.now_ms);
             let found = before
                 .iter()
@@ -105,6 +112,9 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
                 args.pending_invalidate,
                 &args.entry.imdb_id,
                 transition,
+                args.journal,
+                args.run_id,
+                args.now_ms,
             );
             RecordedDrain {
                 outcome: DrainOutcome::ok_with_queries(args.attempted),
@@ -130,6 +140,8 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
 pub(super) fn retry_invalidations(
     streams: Option<&Arc<StreamsStore>>,
     pending: &mut HashSet<String>,
+    journal: Option<&HarvestStore>,
+    now_ms: i64,
 ) {
     let Some(store) = streams else {
         return;
@@ -138,6 +150,9 @@ pub(super) fn retry_invalidations(
     for imdb in waiting {
         match store.invalidate_for_obra(&imdb) {
             Ok(_) => {
+                // Retentativa bem-sucedida fecha o MESMO alvo que o drain
+                // abriu na outbox: as duas vias convergem.
+                ack_outbox_target(journal, &imdb, now_ms);
                 pending.remove(&imdb);
             }
             Err(err) => {
@@ -195,11 +210,19 @@ fn br_transition_from(before: &[IndexedReleaseWire], after: &[IndexedReleaseWire
     adom_core::br_transition(&before_gap, &after_gap)
 }
 
+/// Invalida a lista da obra em `streams` e move o alvo na outbox.
+///
+/// A outbox recebe o alvo ANTES da tentativa: o `pending` em memória morre com
+/// o processo, e um crash entre a escrita do índice e a invalidação perdia o
+/// alvo para sempre. Com o alvo durável, o próximo boot ainda invalida.
 fn apply_transition(
     streams: Option<&Arc<StreamsStore>>,
     pending: &mut HashSet<String>,
     imdb: &str,
     transition: BrTransition,
+    journal: Option<&HarvestStore>,
+    run_id: &str,
+    now_ms: i64,
 ) {
     if matches!(transition, BrTransition::None) {
         return;
@@ -208,14 +231,64 @@ fn apply_transition(
         eprintln!("[harvest] {imdb}: store de streams ausente; invalidação degradada");
         return;
     };
+    if let Some(journal) = journal {
+        let target = obra_target(imdb);
+        if let Err(err) = journal.outbox_push(&target, now_ms) {
+            eprintln!("[harvest] journal: outbox não registrou {target}: {err}");
+        }
+    }
     match store.invalidate_for_obra(imdb) {
         Ok(_) => {
+            // Invalidação aplicada: o alvo sai da outbox e o passo fica no
+            // journal da execução.
+            ack_outbox_target(journal, imdb, now_ms);
+            note_step(journal, run_id, "invalidated", now_ms);
             pending.remove(&imdb.to_ascii_lowercase());
         }
         Err(err) => {
+            // O alvo FICA na outbox (sem ack) e a retentativa em memória
+            // continua valendo para o ciclo corrente.
             eprintln!("[harvest] {imdb}: invalidação falhou: {err}");
             pending.insert(imdb.to_ascii_lowercase());
         }
+    }
+}
+
+/// Alvo de invalidação da outbox: a obra, não a config de `/stream`.
+fn obra_target(imdb: &str) -> String {
+    format!("obra:{imdb}")
+}
+
+/// Passo no journal do run aberto.
+///
+/// Run vazio = drain sem `begin_run` (teste, ou loop que não abriu o run):
+/// no-op em vez de gravar um `harvest:v1:run:` órfão. Erro de journal nunca
+/// derruba o drain, que é quem alimenta o índice.
+fn note_step(journal: Option<&HarvestStore>, run_id: &str, step: &str, now_ms: i64) {
+    if run_id.is_empty() {
+        return;
+    }
+    let Some(journal) = journal else {
+        return;
+    };
+    if let Err(err) = journal.journal_step(run_id, step, now_ms) {
+        eprintln!("[harvest] journal: passo {step} nao gravou: {err}");
+    }
+}
+
+/// Fecha o alvo na outbox (idempotente; sem journal é no-op).
+fn ack_outbox_target(journal: Option<&HarvestStore>, imdb: &str, now_ms: i64) {
+    let Some(journal) = journal else {
+        return;
+    };
+    let target = obra_target(imdb);
+    let batch = [OutboxItem {
+        target: target.clone(),
+        at_ms: now_ms,
+        tries: 0,
+    }];
+    if let Err(err) = journal.outbox_ack(&batch, now_ms) {
+        eprintln!("[harvest] journal: ack de {target} não gravou: {err}");
     }
 }
 
