@@ -55,7 +55,8 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use adom_harvest::{
-    load_hour, HarvestQueue, HarvestQueueConfig, HarvestStore, HarvestWorker, HarvestWorkerConfig,
+    load_hour, replay_pending, HarvestQueue, HarvestQueueConfig, HarvestStore, HarvestWorker,
+    HarvestWorkerConfig, ReplayReport,
 };
 use adom_search::orchestrator::{Orchestrator, SharedIndex};
 use adom_store::StreamsStore;
@@ -218,8 +219,36 @@ pub fn spawn(
         },
         adom_sources::now_ms,
     );
+    // Replay ANTES do `load_from`: é o documento CRU (com o slot do processo
+    // anterior) que diz qual run interrompido tem obra para retomar. Aqui só se
+    // fecha o journal e se aponta a obra; quem a devolve à fila é o `load_from`.
+    let replay = match replay_pending(&store, now) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!("[harvest] replay não rodou: {err}");
+            ReplayReport::default()
+        }
+    };
+    if replay.pending > 0 {
+        eprintln!(
+            "[harvest] replay: {} run(s) aberto(s), {} obra(s) retomada(s), {} órfão(s)",
+            replay.pending,
+            replay.replayed(),
+            replay.orphans
+        );
+    }
     if let Err(err) = queue.load_from(&store, now, None) {
         eprintln!("[harvest] fila do L2 ilegível ({err}); começando vazia");
+    }
+    // A obra do run interrompido já voltou pelo `load_from`; marcar `resumed`
+    // é o que o painel e a preempção leem para dizer que ela é retomada.
+    for slot in &replay.resumed {
+        if !queue.mark_resumed(&slot.entry_id) {
+            eprintln!(
+                "[harvest] replay: {} fechou no journal mas não está na fila",
+                slot.entry_id
+            );
+        }
     }
     // O slot do processo anterior é morto por definição: `load_from` já o
     // devolveu à fila. Gravar agora impede que uma queda antes do primeiro
@@ -253,6 +282,8 @@ pub fn spawn(
         last: Vec::new(),
         queries_this_hour: worker.queries_this_hour(now),
         counters: HarvestCounters::default(),
+        pending_runs: replay.pending_after(),
+        replayed_runs: replay.replayed(),
         // Veredito do `open` do L2: arquivo podre vira `degraded` no painel.
         ..HarvestStatus::with_store(&store)
     };

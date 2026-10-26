@@ -32,6 +32,8 @@
 //! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
 //! | [`BrProbe`] / [`probe_key`] | Sonda BR: estados, lease e `pending` a partir da fila |
 //! | [`JournalRun`] / [`journal_key`] | Journal do run (`harvest:v1:run:<id>`, TTL 24 h) |
+//! | [`PendingRun`] / [`replay_pending`] | Replay de boot: fecha run interrompido |
+//! | [`new_run_id`] | Id do run (lease + journal da mesma execução) |
 //! | [`OutboxItem`] / [`OUTBOX_KEY`] | Outbox de invalidação: lote com tentativas + cemitério |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`HarvestDrainAsync`] / [`tick_async`](HarvestWorker::tick_async) | Mesma decisão, drain que espera rede (gateway) |
@@ -51,6 +53,8 @@ mod probe;
 mod queue;
 mod queue_config;
 mod reason;
+mod replay;
+mod run_id;
 mod seen;
 mod store;
 mod types;
@@ -84,6 +88,8 @@ pub use reason::{
     entry_identity, is_promotion, is_recent_br_gap, is_valid_imdb_id, obra_identity,
     reason_priority, BR_GAP_PRIORITY_WINDOW_MS,
 };
+pub use replay::{pending_runs, replay_pending, PendingRun, ReplayReport};
+pub use run_id::{new_run_id, RUN_ID_PREFIX};
 pub use seen::{
     entry_seen_key, mark_recently_queued, seen_key, was_recently_queued, DEDUPE_TTL_SECONDS,
 };

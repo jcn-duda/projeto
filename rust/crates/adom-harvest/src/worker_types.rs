@@ -155,6 +155,8 @@ pub enum TickStart {
     Run {
         entry: HarvestEntry,
         identity: String,
+        /// Id do run desta execução — o MESMO gravado na lease e no journal.
+        run_id: String,
         /// Teto rígido da hora: o drain não gasta mais que isto em consultas.
         queries_left: u32,
     },

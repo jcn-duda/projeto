@@ -48,6 +48,11 @@ pub struct HarvestStatus {
     /// Alvos de invalidacao que estouraram as 5 tentativas e pararam na
     /// dead-letter — nada some em silencio; o painel mostra a contagem.
     pub outbox_dead: usize,
+    /// Runs que continuaram `running` depois do replay de boot (só sobra
+    /// quando a escrita do journal falhou).
+    pub pending_runs: usize,
+    /// Obras retomadas de um run interrompido no boot (T1-B3).
+    pub replayed_runs: usize,
 }
 
 impl HarvestStatus {
@@ -139,6 +144,19 @@ mod tests {
         // O contrato do painel: `outboxDead` (camelCase).
         let json = serde_json::to_value(&status).unwrap();
         assert_eq!(json["outboxDead"], 3);
+    }
+
+    #[test]
+    fn status_do_harvest_expoe_replay_do_boot() {
+        let status = HarvestStatus {
+            pending_runs: 1,
+            replayed_runs: 2,
+            ..Default::default()
+        };
+        // O contrato do painel: `pendingRuns`/`replayedRuns` (camelCase).
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["pendingRuns"], 1);
+        assert_eq!(json["replayedRuns"], 2);
     }
 
     #[test]

@@ -155,7 +155,7 @@ where
     D: HarvestDrainAsync + DrainFound,
 {
     let snapshot = inner.refresh_snapshot(now).await;
-    let (entry, identity, queries_left) = {
+    let (entry, identity, run_id, queries_left) = {
         let mut queue = inner.queue.lock().await;
         queue.prioritize(&snapshot, now);
         match worker.begin(&mut queue, &inner.traffic, now) {
@@ -167,6 +167,7 @@ where
             TickStart::Run {
                 entry,
                 identity,
+                run_id,
                 queries_left,
             } => {
                 // Com o lock da fila: o enqueue lê este rank para decidir a
@@ -177,13 +178,14 @@ where
                 // persiste durante o drain — gravaria a fila sem ela e um
                 // restart a perderia para sempre.
                 inner.persist_queue(&queue, now);
-                (entry, identity, queries_left)
+                (entry, identity, run_id, queries_left)
             }
         }
     };
     // Run do journal: registra o que a execução FEZ, não o que ela tentou.
-    // A outbox é a garantia de propagação; o journal é a trilha auditável.
-    let run_id = format!("{identity}-{now}");
+    // A outbox é a garantia de propagação; o journal é a trilha auditável. O id
+    // vem do MESMO claim que gravou a lease (T1-B3): é esse par que o replay de
+    // boot usa para saber qual obra voltar à fila.
     if let Err(err) = inner.store.journal_begin(&run_id, &entry.imdb_id, now) {
         eprintln!("[harvest] journal: run {run_id} não abriu: {err}");
     }
@@ -203,7 +205,12 @@ where
     // ANTES do `worker.finish`: o run fecha no journal mesmo que o processo
     // morra no fechamento do slot durável.
     let run_status = if outcome.ok { "done" } else { "failed" };
-    if let Err(err) = inner.store.journal_finish(&run_id, run_status, now) {
+    let closed = if outcome.ok {
+        inner.store.journal_finish(&run_id, run_status, now)
+    } else {
+        inner.store.journal_fail(&run_id, "drain_failed", now)
+    };
+    if let Err(err) = closed {
         eprintln!("[harvest] journal: run {run_id} não fechou: {err}");
     }
     let br_found = drain.take_found();
@@ -236,8 +243,8 @@ where
 }
 
 /// Identidade da obra + run do journal aberto para ela. Andam sempre juntos
-/// (`run_id` nasce de `identity` + `now`), e o par viaja junto para a
-/// preempção fechar o run SEM reconstruir a chave.
+/// (o `run_id` sai do MESMO claim que abriu a lease, em `worker.begin`), e o
+/// par viaja junto para a preempção fechar o run SEM reconstruir a chave.
 struct RunSlot {
     identity: String,
     run_id: String,
@@ -261,10 +268,10 @@ where
 {
     let RunSlot { identity, run_id } = slot;
     let spent = drain.take_spent();
-    // Preempção não é falha da obra, mas o run não terminou: fecha `failed` em
-    // vez de deixar "running" por 24 h. A obra volta à fila e abre run novo.
+    // Preempção não é falha da obra, mas o run não terminou: fecha com motivo
+    // em vez de deixar "running" por 24 h. A obra volta à fila e abre run novo.
     drain.end_run();
-    if let Err(err) = inner.store.journal_finish(&run_id, "failed", now) {
+    if let Err(err) = inner.store.journal_fail(&run_id, "preempted", now) {
         eprintln!("[harvest] journal: run de {identity} não fechou na preempção: {err}");
     }
     let mut queue = inner.queue.lock().await;

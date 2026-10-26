@@ -197,6 +197,20 @@ impl HarvestQueue {
         }
     }
 
+    /// Marca como retomada a obra que voltou de um run interrompido (replay de
+    /// boot). `false` = obra não está na fila (já drenada ou evictada).
+    pub fn mark_resumed(&mut self, entry_id: &str) -> bool {
+        let Some(entry) = self
+            .entries
+            .iter_mut()
+            .find(|entry| entry_identity(entry) == entry_id)
+        else {
+            return false;
+        };
+        entry.resumed = true;
+        true
+    }
+
     /// Enfileira. Fogo-e-esquece no contrato público; o retorno existe para a
     /// sonda saber se o pedido virou trabalho.
     pub fn enqueue(&mut self, req: HarvestRequest) -> EnqueueOutcome {

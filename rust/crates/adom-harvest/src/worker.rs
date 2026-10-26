@@ -139,8 +139,13 @@ impl HarvestWorker {
     }
 
     /// Abre o slot da obra em voo (volátil + durável) e devolve a identidade
-    /// que os dois fecham.
-    fn open_slot(&mut self, queue: &mut HarvestQueue, entry: &HarvestEntry, now_ms: i64) -> String {
+    /// que os dois fecham mais o `run_id` do journal.
+    fn open_slot(
+        &mut self,
+        queue: &mut HarvestQueue,
+        entry: &HarvestEntry,
+        now_ms: i64,
+    ) -> (String, String) {
         self.in_flight = true;
         let identity = entry_identity(entry);
         queue
@@ -148,8 +153,8 @@ impl HarvestWorker {
             .begin(&identity, HarvestIntent::from_entry(entry));
         // O claim é o que sobrevive ao restart: a entrada já saiu da memória e
         // o próximo `save` (inclusive o do enqueue) a leva no documento.
-        queue.claim_durable(entry, now_ms);
-        identity
+        let run_id = queue.claim_durable(entry, now_ms);
+        (identity, run_id)
     }
 
     /// Debita as consultas no balde e fecha os dois slots (obra diferente não
@@ -185,10 +190,11 @@ impl HarvestWorker {
                 queries_left,
             } => (entry, queries_left),
         };
-        let identity = self.open_slot(queue, &entry, now_ms);
+        let (identity, run_id) = self.open_slot(queue, &entry, now_ms);
         TickStart::Run {
             entry,
             identity,
+            run_id,
             queries_left,
         }
     }
@@ -253,6 +259,7 @@ impl HarvestWorker {
                 entry,
                 identity,
                 queries_left,
+                ..
             } => (entry, identity, queries_left),
         };
 

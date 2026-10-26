@@ -2258,118 +2258,90 @@ git commit -m "feat(autofetch): enfileiramento nativo com pickers e gate"
 
 ## Leva 6
 
-### T1-B3: replay e exactly-once na retomada
+### T1-B3: replay e exactly-once na retomada — EXECUTADA
 
-Com o slot durável (B1) e o journal (B2), falta o **replay**: ao subir, o worker
-reprocessa o que ficou `running` sem reaplicar escrita já marcada. É esta fatia
-que fecha a 5H.
+O slot durável (B1) devolve a obra em voo ao reiniciar e o journal (B2) grava o
+que o drain fez. Faltava o **replay**: ao subir, fechar o run que ficou
+`running` e saber se ele tem obra para retomar. É esta fatia que fecha a 5H.
 
-**Files:**
-- Create: `rust/crates/adom-harvest/src/replay.rs`
-- Create: `rust/crates/adom-harvest/src/replay_tests.rs`
-- Create: `rust/crates/adom-harvest/src/run_id.rs`
-- Modify: `rust/crates/adom-harvest/src/worker.rs` (boot do tick + passagem de
+**Desvios medidos no código (antes de executar):**
+
+1. **O plano pedia APIs que o T1-B1 nunca teve.** `store.enqueue_bulk`,
+   `store.claim(&Lease, now)` e `store.inflight(now)` não existem: o dono do
+   documento é a `HarvestQueue`, e o store só materializa `StoredQueue`. Os
+   testes foram escritos contra o modelo real (`claim_durable` → `save_to` →
+   `load_queue`).
+2. **"Se a lease venceu, `reclaim_expired` devolve à fila":** não existe
+   `reclaim_expired` e não precisa. O boot trata QUALQUER lease como morta
+   (`apply_stored` → `reclaim_dead_lease`), então o replay só **classifica** o
+   que aconteceu (`interrupted` ou `lease_expired`) e **não toca na fila** —
+   quem devolve a obra é o `load_from`, chamado logo depois.
+3. **`missing_step` ficou sem consumidor de produção.** "Não reaplicar passo já
+   marcado" exigiria persistir os passos executados NA ENTRADA da fila
+   (`harvest:v1:q`) e o drain os consultaria para pular a coleta. É mudança de
+   modelo do documento, com risco de pular coleta cuja escrita foi confirmada
+   mas já evictada; fica para a fatia que levar o drain ao núcleo. A API e o
+   teste do contrato estão prontos (`PendingRun::missing_step`).
+
+**Files (executado):**
+- Create: `rust/crates/adom-harvest/src/run_id.rs` (`new_run_id`,
+  `RUN_ID_PREFIX`)
+- Create: `rust/crates/adom-harvest/src/replay.rs` + `replay_tests.rs`
+- Modify: `rust/crates/adom-harvest/src/journal.rs` (`reason` + `journal_fail`)
+- Modify: `rust/crates/adom-harvest/src/lease.rs` (`claim_durable` devolve o
   `run_id`)
-- Modify: `rust/crates/adom-harvest/src/store.rs` (`claim` recebe `run_id`)
-- Modify: `rust/crates/adom-server/src/harvest/mod.rs` (chama `replay_pending`
-  no boot da thread)
-- Modify: `rust/crates/adom-server/src/harvest/status.rs` (`pendingRuns`,
-  `replayedRuns`)
+- Modify: `rust/crates/adom-harvest/src/queue.rs` (`mark_resumed`)
+- Modify: `rust/crates/adom-harvest/src/worker.rs` + `worker_types.rs`
+  (`TickStart::Run { run_id }`)
+- Modify: `rust/crates/adom-harvest/src/lib.rs` (módulos e exports)
+- Modify: `rust/crates/adom-server/src/harvest/serve.rs` (usa o `run_id` da
+  lease; preempção e falha fecham com motivo)
+- Modify: `rust/crates/adom-server/src/harvest/mod.rs` (replay antes do
+  `load_from`) e `status.rs` (`pendingRuns`, `replayedRuns`)
 
-- [ ] **Step 1: escrever os testes que falham**
+- [x] **Step 1: testes (6 em `replay_tests.rs` + 1 em `journal_tests.rs`)**
 
-Em `replay_tests.rs`:
+`pending_runs_lista_so_o_que_ficou_aberto` (só `running`, com `steps`),
+`replay_retoma_o_run_com_slot_e_nao_cria_segundo` (um slot, uma obra na fila
+depois do `load_from`), `lease_vencida_ainda_retoma_mas_marca_lease_expired`,
+`run_sem_slot_fecha_como_orfao`, `replay_e_idempotente`,
+`run_id_e_unico_e_identifica_o_processo` e
+`journal_fail_grava_o_motivo_e_finish_o_limpa`.
 
-```rust
-#[test]
-fn retomada_nao_reaplica_passo_ja_marcado() {
-    let store = HarvestStore::open_memory().unwrap();
-    store.journal_begin("run-1", "tt1", 1_000).unwrap();
-    store.journal_step("run-1", "index", 1_100).unwrap();
-    // processo morreu: o journal ficou `running` e o slot em voo existe
-    let pendentes = crate::replay::pending_runs(&store, 2_000).unwrap();
-    assert_eq!(pendentes.len(), 1);
-    assert_eq!(pendentes[0].steps, vec!["index".to_string()]);
-    assert!(pendentes[0].missing_step("index") == false);
-    assert!(pendentes[0].missing_step("invalidated"));
-}
+- [x] **Step 2: implementação**
 
-#[test]
-fn run_id_e_unico_e_sobrevive_ao_restart() {
-    let a = crate::run_id::new_run_id(1_000);
-    let b = crate::run_id::new_run_id(1_000);
-    assert_ne!(a, b);
-    assert!(a.starts_with("h-"));
-}
+`run_id.rs` gera `h-<now_ms>-<seq>-<pid>`. `HarvestQueue::claim_durable` grava
+esse id na lease e **devolve**; `worker.open_slot` o repassa em
+`TickStart::Run { run_id }` e o `serve.rs` usa o MESMO id no `journal_begin`
+(saiu o `format!("{identity}-{now}")`, que desalinhava lease e journal).
 
-#[test]
-fn entrada_repetida_no_replay_nao_duplica_escrita() {
-    let store = HarvestStore::open_memory().unwrap();
-    store.enqueue_bulk(&[entry_for_tests("tt1")], 1_000).unwrap();
-    let lease = Lease::new("run-1", 1_000, 60_000);
-    store.claim(&lease, 1_000).unwrap();
-    let replayed = crate::replay::replay_pending(&store, 2_000).unwrap();
-    assert_eq!(replayed.len(), 1);
-    assert_eq!(store.inflight(2_000).unwrap().len(), 1, "não criou segundo slot");
-}
-```
+`replay_pending(store, now)` lê `harvest:v1:run:*` com `status == "running"`,
+compara com `store.load_queue(now).inflight.lease.run_id` e:
 
-- [ ] **Step 2: rodar e ver falhar**
+- casa → fecha `failed` com `interrupted` (ou `lease_expired` quando a lease já
+  venceu) e devolve o `InflightEntry` em `resumed`;
+- não casa → fecha `failed` com `orphan`.
 
-```powershell
-cd rust
-cargo test -p adom-harvest --locked retomada_nao_reaplica
-```
-Expected: FAIL — módulo `replay` inexistente.
+Roda **uma vez** no `spawn`, ANTES do `load_from` (depois dele o slot já foi
+reclamado e os dois casos ficariam indistinguíveis). Depois do `load_from`, cada
+`entry_id` retomado recebe `queue.mark_resumed` antes do `save_to`, e o status
+publica `pendingRuns` (o que sobrou — só sobra quando a escrita do journal
+falhou) e `replayedRuns`.
 
-- [ ] **Step 3: implementar**
+O fechamento do run ganhou motivo: `journal_fail(run_id, reason, now)` fecha
+como `failed` guardando o `reason`; o drain falho usa `drain_failed`, a
+preempção usa `preempted`, e `journal_finish` limpa um `reason` anterior (o
+último veredito é o que vale). O passo `invalidated` continua marcado só depois
+do `ack` da outbox (B2).
 
-`run_id.rs`:
+- [x] **Step 3: gate + commit**
 
-```rust
-use std::sync::atomic::{AtomicU64, Ordering};
+Medido: `cargo fmt --all -- --check` 0, `cargo clippy --workspace --all-targets
+--locked -- -D warnings` 0, `cargo test --workspace --locked` 0 (adom-harvest
+125, adom-server 120), catraca `.rs` 963 fontes/0 acima, `npm run typecheck` 0,
+`npm run build` 0, `npm test` 2396/2395/0 fail/1 skip, `npm run test:complete`
+274/2, `npm run lint:lines -- --check` 642/0, `git diff --check` 0.
 
-static SEQ: AtomicU64 = AtomicU64::new(0);
-
-/// `h-<now_ms>-<seq>-<pid>`: legível no log e único por processo.
-pub fn new_run_id(now_ms: i64) -> String {
-    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
-    format!("h-{now_ms}-{seq}-{}", std::process::id())
-}
-```
-
-`replay.rs`:
-
-- `pending_runs(&store, now_ms) -> Vec<PendingRun>`: lê `harvest:v1:run:*` com
-  `status == "running"` e devolve `{run_id, obra, steps, started_ms}`.
-- `missing_step(&self, nome)` é `!steps.contains(nome)`.
-- `replay_pending(&store, now_ms) -> Result<Vec<InflightEntry>, String>`: para
-  cada run pendente, localiza o slot em voo pelo `run_id` da lease; se o slot
-  existe, **reusa** (não cria outro). Se a lease venceu, `reclaim_expired`
-  devolve à fila e o run é fechado como `failed` com `reason:"lease_lost"`.
-  Se não há slot nem journal, o run é fechado como `failed`.
-- O replay roda **uma vez** no boot da thread de harvest, antes do primeiro
-  `tick`; `status.rs` publica `pendingRuns` (o que sobrou) e `replayedRuns`
-  (quantos foram retomados).
-
-No worker, `claim` recebe a `Lease` com o `run_id` gerado por
-`new_run_id(now)`; `journal_begin` usa o mesmo id. O passo `invalidated` só é
-marcado **depois** do `ack` da outbox (B2) — a ordem importa para o replay.
-
-- [ ] **Step 4: gate + commit**
-
-```powershell
-cd rust
-cargo fmt --all
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ..
-node scripts/check-rust-lines.mjs
-```
-
-```powershell
-git add rust/crates/adom-harvest rust/crates/adom-server/src/harvest
-```
 ```powershell
 git commit -m "feat(harvest): replay de runs pendentes com retomada exata"
 ```

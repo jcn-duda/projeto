@@ -38,6 +38,10 @@ pub struct JournalRun {
     pub finished_ms: Option<i64>,
     /// `running` | `done` | `failed` — string livre, quem decide é o chamador.
     pub status: String,
+    /// Por que o run falhou (`interrupted`, `orphan`, `preempted`, …).
+    /// Ausente em run fechado como `done` — é diagnóstico, não veredito.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     /// Passos na ordem de execução, sem repetição.
     #[serde(default)]
     pub steps: Vec<String>,
@@ -58,6 +62,7 @@ impl HarvestStore {
             started_ms: now_ms,
             finished_ms: None,
             status: "running".to_string(),
+            reason: None,
             steps: Vec::new(),
         };
         self.write_journal(run_id, &run, now_ms)
@@ -87,6 +92,23 @@ impl HarvestStore {
         };
         run.status = status.to_string();
         run.finished_ms = Some(now_ms);
+        // O último veredito é o que vale: fechar como não-falha não pode
+        // arrastar o motivo de um `journal_fail` anterior.
+        run.reason = None;
+        self.write_journal(run_id, &run, now_ms)
+    }
+
+    /// Fecha o run como `failed` com o motivo (replay, preempção, drain).
+    ///
+    /// Separado de [`Self::journal_finish`] porque o motivo é o que o replay
+    /// do boot seguinte lê para distinguir `interrupted` de `orphan`.
+    pub fn journal_fail(&self, run_id: &str, reason: &str, now_ms: i64) -> Result<(), String> {
+        let Some(mut run) = self.journal_get(run_id, now_ms)? else {
+            return Ok(());
+        };
+        run.status = "failed".to_string();
+        run.finished_ms = Some(now_ms);
+        run.reason = Some(reason.to_string());
         self.write_journal(run_id, &run, now_ms)
     }
 

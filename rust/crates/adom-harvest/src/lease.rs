@@ -25,7 +25,6 @@
 //!   `Settler` do gateway.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
@@ -178,27 +177,21 @@ impl DurableSlot {
     }
 }
 
-/// `run_id` do slot: processo + sequência. Só diagnóstico (o painel mostra qual
-/// ciclo pegou a obra); nenhuma regra compara este valor.
-fn next_run_id() -> String {
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-    format!(
-        "{}-{}",
-        std::process::id(),
-        SEQ.fetch_add(1, Ordering::Relaxed)
-    )
-}
-
+/// `run_id` do slot: processo + sequência + relógio (`run_id.rs`). O MESMO id
+/// abre o journal da execução — é por ele que o replay de boot casa os dois.
 /// O slot é campo da fila porque é ela a dona única do documento persistido:
 /// TODO `save` leva o claim junto, inclusive o `enqueue` do Node.
 impl HarvestQueue {
-    /// Abre o claim da obra que o tick acabou de tirar da fila.
+    /// Abre o claim da obra que o tick acabou de tirar da fila e devolve o
+    /// `run_id` que o journal da execução usa.
     ///
     /// Slot anterior sem `finish` (future cancelado no meio) volta à fila
     /// ANTES: dois slots nunca coexistem, e a morte conta tentativa.
-    pub fn claim_durable(&mut self, entry: &HarvestEntry, now_ms: i64) {
+    pub fn claim_durable(&mut self, entry: &HarvestEntry, now_ms: i64) -> String {
         self.reclaim_dead_lease(now_ms);
-        self.slot.claim(entry.clone(), now_ms, next_run_id());
+        let run_id = crate::run_id::new_run_id(now_ms);
+        self.slot.claim(entry.clone(), now_ms, run_id.clone());
+        run_id
     }
 
     /// O drain FECHOU (sucesso ou falha): a obra sai do slot. Idempotente —

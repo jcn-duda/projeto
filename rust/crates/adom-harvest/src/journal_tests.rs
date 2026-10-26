@@ -23,6 +23,24 @@ fn journal_guarda_um_estado_final_por_run_e_sobrescreve_o_anterior() {
 }
 
 #[test]
+fn journal_fail_grava_o_motivo_e_finish_o_limpa() {
+    let store = HarvestStore::open_memory().unwrap();
+    store.journal_begin("run-1", "tt1", 1_000).unwrap();
+    store.journal_fail("run-1", "preempted", 1_100).unwrap();
+    let run = store.journal_get("run-1", 1_200).unwrap().unwrap();
+    assert_eq!(run.status, "failed");
+    assert_eq!(run.reason.as_deref(), Some("preempted"));
+    assert_eq!(run.finished_ms, Some(1_100));
+
+    // O último veredito é o que vale: um fechamento posterior não arrasta o
+    // motivo do `fail`.
+    store.journal_finish("run-1", "done", 1_300).unwrap();
+    let run = store.journal_get("run-1", 1_400).unwrap().unwrap();
+    assert_eq!(run.status, "done");
+    assert_eq!(run.reason, None);
+}
+
+#[test]
 fn outbox_sobrevive_e_entrega_uma_vez() {
     let store = HarvestStore::open_memory().unwrap();
     store.outbox_push("obra:tt1", 1_000).unwrap();
