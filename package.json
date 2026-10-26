@@ -243,6 +243,7 @@
     "test/debrid-rust-link-facts.test.js",
     "test/debrid-rust-remote.test.js",
     "test/debrid-rust-resolve-apply.test.js",
+    "test/debrid-state-native.test.js",
     "test/debrid-status-memo.test.js",
     "test/debrid-status-routes.test.js",
     "test/debrid-status.test.js",

@@ -60,6 +60,10 @@ pub use idx_store::{BankRowInput, IdxStore, RecordOptionsInput};
 // Handle do `raw:v1` (dono único Rust, F3): leitura do diagnóstico e clear.
 mod raw_store;
 pub use raw_store::RawStore;
+// Estado de debrid em disco (`davail:v1` e `mag:v1`): o store mora no
+// `adom-index` (mesmo `cache.db`), aqui é só a casca napi.
+mod debrid_state;
+pub use debrid_state::*;
 mod crawl;
 mod debrid;
 mod debrid_cache;

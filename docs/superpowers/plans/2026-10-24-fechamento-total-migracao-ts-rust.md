@@ -1931,13 +1931,84 @@ git add rust/crates/adom-harvest rust/crates/adom-server/src/harvest
 git commit -m "feat(harvest): journal de execucao e outbox de invalidacao"
 ```
 
-### T2-L5: `davail`, `mag` e `mag_meta` no Rust
+### T2-L5: `davail`, `mag` e `mag_meta` no Rust — L5a EXECUTADA, L5b pendente
 
 Os três nascem da mesma função (`checkCached`) e morrem juntos. `mag` move
 **inteiro**: `markBad` apaga o `alive` do mesmo hash na mesma função, então
 divisão por prefixo pintaria ⚡ falso.
 
+**DESVIO MEDIDO no código (antes de executar) — três correções ao plano:**
+
+1. **O crate de destino não pode ser `adom-debrid`/`adom-store`.** O `.node`
+   (`adom-napi`) só depende de crates leves (`adom-core`, `adom-index`,
+   `adom-crawl`); puxar `adom-debrid` (reqwest/tokio/axum) ou `adom-store`
+   (adom-search/adom-sources) embarcaria o stack de rede no addon Node — o
+   próprio `Cargo.toml` do napi proíbe. O `adom-index` já é o crate leve do
+   `cache.db` (hospeda `RawCacheStore` e `NativeKv`), então `davail` e a
+   escrita de `mag` nascem lá (`adom-index/src/debrid_state.rs`).
+2. **As chaves reais são escopadas por conta**, não `mag:v1:<hash>`:
+   `mag:v1:<campo>:<adapter>:<accountScope>:<hash>` (ver `magnet_db.rs::mark_key`)
+   e `davail:v1:<adapter>:<accountScope>:<hash>`. Sem o escopo, ⚡ de uma conta
+   pintaria na lista de outra.
+3. **`mag_meta` NÃO migra nesta fatia.** Os contadores (`adapterCounts`,
+   `ttlRemainingSums`, `mag_meta:v1:counts`) são alimentados pelo
+   `magnetdb-persist.ts` a partir das ESCRITAS do Node. Como as funções
+   `markAlive`/`markBad`/`markLie` continuam sendo chamadas pelo Node (só a
+   escrita passa à ponte), a contabilidade segue correta e `mag_meta` fica onde
+   está. Mover os contadores exige agregação nativa — fatia própria.
+4. **`bad`/`lie` NÃO são eternos**: usam `badTtl`/`lieTtl` da config, e
+   `mark_alive` recusa hash com `bad` vivo (o filtro `isBad` do TS).
+
+**Escopo executado (3 frentes):** `DavailStore` e `MagnetStateStore` em
+`adom-index/src/debrid_state.rs` (+ testes), e a ponte de classes
+`DavailState`/`MagnetState` em `adom-napi/src/debrid_state.rs`.
+
 **Files:**
+**L5a — EXECUTADA (estado nativo + ponte, commit desta fatia):**
+
+- `adom-index/src/davail_state.rs` (`DavailStore`) + `magnet_state.rs`
+  (`MagnetStateStore`), com testes próprios: 19 testes novos, crate em 60.
+- Ponte `adom-napi/src/debrid_state.rs`: classes `DavailState` e
+  `MagnetStateStore` (camelCase do napi-rs), com `:memory:` e erro `String` →
+  `napi::Error`.
+- `src/utils/debrid-state-native.ts` + `test/debrid-state-native.test.ts`
+  (10 testes) + entrada em `testFiles`.
+- Gate: fmt/clippy workspace 0, `cargo test --workspace` exit 0 (149 suítes),
+  catraca `.rs` 956/0, `npm test` exit 0, `test:complete` 272/2,
+  `lint:lines` 640/0.
+
+**Divergências medidas ao executar (além das quatro acima):**
+
+5. **`ttl_seconds <= 0` DESLIGA a janela: o store NÃO grava.** É a regra do
+   `cache.setMany` do Node (`cache.ts:231`) e de todos os chamadores
+   (`magnetdb.ts:86,144,202`, `cache-check.ts:157,192`); `0` é como o operador
+   desliga a janela. "Permanente" (`expires_at = 0`) não existe neste par de
+   namespaces: o boot do Node apaga `expires_at <= now`. Em `mark_bad` com TTL
+   desligado o `alive` também NÃO é apagado (mesmo retorno antecipado do TS).
+6. **`Option::None` num `#[napi(object)]` chega como `undefined`**, não `null`:
+   o wrapper normaliza na fronteira (`normalizarMagnet`) para o contrato
+   `MagnetSide | null` não mentir.
+7. **`putMany` da ponte aplica UMA janela** a todas as flags; positivo e
+   negativo (janelas diferentes) exigem duas chamadas — documentado no wrapper.
+
+**L5b — PENDENTE (a virada de dono).** Medido no working tree: `davail` aparece
+em 22 arquivos de teste e `mag` em 15 (vários usam `davail:v1:…` como fixture
+GENÉRICA de cache e contam `cache.hit.davail`/`namespaces.davail.entries`), e
+`magnetdb-counts/-inspect/-persist` enumeram `mag:` pelo L1 (`keysMatching`).
+Viram dono Rust só depois de:
+
+- enumeração nativa de `mag:` (por lado/adapter) exposta na ponte, para os
+  contadores do painel e o `magnetdb-inspect`;
+- `cache-check.ts`/`br-coverage.ts` escrevendo e lendo `davail` só pela ponte
+  (saem `davailKey` e o `cache.set`/`peek` do caminho);
+- `magnetdb.ts` com `mark*`/`is*`/`forgetBad` pela ponte (saem `magKey`,
+  `aliveKey`/`badKey`/`lieKey` e o `forgetBadKey` cru);
+- `RUST_OWNED` com `davail` e `mag` + migração das fixtures (trocar o
+  namespace-amostra por outro nos testes de cache/namespace e semear o estado
+  de debrid pela ponte nos testes de comportamento).
+
+**PLANO ORIGINAL (referência, superado pelos itens acima):**
+
 - Create: `rust/crates/adom-debrid/src/davail.rs`
 - Create: `rust/crates/adom-debrid/src/davail_tests.rs`
 - Create: `rust/crates/adom-store/src/magnet_db_write.rs`
