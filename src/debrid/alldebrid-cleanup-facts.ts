@@ -31,7 +31,7 @@ import { id } from './alldebrid-api.js';
 import { heldHashesFor } from './protected.js';
 import { inventoryFacts } from './alldebrid-inventory.js';
 
-export interface CleanupFacts {
+interface CleanupFacts {
   /** Snapshot `knownBefore` desta rodada saiu da memória do Node. */
   inventoryLoaded: boolean;
   /** Hashes que já eram da conta (sem a posse `adsub`/`submitted`). */

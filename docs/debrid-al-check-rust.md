@@ -356,3 +356,24 @@ A rota `POST /debrid/check` aceita, para AllDebrid:
   o Rust usa o próprio snapshot — nunca apaga sem referência). Serviços que não
   são a AllDebrid não recebem os campos.
 
+### 8.5 Donos depois da T2-L8 (limpeza das pontes)
+
+Prova de que **nenhum arquivo** de `src/debrid/` saiu nesta fatia: o scan de
+exports (nome ⇒ consumidores fora do próprio arquivo, em `src/`, `test/` e
+`scripts/`) voltou a zero depois da redução, e as 31 chaves do objeto default de
+`index.ts` têm chamador (painel, `/debrid-status`, `/addon.ts` ou teste).
+
+| Arquivo | Dono hoje | O que mudou |
+|---|---|---|
+| `index.ts` | Node | fica inteiro: objeto default = fachada do registry (31 chaves, todas com consumidor) |
+| `rust-remote.ts` | Node (ponte HTTP da 8710) | fica: `wrap` (registry), `RustWriteError`/`pullMetrics` (diagnóstico). `remoteOptions` deixou de ser público (auxiliar interno) |
+| `alldebrid-inventory.ts`, `alldebrid-reupload.ts`, `alldebrid-delete-gate.ts`, `protected.ts` | ainda Node | **não** apagados: são `knownBefore`/`adsub`/`adprot`/`adrm` do feed (`§8.4`), lidos a cada checagem nativa |
+| `davail-panel.ts`, `debrid-marked.ts` | — | não existem no checkout (o plano previa; a leitura é `internal-debrid-marked.ts`, viva) |
+
+Superfície pública reduzida em 20 exports sem consumidor, todos mantidos como
+tipos/auxiliares **internos** (`accountStatusFor`, `AccountTestOutcome`,
+`CleanupFacts`, `FILE_SIZES_TTL_SECONDS`, `LiveResult`, `LiveVerdict`,
+`rdGate*`/`RdGate*`, `LedgerState`, `RdLedgerWrite`, `takePlayFiles`,
+`remoteOptions`) e um símbolo morto apagado de fato (`activeTorrentCount` do
+Real-Debrid: a sonda usa `probeInstant`).
+

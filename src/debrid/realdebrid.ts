@@ -133,24 +133,6 @@ async function accountStatus(apiKey: string) {
 }
 
 /**
- * Torrents ativos agora (`GET /torrents/activeCount`). Doc oficial: erro 21
- * quando o teto estoura. Usado pela sonda antes de addMagnet — se já estamos
- * no limite, a rodada inteira pula em vez de gerar 21 em série.
- */
-async function activeTorrentCount(apiKey: string): Promise<{ nb: number; limit: number } | null> {
-  try {
-    const data = await readCall(apiKey, '/torrents/activeCount');
-    const nb = Number(data?.nb);
-    const limit = Number(data?.limit);
-    if (!Number.isFinite(nb) || !Number.isFinite(limit)) return null;
-    return { nb, limit };
-  } catch (err) {
-    log.warn('[realdebrid] activeCount falhou:', (err as Error)?.message || err);
-    return null;
-  }
-}
-
-/**
  * Sonda se um hash toca NA HORA no CDN do Real-Debrid — o substituto honesto
  * do `/torrents/instantAvailability` (aposentado, erro 37).
  *
@@ -235,5 +217,5 @@ async function probeInstant(apiKey: string, infoHash: string): Promise<ProbeInst
 
 export {
   checkCached, inventory, torrentStatus, removeTorrent,
-  accountStatus, activeTorrentCount, probeInstant,
+  accountStatus, probeInstant,
 };

@@ -17,7 +17,7 @@ import * as log from '../utils/logger.js';
 import type { DebridFile } from './common.js';
 
 /** Só `{path, size}` válidos: o corpo vem de outro processo. */
-export function takePlayFiles(value: unknown): DebridFile[] | null {
+function takePlayFiles(value: unknown): DebridFile[] | null {
   if (!Array.isArray(value)) return null;
   const files: DebridFile[] = [];
   for (const item of value) {

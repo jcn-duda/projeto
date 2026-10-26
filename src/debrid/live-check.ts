@@ -17,9 +17,9 @@
 // rd-ledger: nada aqui escreve em lugar nenhum.
 import * as registry from './registry.js';
 
-export type LiveVerdict = 'hit' | 'miss' | 'skipped';
+type LiveVerdict = 'hit' | 'miss' | 'skipped';
 
-export interface LiveResult {
+interface LiveResult {
   allowed: boolean;
   reason: string | null; // ad-hard-blocked | rd-live-refused | no-cachecheck | knob-off | ok
   service: string | null;

@@ -3,7 +3,7 @@ import * as metrics from '../utils/metrics.js';
 import { isRateLimitError, RateLimitError, retryAfterMsOf } from './common.js';
 import { rdOnFinished, rdOnRateLimit, rdOnSuccess } from '../utils/rust-debrid-rd.js';
 
-export type RdGatePriority = 'play' | 'cleanup' | 'autofetch' | 'probe';
+type RdGatePriority = 'play' | 'cleanup' | 'autofetch' | 'probe';
 
 type Waiter<T = unknown> = {
   priority: RdGatePriority;
@@ -26,7 +26,7 @@ type AccountState = {
   rateLimits: number[];
 };
 
-export type RdGateOptions = {
+type RdGateOptions = {
   enabled?: () => boolean;
   minGapMs?: () => number;
   maxGapMs?: () => number;
@@ -37,17 +37,17 @@ export type RdGateOptions = {
   sleep?: (ms: number) => Promise<void>;
 };
 
-export type RdGateWaiterSnap = { priority: RdGatePriority; order: number; queuedAt: number; bypassAt: number };
+type RdGateWaiterSnap = { priority: RdGatePriority; order: number; queuedAt: number; bypassAt: number };
 
 /** Snapshot serializável. Sem fila de Promise: o Node guarda o job. */
-export type RdGateSnap = {
+type RdGateSnap = {
   busy: boolean; gapMs: number; successes: number; nextAllowedAt: number; cooldownUntil: number;
   nextOrder: number; rateLimits: number[]; queues: Record<RdGatePriority, RdGateWaiterSnap[]>;
 };
 
 type AimdInput = { minGapMs: number; maxGapMs: number; cooldownMs: number; retryAfterMs: number | undefined; now: number };
 
-export function rdGateLimits(minGapMs: number, maxGapMs: number) {
+function rdGateLimits(minGapMs: number, maxGapMs: number) {
   const min = Math.max(0, minGapMs);
   return { min, max: Math.max(min, maxGapMs) };
 }
@@ -86,17 +86,17 @@ export function rdGateOnFinished(nextAllowedAt: number, gapMs: number, now: numb
   return rdOnFinished(nextAllowedAt, gapMs, now);
 }
 
-export function rdGateBypassAt(now: number, playMaxWaitMs: number) {
+function rdGateBypassAt(now: number, playMaxWaitMs: number) {
   return now + Math.max(0, playMaxWaitMs);
 }
 
-export function rdGateAdmit(enabled: boolean, priority: RdGatePriority, cooldownUntil: number, now: number): 'passthrough' | 'deny' | 'enqueue' {
+function rdGateAdmit(enabled: boolean, priority: RdGatePriority, cooldownUntil: number, now: number): 'passthrough' | 'deny' | 'enqueue' {
   if (!enabled) return 'passthrough';
   if (priority !== 'play' && priority !== 'cleanup' && cooldownUntil > now) return 'deny';
   return 'enqueue';
 }
 
-export function rdGateHeadPriority(queues: { play: readonly unknown[]; cleanup: readonly unknown[]; autofetch: readonly unknown[]; probe: readonly unknown[] }): RdGatePriority | null {
+function rdGateHeadPriority(queues: { play: readonly unknown[]; cleanup: readonly unknown[]; autofetch: readonly unknown[]; probe: readonly unknown[] }): RdGatePriority | null {
   if (queues.play.length) return 'play';
   if (queues.cleanup.length) return 'cleanup';
   if (queues.autofetch.length) return 'autofetch';
@@ -105,7 +105,7 @@ export function rdGateHeadPriority(queues: { play: readonly unknown[]; cleanup: 
 }
 
 /** Cleanup ignora gap e cooldown. Play fura os dois só a partir de `bypassAt`. */
-export function rdGateEligibleAt(priority: RdGatePriority, now: number, nextAllowedAt: number, cooldownUntil: number, bypassAt: number) {
+function rdGateEligibleAt(priority: RdGatePriority, now: number, nextAllowedAt: number, cooldownUntil: number, bypassAt: number) {
   const normalAt = Math.max(nextAllowedAt, cooldownUntil);
   if (priority === 'cleanup') return now;
   if (priority === 'play') return Math.min(normalAt, bypassAt);

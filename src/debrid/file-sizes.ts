@@ -84,6 +84,5 @@ function peekTorrentTotal(infoHash: string): number {
 
 export {
   recordFileSizes, peekFileSizes, hasFileSizes, clearFileSizes, recordTorrentTotal, peekTorrentTotal,
-  FILE_SIZES_TTL_SECONDS,
 };
 export type { SizedFile };

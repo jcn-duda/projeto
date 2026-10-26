@@ -2864,52 +2864,39 @@ git commit -m "feat(search): commit com fence de geracao e rescue sem lista velh
 
 Depois de L3, L5, L6 e L7, o `src/debrid/` fica só com o que ainda é do Node:
 config, registry e o cliente HTTP do que o painel consulta. Esta fatia apaga o
-resto — **só o provado**.
+resto — **só o provado**; o que tem chamador vivo fica, e a prova vai para o
+plano.
 
-**Files:**
-- Modify/Delete: `src/debrid/rust-remote.ts` (só as funções sem chamador)
-- Delete: `src/debrid/index.ts` (se virar reexport vazio)
-- Delete: `src/utils/davail-panel.ts`, `src/utils/debrid-marked.ts` (só se
-  existirem e sem chamador)
-- Delete: `test/debrid-*.test.ts` dos arquivos apagados
-- Modify: `package.json` (`testFiles`)
-- Modify: `docs/debrid-al-check-rust.md` (tabela final de donos)
+**Status:** EXECUTADA. Gate verde: `typecheck`, `build`, `npm test`
+2395 pass/0 fail/1 skip, `test:complete`, `lint:lines` (642 arquivos, 0 acima),
+`parity:frozen` 1/1, `git diff --check`.
 
-- [ ] **Step 1: levantar o que sobrou**
+**Resultado medido: nenhum arquivo saiu.** O plano previa apagar arquivos;
+a prova mostrou que todos têm consumidor vivo:
 
-```powershell
-rg --files src\debrid
-```
-```powershell
-rg -n "from '\./rust-remote|rustRemote|resolveLink|accountStatus|debridFiles" src
-```
-```powershell
-rg -n "davail-panel|debrid-marked" src test
-```
-Expected: cada símbolo aparece em (a) a definição, (b) o painel (`/debrid-status`)
-ou (c) a rota. Se um símbolo só aparecer na definição, ele sai nesta fatia.
+| Previsto no plano | Realidade |
+|---|---|
+| `rust-remote.ts` sem chamador | `wrap` (registry), `RustWriteError`/`pullMetrics` (diagnóstico) — fica. Só `remoteOptions` deixou de ser público |
+| `index.ts` virar reexport vazio | 31 chaves no default, **todas** com chamador (painel/`/debrid-status`/`addon.ts`/teste) — fica |
+| `src/utils/davail-panel.ts`, `debrid-marked.ts` | não existem; a leitura viva é `internal-debrid-marked.ts` |
+| `test/debrid-*.test.ts` dos apagados | nenhum arquivo apagado ⇒ nenhum teste órfão |
 
-- [ ] **Step 2: apagar**
+**O que foi apagado/reduzido (20 exports sem consumidor + 1 símbolo morto):**
 
-Para cada símbolo sem chamador: remover a função, depois o `use`/`import`.
-Arquivo que fica só com reexports vazios sai inteiro com `DeleteFile`. Remover
-as entradas de `testFiles` **na mesma edição** do `package.json` — esquecer isso
-quebra `npm test` e `test:complete`.
+- Removido de fato: `activeTorrentCount` (`realdebrid.ts`) — a sonda usa
+  `probeInstant`; o comentário dizia "usado pela sonda", o que já era falso.
+- Rebaixados a internos (usados no próprio módulo): `accountStatusFor`,
+  `AccountTestOutcome`, `CleanupFacts`, `FILE_SIZES_TTL_SECONDS`, `LiveResult`,
+  `LiveVerdict`, `RdGatePriority`, `RdGateOptions`, `RdGateSnap`,
+  `RdGateWaiterSnap`, `rdGateLimits`, `rdGateBypassAt`, `rdGateAdmit`,
+  `rdGateHeadPriority`, `rdGateEligibleAt`, `LedgerState`, `RdLedgerWrite`,
+  `takePlayFiles`, `remoteOptions`.
 
-- [ ] **Step 3: gate + commit**
+A prova foi feita por scan de exports (nome ⇒ consumidores fora do arquivo, em
+`src/`, `test/` e `scripts/`) e por scan das chaves do default de `index.ts`;
+ambos voltaram a zero mortos (o scan é descartável, não fica no repo). A tabela
+de donos está em `docs/debrid-al-check-rust.md` §8.5.
 
-```powershell
-npm run typecheck
-npm run build
-npm test
-npm run test:complete
-npm run lint:lines -- --check
-npm run parity:frozen
-```
-
-```powershell
-git add src test package.json docs/debrid-al-check-rust.md
-```
 ```powershell
 git commit -m "refactor(debrid): limpeza das pontes e shims sem consumidor"
 ```

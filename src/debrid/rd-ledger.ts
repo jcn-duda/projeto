@@ -13,12 +13,12 @@ import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
 import { rdNextBlocked, rdNextHit, rdNextMiss } from '../utils/rust-debrid-rd.js';
 
-export type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
+type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
 type LedgerValue = { s: Exclude<LedgerState, 'unknown'>; at: number; n: number };
 type Tracked = { state: Exclude<LedgerState, 'unknown'>; expiresAt: number };
 
 /** Próximo valor do ledger. `hash` só vem em miss/blocked (a chave lógica). */
-export type RdLedgerWrite = {
+type RdLedgerWrite = {
   s: Exclude<LedgerState, 'unknown'>;
   at: number;
   n: number;

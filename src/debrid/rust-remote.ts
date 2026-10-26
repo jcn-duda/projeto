@@ -363,4 +363,4 @@ async function pullMetrics(): Promise<Record<string, number>> {
   return out;
 }
 
-export { RustWriteError, remoteOptions, wrap, pullMetrics };
+export { RustWriteError, wrap, pullMetrics };

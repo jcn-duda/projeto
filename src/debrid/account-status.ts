@@ -217,7 +217,7 @@ type AccountTestCapabilities = {
   catalogCleanup: boolean;
 };
 
-export type AccountTestOutcome =
+type AccountTestOutcome =
   | {
       ok: true;
       service: string;
@@ -391,4 +391,4 @@ async function dashboardAccounts(currentStatus: any) {
   return accounts;
 }
 
-export { accountStatusFor, accountStatus, dashboardAccounts, testAccount, resetAccountStatusMemo };
+export { accountStatus, dashboardAccounts, testAccount, resetAccountStatusMemo };
