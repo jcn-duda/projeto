@@ -2551,122 +2551,77 @@ git commit -m "refactor(autofetch): worker nativo e fim do chupim em typescript"
 
 ## Leva 7
 
-### T1-C1: contador de geração e `set_fenced` no `StreamsStore`
+### T1-C1: contador de geração e `set_fenced` no `StreamsStore` — EXECUTADA
 
 A outbox (B2) propaga a invalidação, mas **nada impede** uma busca que começou
 antes de gravar a lista velha depois. Esta fatia cria o contador de geração que
 a T1-C2 consome.
 
-**Files:**
-- Modify: `rust/crates/adom-store/src/streams.rs:48-235` (SCHEMA
-  `streams_meta`, transação em `invalidate_for_obra`, `fence_for_key`,
-  `set_fenced`)
+**Desvios medidos no código (antes de executar):**
+
+1. **O nome da geração não é `<tipo>:<tt[:S:E]>`.** A chave real é
+   `<prefixo><tipo>:<tt…>:<scope>`, onde o `scope` é o JSON da config + conta e o
+   S/E vive DENTRO desse JSON (`{"s":1}`). O contador ficou em
+   `gen:obra:<movie|series>:<tt…>` — tipo + obra, sem o escopo, que muda por
+   instalação.
+2. **"Incrementa por obra encontrada" era um furo.** O teste
+   `escrita_com_fence_velha_e_descartada` falhou na primeira implementação: com a
+   chave AINDA ausente (é a busca em voo que vai criá-la), o `SELECT` não
+   encontrava nada e a geração não andava — exatamente a corrida que a fence
+   existe para fechar. Agora `invalidate_for_obra` anda os DOIS contadores da
+   obra (filme e série) **antes** do `SELECT`, na mesma transação, exista chave
+   ou não; o custo é descartar uma escrita do outro tipo da mesma obra, que
+   apenas refaz a busca.
+3. **`streams.rs` estourou a catraca (423 linhas).** O bloco de limpeza
+   (`forget`, `clear_all`, `invalidate_for_obra`, `invalidate_for_hash`,
+   `clear_by_suffix` e `obra_id_of`) saiu para `streams_clean.rs`.
+4. **`set` continua sem fence.** Quem usa `set_fenced` é só o orquestrador
+   (T1-C2); harvest e autofetch seguem no `set`, assim como `forget` (caminho
+   fora de busca) não anda geração.
+
+**Files (executado):**
+- Modify: `rust/crates/adom-store/src/streams.rs` (SCHEMA `streams_meta`,
+  `lock`/`enforce_quota`/`is_imdb_id` `pub(crate)`)
+- Create: `rust/crates/adom-store/src/streams_clean.rs` (limpeza + invalidação
+  com bump na mesma transação)
+- Create: `rust/crates/adom-store/src/streams_fence.rs` (`Fence`,
+  `gen_key_for`, `bump_obra`, `bump_epoch`, `fence_for_key`, `set_fenced`)
 - Create: `rust/crates/adom-store/src/streams_fence_tests.rs`
-- Modify: `rust/crates/adom-store/src/lib.rs` (`mod` de teste)
+- Modify: `rust/crates/adom-store/src/lib.rs` (`mod` + export `Fence`,
+  `EPOCH_KEY`)
 
-- [ ] **Step 1: escrever os testes que falham**
+- [x] **Step 1: testes (8 em `streams_fence_tests.rs`)**
 
-Em `streams_fence_tests.rs`:
+`invalidar_incrementa_a_geracao_da_obra`, `escrita_com_fence_velha_e_descartada`
+(a prova da corrida sem chave), `escrita_com_fence_nova_e_aceita`,
+`clear_all_incrementa_o_epoch_e_invalida_tudo`,
+`clear_por_sufixo_incrementa_o_epoch`, `invalidar_por_hash_incrementa_o_epoch`,
+`movie_e_series_da_mesma_obra_tem_geracoes_distintas`,
+`chave_fora_do_formato_nao_quebra`. Crate em 60 testes.
 
-```rust
-#[test]
-fn invalidar_incrementa_a_geracao_da_obra() {
-    let store = StreamsStore::open_memory().unwrap();
-    store.set("streams:v21:movie:tt1:scope", &entry(), 600, 1_000).unwrap();
-    let antes = store.fence_for_key("streams:v21:movie:tt1:scope").unwrap();
-    assert_eq!(store.invalidate_for_obra("tt1").unwrap(), 1);
-    let depois = store.fence_for_key("streams:v21:movie:tt1:scope").unwrap();
-    assert!(depois.obra > antes.obra);
-}
+- [x] **Step 2: implementação**
 
-#[test]
-fn escrita_com_fence_velha_e_descartada() {
-    let store = StreamsStore::open_memory().unwrap();
-    let velha = store.fence_for_key("streams:v21:movie:tt1:scope").unwrap();
-    store.invalidate_for_obra("tt1").unwrap();
-    assert_eq!(
-        store.set_fenced("streams:v21:movie:tt1:scope", &entry(), 600, 1_000, &velha).unwrap(),
-        false
-    );
-    assert!(store.get("streams:v21:movie:tt1:scope", 1_001).unwrap().is_none());
-}
+`streams_meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL)` fica FORA da
+tabela `cache`, então o `clear_all` não apaga o contador que ele mesmo anda.
 
-#[test]
-fn escrita_com_fence_nova_e_aceita() {
-    let store = StreamsStore::open_memory().unwrap();
-    store.invalidate_for_obra("tt1").unwrap();
-    let nova = store.fence_for_key("streams:v21:movie:tt1:scope").unwrap();
-    assert!(store.set_fenced("streams:v21:movie:tt1:scope", &entry(), 600, 1_000, &nova).unwrap());
-    assert!(store.get("streams:v21:movie:tt1:scope", 1_001).unwrap().is_some());
-}
+- `Fence { obra, epoch }`: capturada com `fence_for_key` antes de coletar.
+- `invalidate_for_obra`: transação; `bump_obra` nos dois tipos (INSERT … ON
+  CONFLICT DO UPDATE SET value = value + 1); `SELECT` das chaves da obra;
+  `DELETE`; `COMMIT`.
+- `clear_all`, `clear_by_suffix` e `invalidate_for_hash`: `bump_epoch` na mesma
+  transação do `DELETE`.
+- `set_fenced`: transação única, lê as duas gerações e devolve `Ok(false)` **sem
+  gravar** quando `fence.epoch < epoch` ou `fence.obra < obra`; senão faz o
+  mesmo `INSERT … ON CONFLICT` do `set` e aplica a cota (`enforce_quota`). Erro
+  de I/O continua sendo erro — não vira "lista velha" silenciosa.
 
-#[test]
-fn clear_all_incrementa_o_epoch_e_invalida_tudo() {
-    let store = StreamsStore::open_memory().unwrap();
-    let velha = store.fence_for_key("streams:v21:movie:tt1:scope").unwrap();
-    store.clear_all().unwrap();
-    assert_eq!(
-        store.set_fenced("streams:v21:movie:tt1:scope", &entry(), 600, 1_000, &velha).unwrap(),
-        false
-    );
-}
-```
+- [x] **Step 3: gate + commit**
 
-- [ ] **Step 2: rodar e ver falhar**
-
-```powershell
-cd rust
-cargo test -p adom-store --locked escrita_com_fence_velha
-```
-Expected: FAIL — `fence_for_key` inexistente.
-
-- [ ] **Step 3: implementar**
-
-No `SCHEMA` do `streams.rs` (fora do namespace de cache, para o `clear_all` não
-apagar o contador):
-
-```sql
-CREATE TABLE IF NOT EXISTS streams_meta (
-    key   TEXT PRIMARY KEY,
-    value INTEGER NOT NULL
-);
-```
-
-```rust
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Fence {
-    pub obra: u64,
-    pub epoch: u64,
-}
-```
-
-- `invalidate_for_obra`: uma transação `BEGIN IMMEDIATE`; `INSERT INTO
-  streams_meta(key, value) VALUES(gen:obra:<tipo>:<tt[:S:E]>, 1) ON CONFLICT(key)
-  DO UPDATE SET value = value + 1` **por obra encontrada**; `DELETE` das
-  chaves; `COMMIT`. O nome da geração é derivado da **chave de cache**, então
-  `movie` e `series` da mesma obra têm contadores distintos.
-- `clear_all`, `clear_by_suffix`, `invalidate_for_hash`: incrementam
-  `gen:epoch` na mesma transação do delete.
-- `fence_for_key(&self, key) -> Result<Fence, String>`: `obra` do
-  `gen:obra:<…>` daquela chave (0 se nunca invalidada) e `epoch` de `gen:epoch`.
-- `set_fenced(&self, key, value, ttl, now, fence) -> Result<bool, String>`:
-  numa transação única, lê as duas gerações; descarta (`Ok(false)`, sem gravar)
-  se `fence.epoch < epoch` **ou** `fence.obra < obra`; senão faz o mesmo
-  `INSERT … ON CONFLICT` do `set` e aplica a cota.
-
-`set` continua existindo (caminhos que não vêm de busca); o worker do harvest e
-o autofetch usam `set` — quem usa `set_fenced` é só o orquestrador (T1-C2).
-
-- [ ] **Step 4: gate + commit**
-
-```powershell
-cd rust
-cargo fmt --all
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cd ..
-node scripts/check-rust-lines.mjs
-```
+Medido: `cargo fmt --all -- --check` 0, `cargo clippy --workspace --all-targets
+--locked -D warnings` 0, `cargo test --workspace --locked` 0, catraca `.rs` 966
+fontes/0 acima, `npm run typecheck` 0, `npm run build` 0, `npm test`
+2396/2395/0 fail/1 skip, `npm run test:complete` 0, `npm run lint:lines --
+--check` 642/0, `git diff --check` 0.
 
 ```powershell
 git add rust/crates/adom-store

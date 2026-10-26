@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS cache (
     expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
+-- Geração por obra (T1-C1): FORA de `cache`, então o `clear_all` não apaga o
+-- próprio contador que ele incrementa.
+CREATE TABLE IF NOT EXISTS streams_meta (
+    key TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+);
 ";
 
 /// Nome do namespace nas cotas (`QUOTAS` / `cache-quotas.ts`).
@@ -95,7 +101,7 @@ impl StreamsStore {
         self.integrity.error.as_deref()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|err| err.into_inner())
     }
 
@@ -170,86 +176,6 @@ impl StreamsStore {
         Ok(())
     }
 
-    pub fn forget(&self, key: &str) -> Result<(), String> {
-        let conn = self.lock();
-        conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
-            .map_err(|err| err.to_string())?;
-        Ok(())
-    }
-
-    /// Apaga TODO o namespace (`clear-cache` do painel). Devolve quantas linhas
-    /// saíram — é o número que o Node relata ao operador.
-    pub fn clear_all(&self) -> Result<usize, String> {
-        let conn = self.lock();
-        conn.execute(
-            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-            params![streams_prefix()],
-        )
-        .map_err(|err| err.to_string())
-    }
-
-    /// Apaga as chaves de UMA obra no formato
-    /// `<prefixo><movie|series>:<tt…>[:S:E]:<scope>` — o espelho de
-    /// `invalidateStreamsForObra` do Node (`src/utils/br-gap.ts`). O token
-    /// `tt\d+` é o primeiro segmento depois do tipo, então `:tt1230` não colide
-    /// com `:tt123`.
-    pub fn invalidate_for_obra(&self, imdb_id: &str) -> Result<usize, String> {
-        let target = imdb_id.trim().to_ascii_lowercase();
-        if !is_imdb_id(&target) {
-            return Err(format!("imdbId inválido: {imdb_id}"));
-        }
-        let conn = self.lock();
-        let prefix = streams_prefix();
-        let mut stmt = conn
-            .prepare("SELECT key FROM cache WHERE substr(key, 1, length(?1)) = ?1")
-            .map_err(|err| err.to_string())?;
-        let keys: Vec<String> = stmt
-            .query_map(params![prefix], |row| row.get::<_, String>(0))
-            .map_err(|err| err.to_string())?
-            .filter_map(Result::ok)
-            .filter(|key| obra_id_of(key).is_some_and(|id| id == target))
-            .collect();
-        let mut removed = 0;
-        for key in keys {
-            removed += conn
-                .execute("DELETE FROM cache WHERE key = ?1", params![key])
-                .map_err(|err| err.to_string())?;
-        }
-        Ok(removed)
-    }
-
-    /// Apaga as chaves cuja ENTRADA menciona o hash. Serve ao `/resolve`: o
-    /// item resolvido perde `infoHash` (a URL relativa de `/resolve/<hash>` é o
-    /// que sobra), então a varredura é textual no valor, em minúsculas (hex).
-    pub fn invalidate_for_hash(&self, hash: &str) -> Result<usize, String> {
-        let target = hash.trim().to_ascii_lowercase();
-        if target.len() != 40 || !target.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(format!("hash inválido: {hash}"));
-        }
-        let conn = self.lock();
-        conn.execute(
-            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1
-             AND instr(lower(value), ?2) > 0",
-            params![streams_prefix(), target],
-        )
-        .map_err(|err| err.to_string())
-    }
-
-    /// Apaga as chaves que terminam no sufixo (escopo “instalação” do painel:
-    /// `:<streamsCacheScope>`). Sufixo vazio = limpar tudo.
-    pub fn clear_by_suffix(&self, suffix: &str) -> Result<usize, String> {
-        if suffix.is_empty() {
-            return self.clear_all();
-        }
-        let conn = self.lock();
-        conn.execute(
-            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1
-             AND substr(key, -length(?2)) = ?2",
-            params![streams_prefix(), suffix],
-        )
-        .map_err(|err| err.to_string())
-    }
-
     pub fn len(&self) -> Result<usize, String> {
         let conn = self.lock();
         let n: i64 = conn
@@ -321,21 +247,9 @@ pub(crate) fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i
 }
 
 /// `tt` + dígitos (o mesmo `/^tt\d+$/` do Node).
-fn is_imdb_id(id: &str) -> bool {
+pub(crate) fn is_imdb_id(id: &str) -> bool {
     id.strip_prefix("tt")
         .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// Obra (imdbId) de uma chave `streams:v21:<movie|series>:<tt…>[:…]:…`.
-/// `None` = chave fora do formato (não é deste filtro).
-fn obra_id_of(key: &str) -> Option<&str> {
-    let rest = key.strip_prefix(streams_prefix())?;
-    let (kind, after) = rest.split_once(':')?;
-    if kind != "movie" && kind != "series" {
-        return None;
-    }
-    let id = after.split(':').next()?;
-    is_imdb_id(id).then_some(id)
 }
 
 fn decode_entry(raw: &str) -> Result<StreamsEntry, String> {
@@ -344,7 +258,12 @@ fn decode_entry(raw: &str) -> Result<StreamsEntry, String> {
 
 /// Como o `loadFromDisk` do TS: fora da graça SWR some; dentro da cota, o que
 /// expira primeiro cede lugar.
-fn enforce_quota(conn: &Connection, prefix: &str, quota: u64, now_ms: i64) -> Result<(), String> {
+pub(crate) fn enforce_quota(
+    conn: &Connection,
+    prefix: &str,
+    quota: u64,
+    now_ms: i64,
+) -> Result<(), String> {
     let grace_ms = (STREAM_STALE_GRACE_SECONDS as i64).saturating_mul(1000);
     let hard_cut = now_ms.saturating_sub(grace_ms);
     conn.execute(

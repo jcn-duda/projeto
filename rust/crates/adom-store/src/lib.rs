@@ -32,6 +32,11 @@ mod magnet_work_tests;
 mod meta;
 mod raw;
 mod streams;
+// Limpeza/invalidação do namespace (extraído para a catraca de 400 linhas).
+mod streams_clean;
+// Contador de geração por obra + escrita com fence (T1-C1): fecha o intervalo
+// entre a coleta e a invalidação de uma lista em voo.
+mod streams_fence;
 
 pub use adom_index::{
     default_cache_db_path as default_index_cache_db_path, default_raw_quota, idx_prefix,
@@ -49,3 +54,4 @@ pub use streams::{
     default_streams_quota, is_streams_key, streams_prefix, StreamsStore, TraceHit,
     STREAMS_NAMESPACE,
 };
+pub use streams_fence::{Fence, EPOCH_KEY};
