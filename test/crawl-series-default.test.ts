@@ -17,7 +17,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import { envDefaults, schema, seriesLimitsOf } from '../src/utils/crawler-live-schema.js';
+import { schema } from '../src/utils/crawler-live-schema.js';
 
 const ENV_KEY = 'CRAWL_SERIES_ENABLED';
 /** O que a chave do ambiente, se existir, manda — a mesma regra do config. */
@@ -47,16 +47,6 @@ describe('crawl séries: default ligado', () => {
     // alimenta a rodada inteira.
     assert.ok(config.crawl.discoveryCost > 0, 'a descoberta de filme continua cobrando custo');
     assert.ok(config.crawl.maxPerHour > 0, 'o teto por hora é do motor, não da série');
-  });
-
-  test('o default chega ao discover e ao fetchWork como enabled', () => {
-    // O motor tira os três campos de UM snapshot só (`crawl-step.ts` repassa o
-    // mesmo `seriesLimitsOf(cfg)` ao `discover` e ao `processCrawlPage`). Se o
-    // default não sobreviver a essa derivação, a virada de chave é letra morta.
-    const limites = seriesLimitsOf(envDefaults());
-    assert.equal(limites.enabled, config.crawl.seriesEnabled, 'o snapshot entrega o que a config diz');
-    assert.equal(limites.maxCards, config.crawl.seriesMaxCards);
-    assert.equal(limites.maxButtons, config.crawl.seriesMaxButtons);
   });
 
   test('a doc do painel descreve série como ligada, não como "desligue para ter série"', () => {

@@ -13,7 +13,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
+import { idxReleasesToRaw } from './helpers/pipeline-oracle/idx-raw.js';
 import { sortAndLimit, toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 

@@ -60,35 +60,11 @@ test('fila cheia descarta a leva e conta magnetbank.queue.dropped', () => {
   }
 });
 
-test('enqueueCaptureAndFilter: queueMax=1 e needed=2 → drop sem half-write', () => {
-  const prevMax = config.magnetBank.queueMax;
-  config.magnetBank.queueMax = 1;
-  metrics.reset();
-  const h = hex('a');
-  try {
-    const ok = bank.enqueueCaptureAndFilter(
-      { items: [{ title: 'A', infoHash: h, magnet: magnet(h) }], indexer: 'x', ctx: { imdbId: 'tt1' } },
-      { all: [h], surviving: [h], ctx: { imdbId: 'tt1' } },
-    );
-    assert.equal(ok, false, '2 slots não cabem em queueMax=1');
-    assert.equal(metrics.snapshot().counters['magnetbank.queue.dropped'], 1);
-    assert.equal(bank.status().queue, 0, 'nada foi empurrado');
-    bank.flushNow();
-    assert.equal(bank.lookup(h), null, 'sem half-write');
-  } finally {
-    config.magnetBank.queueMax = prevMax;
-  }
-});
-
 test('kill-switch: captura e filtro no-op com enabled=false (retornam true, não é drop)', () => {
   const h = hex('4');
   config.magnetBank.enabled = false;
   assert.equal(bank.captureItems([{ title: 'K', infoHash: h, magnet: magnet(h) }], 'x', { imdbId: 'tt902' }), true);
   assert.equal(bank.markFilterResult([h], [h], { imdbId: 'tt902' }), true);
-  assert.equal(bank.enqueueCaptureAndFilter(
-    { items: [{ title: 'K', infoHash: h, magnet: magnet(h) }], indexer: 'x' },
-    { all: [h], surviving: [h] },
-  ), true);
   bank.flushNow();
   assert.equal(bank.lookup(h), null, 'banco desligado não grava');
 });

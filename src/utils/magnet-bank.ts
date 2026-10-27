@@ -253,41 +253,6 @@ export function markFilterResult(
   return enqueue({ kind: 'filter', all, surviving, ctx, targets });
 }
 
-/**
- * Capture+filter ATOMICAMENTE (crawler): os dois ou nenhum. Sem pre-flush.
- * needed = quantas ops reais (0..2); se não cabe → 1× `magnetbank.queue.dropped`.
- */
-export function enqueueCaptureAndFilter(
-  capture: { items: readonly RawItem[]; indexer?: string; ctx?: WorkCtx },
-  filter: {
-    all: Iterable<string>;
-    surviving: Iterable<string>;
-    ctx?: WorkCtx;
-    targets?: Map<string, Array<{ season: number; episode: number }>>;
-  },
-): boolean {
-  if (!config.magnetBank?.enabled) return true;
-  const items = capture.items || [];
-  const all = [...new Set([...filter.all].map(normHash).filter(Boolean))];
-  const ops: Op[] = [];
-  if (items.length) {
-    ops.push({
-      kind: 'capture', items,
-      indexer: String(capture.indexer || '').toLowerCase(),
-      ctx: capture.ctx || {},
-    });
-  }
-  if (all.length) {
-    ops.push({
-      kind: 'filter', all,
-      surviving: new Set([...filter.surviving].map(normHash).filter(Boolean)),
-      ctx: filter.ctx || {},
-      targets: filter.targets,
-    });
-  }
-  return enqueue(ops);
-}
-
 // ---------------------------------------------------------------------------
 // Leitura
 // ---------------------------------------------------------------------------

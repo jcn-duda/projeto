@@ -58,21 +58,3 @@ export function idxPoolCovered(
   if (out.packOnly && countMetrics) metrics.count('search.idx.packOnly');
   return out.covered;
 }
-
-/** Release do índice → item cru no formato que o buildStreams já consome. */
-export function idxReleasesToRaw(releases: any[]) {
-  return releases.map((r) => ({
-    title: r.title,
-    infoHash: r.hash,
-    seeders: r.seeders,
-    size: r.size ?? undefined,
-    indexer: r.indexer,
-    tracker: r.tracker || r.indexer,
-    isBr: r.isBr,
-    dubbed: r.dubbed,
-    lied: Boolean(r.lied),
-    quality: r.quality,
-    indexSource: r.source,
-    mediaSource: r.mediaSource,
-  }));
-}

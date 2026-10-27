@@ -26,7 +26,6 @@ import { prefix } from '../utils/cache-keys.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import autofetchLive from '../utils/autofetch-live.js';
-import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import { enqueueNativeHarvest, pendingNativeHarvest } from '../utils/harvest-native.js';
 
 export type BrProbeWork = {
@@ -130,19 +129,6 @@ export function probeBlocksSeeds(workInput: BrProbeWork): boolean {
   const work = normalize(workInput);
   if (!work) return false;
   return isPendingRecord(readRecord(work));
-}
-
-/**
- * Idade scheduled -> run da sonda: ms entre o `pending` gravado e a execução
- * atual. `null` quando não há registro (ex.: execução dirigida sem pending).
- * Usado pela métrica `autofetch.brProbe.runWaitMs`.
- */
-export function probeRunWaitMs(workInput: BrProbeWork): number | null {
-  const work = normalize(workInput);
-  if (!work) return null;
-  const raw = readRecord(work);
-  if (!raw || !Number.isFinite(Number(raw.at))) return null;
-  return Date.now() - Number(raw.at);
 }
 
 /** `pending` com lease vivo — bloqueio TRANSITÓRIO (o que a política F1 defere). */
@@ -289,38 +275,6 @@ export function requestBrProbe(
 }
 
 /**
- * Estado final da sonda, chamado pelo colhedor ao consumir a entrada dirigida.
- * Sempre invalida as listas prontas da obra — inclusive em `empty`/`failed`/
- * `capped` — para o aviso de `pending` não congelar no cache.
- */
-export function finalizeBrProbe(workInput: BrProbeWork, state: Exclude<BrProbeState, 'pending'>): void {
-  const work = normalize(workInput);
-  if (!work) return;
-  writeRecord(work, { state, at: Date.now() });
-  // A lista pronta da obra vive no `streams.db` do gateway: a invalidação é um
-  // PEDIDO à ponte nativa, fire-and-forget. `false` = ponte em backoff ou
-  // imdbId fora do contrato — não há contagem local para publicar.
-  const requested = invalidateStreamsForObra(work.imdbId);
-  metrics.count(`autofetch.brProbe.${state}`);
-  metrics.count(requested ? 'autofetch.brProbe.invalidate.requested' : 'autofetch.brProbe.invalidate.skipped');
-  log.debug(
-    `[br-probe] ${probeIdentity(work)} -> ${state} ` +
-    `(invalidação do streams.db: ${requested ? 'solicitada' : 'não solicitada'})`,
-  );
-}
-
-/**
- * Preempção por tráfego: a obra volta à fila e será recolhida. Não finaliza —
- * renova o lease para o aviso/bloqueio não caírem no meio de um retry legítimo.
- */
-export function noteBrProbePreempted(workInput: BrProbeWork): void {
-  const work = normalize(workInput);
-  if (!work) return;
-  metrics.count('autofetch.brProbe.preempted');
-  writePending(work);
-}
-
-/**
  * Helper LIMITADO de teste: grava um registro cru. A chave é derivada da
  * identidade pública; nenhum caminho de produção usa isto.
  */
@@ -328,10 +282,4 @@ export function __setBrProbeRecordForTest(workInput: BrProbeWork, record: BrProb
   const work = normalize(workInput);
   if (!work) return;
   writeRecord(work, record);
-}
-
-/** Helper LIMITADO de teste: estado bruto (sem mascarar lease/retry). */
-export function __probeStateForTest(workInput: BrProbeWork): BrProbeState | null {
-  const work = normalize(workInput);
-  return work ? (readRecord(work)?.state ?? null) : null;
 }

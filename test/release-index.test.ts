@@ -9,7 +9,7 @@ import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { resetIdxStoreForTest } from '../src/utils/release-index-store.js';
 import { idxHasKey, record, lookup, lookupQuiet, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
-import { idxPoolCovered, idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
+import { idxPoolCovered } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
 import { isBrRelease } from '../src/utils/br-coverage.js';
 
@@ -92,7 +92,7 @@ test('registro do autofetch fica visível sem fingir cobertura da obra', () => {
   assert.equal(seeded.length, 1);
   assert.equal(seeded[0].source, 'autofetch');
   assert.equal(seeded[0].dubbed, true, 'preserva a classificação usada pelo Chupim');
-  assert.equal(idxReleasesToRaw(seeded)[0].quality, '1080p', 'o eco preserva a faixa classificada');
+  assert.equal(seeded[0].quality, '1080p', 'o eco preserva a faixa classificada');
   assert.equal(idxPoolCovered(seeded), false, 'uma submissão não dispensa a coleta');
   assert.equal(hasBrDubbed(seeded), false, 'não fecha o br-gap como evidência pública');
   assert.equal(isBrRelease(seeded[0]), false, 'não infla a cobertura popular F3');

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { record, lookup } from '../src/utils/release-index.js';
-import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
+import { idxReleasesToRaw } from './helpers/pipeline-oracle/idx-raw.js';
 import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import { sortAndLimit } from './helpers/pipeline-oracle/format.js';
 

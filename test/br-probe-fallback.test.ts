@@ -101,7 +101,7 @@ test('dreno defere o pack pela identidade do EPISÓDIO solicitado (probeEpisode)
 
     // Prova NÃO-VÁCUA: se o dreno usasse a identidade do cap (episode=null),
     // este pending do E5 não casaria e o pack drenaria — o defer prova o uso.
-    brProbe.finalizeBrProbe(E5, 'empty');
+    brProbe.__setBrProbeRecordForTest(E5, { state: 'empty', at: Date.now() });
     const depois = runUser(() => takeDrainCandidate('sk-pack', { id: 'premiumize', cacheCheck: true } as any, 'acct'));
     assert.ok(depois.next, 'sem pending, o pack volta a drenar');
   } finally {
@@ -184,7 +184,7 @@ test('seleção de seeds (call site) é bloqueada pelo pending e volta a escolhe
     assert.equal(sondaBodies.filter((body) => body.brProbe === true).length, 1, 'o call site agendou UMA sonda na ponte');
     assert.equal(brProbe.isBrProbePending(workMovie), true, 'o call site realmente agendou a sonda');
 
-    brProbe.finalizeBrProbe(workMovie, 'empty');
+    brProbe.__setBrProbeRecordForTest(workMovie, { state: 'empty', at: Date.now() });
     const liberado = runUser(() => autoFetchCandidates(streams, { imdbId: OBRA, season: null, episode: null, searchKey: 'sk-cand' }));
     assert.equal(liberado.length, 1, 'sem pending, o seeds volta a ser escolhido');
     assert.equal(liberado[0].pool, 'seeds');

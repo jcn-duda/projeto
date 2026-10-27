@@ -19,10 +19,7 @@ import * as autofetch from '../src/providers/autofetch.js';
 import { takeDrainCandidate } from '../src/providers/autofetch-drain.js';
 import { seedsSelectionBlock } from '../src/providers/autofetch-policy.js';
 import * as runtime from '../src/runtime.js';
-import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
-import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
 import { resetHarvestBridgeForTests } from '../src/utils/harvest-native.js';
-import { createStreamsBridge } from './helpers/streams-bridge.js';
 import { enqueueCalls, settleProbe, stubHarvestBridge } from './helpers/harvest-bridge.js';
 
 const MOVIE = { type: 'movie' as const, imdbId: 'tt0107953' };
@@ -125,7 +122,7 @@ test('empty libera seeds na hora e mantém o dedupe do estado', async () => {
   try {
     brProbe.requestBrProbe(MOVIE);
     await settleProbe();
-    brProbe.finalizeBrProbe(MOVIE, 'empty');
+    brProbe.__setBrProbeRecordForTest(MOVIE, { state: 'empty', at: Date.now() });
     assert.equal(brProbe.isBrProbePending(MOVIE), false);
     assert.equal(brProbe.probeBlocksSeeds(MOVIE), false);
     assert.equal(brProbe.requestBrProbe(MOVIE).skipped, 'empty', 'dedupe do estado evita re-sondar');
@@ -191,28 +188,11 @@ test('capped (orçamento) libera seeds e não re-agenda na hora', async () => {
   try {
     brProbe.requestBrProbe(MOVIE);
     await settleProbe();
-    brProbe.finalizeBrProbe(MOVIE, 'capped');
+    brProbe.__setBrProbeRecordForTest(MOVIE, { state: 'capped', at: Date.now() });
     assert.equal(brProbe.probeBlocksSeeds(MOVIE), false, 'quota não fica pending 12h');
     assert.equal(brProbe.requestBrProbe(MOVIE).skipped, 'retry', 'retry curto segura o martelo');
   } finally {
     stub.restore();
-    restore(s);
-  }
-});
-
-test('saída de pending invalida as listas em empty, failed e capped', async () => {
-  const s = setup();
-  const bridge = createStreamsBridge();
-  try {
-    for (const estado of ['empty', 'failed', 'capped'] as const) {
-      const key = `${cachePrefix('streams')}movie:tt0107953:${estado}`;
-      bridge.put({ type: 'movie', id: MOVIE.imdbId, key });
-      brProbe.finalizeBrProbe(MOVIE, estado);
-      await flushNativeStreamStores();
-      assert.equal(bridge.has(key), false, `${estado} invalida a lista da obra`);
-    }
-  } finally {
-    bridge.restore();
     restore(s);
   }
 });
@@ -230,18 +210,6 @@ test('identidade de série é por episódio: pending do E2 não bloqueia o E3', 
     assert.equal(brProbe.isBrProbePending(e3), false, 'a sonda do E2 não segura o E3');
   } finally {
     stub.restore();
-    restore(s);
-  }
-});
-
-test('preempção renova o lease do pending (não finaliza)', () => {
-  const s = setup();
-  try {
-    brProbe.__setBrProbeRecordForTest(MOVIE, { state: 'pending', at: Date.now() - 1000, leaseUntil: Date.now() - 1 });
-    assert.equal(brProbe.isBrProbePending(MOVIE), false, 'lease vencido');
-    brProbe.noteBrProbePreempted(MOVIE);
-    assert.equal(brProbe.isBrProbePending(MOVIE), true, 'preempção renova o lease');
-  } finally {
     restore(s);
   }
 });

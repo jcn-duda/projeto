@@ -15,20 +15,10 @@
 // que é decisão da FASE e não de um site.
 import config from '../config.js';
 
-import type { CrawlSeriesLimits } from '../providers/crawl-types.js';
 import { sanitizeSitePatch, type CrawlerSiteOverrides } from './crawler-live-site.js';
 
 export type { CrawlerSiteConfig, CrawlerSiteOverride, CrawlerSiteOverrideKey, CrawlerSiteOverrides } from './crawler-live-site.js';
 export { SITE_OVERRIDE_KEYS, cadenceDelayMs, knownSites, sanitizeSitePatch, siteConfigOf, withCadence } from './crawler-live-site.js';
-
-/** Limites da Fase 7 (séries) a partir da config efetiva (snapshot do tick).
- * Aceita a config global E a config por site (Fase 8): os três campos são os
- * mesmos nos dois, e o motor sempre os repassa do snapshot do tick. */
-export function seriesLimitsOf(live: {
-  seriesEnabled: boolean; seriesMaxCards: number; seriesMaxButtons: number;
-}): CrawlSeriesLimits {
-  return { enabled: live.seriesEnabled === true, maxCards: live.seriesMaxCards, maxButtons: live.seriesMaxButtons };
-}
 
 export interface CrawlerLiveConfig {
   // Kill-switch geral (CRAWL_ENABLED): ligar/desligar a raspagem sem restart.

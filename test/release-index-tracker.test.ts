@@ -1,6 +1,5 @@
 // Tracker preservado no índice de releases: o `record` não rebaixa o tracker
-// gravado para vazio e o `idxReleasesToRaw` cai no indexer quando a linha é
-// antiga. Saiu de `allowed-source-indexer.test.ts` quando o filtro de origem TS
+// gravado para vazio. Saiu de `allowed-source-indexer.test.ts` quando o filtro de origem TS
 // (`allowedSourceIndexer`) ficou sem chamador: o `ji` é aplicado no Rust.
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +9,6 @@ import fs from 'node:fs';
 import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 
 const hex = (c: string) => c.repeat(40);
 
@@ -36,20 +34,6 @@ after(() => {
   }
 });
 
-test('idxReleasesToRaw preserva tracker gravado (fallback para indexer)', () => {
-  const withTracker = [{
-    hash: hex('1'), title: 'Filme 1080p', seeders: 3, size: 1,
-    indexer: 'torrentio', tracker: 'ThePirateBay', isBr: false, dubbed: false, quality: '1080p',
-  }];
-  assert.equal(idxReleasesToRaw(withTracker)[0].tracker, 'ThePirateBay');
-  assert.equal(idxReleasesToRaw(withTracker)[0].indexer, 'torrentio');
-  const legacy = [{
-    hash: hex('2'), title: 'Filme 720p', seeders: 1, size: null,
-    indexer: 'kickasstorrents-to', isBr: true, dubbed: true, quality: '720p',
-  }];
-  assert.equal(idxReleasesToRaw(legacy)[0].tracker, 'kickasstorrents-to');
-});
-
 test('record preserva tracker sem rebaixar para vazio', () => {
   const imdb = 'tt9100001';
   const hash = hex('a');
@@ -71,5 +55,4 @@ test('record preserva tracker sem rebaixar para vazio', () => {
     isBr: true,
   }]);
   assert.equal(releaseIndex.lookup(imdb)[0].tracker, 'ThePirateBay', 'vazio não apaga prior');
-  assert.equal(idxReleasesToRaw(releaseIndex.lookup(imdb))[0].tracker, 'ThePirateBay');
 });

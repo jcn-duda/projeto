@@ -2,9 +2,9 @@
 //
 // O worker, a fila e o dedupe moram no Rust. O que o Node ainda faz é mandar
 // pedidos (fire-and-forget) e ler o `pending`; por isso o dublê responde só as
-// três rotas que o processo TS toca — enqueue, pending e a invalidação de obra
-// que o `finalizeBrProbe` dispara — e devolve 404 em qualquer outra para o teste
-// falhar alto em vez de receber corpo mentiroso.
+// rotas que o processo TS toca — enqueue, pending e a invalidação de obra — e
+// devolve 404 em qualquer outra para o teste falhar alto em vez de receber
+// corpo mentiroso.
 import { flushPendingHarvest } from '../../src/utils/harvest-native.js';
 import { stubFetch, type FetchStub } from './stub.js';
 

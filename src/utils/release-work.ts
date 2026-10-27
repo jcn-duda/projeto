@@ -80,17 +80,6 @@ function parsedFitsRequest(parsed: EpisodeParse, request: WorkTarget): boolean {
 }
 
 /**
- * A release pode servir o pedido? Falso só com PROVA de outra obra: título/dn
- * sem temporada, pack da temporada e série completa cabem. Mesma escolha
- * título×dn do roteamento — um post "1ª Temporada" cujo magnet é `S01E01` não
- * serve o E02.
- */
-export function releaseFitsRequest(request: WorkTarget, title: string, dn?: string): boolean {
-  if (request?.season == null) return true;
-  return parsedFitsRequest(chooseEpisodeParse(title, dn), request);
-}
-
-/**
  * Obras em que a release deve ser recuperável: o pedido quando ela cabe nele,
  * senão a obra que ela declara; para pack de temporada/série completa
  * acrescenta a obra declarada quando ela difere do pedido. Filme (pedido sem
