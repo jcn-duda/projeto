@@ -5,6 +5,7 @@ import { prefix } from '../../src/utils/cache-keys.js';
 import config from '../../src/config.js';
 import debrid from '../../src/debrid/index.js';
 import * as cache from '../../src/utils/cache.js';
+import { kvForget } from '../../src/utils/native-kv.js';
 import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import { applyDebrid } from './pipeline-oracle/index.js';
@@ -146,8 +147,8 @@ export function makeDrainHarness(
       autofetch.dropQueue(searchKey);
       cache.forget(searchKey);
       for (const h of hashes) {
-        cache.forget(autofetch.deadKey('premiumize', account, h));
-        cache.forget(autofetch.markerKey('premiumize', account, h));
+        kvForget(autofetch.deadKey('premiumize', account, h));
+        kvForget(autofetch.markerKey('premiumize', account, h));
         held.release(h, account);
       }
     },

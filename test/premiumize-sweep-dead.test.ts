@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 import * as premiumize from '../src/debrid/premiumize.js';
 import * as held from '../src/debrid/protected.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
+import * as autofetch from '../src/providers/autofetch.js';
 import { markerKey, markerValue } from '../src/providers/autofetch-marker.js';
+import { kvForget } from '../src/utils/native-kv.js';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -148,7 +149,7 @@ test('premiumize sweepDead: nome humano só é varrido com a ponte id -> hash do
   };
   const body = { status: 'success', transfers: [linha] };
 
-  cache.forget(markerKey('premiumize', account, HUMANO));
+  kvForget(markerKey('premiumize', account, HUMANO));
   premiumize.resetStallMemory();
   const semMarker: string[] = [];
   for (let i = 0; i < 3; i += 1) {
@@ -161,7 +162,7 @@ test('premiumize sweepDead: nome humano só é varrido com a ponte id -> hash do
   }
   assert.equal(semMarker.length, 0, 'sem marker não há como identificá-la — nada é apagado');
 
-  cache.set(markerKey('premiumize', account, HUMANO), markerValue('bludv-1'), 600);
+  autofetch.setMarker('premiumize', account, HUMANO, markerValue('bludv-1'), 600);
   premiumize.resetStallMemory();
   const comMarker: string[] = [];
   try {
@@ -193,6 +194,6 @@ test('premiumize sweepDead: nome humano só é varrido com a ponte id -> hash do
     }
     assert.equal(protegido.length, 0, 'identificada, mas protegida pelo held');
   } finally {
-    cache.forget(markerKey('premiumize', account, HUMANO));
+    kvForget(markerKey('premiumize', account, HUMANO));
   }
 });

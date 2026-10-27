@@ -149,8 +149,8 @@ test('recheck dead nativo remove pelo hash com removeById=false (conta da instal
     recheckLots.delete(searchKey);
     autofetch.releaseSearch(searchKey);
     autofetch.dropQueue(searchKey);
-    cache.forget(autofetch.markerKey('alldebrid', account, h));
-    cache.forget(autofetch.deadKey('alldebrid', account, h));
+    kvForget(autofetch.markerKey('alldebrid', account, h));
+    kvForget(autofetch.deadKey('alldebrid', account, h));
     held.release(h, account);
     suppressed.forgetSuppressed('alldebrid', account, h);
   }
@@ -181,7 +181,7 @@ test('1b: colapso progress-stalled registra o represado SEM deletar na hora', ()
     assert.equal(suppressed.countSuppressed('alldebrid', account), 1, 'o represado fica para revalidar');
   } finally {
     suppressed.forgetSuppressed('alldebrid', account, h);
-    cache.forget(autofetch.deadKey('alldebrid', account, h));
+    kvForget(autofetch.deadKey('alldebrid', account, h));
     metrics.reset();
   }
 });

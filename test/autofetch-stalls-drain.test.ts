@@ -12,6 +12,7 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { recheckLots, runRecheck } from '../src/providers/autofetch-recheck.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
@@ -20,7 +21,7 @@ import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts, makeDrainHarness, H1, H2, sleep, premiumizeRunCtx } from './helpers/autofetch-fixtures.js';
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
-  for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
+  for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
 test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async () => {
@@ -100,7 +101,7 @@ test('stall colapsa e drainNext sobe o 2º da mesma faixa (fila surplus)', async
     cache.forget(searchKey);
     clearDead('premiumize', account, [h1080, h1080b, h720, h4k]);
     for (const h of [h1080, h1080b, h720, h4k]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -292,7 +293,7 @@ test('ready de um hash NÃO zera a fila enquanto o lote ainda tem hashes vivos',
     cache.forget(searchKey);
     clearDead('premiumize', account, [h1080, h1080b, h720, h4k]);
     for (const h of [h1080, h1080b, h720, h4k]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -312,7 +313,7 @@ test('drainNext: cabeca apenas em hold e adiada, nao purgada; o segundo sobe', a
     autofetch.resetBudget('premiumize', account);
     // Marcadores de execucoes anteriores podem sobreviver no L2 do cache
     // (os imports ESM sobem config antes do env de teste) - limpa antes.
-    for (const h of [H1, H2]) cache.forget(autofetch.markerKey('premiumize', account, h));
+    for (const h of [H1, H2]) kvForget(autofetch.markerKey('premiumize', account, h));
     pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
     // H1 esta em hold transitorio (candidato imediato ainda em voo em outra
     // passagem): o dreno nao pode apaga-lo da fila, so pular na escolha.

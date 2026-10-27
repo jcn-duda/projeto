@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as runtime from '../src/runtime.js';
@@ -52,7 +53,7 @@ test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)'
     );
     await flush();
     const markerKey = autofetch.markerKey('premiumize', account, h);
-    assert.equal(cache.get(markerKey), 1, 'enqueue aceito grava o marcador');
+    assert.equal(kvPeek(markerKey), 1, 'enqueue aceito grava o marcador');
 
     config.debrid.autoFetchTtl = 2;
     // 1º recheck (vira settle) + 1º settle com idade >= TTL*1000.
@@ -61,7 +62,7 @@ test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)'
     mock.timers.tick(1000);
     await flush();
 
-    assert.equal(cache.get(markerKey), null, 'H2: marcador apagado no settle expirado');
+    assert.equal(kvPeek(markerKey), null, 'H2: marcador apagado no settle expirado');
     assert.equal(held.isHeld(h, account), false, 'hold liberado no settle expirado');
     assert.ok((metrics.snapshot().counters['autofetch.expired-unready'] || 0) >= 1);
   } finally {
@@ -75,7 +76,7 @@ test('H2: settle expirado apaga o marcador junto do torrent (sem esperar o TTL)'
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     pmAdapter.removeTorrent = originalRemoveTorrent;
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
     cache.forget(searchKey);
   }
@@ -129,8 +130,8 @@ async function expireProbe(via: 'id' | 'hash', removeById: boolean, preparar?: (
     recheckLots.delete(searchKey);
     autofetch.releaseSearch(searchKey);
     autofetch.dropQueue(searchKey);
-    cache.forget(autofetch.markerKey('alldebrid', account, h));
-    cache.forget(autofetch.deadKey('alldebrid', account, h));
+    kvForget(autofetch.markerKey('alldebrid', account, h));
+    kvForget(autofetch.deadKey('alldebrid', account, h));
     held.release(h, account);
     held.unprotect('alldebrid', account, h);
     preexisting.delete(account);
@@ -151,7 +152,7 @@ test('expired-unready: via=hash remove direto quando a posse é provada (marker 
   const r = await expireProbe('hash', false, (account, h) => {
     // Prova de posse (marker do enqueue) + inventário carregado sem o hash.
     // Sem isso o P1.2 manda para represados — ver autofetch-expired-ownership.
-    cache.set(autofetch.markerKey('alldebrid', account, h), 1, 3600);
+    autofetch.setMarker('alldebrid', account, h, 1, 3600);
     preexisting.set(account, { hashes: new Set(), loadedAt: Date.now() });
   });
   assert.equal(r.removals, 1, 'posse provada mantém a remoção direta do via=hash');

@@ -116,7 +116,7 @@ test('F6: delete falho mantém marker/adsub/obra e não grava adrm', async () =>
   try {
     await maybeEvictFallbacks({ adapter, account: ACCOUNT, apiKey: KEY, hash: READY, hint });
     assert.deepEqual(api.deleted, [], 'a conta recusou o delete');
-    assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, h)), 'marker mantido na falha');
+    assert.ok(kvPeek(markerKey('alldebrid', ACCOUNT, h)), 'marker mantido na falha');
     assert.equal(hasDurableOwnership(ACCOUNT, h), true, 'posse mantida na falha');
     assert.equal(obraRecord(identity).some((e) => e.hash === h), true, 'registro mantido na falha');
     assert.equal(kvPeek(adrmKey(ACCOUNT, h)), null, 'sem adrm quando o delete falha');

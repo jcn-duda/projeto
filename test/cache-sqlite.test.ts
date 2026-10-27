@@ -149,7 +149,9 @@ test(
 
 // Mesmo contrato para o autofetch: a v2 (formato anterior ao cache-keys.js v3)
 // precisa sair do disco no boot, senão um marker antigo sobrevive ao restart e
-// segura vaga de autofetch sem nunca ser lido com a chave nova.
+// segura vaga de autofetch sem nunca ser lido com a chave nova. A v3 do marker
+// é RUST_OWNED (KV nativo): a linha FICA no disco (é lida pelo NativeKv), mas
+// não sobe para o L1 do Node — o mesmo desenho de `streams:v21` acima.
 const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
   "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
@@ -164,7 +166,7 @@ const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  "assert.deepStrictEqual(cache.get('autofetch:v3:m:alldebrid:acc:def456'), { hash: 'def456' }, 'autofetch v3 sobe do disco');",
+  "assert.strictEqual(cache.get('autofetch:v3:m:alldebrid:acc:def456'), null, 'autofetch v3 é Rust-owned: não sobe no L1');",
   "assert.strictEqual(cache.get('autofetch:v2:alldebrid:acc:abc123'), null, 'autofetch v2 nao entra no L1');",
   '',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
@@ -176,7 +178,7 @@ const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — autofetch: v2 some, v3 sobe no boot',
+  'descarte de versão obsoleta no disco — autofetch: v2 some, v3 fica no disco sem subir no L1',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(AUTOFETCH_VERSION_DISCARD_SCRIPT),
 );

@@ -19,6 +19,7 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
@@ -157,15 +158,15 @@ test('markerValue guarda o id e markerTransferId o devolve', () => {
   const account = accountScope('chave-marker');
   const key = autofetch.markerKey('premiumize', account, HASH);
   try {
-    cache.set(key, autofetch.markerValue('id-abc'), 60);
+    autofetch.setMarker('premiumize', account, HASH, autofetch.markerValue('id-abc'), 60);
     assert.equal(autofetch.markerTransferId('premiumize', account, HASH), 'id-abc');
     // Aceite sem id (os outros adapters) segue gravando o `1` histórico, e os
     // leitores por truthiness não notam diferença.
-    cache.set(key, autofetch.markerValue(true), 60);
-    assert.equal(cache.get(key), 1);
+    autofetch.setMarker('premiumize', account, HASH, autofetch.markerValue(true), 60);
+    assert.equal(kvPeek(key), 1);
     assert.equal(autofetch.markerTransferId('premiumize', account, HASH), null);
   } finally {
-    cache.forget(key);
+    kvForget(key);
   }
 });
 
@@ -238,7 +239,7 @@ async function colapsaParado({ removeById, via }: { removeById: boolean; via: 'h
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
     suppressed.forgetSuppressed('premiumize', account, h);
   }

@@ -13,7 +13,6 @@
 // ausente (inventário frio, refresh em voo) fecha o fail-safe: NÃO remove.
 // Qualquer condição não provada manda o hash para represados
 // (`autofetch-suppressed`), não para o delete.
-import * as cache from '../utils/cache.js';
 import * as held from '../debrid/protected.js';
 import { knownBefore, submittedAt } from '../debrid/alldebrid-inventory.js';
 import * as autofetch from './autofetch.js';
@@ -29,7 +28,9 @@ export function expiredRemovalAllowed(adapter: DebridAdapter, account: string, h
   if (!h) return false;
   if (held.isCleanupProtected(h, account, adapter.id)) return false;
   if (adapter.id !== 'alldebrid') return true;
-  const provaMarker = cache.peek(autofetch.markerKey(adapter.id, account, h)) != null;
+  // Posse provada pelo marker do enqueue — lido no KV nativo, nunca no cache
+  // (o prefixo do marker é RUST_OWNED e o peek devolveria null para sempre).
+  const provaMarker = autofetch.markerActive(adapter.id, account, h);
   const provaAdsub = submittedAt(account, h) != null;
   if (!provaMarker && !provaAdsub) return false;
   const snapshot = knownBefore(apiKey, account);

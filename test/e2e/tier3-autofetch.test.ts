@@ -11,7 +11,7 @@ import * as runtime from '../../src/runtime.js';
 import debrid from '../../src/debrid/index.js';
 import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
-import * as cache from '../../src/utils/cache.js';
+import { kvForget, kvPeek } from '../../src/utils/native-kv.js';
 import * as format from '../../src/utils/format.js';
 import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
@@ -155,7 +155,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
       // Autofetch marker should be recorded in cache to prevent duplicate enqueue
       const markerKey = autofetch.markerKey('alldebrid', account, brCandidateHash);
-      assert.equal(cache.get(markerKey), 1, 'Autofetch marker persisted in cache');
+      assert.equal(kvPeek(markerKey), 1, 'Autofetch marker persistido no KV nativo');
     } finally {
       held.release(brCandidateHash, account);
       adAdapter.checkCached = originalCheck;
@@ -170,7 +170,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const markerKey = autofetch.markerKey('alldebrid', account, brCandidateHash);
 
     // Pre-set marker in cache (simulating prior search)
-    cache.set(markerKey, 1, 3600);
+    autofetch.setMarker('alldebrid', account, brCandidateHash, 1, 3600);
 
     const streams = [
       makeRawStream('Movie.2024.1080p.DUBLADO', { infoHash: brCandidateHash, isBr: true, _dubbed: true }),
@@ -203,7 +203,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       await sleep(20);
       assert.equal(enqueueCalls, 0, 'Enqueue was suppressed because marker was already active');
     } finally {
-      cache.forget(markerKey);
+      kvForget(markerKey);
       adAdapter.checkCached = originalCheck;
       adAdapter.enqueue = originalEnqueue;
     }

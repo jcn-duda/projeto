@@ -10,12 +10,10 @@
 //      inclusive `null` da sonda e `addedAt` preenchido);
 //   4. dead/marker têm o MESMO escopo e as MESMAS formas (`1`, `{id}`, meta).
 //
-// Ponte de storage do teste: a FILA já nasce no handle nativo e é lida por
-// `kvPeek` — não há mais transporte do L1 para ela. Para dead/marker (estado
-// que ainda pode morar no L1), `ensureNative` aceita o valor do Node e o
-// despeja no handle via `setJson` — o mesmo INSERT da tabela `cache` provado em
-// debrid-kv-owned. Nada aqui é fixture inventado: o JSON sai do `writeQueue` de
-// verdade.
+// Ponte de storage do teste: fila, dead e marker nascem no handle nativo e são
+// lidos por `kvPeek` — não há mais transporte do L1 para nenhum deles (o
+// prefixo é RUST_OWNED). Nada aqui é fixture inventado: o JSON sai do
+// `writeQueue`/`blacklist` de verdade, e o marker usa as portas do núcleo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -23,7 +21,6 @@ process.env.CACHE_PERSIST = 'false';
 import * as autofetch from '../src/providers/autofetch.js';
 import { toQueueCandidate, type AutoFetchStream } from '../src/providers/autofetch-fallback.js';
 import { markerValue } from '../src/providers/autofetch-marker.js';
-import * as cache from '../src/utils/cache.js';
 import { nativeKv, kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { requireCore } from '../src/utils/rust-core.js';
 import type { Stream } from '../types/domain.js';
@@ -91,21 +88,6 @@ function packCandidate(hash: string): QueueCandidate {
     rare: true,
     slotLimit: 2,
   });
-}
-
-/**
- * Garante que o valor de uma chave (já nativa ou ainda no L1 do Node) está no
- * handle nativo e o devolve. A FILA não passa mais por aqui; dead/marker ainda
- * podem ser gravados pelo L1 até a fatia que os migra.
- */
-function ensureNative(key: string, ttlSeconds = 3600): unknown {
-  const fromKv = kvPeek(key);
-  if (fromKv != null) return fromKv;
-  const value = cache.get(key);
-  assert.ok(value != null, `valor do Node presente em ${key}`);
-  // O `setJson` bruto devolve void; a prova de escrita é a leitura de cima.
-  kv.setJson(key, JSON.stringify(value), ttlSeconds, NOW);
-  return value;
 }
 
 test('a chave da fila é o MESMO sha256 no Node e no Rust', () => {
@@ -198,7 +180,8 @@ test('writeQueue sem sobrevivente esquece a chave (regra do purgeSeedsQueue)', (
 test('blacklist de mortos: mesmo escopo adapter:conta nos dois lados', () => {
   try {
     autofetch.blacklist(ADAPTER, ACCOUNT, H1, 3600);
-    ensureNative(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
+    // O blacklist grava DIRETO no KV nativo (o prefixo dead: não passa pelo L1).
+    assert.equal(kvPeek(autofetch.deadKey(ADAPTER, ACCOUNT, H1)), 1, 'Node gravou o 1 no KV');
     assert.equal(core.autofetchV3IsDead(kv, ADAPTER, ACCOUNT, H1, NOW + 1), true, 'Node gravou, Rust lê');
     assert.equal(core.autofetchV3IsDead(kv, ADAPTER, 'outra-conta', H1, NOW + 1), false, 'escopo é por conta');
     assert.equal(core.autofetchV3IsDead(kv, 'torbox', ACCOUNT, H1, NOW + 1), false, 'escopo é por adapter');
@@ -206,8 +189,8 @@ test('blacklist de mortos: mesmo escopo adapter:conta nos dois lados', () => {
     core.autofetchV3MarkDead(kv, ADAPTER, ACCOUNT, H2, 3600, NOW);
     assert.equal(kvPeek(autofetch.deadKey(ADAPTER, ACCOUNT, H2)), 1);
   } finally {
-    cache.forget(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
     kvForget(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
+    kvForget(autofetch.deadKey(ADAPTER, ACCOUNT, H2));
   }
 });
 

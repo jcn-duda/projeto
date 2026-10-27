@@ -147,7 +147,7 @@ export function drainNext(searchKey: string, lot: any): boolean {
     .then((ok) => {
       autofetch.release(mKey);
       if (ok) {
-        cache.set(mKey, autofetch.markerValue(ok, evictMarkerMeta({
+        autofetch.setMarker(adapter.id, account, h, autofetch.markerValue(ok, evictMarkerMeta({
           adapterId: adapter.id, account, imdbId: next.imdbId, season: next.season, episode: next.episode,
           isPack: next.isPack === true, pool: String(next.pool || ''), br: Boolean(next.br), dubbed: Boolean(next.dubbed),
           title: String(next.title || next.name || '').split('\n')[0].slice(0, 120),
@@ -373,7 +373,7 @@ export function runRecheck(searchKey: string) {
       }
       for (const h of lot.hashes) {
         releaseIndex.forgetAutofetchHash(lot.seasonHints.get(h)?.imdbId, h);
-        cache.forget(autofetch.markerKey(adapter.id, account, h));
+        autofetch.forgetMarker(adapter.id, account, h);
         held.unprotect(adapter.id, account, h);
         held.release(h, account);
       }

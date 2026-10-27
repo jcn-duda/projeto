@@ -121,6 +121,30 @@ export type AutofetchQueueCore = {
   autofetchV3QueueKeys(kv: NativeKvNapi, nowMs: number): string[];
 };
 
+/**
+ * Portas do MARKER v3 (`autofetch:v3:m:<adapter>:<conta>:<hash>`) sobre o
+ * `NativeKv`. O marker é o `is_obsolete` do dreno e a prova de posse do
+ * AllDebrid: o Node não o lê mais do cache (o prefixo é RUST_OWNED), e o valor
+ * cruza como STRING para preservar as três formas (`1`, `{id}`, `{id,…meta}`)
+ * exatamente como o `markerValue` as monta.
+ */
+export type AutofetchMarkerCore = {
+  /** JSON cru do marker vivo; `null` = ausente/vencido. */
+  autofetchV3Marker(kv: NativeKvNapi, adapterId: string, account: string, infoHash: string, nowMs: number): string | null;
+  /** Grava o valor cru; no Rust `ttlSeconds <= 0` = permanente (o TS não passa <= 0). */
+  autofetchV3SetMarker(
+    kv: NativeKvNapi,
+    adapterId: string,
+    account: string,
+    infoHash: string,
+    valueJson: string,
+    ttlSeconds: number,
+    nowMs: number,
+  ): void;
+  /** Apaga o marker; `false` = não havia nada. */
+  autofetchV3ForgetMarker(kv: NativeKvNapi, adapterId: string, account: string, infoHash: string): boolean;
+};
+
 export type AutofetchCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type QueueCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type SkipNapi = { reason: string; rollback: string[]; infoHash: string };
@@ -131,7 +155,7 @@ export type AutofetchDecisionNapi = {
   trace?: { pool?: string; disabled?: boolean };
 };
 
-export type AutofetchCore = AutofetchQueueCore & {
+export type AutofetchCore = AutofetchQueueCore & AutofetchMarkerCore & {
   evaluateAutofetchCandidates(input: AutofetchInputNapi): AutofetchDecisionNapi;
 };
 

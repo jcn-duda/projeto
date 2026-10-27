@@ -9,7 +9,7 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 
@@ -50,13 +50,13 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
     // Deixa a cadeia do aceite terminar para o marker ser gravado e o estado
     // poder ser limpo de forma determinística.
     await sleep(350);
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), 1, 'aceite confirmado grava o marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h)), 1, 'aceite confirmado grava o marker');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -120,14 +120,14 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     await run(h3, 'hold-recusa');
     await sleep(20);
     assert.equal(held.isHeld(h3, account), false, 'recusa libera o hold');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h3)), null, 'recusa não grava marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h3)), null, 'recusa não grava marker');
 
     // (4) Falha do enqueue (rejeição) também libera hold, marker e trava de busca.
     debrid.enqueue = async () => { throw new Error('falha simulada'); };
     await run(h4, 'hold-falha');
     await sleep(20);
     assert.equal(held.isHeld(h4, account), false, 'falha libera o hold');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h4)), null, 'falha não grava marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h4)), null, 'falha não grava marker');
   } finally {
     debrid.checkCached = originalCheck;
     debrid.enqueue = originalRegistryEnqueue;
@@ -135,7 +135,7 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     pmAdapter.enqueue = originalAdapterEnqueue;
     for (const h of [h1, h2, h3, h4]) {
       held.release(h, account);
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
     }
     autofetch.releaseSearch('hold-aceite');
     autofetch.releaseSearch('hold-known-false');
@@ -179,20 +179,20 @@ test('falha definitiva do enqueue não é retentada: libera hold e slot sem mark
     await sleep(50);
     assert.equal(calls, 1, 'falha definitiva não é retentada');
     assert.equal(held.isHeld(h, account), false, 'falha definitiva libera o hold');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), null, 'falha definitiva não grava marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h)), null, 'falha definitiva não grava marker');
 
     // O slot devolvido deixa uma nova busca no MESMO searchKey tentar de novo.
     pmAdapter.enqueue = async () => { calls += 1; return true; };
     await run();
     await sleep(50);
     assert.equal(calls, 2, 'o slot liberado permite o próximo enqueue');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h)), 1, 'a tentativa nova grava o marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h)), 1, 'a tentativa nova grava o marker');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -247,15 +247,15 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
     openEnqueue();
     await sleep(50);
     assert.equal(enqueued.length, 2, 'após a fila esvaziar o total continua o mesmo');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h1)), 1, 'o aceite do parcial grava o marker');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, h2)), 1, 'o candidato novo do tardio também');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h1)), 1, 'o aceite do parcial grava o marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h2)), 1, 'o candidato novo do tardio também');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [h1, h2]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }

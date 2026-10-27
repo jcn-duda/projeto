@@ -29,6 +29,7 @@ rustCore.install();
 // deste install, e sem núcleo é no-op. Refaz aqui para o painel e o "drenar
 // filas" enxergarem o que está no disco (o dreno por searchKey não depende).
 autofetch.reindexQueues();
+autofetch.reindexDead();
 
 // Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
 // LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,

@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
@@ -172,8 +173,8 @@ function stubEnqueue(searchKey: string, hashes: string[]) {
   const original = pmAdapter.enqueue;
   const enqueued: string[] = [];
   for (const h of hashes) {
-    cache.forget(marker(h)); // L2 pode ter sobrevivido a execução anterior
-    cache.forget(autofetch.deadKey('premiumize', dAccount, h));
+    kvForget(marker(h)); // L2 pode ter sobrevivido a execução anterior
+    kvForget(autofetch.deadKey('premiumize', dAccount, h));
     held.release(h, dAccount);
   }
   pmAdapter.enqueue = async (_k, h) => { enqueued.push(h); return true; };
@@ -183,7 +184,7 @@ function stubEnqueue(searchKey: string, hashes: string[]) {
       pmAdapter.enqueue = original;
       autofetch.releaseSearch(searchKey);
       autofetch.dropQueue(searchKey);
-      for (const h of hashes) { cache.forget(marker(h)); held.release(h, dAccount); }
+      for (const h of hashes) { kvForget(marker(h)); held.release(h, dAccount); }
     },
   };
 }
@@ -306,7 +307,7 @@ test('dreno: seeds fora do teto é descartado; o br seguinte drena', async () =>
   } finally {
     pmAdapter.enqueue = original;
     autofetch.dropQueue(searchKey);
-    for (const h of [bigSeed, brHash]) { cache.forget(marker(h)); held.release(h, dAccount); }
+    for (const h of [bigSeed, brHash]) { kvForget(marker(h)); held.release(h, dAccount); }
   }
 });
 
@@ -331,7 +332,7 @@ test('dreno: dubbedOnly descarta a entrada seeds (regra permanente)', async () =
   } finally {
     pmAdapter.enqueue = original;
     autofetch.dropQueue(searchKey);
-    cache.forget(marker(seedHash));
+    kvForget(marker(seedHash));
     held.release(seedHash, dAccount);
   }
 });

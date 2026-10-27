@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
@@ -94,7 +95,7 @@ test('hash NÃO-pack pronto no recheck semeia davail', async () => {
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -179,7 +180,7 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     config.debrid.rdOracle.enabled = originalOracle;
     rdAdapter.enqueue = originalEnqueue;
     rdAdapter.torrentStatus = originalTorrentStatus;
-    cache.forget(autofetch.markerKey('realdebrid', account, h));
+    kvForget(autofetch.markerKey('realdebrid', account, h));
     held.release(h, account);
   }
 });
@@ -248,7 +249,7 @@ test('T4b: autoFetchStallStreak = 0 não colapsa nem remove torrent stalled (par
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -296,7 +297,7 @@ test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar b
     await sleep(20);
     assert.equal(enqueues, 0, 'conta cheia impede o debrid.enqueue');
     assert.equal(held.isHeld(hHot, account), false, 'bloqueio libera o hold do candidato');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, hHot)), null, 'bloqueio não grava marker');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, hHot)), null, 'bloqueio não grava marker');
     assert.equal(
       (metrics.snapshot().counters['autofetch.account-gated'] || 0) - gatedBefore,
       1,
@@ -322,7 +323,7 @@ test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar b
     autofetch.releaseSearch('gate-frio');
     autofetch.releaseSearch('gate-cheio');
     for (const h of [hCold, hHot]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }

@@ -205,7 +205,7 @@ export async function runSuppressed1b(opts: Revalidate1BOpts) {
       api.restore();
       suppressed.forgetSuppressed('alldebrid', account, hash);
       kvForget(`${prefix('adsub')}${account}:${hash}`);
-      cache.forget(autofetch.deadKey('alldebrid', account, hash));
+      kvForget(autofetch.deadKey('alldebrid', account, hash));
       metrics.reset();
     },
   };

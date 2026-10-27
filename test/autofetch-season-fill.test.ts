@@ -12,6 +12,7 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
@@ -30,7 +31,7 @@ function registerSeasons(ids: string[], keys: string[], adapterId: string, apiKe
 }
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
-  for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
+  for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
 test('pack "Temporada Completa" sem número não dispara season fill', async () => {
@@ -107,7 +108,7 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     bridge.restore();
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });

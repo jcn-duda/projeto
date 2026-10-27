@@ -9,7 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import * as autofetch from '../src/providers/autofetch.js';
-import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
@@ -52,7 +52,7 @@ async function expireProbe(via: 'hash' | 'id', removeById: boolean, sc: ProbeSet
     if (sc.snapshot === undefined) preexisting.set(account, { hashes: null, loadedAt: 0 });
     else if (sc.snapshot === null) preexisting.set(account, { hashes: null, loadedAt: 0 });
     else preexisting.set(account, { hashes: sc.snapshot, loadedAt: Date.now() });
-    if (sc.marker) cache.set(autofetch.markerKey('alldebrid', account, h), 1, 3600);
+    if (sc.marker) autofetch.setMarker('alldebrid', account, h, 1, 3600);
     if (sc.adsub) rememberSubmitted(account, h);
 
     recheckLots.set(searchKey, {
@@ -78,8 +78,8 @@ async function expireProbe(via: 'hash' | 'id', removeById: boolean, sc: ProbeSet
     autofetch.dropQueue(searchKey);
     preexisting.delete(account);
     resetSubmittedForTests();
-    cache.forget(autofetch.markerKey('alldebrid', account, h));
-    cache.forget(autofetch.deadKey('alldebrid', account, h));
+    kvForget(autofetch.markerKey('alldebrid', account, h));
+    kvForget(autofetch.deadKey('alldebrid', account, h));
     held.release(h, account);
     held.unprotect('alldebrid', account, h);
     suppressed.forgetSuppressed('alldebrid', account, h);

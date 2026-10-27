@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
@@ -101,7 +102,7 @@ test('recheck pós-enfileiramento esquece a busca quando o download fica pronto'
     pmAdapter.torrentStatus = originalTorrentStatus;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -194,7 +195,7 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     bridge.restore();
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -253,7 +254,7 @@ test('episódio avulso pronto não invalida as outras chaves da temporada', asyn
     pmAdapter.torrentStatus = originalTorrentStatus;
     cache.forget(searchKey);
     cache.forget(otherKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -331,7 +332,7 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.torrentStatus = originalTorrentStatus;
     bridge.restore();
-    cache.forget(autofetch.markerKey('premiumize', accountScope(apiKey), h));
+    kvForget(autofetch.markerKey('premiumize', accountScope(apiKey), h));
     held.release(h, accountScope(apiKey));
   }
 });
@@ -392,7 +393,7 @@ test('recheck esgota as tentativas sem esquecer a busca quando nada fica pronto'
     pmAdapter.torrentStatus = originalTorrentStatus;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });

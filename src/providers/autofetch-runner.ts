@@ -10,7 +10,6 @@ import {
   isSeasonPackFillEligible,
   streamQuality,
 } from '../utils/format.js';
-import * as cache from '../utils/cache.js';
 import debrid from '../debrid/index.js';
 import * as held from '../debrid/protected.js';
 import { accountScope } from '../utils/request-key.js';
@@ -71,7 +70,7 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
     isPaused: () => autofetchLive.isPaused(),
     isDead: () => autofetch.isDead(adapter.id, account, h),
     isCached: () => cached.has(h),
-    markerActive: () => Boolean(cache.get(key)),
+    markerActive: () => autofetch.markerActive(adapter.id, account, h),
     tryLock: () => autofetch.acquire(key),
     // Vaga compartilhada entre passe parcial e tardio pelo mesmo searchKey;
     // se pools diferentes, o teto efetivo é o do pool que pediu por último.
@@ -105,7 +104,9 @@ export function enqueueAutofetch({ stream, account, pool, slotLimit, rare }: Aut
     .then((ok) => {
       autofetch.release(key);
       if (ok) {
-        cache.set(key, autofetch.markerValue(ok, evictMarkerMeta({
+        // Marker no KV nativo (o prefixo é RUST_OWNED): o TTL é o mesmo do
+        // aceite/hold, e a escrita nunca derruba o enqueue (devolve false).
+        autofetch.setMarker(adapter.id, account, h, autofetch.markerValue(ok, evictMarkerMeta({
           adapterId: adapter.id, account, imdbId, season, episode, isPack,
           pool, title: String(stream.title || stream.name || '').split('\n')[0].slice(0, 120),
           br: Boolean(stream._br), dubbed: Boolean(stream._dubbed),

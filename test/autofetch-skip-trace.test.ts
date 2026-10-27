@@ -6,7 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
-import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import {
@@ -48,7 +48,7 @@ test('skip dead: blacklist de 24h barra a retentativa e deixa rastro', async () 
     assert.equal(lastReason(), 'dead');
     assert.equal(held.isHeld(H2, account), false, 'hold liberado');
   } finally {
-    cache.forget(autofetch.deadKey('premiumize', account, H2));
+    kvForget(autofetch.deadKey('premiumize', account, H2));
   }
 });
 
@@ -63,7 +63,7 @@ test('skip already-cached: hash que já toca não enfileira e solta o hold', asy
 
 test('skip marker: marcador de 6h barra retentativa e libera o hold recém-criado', async () => {
   held.hold(H4, 600, account);
-  cache.set(autofetch.markerKey('premiumize', account, H4), 1, 600);
+  autofetch.setMarker('premiumize', account, H4, 1, 600);
   try {
     const d = delta('marker');
     await runEnqueue(H4);
@@ -73,7 +73,7 @@ test('skip marker: marcador de 6h barra retentativa e libera o hold recém-criad
     // Retê-lo só estendia a proteção de um hash órfão do recheck/restart.
     assert.equal(held.isHeld(H4, account), false, 'hold recém-criado liberado');
   } finally {
-    cache.forget(autofetch.markerKey('premiumize', account, H4));
+    kvForget(autofetch.markerKey('premiumize', account, H4));
   }
 });
 

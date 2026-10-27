@@ -6,9 +6,9 @@ import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { getCore, requireCore } from '../utils/rust-core.js';
-import { nativeKv } from '../utils/native-kv.js';
+import { nativeKv, kvKeys, type NativeKvNapi } from '../utils/native-kv.js';
 import type { AutofetchQueueCore } from '../utils/rust-autofetch.js';
-import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
+import { markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker } from './autofetch-marker.js';
 import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
 import { countAllSuppressed } from './autofetch-suppressed.js';
 import { deadKey } from './autofetch-keys.js';
@@ -96,28 +96,30 @@ function releaseSearch(searchKey: string) {
   releaseSearchSlot(searchKey);
 }
 
-/** Blacklist por adapter:account:hash com TTL 24h */
+/** Portas `dead:` do núcleo (`queue_v3.rs`), ausentes do contrato compartilhado. */
+type DeadPorts = {
+  autofetchV3MarkDead(kv: NativeKvNapi, a: string, c: string, h: string, ttl: number, now: number): void;
+  autofetchV3IsDead(kv: NativeKvNapi, a: string, c: string, h: string, now: number): boolean;
+};
+const deadPorts = () => requireCore() as unknown as DeadPorts;
+
+/** A blacklist de mortos mora no KV nativo (`autofetch:v3:dead:…`, a MESMA `deadKey`) e o napi
+ * é a FONTE. Medido 3,2–3,9 µs/hash (~0,6 ms p/ 200 streams): leitura direta, sem Set positivo
+ * de processo — ele não expiraria o TTL de 24 h. Erro = false: o falso negativo só re-tenta. */
 function isDead(adapterId: string, account: string, infoHash: string): boolean {
   if (!adapterId || !account || !infoHash) return false;
-  return cache.get(deadKey(adapterId, account, infoHash)) === 1;
+  try { return Boolean(deadPorts().autofetchV3IsDead(nativeKv(), adapterId, account, infoHash, Date.now())); }
+  catch (err) { log.warn(`[autofetch] leitura da blacklist falhou: ${log.errorMessage(err)}`); return false; }
 }
 
-/** Leitura de diagnóstico (P5): mesma blacklist por `cache.peek`, sem LRU nem hit/miss. */
-function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean {
-  if (!adapterId || !account || !infoHash) return false;
-  return cache.peek(deadKey(adapterId, account, infoHash)) === 1;
-}
+/** Diagnóstico (P5) = o `isDead`: o `NativeKv` não tem LRU nem hit/miss — toda leitura já é quiet. */
+function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean { return isDead(adapterId, account, infoHash); }
 
-function blacklist(
-  adapterId: string,
-  account: string,
-  infoHash: string,
-  ttlSeconds = autofetchLive.effective().autoFetchDeadTtl,
-) {
-  if (!adapterId || !account || !infoHash) return;
-  const key = deadKey(adapterId, account, infoHash);
-  cache.set(key, 1, ttlSeconds);
-  knownDead.add(key);
+/** Grava pelo nativo e mantém o índice do painel. TTL <= 0 sai fora (o nativo gravaria PERMANENTE, o mesmo portão do `writeQueue`); erro só loga. */
+function blacklist(adapterId: string, account: string, infoHash: string, ttlSeconds = autofetchLive.effective().autoFetchDeadTtl) {
+  if (!adapterId || !account || !infoHash || !(Number(ttlSeconds) > 0)) return;
+  try { deadPorts().autofetchV3MarkDead(nativeKv(), adapterId, account, infoHash, Math.trunc(Number(ttlSeconds)), Date.now()); knownDead.add(deadKey(adapterId, account, infoHash)); }
+  catch (err) { log.warn(`[autofetch] gravação da blacklist falhou: ${log.errorMessage(err)}`); }
 }
 
 /** Fila persistente de candidatos excedentes */
@@ -171,8 +173,8 @@ function writeQueue(
   if (!searchKey) return;
   // O `cache.set` do Node descartava TTL <= 0; o nativo gravaria PERMANENTE — o portão fica aqui.
   if (!(Number(ttlSeconds) > 0)) return;
-  // Sem hash sai aqui (o `QueueCandidate` nativo exige o campo) e morto também:
-  // o `dead:` ainda é do cache. Dedupe, `addedAt`, teto e fila vazia são do nativo.
+  // Sem hash sai aqui (o `QueueCandidate` nativo exige o campo) e morto também,
+  // pela blacklist nativa. Dedupe, `addedAt`, teto e fila vazia são do nativo.
   const withHash = candidates.filter((c) => Boolean(c?.infoHash));
   const alive = adapterId && account
     ? withHash.filter((c) => !isDead(adapterId, account, String(c.infoHash)))
@@ -246,16 +248,13 @@ function reindexQueues() {
   return n;
 }
 
+/** Repovoa o índice de diagnóstico com as chaves VIVAS (`kvKeys(DEAD_PREFIX)`); o `.node` nunca carrega aqui (`getCore` + 0 sem núcleo), como no `reindexQueues`. */
 function reindexDead() {
+  if (!getCore()) return 0;
   let n = 0;
-  for (const key of cache.keysMatching(DEAD_PREFIX)) {
-    if (knownDead.has(key)) continue;
-    if (cache.get(key) !== 1) continue;
-    knownDead.add(key);
-    n += 1;
-  }
-  metrics.count('autofetch.dead.reindexed', n);
-  return n;
+  try { for (const key of kvKeys(DEAD_PREFIX)) if (!knownDead.has(key)) { knownDead.add(key); n += 1; } }
+  catch (err) { log.warn(`[autofetch] reindex da blacklist falhou: ${log.errorMessage(err)}`); }
+  metrics.count('autofetch.dead.reindexed', n); return n;
 }
 
 function takeNext(
@@ -362,9 +361,8 @@ function snapshot() {
     knownQueues.set(key, count);
     queueItems += count;
   }
-  for (const key of [...knownDead]) {
-    if (cache.get(key) !== 1) knownDead.delete(key);
-  }
+  const deadLive = new Set(kvKeys(DEAD_PREFIX));
+  for (const key of [...knownDead]) if (!deadLive.has(key)) knownDead.delete(key);
   let occupiedSlots = 0;
   for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
 
@@ -387,7 +385,7 @@ function snapshot() {
 }
 
 export {
-  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, deadKey, queueKey, prefetchKey,
+  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker, deadKey, queueKey, prefetchKey,
   acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
   isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
   checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,

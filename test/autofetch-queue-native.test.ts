@@ -185,9 +185,7 @@ test('dedupe por hash (primeiro vence) e hash morto sai na gravação', () => {
   } finally {
     autofetch.dropQueue(searchKey);
     autofetch.dropQueue(otherKey);
-    // Limpa a marca pelo caminho em que ela vive (a fila é nativa; a blacklist
-    // segue o mesmo contrato do isDead — cache ou KV, os dois são idempotentes).
-    cache.forget(deadKey);
+    // A marca mora no KV nativo: o cache.forget nem toca no prefixo dead:.
     kvForget(deadKey);
   }
 });

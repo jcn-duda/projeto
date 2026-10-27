@@ -18,6 +18,7 @@ import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
@@ -66,7 +67,7 @@ function seedsHarness(key: string) {
 const releaseAll = (harness: ReturnType<typeof seedsHarness>, hashes: string[]) => {
   autofetch.releaseSearch(harness.searchKey);
   for (const h of hashes) {
-    cache.forget(autofetch.markerKey('premiumize', harness.account, h));
+    kvForget(autofetch.markerKey('premiumize', harness.account, h));
     held.release(h, harness.account);
   }
 };

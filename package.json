@@ -156,6 +156,7 @@
     "test/autofetch-skip-trace.test.js",
     "test/autofetch-stalls-drain.test.js",
     "test/autofetch-stalls.test.js",
+    "test/autofetch-state-native.test.js",
     "test/autofetch-suppressed.test.js",
     "test/autofetch-trace-sanitize.test.js",
     "test/autofetch.test.js",

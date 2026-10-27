@@ -19,6 +19,7 @@ import debrid from '../src/debrid/index.js';
 import config from '../src/config.js';
 import * as held from '../src/debrid/protected.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -274,8 +275,8 @@ function cleanupAllDebrid(searchKey: string, account: string, hashes: string[], 
   autofetch.resetBudget(service, account);
   for (const h of hashes) {
     forgetProgress(service, account, h);
-    cache.forget(autofetch.deadKey(service, account, h));
-    cache.forget(autofetch.markerKey(service, account, h));
+    kvForget(autofetch.deadKey(service, account, h));
+    kvForget(autofetch.markerKey(service, account, h));
     held.release(h, account);
     suppressed.forgetSuppressed(service, account, h);
   }
@@ -350,7 +351,7 @@ test('AllDebrid com progress: parada derivada colapsa, represa e drena sem remoç
       [hBr]: { state: 'downloading', id: 777, via: 'id', progress: { bytes: 1000, total: 1e9, speed: 0, seeders: 2 } },
     });
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    cache.forget(autofetch.deadKey('alldebrid', account, hBr));
+    kvForget(autofetch.deadKey('alldebrid', account, hBr));
     autofetch.resetBudget('alldebrid', account);
     autofetch.writeQueue(searchKey, [{
       infoHash: hSeed, title: 'Seed 1080p', pool: 'seeds',

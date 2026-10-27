@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 import * as releaseIndex from '../src/utils/release-index.js';
@@ -28,7 +29,7 @@ const baseOpts = (key: string, cachedOnly = true) => ({
 });
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
-  for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
+  for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
 test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+4K)', async () => {
@@ -76,7 +77,7 @@ test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+
     autofetch.dropQueue(searchKey);
     clearDead('premiumize', account, [h1, h2, h3, h4]);
     for (const h of [h1, h2, h3, h4]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -107,7 +108,7 @@ test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -151,7 +152,7 @@ test('autofetch aceito registra a release na obra e a busca repetida reconhece o
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     for (const sk of [searchKey, `${searchKey}-2`]) autofetch.releaseSearch(sk);
-    cache.forget(autofetch.markerKey('premiumize', account, hash));
+    kvForget(autofetch.markerKey('premiumize', account, hash));
     held.release(hash, account);
     cache.clearNamespace('idx');
   }
@@ -229,7 +230,7 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
     config.debrid.publicUrl = saved.publicUrl;
     config.debrid.resolveSecret = saved.resolveSecret;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', accountScope(apiKey), hash));
+    kvForget(autofetch.markerKey('premiumize', accountScope(apiKey), hash));
     held.release(hash, accountScope(apiKey));
     cache.clear();
   }
@@ -272,7 +273,7 @@ test('matriz integrada: 720 Dual ⚡ não bloqueia upgrade 1080/4K', async () =>
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [h720, h1080, h4k]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -310,7 +311,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [h1, h2, h3]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -366,7 +367,7 @@ test('fallback global respeita os gates: dublado ⚡, BR presente e toggle off n
       autofetch.releaseSearch(key);
     }
     for (const h of [g, other, br]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }

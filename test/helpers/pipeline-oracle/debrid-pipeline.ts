@@ -17,7 +17,7 @@ import {
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
 } from '../../../src/utils/format.js';
-import * as cache from '../../../src/utils/cache.js';
+import { kvPeek } from '../../../src/utils/native-kv.js';
 import debrid from '../../../src/debrid/index.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { signResolve } from '../../../src/utils/sign.js';
@@ -160,7 +160,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
     try {
       let hits = 0;
       for (const hash of cached) {
-        if (cache.get(autofetch.markerKey(adapter.id, trustScope, hash))) hits += 1;
+        if (kvPeek(autofetch.markerKey(adapter.id, trustScope, hash))) hits += 1;
       }
       if (hits > 0) metrics.count('autofetch.hit', hits);
     } catch { /* diagnóstico nunca derruba a resposta */ }

@@ -13,6 +13,7 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as held from '../src/debrid/protected.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { enqueueAutofetch, drainNext } from '../src/providers/autofetch-runner.js';
@@ -46,7 +47,7 @@ function trackKey(apiKey: string, o: Parameters<typeof identity>[1] = {}) {
 function forgetHashes(apiKey: string, hashes: string[]) {
   const account = accountScope(apiKey);
   for (const h of hashes) {
-    cache.forget(autofetch.markerKey(PM, account, h));
+    kvForget(autofetch.markerKey(PM, account, h));
     held.release(h, account);
   }
   autofetch.resetBudget(PM, account);

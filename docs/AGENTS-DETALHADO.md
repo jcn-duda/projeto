@@ -1728,22 +1728,25 @@ sobre a tabela `cache` do `data/cache.db`, com o schema e a semântica de TTL do
 Mora no `adom-index` e não no `adom-store` porque o `.node` já depende do crate
 leve; o `adom-store` só reexporta (`pub use adom_index::{kv, NativeKv}`). O
 binding napi é a classe `NativeKv` de `rust/crates/adom-napi/src/kv.rs`
-(`get_json`/`keys_matching`/`put_json`) e a ponte de LEITURA do Node é
-`src/utils/native-kv.ts` (`kvPeek`/`kvKeys`): abre o mesmo `config.cache.dbPath`
+(`get_json`/`keys_matching`/`put_json`) e a ponte do Node é
+`src/utils/native-kv.ts` (`kvPeek`/`kvKeys`/`kvSet`/`kvForget`): abre o mesmo `config.cache.dbPath`
 (`:memory:` quando `CACHE_PERSIST=false`), não mantém L1 e não regrava no
-SQLite. A escrita é do gateway/worker; hoje não há consumidor de produção — só
-o tipo do `rust-core.ts` e o teste (`test/native-kv.test.ts`), e o cabeçalho do
-módulo declara como dono a fila/estado do Chupim e a posse/proteção do
-AllDebrid.
+SQLite. A escrita é do gateway/worker; a fila, o marker e a blacklist (`dead`)
+do Chupim já vão por ele (`kvSet`/`kvForget` na ponte), e o Node só espia
+(`kvPeek`/`kvKeys`).
 
-**Fila do Chupim.** O sub-prefixo `autofetch:v3:q:` está em
-`RUST_OWNED_PREFIXES` (`AUTOFETCH_QUEUE_PREFIX`): o Node não sobe a fila no L1
-nem a grava/poda no SQLite, e `cache.clear()`/`clearNamespace('autofetch')` a
-apagam por `kvClearPrefix`. O namespace `autofetch` NÃO entra inteiro — `pf:`,
-`m:`, `dead:` e `sup:` continuam no cache do Node, e marcá-los faria
-`set`/`get` virarem no-op silencioso. O wiring da fila pela ponte
-(`autofetch.ts`) é fatia própria; até ele, o caminho antigo do Node fica
-inoperante para `q:` por desenho.
+**Estado do Chupim no KV nativo.** Fila (`autofetch:v3:q:`), marker
+(`autofetch:v3:m:`) e blacklist (`autofetch:v3:dead:`) estão em
+`RUST_OWNED_PREFIXES` (`AUTOFETCH_NATIVE_PREFIXES`): o Node não os sobe no L1
+nem os grava/poda no SQLite — lê e escreve pela ponte (`native-kv.ts`; os
+consumidores são `autofetch.ts`, `autofetch-marker.ts`, `autofetch-keys.ts`).
+`pf:` (prefetch), `sup:` (represados) e os registros de obra (`o:`/`er:`)
+continuam no cache do Node; o namespace `autofetch` NÃO entra inteiro, senão
+`set`/`get` deles virariam no-op silencioso. `cache.clear()` e
+`clearNamespace('autofetch')` apagam os TRÊS prefixos nativos
+(`clearAutofetchNative`) e o resto pelo `clearWhere`. O dado antigo do
+`cache.db` continua legível: é a MESMA tabela `cache`, a MESMA chave e o MESMO
+valor/TTL — só o transporte mudou, sem migração.
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou
@@ -3086,7 +3089,7 @@ fire-and-forget) continua.
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
 | `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): fachada sobre o `IdxStore` (Rust) — record/lookup/status; o que faz o addon responder sem Jackett |
 | `src/utils/release-index-store.ts` | Handle único do `IdxStore` (napi), criado sob demanda; `clearIdxStore()` para a limpeza do namespace |
-| `src/utils/native-kv.ts` | Ponte de LEITURA do `NativeKv` (napi) sobre a tabela `cache` do `cache.db`: `kvPeek`/`kvKeys`, sem L1 e sem escrita no SQLite |
+| `src/utils/native-kv.ts` | Ponte do `NativeKv` (napi) sobre a tabela `cache` do `cache.db`: `kvPeek`/`kvKeys`/`kvSet`/`kvForget`/`kvRemaining`/`kvClearPrefix`, sem L1 e sem escrita direta no SQLite |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
 | `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
 | `src/providers/jackett.ts` | **APAGADO (Fase 5)**: consulta, cache `raw`, breaker e resolução Cardigann são nativos (`adom-sources::jackett`); `jackett-catalog.ts` e `indexer-status.ts` ficaram |

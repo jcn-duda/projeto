@@ -357,8 +357,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - **KV de estado Rust-owned: `NativeKv`** (tabela `cache` do mesmo
   `data/cache.db`): store em `rust/crates/adom-index/src/kv.rs`, binding napi na
   classe `NativeKv` (`adom-napi/src/kv.rs`), reexportado pelo `adom-store`. O
-  Node só LÊ (`src/utils/native-kv.ts`, `kvPeek`/`kvKeys`): sem L1 e sem gravar
-  no SQLite — a escrita é do gateway/worker. Ainda sem consumidor vivo.
+  Node fala pela ponte (`src/utils/native-kv.ts`, `kvPeek`/`kvKeys`/`kvSet`/
+  `kvForget`): sem L1 e sem regravar no SQLite. Dono vivo: a fila
+  (`autofetch:v3:q:`), o marker (`m:`) e a blacklist (`dead:`) do Chupim;
+  `pf:`/`sup:`/`obra:` seguem no cache do Node.
 - SWR só serve lista completa, `debridKnown` e com stream **tocável** (aviso não
   conta). Hit de `raw` não pinta o card de status.
 - **Addon responde do próprio índice** quando ele cobre a obra (Jackett vira

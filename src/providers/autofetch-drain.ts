@@ -11,7 +11,6 @@
 // — defer NÃO é skip do painel (o candidato segue na fila).
 
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import * as held from '../debrid/protected.js';
 import * as metrics from '../utils/metrics.js';
 import type { DebridAdapter } from '../../types/domain.js';
@@ -36,7 +35,7 @@ function isObsolete(cand: QueueCandidate, adapter: DebridAdapter, account: strin
   const h = String(cand.infoHash).toLowerCase();
   return (
     autofetch.isDead(adapter.id, account, h) ||
-    Boolean(cache.get(autofetch.markerKey(adapter.id, account, h))) ||
+    autofetch.markerActive(adapter.id, account, h) ||
     held.isDurablyProtected(adapter.id, account, h)
   );
 }

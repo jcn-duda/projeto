@@ -24,7 +24,7 @@ import { mockAd, mag, counter, withDebrid, assenta, adrmKey } from './helpers/al
 import {
   KEY, ACCOUNT, identity, READY, F_ANY, F_SEEDS, F_OTHER_POOL, F_LEGACY, F_NO_MARKER,
   F_NO_ADSUB, F_HELD, F_PROT, F_YOUNG, F_NO_DATE, F_OUTRA, adapter, limpa, entry, putRecord,
-  readyEntry, setMarker, own, hint,
+  readyEntry, setMarker, putMarker, own, hint,
 } from './helpers/autofetch-evict-harness.js';
 
 // O backoff do delete usa `wait` com timer unref: sem algo segurando o event
@@ -46,7 +46,7 @@ test('F6: knob OFF não lê a conta nem chama o executor', async () => {
     await maybeEvictFallbacks({ adapter, account: ACCOUNT, apiKey: KEY, hash: READY, hint });
     assert.equal(chamado, 0, 'OFF: executor nunca é chamado');
     assert.equal(api.statusCalls, 0, 'OFF: zero leitura da conta');
-    assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, F_SEEDS)), 'OFF: nada é esquecido');
+    assert.ok(kvPeek(markerKey('alldebrid', ACCOUNT, F_SEEDS)), 'OFF: nada é esquecido');
     assert.equal(cache.keysMatching(`${prefix('autofetch')}er:`).length, 0, 'OFF: prova BR ready nem é escrita');
   } finally {
     adapter.evictFallbacks = original;
@@ -72,7 +72,7 @@ test('F6: BR ready remove só fallbacks any/seeds da MESMA obra, pelo gate e com
   setMarker(F_SEEDS, 'seeds');
   setMarker(F_OTHER_POOL, 'br');
   // outra obra: registro e marker próprios; nunca entra na seleção da obra alvo
-  cache.set(markerKey('alldebrid', ACCOUNT, F_OUTRA), { obra: 'deadbeef', pool: 'seeds' }, 3600);
+  putMarker(F_OUTRA, { obra: 'deadbeef', pool: 'seeds' });
   for (const h of [F_ANY, F_SEEDS, F_OTHER_POOL, F_OUTRA]) own(h);
   const restaura = withDebrid({ autoFetchEvictFallback: true, autoFetchEvictFallbackMinAgeMs: 0 });
   try {
@@ -82,7 +82,7 @@ test('F6: BR ready remove só fallbacks any/seeds da MESMA obra, pelo gate e com
     assert.equal(removeCalls, 0, 'PROIBIDO chamar removeTorrent direto');
     assert.equal(counter('autofetch.evict.removed'), 2);
     for (const h of [F_ANY, F_SEEDS]) {
-      assert.equal(cache.peek(markerKey('alldebrid', ACCOUNT, h)), null, 'marker esquecido no sucesso');
+      assert.equal(kvPeek(markerKey('alldebrid', ACCOUNT, h)), null, 'marker esquecido no sucesso');
       const adrm = kvPeek(adrmKey(ACCOUNT, h)) as { name?: string } | null;
       assert.ok(adrm, 'adrm gravado no sucesso');
       assert.match(String(adrm?.name || ''), /1080p/, 'adrm carrega o filename REAL');
@@ -90,8 +90,8 @@ test('F6: BR ready remove só fallbacks any/seeds da MESMA obra, pelo gate e com
     const record = obraRecord(identity);
     assert.equal(record.some((e) => e.hash === F_ANY || e.hash === F_SEEDS), false, 'registro da obra limpo');
     assert.equal(record.some((e) => e.hash === F_OTHER_POOL), true, 'irmão de pool br permanece');
-    assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, F_OTHER_POOL)), 'irmão br intocado');
-    assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, F_OUTRA)), 'outra obra intocada');
+    assert.ok(kvPeek(markerKey('alldebrid', ACCOUNT, F_OTHER_POOL)), 'irmão br intocado');
+    assert.ok(kvPeek(markerKey('alldebrid', ACCOUNT, F_OUTRA)), 'outra obra intocada');
     assert.equal(api.deleted.includes(24), false, 'hash de outra obra não é removido');
   } finally {
     restaura();
@@ -127,7 +127,7 @@ test('F6: reserva de overflow do C11 não é evictada; fallback comum é', async
     assert.equal(counter('autofetch.evict.skipped.overflow'), 1);
     assert.equal(counter('autofetch.evict.removed'), 1);
     assert.equal(obraRecord(identity).some((e) => e.hash === OVER), true, 'overflow mantido no registro');
-    assert.ok(cache.peek(markerKey('alldebrid', ACCOUNT, OVER)), 'marker do overflow mantido');
+    assert.ok(kvPeek(markerKey('alldebrid', ACCOUNT, OVER)), 'marker do overflow mantido');
   } finally {
     restaura();
     api.restore();
@@ -149,10 +149,10 @@ test('F6: marker legado, marker ausente, digest de OUTRA obra e falta de adsub b
     readyEntry(), entry(F_LEGACY, 'seeds'), entry(F_NO_ADSUB, 'any'),
     entry(F_NO_MARKER, 'seeds'), entry(DIGEST_OUTRA, 'seeds'),
   ]);
-  cache.set(markerKey('alldebrid', ACCOUNT, F_LEGACY), { id: 'legacy-id' }, 3600); // legado
+  putMarker(F_LEGACY, { id: 'legacy-id' }); // legado
   setMarker(F_NO_ADSUB, 'any'); // marker novo, mas sem posse durável
   // F_NO_MARKER: sem marker nenhum
-  cache.set(markerKey('alldebrid', ACCOUNT, DIGEST_OUTRA), { obra: 'f'.repeat(64), pool: 'seeds' }, 3600);
+  putMarker(DIGEST_OUTRA, { obra: 'f'.repeat(64), pool: 'seeds' });
   own(F_NO_MARKER);
   own(DIGEST_OUTRA);
   const restaura = withDebrid({ autoFetchEvictFallback: true, autoFetchEvictFallbackMinAgeMs: 0 });

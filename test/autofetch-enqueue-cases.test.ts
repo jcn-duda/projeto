@@ -10,7 +10,7 @@ import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 
@@ -23,7 +23,7 @@ const baseOpts = (key: string, cachedOnly = true) => ({
 });
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
-  for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
+  for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
 test('autofetch de série enfileira o pack em vez do episódio avulso', async () => {
@@ -63,7 +63,7 @@ test('autofetch de série enfileira o pack em vez do episódio avulso', async ()
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [ep, pack]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -95,7 +95,7 @@ test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO',
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, upper));
+    kvForget(autofetch.markerKey('premiumize', account, upper));
     held.release(upper, account);
   }
 });
@@ -119,7 +119,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    cache.set(markerX, 1, 3600);
+    autofetch.setMarker('premiumize', account, x, 1, 3600);
 
     await run(x, 'busca-marker-x');
     await sleep(20);
@@ -128,15 +128,15 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
     await run(y, 'busca-marker-y');
     await sleep(20);
     assert.deepEqual(enqueued, [y], 'hash sem marker continua enfileirando');
-    assert.equal(cache.get(autofetch.markerKey('premiumize', account, y)), 1, 'o aceite de Y grava o marker dele');
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, y)), 1, 'o aceite de Y grava o marker dele');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch('busca-marker-x');
     autofetch.releaseSearch('busca-marker-y');
-    cache.forget(markerX);
-    cache.forget(autofetch.markerKey('premiumize', account, y));
+    kvForget(markerX);
+    kvForget(autofetch.markerKey('premiumize', account, y));
     held.release(x, account);
     held.release(y, account);
   }
@@ -188,9 +188,9 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de três enque
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h1));
+    kvForget(autofetch.markerKey('premiumize', account, h1));
     for (const hash of [h1, h2, h3, h4, h5, h6]) {
-      cache.forget(autofetch.markerKey('premiumize', account, hash));
+      kvForget(autofetch.markerKey('premiumize', account, hash));
       held.release(hash, account);
     }
   }

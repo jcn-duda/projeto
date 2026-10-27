@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import { createStreamTrace } from '../src/utils/stream-trace.js';
 import { autoFetchBrDubbed, autoFetchCandidates } from '../src/providers/autofetch-runner.js';
@@ -118,7 +119,7 @@ test('Event Horizon: gringo ⚡ não finge stop-has-br; BR dublado uncached enfi
   } finally {
     pmAdapter.enqueue = original;
     for (const h of [H3, H4, H5, H6]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       autofetch.release(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }

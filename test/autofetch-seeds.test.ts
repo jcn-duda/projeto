@@ -1,4 +1,4 @@
-﻿import { test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
@@ -10,6 +10,7 @@ import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 
@@ -74,7 +75,7 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [h1, h2, h3, cam, morto]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -124,7 +125,7 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [pronto, outro]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -193,7 +194,7 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [hDub, hSwarm]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -252,7 +253,7 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [h1, h2]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }
@@ -308,7 +309,7 @@ test('BR dublado uncached enfileira mesmo com remux gringo em cache e bu=0', asy
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
     for (const h of [remux, brHash]) {
-      cache.forget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey('premiumize', account, h));
       held.release(h, account);
     }
   }

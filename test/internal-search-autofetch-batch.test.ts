@@ -14,6 +14,7 @@ import { runAutofetchBatch, streamOfItem } from '../src/providers/autofetch-batc
 import debrid from '../src/debrid/index.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { forgetObraHash } from '../src/providers/autofetch-obra.js';
@@ -88,8 +89,8 @@ function batchAccount(name: string) {
     cleanup(hashes: string[], searchKey?: string) {
       pmAdapter.enqueue = originalEnqueue;
       for (const h of hashes) {
-        cache.forget(autofetch.markerKey('premiumize', account, h));
-        cache.forget(autofetch.deadKey('premiumize', account, h));
+        kvForget(autofetch.markerKey('premiumize', account, h));
+        kvForget(autofetch.deadKey('premiumize', account, h));
         held.release(h, account);
         // O teto por OBRA é durável (janela de 6h): sem limpar, a segunda
         // execução do MESMO teste encontraria o cap já consumido.

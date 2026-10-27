@@ -38,7 +38,7 @@ import * as held from '../debrid/protected.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { DebridAdapter } from '../../types/domain.js';
-import { markerKey, markerObra, type MarkerMeta } from './autofetch-marker.js';
+import { markerObra, forgetMarker, type MarkerMeta } from './autofetch-marker.js';
 import { obraRecord, forgetObraHash, obraDigest, type ObraIdentityInput } from './autofetch-obra.js';
 import { hasDurableOwnership } from '../debrid/alldebrid-inventory.js';
 
@@ -250,7 +250,7 @@ export function maybeEvictFallbacks(input: EvictFallbackInput): Promise<void> {
     for (const removed of result.removed || []) {
       // Sucesso confirmado pelo executor: esquece o marker e libera a vaga da
       // obra (a prova durável adsub e o `adrm` já foram tratados lá).
-      cache.forget(markerKey(adapter.id, account, removed.hash));
+      forgetMarker(adapter.id, account, removed.hash);
       forgetObraHash({ ...identity, hash: removed.hash });
     }
     const total = result.removed?.length || 0;

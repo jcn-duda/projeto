@@ -12,12 +12,13 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
-  for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
+  for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
 test('parado (stalled) por N rechecks: colapsa no limiar próprio com blacklist+remoção+dreno', async () => {
@@ -83,7 +84,7 @@ test('parado (stalled) por N rechecks: colapsa no limiar próprio com blacklist+
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -154,7 +155,7 @@ test('movimento zera a contagem de stall: só observações CONSECUTIVAS derruba
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -223,7 +224,7 @@ test('stall prévio não adianta o colapso do dead: contadores são independente
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });
@@ -301,7 +302,7 @@ test('falha de torrentStatus não zera streak de stall: colapso só no 3º reche
     pmAdapter.removeTorrent = originalRemoveTorrent;
     autofetch.releaseSearch(searchKey);
     cache.forget(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, h));
+    kvForget(autofetch.markerKey('premiumize', account, h));
     held.release(h, account);
   }
 });

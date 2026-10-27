@@ -195,7 +195,7 @@ async function processBatch(maxItems: number): Promise<number> {
     if (held.isHeld(hash, account)) {
       continue;
     }
-    if (cache.get(autofetch.markerKey('realdebrid', account, hash))) {
+    if (autofetch.markerActive('realdebrid', account, hash)) {
       continue;
     }
     if (magnetdb.isBad('realdebrid', apiKey, hash)) {

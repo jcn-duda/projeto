@@ -6,6 +6,7 @@
 // posse/anti-reenchimento para o verde não depender do .env do operador.
 import config from '../../src/config.js';
 import * as cache from '../../src/utils/cache.js';
+import * as autofetch from '../../src/providers/autofetch.js';
 import * as metrics from '../../src/utils/metrics.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import debrid from '../../src/debrid/index.js';
@@ -59,12 +60,16 @@ export const putRecord = (entries: ObraEntry[]) => cache.set(obraKey(identity), 
 
 export const readyEntry = () => entry(READY, 'br', { br: true, dubbed: true, title: 'BR Dublado' });
 
+/** Grava um marker cru no KV nativo (o L1 não é fonte do marker). */
+export const putMarker = (hash: string, value: unknown) =>
+  autofetch.setMarker('alldebrid', ACCOUNT, hash, value, 3600);
+
 export const setMarker = (hash: string, pool: string, imdbId = IMDB) => {
   const meta = evictMarkerMeta({
     adapterId: 'alldebrid', account: ACCOUNT, imdbId, season: null, episode: null, isPack: false,
     pool, title: 'x', br: pool === 'br', dubbed: pool === 'br',
   });
-  cache.set(markerKey('alldebrid', ACCOUNT, hash), markerValue(true, meta), 3600);
+  putMarker(hash, markerValue(true, meta));
 };
 
 export const own = (hash: string) => { inventario(ACCOUNT, []); rememberSubmitted(ACCOUNT, hash); };

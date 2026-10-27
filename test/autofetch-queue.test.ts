@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as autofetch from '../src/providers/autofetch.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
@@ -87,7 +88,7 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
 test('blacklist de torrents mortos: isDead e blacklist com TTL', () => {
   const adapterId = 'alldebrid';
   const account = 'acc_test_dead';
-  cache.forget(autofetch.deadKey(adapterId, account, H1));
+  kvForget(autofetch.deadKey(adapterId, account, H1));
   assert.equal(autofetch.isDead(adapterId, account, H1), false);
 
   autofetch.blacklist(adapterId, account, H1, 86400);
@@ -101,19 +102,21 @@ test('takeNext purga obsoletos (dead/marker) e ADIA held sem purgá-lo', () => {
   const account = 'acc_skip_test';
 
   autofetch.blacklist(adapterId, account, H1, 86400);
-  cache.set(autofetch.markerKey(adapterId, account, H2), 1, 3600);
+  autofetch.setMarker(adapterId, account, H2, 1, 3600);
   held.hold(H3, 3600, account);
 
   const { next, remaining } = autofetch.takeNext(
     [{ infoHash: H1 }, { infoHash: H2 }, { infoHash: H3 }, { infoHash: H4 }],
     (cand) => autofetch.isDead(adapterId, account, cand.infoHash) ||
-      Boolean(cache.get(autofetch.markerKey(adapterId, account, cand.infoHash))),
+      Boolean(kvPeek(autofetch.markerKey(adapterId, account, cand.infoHash))),
     (cand) => held.isHeld(cand.infoHash, account),
   );
 
   assert.equal(next?.infoHash, H4, 'pula H1 (dead), H2 (marker) e H3 (held)');
   assert.deepEqual(remaining.map((c) => c.infoHash), [H3], 'adiado (held) não é purgado');
   held.release(H3, account);
+  kvForget(autofetch.markerKey(adapterId, account, H2));
+  kvForget(autofetch.deadKey(adapterId, account, H1));
 });
 
 test('orçamento deslizante de enqueues/hora por adapter:account', () => {

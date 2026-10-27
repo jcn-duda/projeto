@@ -40,7 +40,7 @@
 //   - Não drena a fila (`drainNext`) de novo: o dreno é do recheck, uma vez.
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
-import * as cache from '../utils/cache.js';
+import { kvForget, kvPeek } from '../utils/native-kv.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import * as held from './protected.js';
@@ -94,13 +94,13 @@ function backoffMs(account: string): number {
 /**
  * Cura a blacklist do autofetch quando o hash reaparece tocável (ready): a
  * derivação que a criou estava errada, e manter a marca esconderia o ⚡ do
- * acervo. Leitura por `isDeadQuiet` (peek) e expurgo pelo MESMO `deadKey`; o
- * índice de contagem do autofetch se poda sozinho no próximo snapshot.
+ * acervo. A blacklist é do KV nativo: leitura por `kvPeek` e expurgo pelo MESMO
+ * `deadKey`; o índice de contagem se poda no próximo snapshot.
  */
 function healBlacklist(account: string, hash: string): void {
   const key = deadKey(ADAPTER_ID, account, hash);
-  if (cache.peek(key) !== 1) return;
-  cache.forget(key);
+  if (kvPeek(key) !== 1) return;
+  kvForget(key);
   metrics.count('autofetch.dead.cleared');
 }
 

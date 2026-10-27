@@ -11,6 +11,7 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 
@@ -243,7 +244,7 @@ test('adprot integrado: aceite do pool BR no AllDebrid cria a proteção duráve
     config.debrid.autoFetchProtectBr = originalProtect;
     adAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch('busca-adprot-br');
-    cache.forget(autofetch.markerKey('alldebrid', account, h));
+    kvForget(autofetch.markerKey('alldebrid', account, h));
     held.release(h, account);
     cache.clearNamespace('adprot');
     metrics.reset();
@@ -316,7 +317,7 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
     autofetch.releaseSearch('busca-adprot-seeds');
     autofetch.releaseSearch('busca-adprot-lied');
     for (const h of [hAny, hSeeds, hLied]) {
-      cache.forget(autofetch.markerKey('alldebrid', account, h));
+      kvForget(autofetch.markerKey('alldebrid', account, h));
       held.release(h, account);
     }
     cache.clearNamespace('adprot');
@@ -360,7 +361,7 @@ test('adprot integrado: recusa e falha do enqueue não criam proteção', async 
     await run(hRecusa, 'busca-adprot-recusa');
     await sleep(30);
     assert.equal(held.isDurablyProtected('alldebrid', account, hRecusa), false, 'recusa não cria proteção');
-    assert.equal(cache.get(autofetch.markerKey('alldebrid', account, hRecusa)), null, 'recusa também não grava marker');
+    assert.equal(kvPeek(autofetch.markerKey('alldebrid', account, hRecusa)), null, 'recusa também não grava marker');
 
     adAdapter.enqueue = async () => { throw new Error('falha simulada'); };
     await run(hFalha, 'busca-adprot-falha');
@@ -375,8 +376,8 @@ test('adprot integrado: recusa e falha do enqueue não criam proteção', async 
     adAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch('busca-adprot-recusa');
     autofetch.releaseSearch('busca-adprot-falha');
-    cache.forget(autofetch.markerKey('alldebrid', account, hRecusa));
-    cache.forget(autofetch.markerKey('alldebrid', account, hFalha));
+    kvForget(autofetch.markerKey('alldebrid', account, hRecusa));
+    kvForget(autofetch.markerKey('alldebrid', account, hFalha));
     held.release(hRecusa, account);
     held.release(hFalha, account);
     cache.clearNamespace('adprot');
