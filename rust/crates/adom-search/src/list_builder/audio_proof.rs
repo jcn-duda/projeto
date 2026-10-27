@@ -9,8 +9,8 @@
 
 use adom_core::{
     audio_from_title, dn_contradicts_dub_claim, en_scene_mirror_title, explicit_pt_audio,
-    foreign_lang_named_for_bucket, looks_pt_br, pt_title_dual_marks, PtTitleDualItem,
-    PtTitleDualTitles,
+    foreign_lang_named_for_bucket, looks_pt_br, pt_title_dual_marks, russian_dub_dn,
+    PtTitleDualItem, PtTitleDualTitles,
 };
 
 use crate::raw_item::RawItem;
@@ -50,7 +50,16 @@ pub fn apply_pt_title_dual(items: &mut [RawItem], titles: Option<&PtTitleDualTit
 /// vocabulário ou `ptTitleDual`) prova sozinho; o flag do indexer só vale se o
 /// título não for o nome de cena EN intacto — agregador BR republica magnet
 /// gringo ("Barbie (2023) 1080p WEBRip [YTS.MX]") e o flag dava vaga BR a ele.
+///
+/// O `dn=` de tracker russo (`russian_dub_dn`) veta ANTES do título: o post BR
+/// "The Cycle [1080p WEB-DL LEGENDADO]" carregava `The.Cycle.2026.D.WEB-DL`, e o
+/// "LEGENDADO" do post provava BR para um arquivo sem nada em PT. Só a prova de
+/// arquivo (dublado medido no play) passa por cima do `dn`.
 pub fn origin_is_br(item: &RawItem, title: &str, audit: &AudioAudit) -> bool {
+    let proven_pt = item.proven_audio.as_deref().is_some_and(is_dub_label);
+    if !proven_pt && russian_dub_dn(&item.dn()) {
+        return false;
+    }
     if item.pt_title_dual || looks_pt_br(title) {
         return true;
     }

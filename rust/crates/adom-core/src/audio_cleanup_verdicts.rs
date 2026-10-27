@@ -26,7 +26,8 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::audio_lang::foreign_dub_guard_hit;
-use crate::br_origin::has_pt_signs;
+use crate::br_origin::{br_origin_mark, has_pt_signs};
+use crate::pt_audio_guards::explicit_pt_audio;
 use crate::title_normalization::normalize_title;
 
 /// `GENERIC_DUB_MARKER_RE`: só um marcador que normaliza para exatamente
@@ -182,6 +183,66 @@ pub fn en_scene_mirror_title(title: &str, pt_markers: &[&str], en_groups: &[&str
     strong_en_scene_mark(title, pt_markers, en_groups).is_some()
 }
 
+/// Narração/dublagem no padrão dos trackers russos: `MVO`/`AVO`/`DVO` soltos e
+/// em MAIÚSCULAS — "A.Avo.2021" (Avó sem acento) é título PT, não sigla.
+fn ru_voice_over_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?:^|[^\p{L}\p{N}])(?:MVO|AVO|DVO)(?:[^\p{L}\p{N}]|$)")
+            .expect("voice-over russo compila")
+    })
+}
+
+/// `Dub` só na COMBINAÇÃO de faixas russa (`Dub + MVO`, `+ Dub`) ou logo após
+/// o bloco de metadados (`[2009, HDRip] Dub`): o "Dub" solto de site BR
+/// (`Filme.DUB.mkv`, `720p Dub`, `1ª Temporada Dub (2026)`) é abreviação de
+/// dublado e não pode cair aqui.
+fn ru_dub_combo_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\+\s*dub(?:[^\p{L}\p{N}]|$)|(?:^|[^\p{L}\p{N}])dub\s*\+|\]\s*dub(?:[^\p{L}\p{N}]|$)",
+        )
+            .expect("combinação Dub compila")
+    })
+}
+
+/// `Sub Rus` / `Sub (Rus, Eng)`.
+fn ru_sub_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)(?:^|[^\p{L}\p{N}])sub\s*\(?\s*rus(?:[^\p{L}\p{N}]|$)")
+            .expect("Sub Rus compila")
+    })
+}
+
+/// `.ANO.D.`: o `D` maiúsculo logo após o ano é a sigla de dublagem dos
+/// trackers russos (`The.Cycle.2026.D.WEB-DL.1080p`). Sensível a caixa e
+/// preso ao ano: uma letra solta em outro lugar não prova nada.
+fn ru_year_d_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?:^|[ ._\-\[(])(?:19|20)[0-9]{2}[ ._\-]D[ ._\-]").expect("ano.D compila")
+    })
+}
+
+/// `dn=` de release de tracker russo: cirílico, `MVO`/`AVO`/`DVO`, a
+/// combinação `Dub +`, `Sub Rus` ou `.ANO.D.`. Agregador BR republica esse
+/// magnet num post "LEGENDADO" (The Cycle 2026, Apache, 2026-10-26) e o flag
+/// do indexer dava BR a um arquivo sem nada em PT. Marca PT explícita ou
+/// qualquer sinal de origem BR no `dn` (acento, vocabulário, marca de site)
+/// preserva — falso negativo de BR custa mais que um rótulo a mais.
+pub fn russian_dub_dn(dn: &str) -> bool {
+    if dn.is_empty() || explicit_pt_audio(dn) || br_origin_mark(dn) {
+        return false;
+    }
+    dn.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c))
+        || ru_voice_over_re().is_match(dn)
+        || ru_dub_combo_re().is_match(dn)
+        || ru_sub_re().is_match(dn)
+        || ru_year_d_re().is_match(dn)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +296,70 @@ mod tests {
         );
         assert!(!r.lie);
         assert_eq!(r.video_count, 2);
+    }
+
+    #[test]
+    fn dn_de_tracker_russo_tem_marca_de_dublagem() {
+        // Caso real: Apache/Comando republicaram este magnet num post LEGENDADO.
+        assert!(russian_dub_dn("The.Cycle.2026.D.WEB-DL.1O8Op.mkv"));
+        assert!(russian_dub_dn("The.Cycle.2026.D.WEB-DLRip.avi"));
+        assert!(russian_dub_dn(
+            "Звездный путь / Star Trek [2009, США, HDRip] Dub"
+        ));
+        assert!(russian_dub_dn(
+            "The Cycle [2026, UK, WEB-DL 720p] MVO (HDRezka Studio) + Original Eng"
+        ));
+        assert!(russian_dub_dn("Movie [2015, BDRip] Dub + AVO (Zhivov)"));
+        assert!(russian_dub_dn("Movie [2015, BDRip] Original + Dub"));
+        assert!(russian_dub_dn("Movie [1980, BDRip] [Theatrical Cut] Dub"));
+        assert!(russian_dub_dn(
+            "The Cycle [2026, WEB-DLRip] Sub (Rus, Eng) + Original Eng"
+        ));
+        assert!(russian_dub_dn("Movie 2020 BDRip DVO Sub Rus"));
+    }
+
+    #[test]
+    fn dn_sem_marca_russa_nao_e_vetado() {
+        // DUB solto é abreviação de dublado em site BR, não sigla russa.
+        assert!(!russian_dub_dn("Filme.2024.1080p.DUB.mkv"));
+        assert!(!russian_dub_dn("Filme [1080p WEB-DL DUB]"));
+        // D fora do ano, ano sem D e D minúsculo não provam nada.
+        assert!(!russian_dub_dn("Dune.Part.Two.2024.1080p.WEB-DL"));
+        assert!(!russian_dub_dn("The.D.Train.2015.1080p.BluRay"));
+        assert!(!russian_dub_dn("Movie.2024.d.WEB-DL"));
+        assert!(!russian_dub_dn(
+            "The Cycle (2026) [1080p] [WEBRip] [5.1] [YTS]"
+        ));
+        // Palavras que contêm as siglas não casam.
+        assert!(!russian_dub_dn("Dubai.Bling.S01.1080p"));
+        assert!(!russian_dub_dn("Havoc.2025.1080p.WEB-DL"));
+        assert!(!russian_dub_dn("Subrosa.2024.Russian.Doll.1080p"));
+        assert!(!russian_dub_dn(""));
+    }
+
+    #[test]
+    fn dn_de_site_br_medido_em_producao_segue_br() {
+        // dn reais de releases BR DUBLADAS (magnets.db da VPS, 2026-10-26) que
+        // a primeira versão da régua vetava.
+        assert!(!russian_dub_dn("A.Avo.2021.1080p.BluRay.x264.DUAL.2.0"));
+        assert!(!russian_dub_dn(
+            "Eu.e.Meu.Avo.Nihonjin.2025.1080p.WEB-DL.x264.DUAL.2.0"
+        ));
+        assert!(!russian_dub_dn("Cidade de Sangue 1ª Temporada Dub (2026)"));
+        assert!(!russian_dub_dn(
+            "COMANDO.TO - Eurotrip Passaporte para a Confusão 2004 720p DUB"
+        ));
+        assert!(!russian_dub_dn(
+            "O Natal Maluco de Harold e Kumar (2011) 3D 1080p Dub"
+        ));
+        assert!(!russian_dub_dn(
+            "Corra que a Pol&iacute;cia Vem A&iacute; 2 (1991) BDrip 720p Dub"
+        ));
+    }
+
+    #[test]
+    fn marca_pt_explicita_preserva_mesmo_com_sigla_russa() {
+        assert!(!russian_dub_dn("Filme.2024.D.WEB-DL.Dublado.mkv"));
+        assert!(!russian_dub_dn("Filme [2024] Dub + MVO + PT-BR"));
     }
 }

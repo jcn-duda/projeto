@@ -260,7 +260,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 // ── title_normalization ──────────────────────────────────────────────
 pub use audio_cleanup_verdicts::{
     dn_contradicts_dub_claim, dubbed_lie_verdict, en_scene_mirror_title, has_pt_audio_mark,
-    strong_en_scene_mark, DubbedLieVerdict,
+    russian_dub_dn, strong_en_scene_mark, DubbedLieVerdict,
 };
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,

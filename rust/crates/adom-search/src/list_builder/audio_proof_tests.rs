@@ -226,6 +226,37 @@ fn espelho_de_cena_en_perde_a_origem_br_do_indexer() {
     ));
 }
 
+#[test]
+fn dn_de_tracker_russo_tira_a_origem_br_do_post_legendado() {
+    // The Cycle (2026): post BR LEGENDADO com o magnet russo `.2026.D.`.
+    let audit = AudioAudit::default();
+    let title = "The Cycle [1080p WEB-DL LEGENDADO]";
+    let mut russo = raw(title);
+    russo.is_br = true;
+    with_dn(&mut russo, "The.Cycle.2026.D.WEB-DL.1O8Op.mkv");
+    assert!(
+        !origin_is_br(&russo, title, &audit),
+        "o LEGENDADO do post não prova BR com dn russo"
+    );
+
+    let mut proprio = raw(title);
+    proprio.is_br = true;
+    with_dn(&mut proprio, "The.Cycle.2026.1080p.WEB-DL.Legendado.mkv");
+    assert!(
+        origin_is_br(&proprio, title, &audit),
+        "dn sem marca russa segue BR"
+    );
+
+    let mut medido = raw(title);
+    medido.is_br = true;
+    with_dn(&mut medido, "The.Cycle.2026.D.WEB-DL.1080p");
+    medido.proven_audio = Some("Dublado".into());
+    assert!(
+        origin_is_br(&medido, title, &audit),
+        "prova de arquivo com PT vence o dn"
+    );
+}
+
 // ptTitleDual in-process (porte de src/providers/pt-title-dual.ts) -------
 
 fn dual_titles() -> PtTitleDualTitles {
