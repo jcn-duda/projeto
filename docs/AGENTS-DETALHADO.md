@@ -2267,7 +2267,8 @@ raspagem primeiro — pausa automática = caído, erro seguido = instável, pág
 servida sem erro em 30 min = no ar — e só depois da última busca do card no
 Jackett. Nada medido nunca vira "no ar".
 
-**Título original como segundo nome da identificação** (`crawl-identify.ts`).
+**Título original como segundo nome da identificação** (hoje no `TmdbCatalog`
+nativo, `adom-crawl/src/ingest/native.rs`).
 O NerdFilmes publica `<span class="movie-original">Título original: …</span>`
 sob o `<h1>`; o ComandoTorrents e o TorrentDosFilmes, na FICHA
 (`<b>Título Original:</b> Nome<br>`) — `parseOriginalTitle`, núcleo
@@ -2726,8 +2727,8 @@ temporada declarada nas linhas**. Com N≥2 a janela `seriesStartedBy` abre, e e
 cobre o ano da estreia (Community, 2009 — "1ª 2ª 3ª 4ª 5ª 6ª Temporada") e o de
 temporada posterior (Grown-ish, 3ª temporada, ano distinto da estreia); sem a
 janela, o ±1 recusaria a obra certa e a página iria para `no-work`. Com N=1 ou
-nenhuma linha declarando, o ±1 de sempre — é o mesmo campo que o
-`crawl-identify.ts` já lia, agora alimentado pela evidência de cada linha.
+nenhuma linha declarando, o ±1 de sempre — é o mesmo campo do `identify` (hoje
+nativo), agora alimentado pela evidência de cada linha.
 
 **O card por site existe MESMO com o crawler desligado.** O `status` abre a
 engine quando ainda não há nenhuma e há site configurado (`statusEngine`): sem
@@ -2748,15 +2749,23 @@ Vaca a 1 req/página, o NerdFilmes (página de série, ~9) aparecia com 1 h no
 lugar das 9 h. Site sem custo medido não pega o do vizinho: ETA `null` com
 `etaBasis` explícito, nunca um número emprestado de outra obra.
 
-**Identificação TMDB: o porte Rust existe, a fiação NÃO.**
+**Identificação TMDB: NATIVA desde a T3-L3** (este parágrafo foi corrigido em
+2026-10-27 — ele afirmava que a fiação não existia; ela fechou em `54209dc8`,
+"sidecar identifica e grava a página nativamente").
 `rust/crates/adom-sources/src/tmdb/` tem a busca por título (`search.rs`), o
 veredito (`identify.rs`) e o cache próprio (`search_cache.rs`), com
-`TmdbClient::identify` público. Mas o corte para aí: o `adom-crawl` não declara
-`adom-sources` no `Cargo.toml`, nenhum consumidor de produção chama
-`TmdbClient::identify` (só os testes do crate), e quem identifica o post
-continua sendo `src/providers/crawl-identify.ts`, consumido por
-`src/routes/internal-crawl-result.ts`. Não trate a identificação do crawl como
-portada; a fiação e a remoção do TS não aconteceram.
+`TmdbClient::identify` público. O `adom-crawl` declara `adom-sources` no
+`Cargo.toml` e a fiação de produção é `ingest/native.rs`
+(`impl ObraCatalog for TmdbCatalog`): `identify` + `get_titles` do cliente, com
+store no `cache.db` de metadados (memória quando o SQLite não abre — perde a
+persistência, nunca a consulta). O sidecar identifica e GRAVA a página no
+próprio processo; `src/providers/crawl-identify.ts` e
+`src/routes/internal-crawl-result.ts` foram apagados, e o que sobrou em
+`register.ts` é o comentário do motivo (o motor grava e nada é postado para o
+Node). Sem `TMDB_API_KEY` a fiação não liga a ingestão (sem nomes o `record`
+queimaria `tries` de toda página). A invalidação do `streams.db` do gateway sai
+do sidecar pela API admin (`POST /streams/invalidate`), fail-open: a página já
+foi gravada e o pior caso é servir dado velho até o TTL.
 
 ---
 
@@ -3051,11 +3060,11 @@ fire-and-forget) continua.
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot do Chupim), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
-| `src/providers/crawl-identify.ts` | Identificação do post do crawl (título original, ano, temporada) — ainda TS: o porte em `adom-sources::tmdb` não está fiado no `adom-crawl` |
+| ~~`src/providers/crawl-identify.ts`~~ | **Removido na T3-L3** (`54209dc8`). A identificação é nativa: `TmdbCatalog` (`adom-crawl/src/ingest/native.rs`) liga `adom_sources::identify`/`get_titles` à costura `ObraCatalog`, e o sidecar grava a página no próprio processo |
 | ~~`src/providers/collect-orchestrator.ts`~~ | **Removido no R5.** A coleta é nativa (cinco fontes + conta); `POST /internal/search/collect` e `NodeCollector` saíram. `collection-budget`/`collection-window`/`source-selection` e `stream-file-evidence` foram junto |
 | ~~`src/providers/search-index-path.ts`~~ | **Removido no R4.** Índice/banco têm dono único no Rust; `POST /internal/search/index|index-write|fallback` saíram |
 | ~~`src/providers/magnet-bank-instant.ts`~~ | **Removido no R4.** Instantânea/reserva 📦 e a leitura do índice são nativas (`adom-search/orchestrator/fast_path.rs`, `index_source.rs`, `native_index.rs`) |
-| `src/providers/debrid-cache-steps.ts` / `dub-audit.ts` / `episode-size.ts` | Etapas de debrid que sobreviveram ao corte (pré-checagem, auditoria de áudio, anotação de tamanho) — consumidas pelo oráculo e pelo autofetch |
+| `src/providers/debrid-cache-steps.ts` / `episode-size.ts` | Etapas de debrid que sobreviveram ao corte (pré-checagem, anotação de tamanho) — consumidas pelo oráculo e pelo autofetch. O `dub-audit.ts` saiu na T3-L7a (nativo em `adom-server/src/dub_audit.rs`) |
 | ~~`search-cache`/`search-orchestrator`/`stream-builder*`/`debrid-pipeline*`~~ | **Removidos no F4.4.** `applyDebrid`/`play-guard` vivem em `test/helpers/pipeline-oracle/` como oráculo congelado; a decisão de produção é do núcleo Rust |
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
 | `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |

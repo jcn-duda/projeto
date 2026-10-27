@@ -161,8 +161,8 @@ npm run docker:up / docker:logs
   **`/test-indexer.json` responde 410** (busca de teste): coleta e colheita são
   nativas — o estado do colhedor mora em `GET /harvest` na admin do gateway.
   **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process,
-  resolve/facts e resolve/effects do play nativo e as rotas do sidecar:
-  crawl-result e activity) só existe em loopback + token; a
+  resolve/facts e resolve/effects do play nativo e a rota do sidecar:
+  activity) só existe em loopback + token; a
   fachada Rust recusa `/internal/*` antes do proxy (o Caddy também bloqueia). A
   guarda de loopback do Node **não** distingue o cliente atrás do proxy — a
   recusa tem que estar na fachada. **O corte nativo é FIXO**: o
@@ -202,8 +202,8 @@ npm run docker:up / docker:logs
 
 Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
 o Node não monta mais lista. O Node fica com I/O e rede: metadados em
-**fallback**, efeitos do play (aplicação), debrid do `dub-audit`, painel,
-`/configure` e o raspador.
+**fallback**, efeitos do play (aplicação), painel, `/configure` e o estado do
+raspador (o crawl em si é do sidecar).
 
 ```
 Caddy → adom-server (:7000) → Orchestrator (adom-search)
@@ -219,8 +219,8 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
-`/internal/debrid/holds`, as rotas do sidecar (`/internal/crawl-result`,
-`/internal/activity`), painel/config, autofetch e raspador (workers próprios).
+`/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
+painel/config e os workers próprios do autofetch (o crawl é do sidecar).
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
@@ -459,12 +459,16 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   conta 1 requisição no custo da página; desafio persistente é erro, sem laço. Pelo
   Flare o sitemap do Yoast volta como **tabela HTML (viewer)**, não XML: o
   `parseSitemapEntries` cai em `parseViewerEntries` (`vaca-sitemap-viewer.ts`).
-- **Identificação TMDB ainda é do TS.** O porte Rust existe em
-  `rust/crates/adom-sources/src/tmdb/` (`search.rs`, `identify.rs`,
-  `search_cache.rs`; `TmdbClient::identify` é público), mas NÃO está fiado: o
-  `adom-crawl` não depende de `adom-sources` e quem identifica é
-  `src/providers/crawl-identify.ts`, consumido por
-  `src/routes/internal-crawl-result.ts`. O corte não aconteceu.
+- **Identificação TMDB é NATIVA (T3-L3, `54209dc8`).** O `adom-crawl` declara
+  `adom-sources` e liga `identify`/`get_titles` (`TmdbCatalog`,
+  `ingest/native.rs`) à costura `ObraCatalog`: a página sem IMDb ganha o mesmo
+  veredito de quatro estados (`identified|unidentified|ambiguous|unavailable` —
+  só o último é retentável) e os nomes do filtro saem do `Titles` do cliente,
+  aliases BR incluídos. O sidecar grava a página no próprio processo:
+  `POST /internal/crawl-result` e `src/providers/crawl-identify.ts` **não
+  existem mais**. Sem `TMDB_API_KEY` a fiação não monta a ingestão (sem nomes o
+  `record` queimaria `tries` de toda página). A invalidação do `streams.db` do
+  gateway sai pela API admin (`POST /streams/invalidate`), fail-open.
 - Config por site no painel (`siteOverrides`); sites do painel nascem desligados.
 
 ---
@@ -520,10 +524,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do `dub-audit` (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos e o feed de holds (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
 | Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`; fila e worker do colhedor são do gateway (`adom-harvest`), o Node só tem a ponte `src/utils/harvest-native.ts` |
-| Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*`; a identificação ainda é `crawl-identify.ts`, consumida por `src/routes/internal-crawl-result.ts` |
+| Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710) |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
@@ -592,6 +596,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 
 ## Git
 
-Branch de trabalho: `esm`. Commits em português com prefixo convencional
+Branch de trabalho: `rust` (o `esm` é o oráculo dos goldens, no checkout
+irmão `E:/adom-esm`). Commits em português com prefixo convencional
 (`feat:`, `fix:`). `.env` é ignorado e **contém chaves reais** — nunca faça
 commit nem cole seu conteúdo.
