@@ -7,6 +7,7 @@
  * seleção TS de imediatos/fila saiu do branch (oráculo no `esm`).
  */
 import { requireCore } from './rust-core.js';
+import type { NativeKvNapi } from './native-kv.js';
 import * as metrics from './metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -82,6 +83,44 @@ export type AutofetchInputNapi = {
   pendingReservations: unknown[];
 };
 
+// ---------------------------------------------------------------------------
+// Fila v3 no KV nativo (`autofetch/queue_v3.rs`): o formato REAL da fila do
+// Chupim. O candidato cruza como STRING (o `JSON.stringify` do Node), nunca
+// como objeto napi — é o que preserva o formato exato do `QueueCandidate`.
+// ---------------------------------------------------------------------------
+
+/** Opções do `autofetchV3WriteQueue` (o `AutofetchQueueWriteOpts` do Rust). */
+export type AutofetchQueueWriteOptsNapi = {
+  /** TTL da chave da fila (`DEBRID_AUTO_FETCH_QUEUE_TTL`). */
+  ttlSeconds: number;
+  /** Teto de candidatos na fila (`autoFetchQueueDepth`). */
+  depth: number;
+  /** Escopo do filtro de hash morto: só vale com adapter E conta. */
+  adapterId?: string | null;
+  account?: string | null;
+};
+
+/** Relatório do `write_queue`: `kept` gravados, `dropped` descartados. */
+export type AutofetchQueueWriteReportNapi = { kept: number; dropped: number };
+
+/**
+ * Portas da fila v3 sobre o `NativeKv`: chave, leitura/gravação por searchKey,
+ * drop (aceita chave pronta ou searchKey) e varredura das chaves vivas.
+ */
+export type AutofetchQueueCore = {
+  autofetchV3QueueKey(searchKey: string): string;
+  autofetchV3ReadQueue(kv: NativeKvNapi, searchKey: string, nowMs: number): string | null;
+  autofetchV3WriteQueue(
+    kv: NativeKvNapi,
+    searchKey: string,
+    candidatesJson: string,
+    opts: AutofetchQueueWriteOptsNapi,
+    nowMs: number,
+  ): AutofetchQueueWriteReportNapi;
+  autofetchV3DropQueue(kv: NativeKvNapi, keyOrSearchKey: string): boolean;
+  autofetchV3QueueKeys(kv: NativeKvNapi, nowMs: number): string[];
+};
+
 export type AutofetchCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type QueueCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type SkipNapi = { reason: string; rollback: string[]; infoHash: string };
@@ -92,7 +131,7 @@ export type AutofetchDecisionNapi = {
   trace?: { pool?: string; disabled?: boolean };
 };
 
-export type AutofetchCore = {
+export type AutofetchCore = AutofetchQueueCore & {
   evaluateAutofetchCandidates(input: AutofetchInputNapi): AutofetchDecisionNapi;
 };
 

@@ -13,6 +13,7 @@ import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { canAutoFetchBr } from '../src/utils/format.js';
 import { accountScope } from '../src/utils/request-key.js';
+import { kvSet } from '../src/utils/native-kv.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { recordAutofetchRelease } from '../src/providers/autofetch-index.js';
 import * as releaseIndex from '../src/utils/release-index.js';
@@ -20,7 +21,7 @@ import {
   H1, H2, H3, H4, sleep, mkAdapter, premiumizeRunCtx, dinvKeyFor,
 } from './helpers/autofetch-fixtures.js';
 
-test('reindexQueues reconstrói knownQueues a partir do cache (bypass writeQueue)', () => {
+test('reindexQueues reconstrói knownQueues a partir do KV nativo (bypass writeQueue)', () => {
   const searchKey = 'streams:v7:movie:ttReindexBoot';
   const key = autofetch.queueKey(searchKey);
   autofetch.dropQueue(key);
@@ -28,9 +29,10 @@ test('reindexQueues reconstrói knownQueues a partir do cache (bypass writeQueue
   const cand: autofetch.QueueCandidate[] = [
     { infoHash: H1, title: 'Reindex candidate' },
   ];
-  // Sem writeQueue: knownQueues só vê a fila após reindex.
-  cache.set(key, cand, 3600);
+  // Sem writeQueue: knownQueues só vê a fila após reindex. O plantio vai DIRETO
+  // ao KV nativo — o valor da fila não mora mais no cache do Node.
   const before = autofetch.snapshot().queues.count;
+  kvSet(key, cand, 3600);
   const added = autofetch.reindexQueues();
   // Outras filas órfãs (sujeira paralela) também entram — basta subir o count.
   assert.ok(added >= 1, 'reindex descobriu ao menos a fila plantada');

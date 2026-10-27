@@ -1,7 +1,8 @@
 // Prova de round-trip do FORMATO v3 da fila do Chupim entre o Node e o Rust —
-// o degrau 1 da T3-L5 (o crate `adom-autofetch::v3`), SEM wiring: o caminho de
-// produção (`writeQueue`/`readQueue` do Node) continua intacto. O que se prova
-// aqui, contra o código REAL dos dois lados:
+// o degrau 1 da T3-L5 (o crate `adom-autofetch::v3`), agora com a fila VIVA no
+// KV nativo (T3-L5): `writeQueue`/`readQueue` do Node operam direto em
+// `autofetch:v3:q:<sha256(searchKey)>`, sem L1. O que se prova aqui, contra o
+// código REAL dos dois lados:
 //   1. a chave é o MESMO sha256 hex minúsculo (`queueKey` TS === napi);
 //   2. o JSON que o `writeQueue`/`toQueueCandidate` reais gravam é legível pelo
 //      Rust (`QueueCandidate`) sem perda (deepEqual exato);
@@ -9,11 +10,12 @@
 //      inclusive `null` da sonda e `addedAt` preenchido);
 //   4. dead/marker têm o MESMO escopo e as MESMAS formas (`1`, `{id}`, meta).
 //
-// Ponte de storage do teste: o `cache.set` do Node despeja no SQLite no
-// próximo tick e o handle nativo é `:memory:` (CACHE_PERSIST=false), então o
-// teste TRANSPORTA o valor exato que o Node produziu para o handle via
-// `setJson` — o mesmo INSERT da tabela `cache` provado em debrid-kv-owned.
-// Nada aqui é fixture inventado: o JSON sai do `writeQueue` de verdade.
+// Ponte de storage do teste: a FILA já nasce no handle nativo e é lida por
+// `kvPeek` — não há mais transporte do L1 para ela. Para dead/marker (estado
+// que ainda pode morar no L1), `ensureNative` aceita o valor do Node e o
+// despeja no handle via `setJson` — o mesmo INSERT da tabela `cache` provado em
+// debrid-kv-owned. Nada aqui é fixture inventado: o JSON sai do `writeQueue` de
+// verdade.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -22,13 +24,13 @@ import * as autofetch from '../src/providers/autofetch.js';
 import { toQueueCandidate, type AutoFetchStream } from '../src/providers/autofetch-fallback.js';
 import { markerValue } from '../src/providers/autofetch-marker.js';
 import * as cache from '../src/utils/cache.js';
-import { nativeKv, kvPeek } from '../src/utils/native-kv.js';
+import { nativeKv, kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { requireCore } from '../src/utils/rust-core.js';
 import type { Stream } from '../types/domain.js';
 import type { QueueCandidate } from '../src/providers/autofetch.js';
 
-// Superfície do núcleo para o formato v3. Tipada LOCALMENTE: a ponte de
-// PRODUÇÃO da fila nasce com o wiring da T3-L5; aqui é o contrato de prova.
+// Superfície do núcleo para o formato v3. Tipada LOCALMENTE: o wiring de
+// produção da T3-L5 usa este contrato; aqui ele é exercitado de fora.
 type QueueV3Core = {
   autofetchV3QueueKey(searchKey: string): string;
   autofetchV3ReadQueue(kv: unknown, searchKey: string, nowMs: number): string | null;
@@ -91,8 +93,14 @@ function packCandidate(hash: string): QueueCandidate {
   });
 }
 
-/** Transporta o valor EXATO do cache do Node para o handle nativo e o devolve. */
-function transport(key: string, ttlSeconds = 3600): unknown {
+/**
+ * Garante que o valor de uma chave (já nativa ou ainda no L1 do Node) está no
+ * handle nativo e o devolve. A FILA não passa mais por aqui; dead/marker ainda
+ * podem ser gravados pelo L1 até a fatia que os migra.
+ */
+function ensureNative(key: string, ttlSeconds = 3600): unknown {
+  const fromKv = kvPeek(key);
+  if (fromKv != null) return fromKv;
   const value = cache.get(key);
   assert.ok(value != null, `valor do Node presente em ${key}`);
   // O `setJson` bruto devolve void; a prova de escrita é a leitura de cima.
@@ -111,8 +119,12 @@ test('writeQueue REAL do Node → QueueCandidate do Rust, sem perda', () => {
   try {
     const cand = packCandidate(H1);
     autofetch.writeQueue(searchKey, [cand], 3600, ADAPTER, ACCOUNT);
-    // `nodeValue` é EXATAMENTE o que o writeQueue gravou (addedAt incluído).
-    const nodeValue = transport(autofetch.queueKey(searchKey)) as QueueCandidate[];
+    // `nodeValue` é EXATAMENTE o que o writeQueue gravou no KV nativo
+    // (addedAt incluído): a fila não passa mais pelo L1 do Node.
+    const nodeValue = kvPeek(autofetch.queueKey(searchKey)) as QueueCandidate[];
+    assert.ok(Array.isArray(nodeValue), 'writeQueue gravou na chave nativa');
+    // O dreno TS lê o MESMO valor que o Rust vai ler.
+    assert.deepEqual(autofetch.readQueue(searchKey), nodeValue);
 
     const rustJson = core.autofetchV3ReadQueue(kv, searchKey, NOW + 1);
     assert.ok(rustJson, 'o Rust lê a fila que o Node gravou');
@@ -142,6 +154,8 @@ test('fila gravada pelo Rust → leitura do dreno TS com a mesma semântica', ()
     assert.ok(Array.isArray(raw), 'a fila do Rust está na tabela cache no formato do Node');
     // O addedAt ausente nasce de now (o `c.addedAt || Date.now()` do writeQueue).
     assert.deepEqual(raw, [{ ...cand, addedAt: NOW }]);
+    // O leitor de produção do Node enxerga o que o Rust gravou.
+    assert.deepEqual(autofetch.readQueue(searchKey), raw);
 
     // As cadeias do dreno (`autofetch-drain.ts`) sobre o que o Rust gravou:
     const c = raw[0];
@@ -162,6 +176,7 @@ test('fila gravada pelo Rust → leitura do dreno TS com a mesma semântica', ()
     assert.deepEqual(report2, { kept: 1, dropped: 2 }, 'morto sai e duplicado fica o primeiro');
     const after = kvPeek(autofetch.queueKey(searchKey)) as QueueCandidate[];
     assert.deepEqual(after.map((x) => x.infoHash), [H1]);
+    assert.deepEqual(autofetch.readQueue(searchKey), after, 'o dreno TS lê o mesmo recorte');
   } finally {
     core.autofetchV3DropQueue(kv, searchKey);
   }
@@ -183,7 +198,7 @@ test('writeQueue sem sobrevivente esquece a chave (regra do purgeSeedsQueue)', (
 test('blacklist de mortos: mesmo escopo adapter:conta nos dois lados', () => {
   try {
     autofetch.blacklist(ADAPTER, ACCOUNT, H1, 3600);
-    transport(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
+    ensureNative(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
     assert.equal(core.autofetchV3IsDead(kv, ADAPTER, ACCOUNT, H1, NOW + 1), true, 'Node gravou, Rust lê');
     assert.equal(core.autofetchV3IsDead(kv, ADAPTER, 'outra-conta', H1, NOW + 1), false, 'escopo é por conta');
     assert.equal(core.autofetchV3IsDead(kv, 'torbox', ACCOUNT, H1, NOW + 1), false, 'escopo é por adapter');
@@ -192,6 +207,7 @@ test('blacklist de mortos: mesmo escopo adapter:conta nos dois lados', () => {
     assert.equal(kvPeek(autofetch.deadKey(ADAPTER, ACCOUNT, H2)), 1);
   } finally {
     cache.forget(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
+    kvForget(autofetch.deadKey(ADAPTER, ACCOUNT, H1));
   }
 });
 

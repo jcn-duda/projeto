@@ -17,6 +17,7 @@ import { backfillClassification } from './utils/magnet-bank-backfill.js';
 import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 import * as rustCore from './utils/rust-core.js';
+import * as autofetch from './providers/autofetch.js';
 
 const services = { magnetdb, magnetBank };
 
@@ -24,6 +25,10 @@ const services = { magnetdb, magnetBank };
 // do primeiro carregamento não cair numa resposta. Caminho em `RUST_CORE_PATH`;
 // falha ao carregar só loga (a busca é quem falha depois).
 rustCore.install();
+// Filas que sobreviveram ao restart: o reindex do módulo roda no import, ANTES
+// deste install, e sem núcleo é no-op. Refaz aqui para o painel e o "drenar
+// filas" enxergarem o que está no disco (o dreno por searchKey não depende).
+autofetch.reindexQueues();
 
 // Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
 // LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,

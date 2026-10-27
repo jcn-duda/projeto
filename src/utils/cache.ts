@@ -18,7 +18,7 @@ import {
   namespaceFor, quotaFor, incrementNamespace as bumpNamespace, removeFromStore as dropFromStore, quotaOverflow,
 } from './cache-quotas.js';
 import { createPersistence } from './cache-db.js';
-import { isRustOwned, isForeignKey, prefix } from './cache-keys.js';
+import { isRustOwned, isForeignKey, prefix, AUTOFETCH_QUEUE_PREFIX } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
 import { clearRawStore } from './raw-store-native.js';
 import { davailState, magnetState } from './debrid-state-native.js';
@@ -312,7 +312,9 @@ function clear() {
   persistence.clearDisk();
   // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
   // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa os namespaces
-  // RUST_OWNED também — `davail`/`mag`/`adsub`/`adprot`/`adrm` só existem lá.
+  // RUST_OWNED também — `davail`/`mag`/`adsub`/`adprot`/`adrm` e a fila do
+  // Chupim só existem lá. A fila entra pelo sub-prefixo: marker/pf/dead/sup
+  // continuam no L1/L2 do Node e o truncate acima já os leva.
   clearIdxStore();
   clearRawStore();
   davailState().clear();
@@ -320,6 +322,7 @@ function clear() {
   kvClearPrefix(prefix('adsub'));
   kvClearPrefix(prefix('adprot'));
   kvClearPrefix(prefix('adrm'));
+  kvClearPrefix(AUTOFETCH_QUEUE_PREFIX);
 }
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
@@ -329,6 +332,12 @@ function clearNamespace(namespace: string) {
   // RUST_OWNED não passa pelo L1: `idx`, `raw`, `davail`, `mag`, `adsub`,
   // `adprot` e `adrm` têm handle nativo sobre o MESMO cache.db — o clear deles
   // é inteiro no núcleo.
+  //
+  // `autofetch` é MISTO: a fila (`q:`) vive no KV nativo; `pf:`, `m:`, `dead:`
+  // e `sup:` continuam no L1/L2 do Node e saem pelo `clearWhere` abaixo.
+  // Limpar o KV pelo namespace inteiro não os alcançaria (e apagaria estado
+  // que o Node ainda lê), então só a fila vai pela ponte; o retorno soma as
+  // duas origens.
   const fromRust = wanted === 'idx' ? clearIdxStore()
     : wanted === 'raw' ? clearRawStore()
       : wanted === 'davail' ? davailState().clear()
@@ -336,7 +345,8 @@ function clearNamespace(namespace: string) {
           : wanted === 'adsub' ? kvClearPrefix(prefix('adsub'))
             : wanted === 'adprot' ? kvClearPrefix(prefix('adprot'))
               : wanted === 'adrm' ? kvClearPrefix(prefix('adrm'))
-                : 0;
+                : wanted === 'autofetch' ? kvClearPrefix(AUTOFETCH_QUEUE_PREFIX)
+                  : 0;
   return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
 

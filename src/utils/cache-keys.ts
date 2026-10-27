@@ -233,8 +233,21 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // só despeja no SQLite no próximo `setImmediate`. Escrever pela ponte (`kvSet`,
 // síncrono) fecha a janela em que a marca recém-gravada ainda não barrava o
 // `/magnet/upload`.
+//
+// `autofetch:v3:q:` (a fila do Chupim) entra SÓ pelo sub-prefixo, nunca pelo
+// namespace `autofetch` inteiro: `pf:`, `m:` (marker de aceite), `dead:`
+// (blacklist) e `sup:` continuam sendo escritos e lidos pelo Node nesta fatia.
+// Marcar o namespace inteiro faria `cache.set`/`get` dessas chaves virarem
+// no-op silencioso — sem marker o dreno trataria todo hash como não-marcado e
+// sem blacklist o Chupim voltaria a escolher torrent morto, sem nenhum erro
+// visível. A fila em si mudou de dono: quem grava/lê é o `NativeKv` (mesma
+// tabela `cache` do `cache.db`), e o prefixo é o que impede o L1 velho de
+// responder por ela no `get`/`peek`.
+const AUTOFETCH_QUEUE_PREFIX = `${prefix('autofetch')}q:`;
+
 const RUST_OWNED_PREFIXES = Object.freeze([
   prefix('harvest'), prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot'), prefix('adrm'),
+  AUTOFETCH_QUEUE_PREFIX,
 ]);
 
 const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
@@ -247,6 +260,6 @@ const isForeignKey = (key: string) => {
 const magMetaCountsKey = () => `${prefix('mag_meta')}counts`;
 
 export {
-  NAMESPACE_VERSIONS, LEGACY_PREFIXES, RUST_OWNED, RUST_OWNED_PREFIXES,
+  NAMESPACE_VERSIONS, LEGACY_PREFIXES, RUST_OWNED, RUST_OWNED_PREFIXES, AUTOFETCH_QUEUE_PREFIX,
   isRustOwned, isForeignKey, prefix, magMetaCountsKey,
 };

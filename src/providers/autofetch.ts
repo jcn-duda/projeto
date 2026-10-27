@@ -5,21 +5,22 @@ import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import { getCore, requireCore } from '../utils/rust-core.js';
+import { nativeKv } from '../utils/native-kv.js';
+import type { AutofetchQueueCore } from '../utils/rust-autofetch.js';
 import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
 import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
 import { countAllSuppressed } from './autofetch-suppressed.js';
 import { deadKey } from './autofetch-keys.js';
 
-const pending = new Map();
-const searchSlots = new Map();
+const pending = new Map(); const searchSlots = new Map();
 const LOCK_TTL_MS = 60_000;
 
 // Janela deslizante de 1h de enqueues por adapter:account
 const hourlyEnqueues = new Map<string, number[]>();
 const hourlyLimits = new Map<string, number>();
 const budgetBlocked = new Map<string, number>();
-// Índices de diagnóstico deste processo. As filas/blacklists continuam no
-// cache persistente; estes sets só permitem contar sem enumerar chaves privadas.
+// Índices de diagnóstico do processo: as filas/dead moram no disco (KV nativo/cache).
 const knownQueues = new Map<string, number>();
 const knownDead = new Set<string>();
 
@@ -27,21 +28,21 @@ function sha256(str: string) {
   return crypto.createHash('sha256').update(String(str || '')).digest('hex');
 }
 
-const QUEUE_PREFIX = `${prefix('autofetch')}q:`;
-const DEAD_PREFIX = `${prefix('autofetch')}dead:`;
+const QUEUE_PREFIX = `${prefix('autofetch')}q:`; const DEAD_PREFIX = `${prefix('autofetch')}dead:`;
 
+/** Portas v3 da fila no núcleo (`queue_v3.rs`): o TS não guarda cópia da regra. */
+const queueCore = () => requireCore() as unknown as AutofetchQueueCore;
+
+/** Chave da fila: o formato v3 é do núcleo (mesmo sha256 hex de antes — contrato do dreno). */
 function queueKey(searchKey: string) {
-  return `${QUEUE_PREFIX}${sha256(searchKey)}`;
+  return queueCore().autofetchV3QueueKey(String(searchKey || ''));
 }
 
 function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
   return `${prefix('autofetch')}pf:${account}:${id}:${s}:${e}`;
 }
 
-/**
- * Trava apenas enquanto a API responde. Persistir antes do aceite criava seis
- * horas de falso positivo quando o processo reiniciava ou a chamada falhava.
- */
+/** Trava só enquanto a API responde: gravar antes do aceite dava 6h de falso positivo. */
 function acquire(key: string) {
   if (pending.has(key)) return false;
   const token = Symbol(key);
@@ -57,13 +58,10 @@ function release(key: string) {
 }
 
 /**
- * Contador de vagas por busca, compartilhado entre o passe parcial e o tardio
- * (os dois usam o mesmo searchKey). Substitui o boolean antigo: permitia só um
- * torrent por busca, qualquer que fosse; agora cabem até `max` candidatos.
- *
- * A TTL limpa a entrada inteira quando a busca morre (o lote tardio pode
- * terminar dezenas de segundos depois); cada `releaseSearchSlot` em refusa/erro
- * devolve a vaga sem vazar o contador.
+ * Vagas por busca, compartilhadas entre o passe parcial e o tardio (mesmo
+ * searchKey): até `max` candidatos. A TTL limpa a busca que morreu (o lote
+ * tardio pode terminar dezenas de segundos depois) e `releaseSearchSlot`
+ * devolve a vaga em recusa/erro sem vazar o contador.
  */
 function acquireSearchSlot(searchKey: string, max = 1) {
   if (!searchKey) return false;
@@ -104,9 +102,7 @@ function isDead(adapterId: string, account: string, infoHash: string): boolean {
   return cache.get(deadKey(adapterId, account, infoHash)) === 1;
 }
 
-/** Leitura de diagnóstico (P5): mesma blacklist, `cache.peek` — sem promover
- * o LRU nem contar hit/miss. Quem pergunta é o funil explicando um sumiço,
- * não o pipeline decidindo uma vaga. */
+/** Leitura de diagnóstico (P5): mesma blacklist por `cache.peek`, sem LRU nem hit/miss. */
 function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean {
   if (!adapterId || !account || !infoHash) return false;
   return cache.peek(deadKey(adapterId, account, infoHash)) === 1;
@@ -127,21 +123,14 @@ function blacklist(
 /** Fila persistente de candidatos excedentes */
 interface QueueCandidate {
   infoHash: string;
-  name?: string;
-  title?: string;
-  quality?: string;
+  name?: string; title?: string; quality?: string;
   size?: number; // bytes do download (política seeds do dreno); ausente = cai no 💾 do title
   seeders?: number;
   br?: boolean; dubbed?: boolean; lied?: boolean;
-  // Classificação de áudio que só o banco tem (`_bankDub`): o dreno precisa
-  // dela para o protectBr do AllDebrid — o registro `dubbed` sozinho perdeu a
-  // marca.
-  bankDub?: boolean;
-  pool?: string;
-  imdbId?: string;
+  bankDub?: boolean; // áudio que só o banco tem: o dreno leva a marca ao protectBr
+  pool?: string; imdbId?: string;
   isPack?: boolean; rare?: boolean; slotLimit?: number; // evidência rara do pool seeds p/ o dreno
-  // Sonda (Fase 4): a identidade ORIGINAL da busca fica em probeSeason/
-  // probeEpisode — o pack tem `episode` nulo para cap, mas a sonda olha o E.
+  // Sonda (Fase 4): a identidade ORIGINAL da busca — o pack tem `episode` nulo para cap.
   season?: number | null; episode?: number | null; probeSeason?: number | null; probeEpisode?: number | null;
   addedAt?: number;
   [key: string]: unknown;
@@ -149,8 +138,27 @@ interface QueueCandidate {
 
 function readQueue(searchKey: string): QueueCandidate[] {
   if (!searchKey) return [];
-  const hit = cache.get(queueKey(searchKey));
-  return Array.isArray(hit) ? hit : [];
+  try {
+    const raw = queueCore().autofetchV3ReadQueue(nativeKv(), searchKey, Date.now());
+    const value: unknown = raw == null ? null : JSON.parse(raw);
+    return Array.isArray(value) ? (value as QueueCandidate[]) : [];
+  } catch (err) {
+    // Fila ilegível ou núcleo fora = sem candidato: o dreno não pode lançar.
+    log.warn(`[autofetch] leitura da fila falhou: ${log.errorMessage(err)}`);
+    return [];
+  }
+}
+
+/** Itens de uma fila JÁ CHAVEADA (`null` = leitura falhou, não é o mesmo que vazia). */
+function queueCountAt(key: string, nowMs: number): number | null {
+  try {
+    const raw = nativeKv().getJson(key, nowMs);
+    if (raw == null) return 0;
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? value.length : 0;
+  } catch {
+    return null;
+  }
 }
 
 function writeQueue(
@@ -161,40 +169,45 @@ function writeQueue(
   account?: string, countAdded = true,
 ) {
   if (!searchKey) return;
-  const seen = new Set<string>();
-  const clean: QueueCandidate[] = [];
-  const depth = autofetchLive.effective().autoFetchQueueDepth;
-
-  for (const c of candidates) {
-    if (!c?.infoHash) continue;
-    const hash = String(c.infoHash).toLowerCase();
-    if (seen.has(hash)) continue;
-    seen.add(hash);
-    if (adapterId && account && isDead(adapterId, account, hash)) continue;
-    clean.push({ ...c, infoHash: hash, addedAt: c.addedAt || Date.now() });
-    if (clean.length >= depth) break;
+  // O `cache.set` do Node descartava TTL <= 0; o nativo gravaria PERMANENTE — o portão fica aqui.
+  if (!(Number(ttlSeconds) > 0)) return;
+  // Sem hash sai aqui (o `QueueCandidate` nativo exige o campo) e morto também:
+  // o `dead:` ainda é do cache. Dedupe, `addedAt`, teto e fila vazia são do nativo.
+  const withHash = candidates.filter((c) => Boolean(c?.infoHash));
+  const alive = adapterId && account
+    ? withHash.filter((c) => !isDead(adapterId, account, String(c.infoHash)))
+    : withHash;
+  let key = ''; let kept = 0;
+  try {
+    const core = queueCore();
+    key = core.autofetchV3QueueKey(searchKey);
+    kept = Number(core.autofetchV3WriteQueue(nativeKv(), searchKey, JSON.stringify(alive), {
+      ttlSeconds: Number(ttlSeconds), depth: Number(autofetchLive.effective().autoFetchQueueDepth) || 0,
+    }, Date.now()).kept) || 0;
+  } catch (err) {
+    // Sem núcleo/KV a fila não é gravada (o dreno acha vazio), como o cache fazia.
+    log.warn(`[autofetch] gravação da fila falhou: ${log.errorMessage(err)}`);
+    return;
   }
-
-  if (clean.length > 0) {
-    const key = queueKey(searchKey);
-    cache.set(key, clean, ttlSeconds);
-    knownQueues.set(key, clean.length);
-    if (countAdded) metrics.count('autofetch.queue.added', clean.length);
-  } else {
-    const key = queueKey(searchKey);
-    cache.forget(key);
-    knownQueues.delete(key);
-  }
+  if (kept <= 0) { knownQueues.delete(key); return; }
+  knownQueues.set(key, kept);
+  if (countAdded) metrics.count('autofetch.queue.added', kept);
 }
 
 function dropQueue(keyOrSearchKey: string) {
   if (!keyOrSearchKey) return;
-  const k = keyOrSearchKey.startsWith('autofetch:') ? keyOrSearchKey : queueKey(keyOrSearchKey);
-  if (cache.get(k)) {
-    cache.forget(k);
-    metrics.count('autofetch.queue.dropped');
+  let key = '';
+  let dropped = false;
+  try {
+    const core = queueCore();
+    // O nativo resolve chave pronta OU searchKey; o Map só guarda a pronta.
+    key = keyOrSearchKey.startsWith(QUEUE_PREFIX) ? keyOrSearchKey : core.autofetchV3QueueKey(keyOrSearchKey);
+    dropped = Boolean(core.autofetchV3DropQueue(nativeKv(), keyOrSearchKey));
+  } catch (err) {
+    log.warn(`[autofetch] remoção da fila falhou: ${log.errorMessage(err)}`);
   }
-  knownQueues.delete(k);
+  if (dropped) metrics.count('autofetch.queue.dropped');
+  knownQueues.delete(key);
 }
 
 function drainQueues(): { queues: number; items: number } {
@@ -209,19 +222,25 @@ function drainQueues(): { queues: number; items: number } {
   return { queues, items };
 }
 
-// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do
-// painel e drainQueues(). reindexQueues/reindexDead no boot varrem o L1
-// (`autofetch:v3:q:` / `autofetch:v3:dead:`) e reconstroem knownQueues /
-// knownDead — por isso o painel marca queues e deadBlacklistCount como
-// "duravel": o índice de processo espelha o que sobreviveu no cache.
+// drainNext lê a fila direto; snapshot/drainQueues dependem deste reindex, que
+// reconstrói knownQueues do KV nativo (é o que faz o painel marcar "duravel").
 function reindexQueues() {
+  // Sem núcleo JÁ carregado não há varredura: importar aqui não pode carregar o `.node`.
+  const core = getCore();
+  if (!core?.autofetchV3QueueKeys) return 0;
   let n = 0;
-  for (const key of cache.keysMatching(QUEUE_PREFIX)) {
-    if (knownQueues.has(key)) continue;
-    const value = cache.get(key);
-    if (!Array.isArray(value) || value.length === 0) continue;
-    knownQueues.set(key, value.length);
-    n += 1;
+  try {
+    const kv = nativeKv();
+    const now = Date.now();
+    for (const key of core.autofetchV3QueueKeys(kv, now) || []) {
+      if (knownQueues.has(key)) continue;
+      const count = queueCountAt(key, now);
+      if (count == null || count === 0) continue;
+      knownQueues.set(key, count);
+      n += 1;
+    }
+  } catch (err) {
+    log.warn(`[autofetch] reindex das filas falhou: ${log.errorMessage(err)}`);
   }
   metrics.count('autofetch.queue.reindexed', n);
   return n;
@@ -255,9 +274,7 @@ function takeNext(
   }
   return { next, remaining: kept };
 }
-/**
- * Orçamento deslizante de enqueues/hora por adapter:account.
- */
+/** Orçamento deslizante de enqueues/hora por adapter:account. */
 function checkAndRecordBudget(adapterId: string, account: string, limit?: number): boolean {
   if (!adapterId || !account) return true;
   const key = `${adapterId}:${account}`;
@@ -316,22 +333,8 @@ function resetBudget(adapterId?: string, account?: string) {
   }
 }
 
-/**
- * Gate de ocupação da conta (backpressure): conta cheia não recebe mais
- * download do autofetch. Encher a conta é o que derruba a checagem de cache
- * (um upload, na AllDebrid) e faz o ⚡ sumir da lista inteira — o gate para
- * de escrever ANTES do teto, no mesmo limiar em que o /debrid-status.json
- * começa a avisar.
- *
- * Contrato: NUNCA faz rede no caminho síncrono. A contagem vem de duas
- * leituras locais — o inventário memoizado (dinv, quando existe) ou o memo
- * em memória abaixo — e o refresh roda em background. Memo frio ou vencido
- * é FAIL-OPEN: melhor um download a mais que bloquear sem evidência.
- *
- * A implementação mora em autofetch-gate.ts (extraído para a catraca); aqui
- * fica só o reexport, para `autofetch.accountGateBlocked` continuar o contrato
- * que os testes e o runner já usam.
- */
+/** Gate de ocupação da conta: decisão, memo e contrato moram em autofetch-gate.ts (extraído
+ * para a catraca); aqui fica só o reexport que testes e runner consomem. */
 
 /** Estado operacional sem expor searchKey, conta ou infoHash. */
 function snapshot() {
@@ -352,13 +355,12 @@ function snapshot() {
 
   let queueItems = 0;
   for (const [key] of [...knownQueues]) {
-    const value = cache.get(key);
-    if (!Array.isArray(value) || value.length === 0) {
-      knownQueues.delete(key);
-      continue;
-    }
-    knownQueues.set(key, value.length);
-    queueItems += value.length;
+    const count = queueCountAt(key, now);
+    // Leitura falhou ≠ fila sumiu: mantém a contagem anterior em vez de zerar.
+    if (count == null) { queueItems += knownQueues.get(key) || 0; continue; }
+    if (count === 0) { knownQueues.delete(key); continue; }
+    knownQueues.set(key, count);
+    queueItems += count;
   }
   for (const key of [...knownDead]) {
     if (cache.get(key) !== 1) knownDead.delete(key);
@@ -366,9 +368,8 @@ function snapshot() {
   let occupiedSlots = 0;
   for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
 
-  // Fila de remoções represadas (autofetch-suppressed): o snapshot é síncrono
-  // e sem contexto de conta, então o número é o AGREGADO de todas as contas —
-  // o drain do painel age só na conta do operador, e a diferença aparece lá.
+  // Remoções represadas (autofetch-suppressed): o snapshot é síncrono e sem conta,
+  // então o número é o AGREGADO — o drain do painel age só na conta do operador.
   const suppressed = countAllSuppressed();
 
   return {
@@ -380,8 +381,7 @@ function snapshot() {
     suppressed,
     accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
-    // queues/dead/suppressed=durável (varredura do L1, não Map de processo);
-    // resto=amostra deste processo.
+    // queues/dead/suppressed=durável (varredura do disco, não Map de processo); resto=amostra.
     _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra', suppressed: 'duravel' },
   };
 }

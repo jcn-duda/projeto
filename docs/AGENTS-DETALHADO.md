@@ -1736,6 +1736,15 @@ o tipo do `rust-core.ts` e o teste (`test/native-kv.test.ts`), e o cabeçalho do
 módulo declara como dono a fila/estado do Chupim e a posse/proteção do
 AllDebrid.
 
+**Fila do Chupim.** O sub-prefixo `autofetch:v3:q:` está em
+`RUST_OWNED_PREFIXES` (`AUTOFETCH_QUEUE_PREFIX`): o Node não sobe a fila no L1
+nem a grava/poda no SQLite, e `cache.clear()`/`clearNamespace('autofetch')` a
+apagam por `kvClearPrefix`. O namespace `autofetch` NÃO entra inteiro — `pf:`,
+`m:`, `dead:` e `sup:` continuam no cache do Node, e marcá-los faria
+`set`/`get` virarem no-op silencioso. O wiring da fila pela ponte
+(`autofetch.ts`) é fatia própria; até ele, o caminho antigo do Node fica
+inoperante para `q:` por desenho.
+
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou
 `infoHash`). Item de aviso (`name` + `externalUrl`) não conta — senão a
