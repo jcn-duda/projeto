@@ -254,7 +254,7 @@ compartilham arquivo.
 | 5 | B2 journal + outbox de invalidação | L5 `davail`/`mag`/`mag_meta` → Rust | L5 worker do Chupim (candidatos/batch/gate) |
 | 6 | B3 replay/exactly-once | L6 `adsub`/`adprot` → Rust + fim do feed de holds | L6 worker do Chupim (recheck/evict/seeds) |
 | 7 | C1 contador de geração + `set_fenced` | L7 `adrm` + dono das varreduras | L7 `dub-audit` nativo (7a) + `rd-warmer` (7b, pendente) |
-| 8 | C2 captura/uso da fence nos commits | L8 limpeza de pontes e shims | L8 varreduras AllDebrid nativas |
+| 8 | C2 captura/uso da fence nos commits | L8 limpeza de pontes e shims | L8 varreduras AllDebrid nativas (bloqueada por L5+L6) |
 | 9 | (bloqueada) fase 2 metadados — exige janela em produção | | |
 
 ---
@@ -3051,6 +3051,47 @@ git commit -m "refactor(debrid): limpeza das pontes e shims sem consumidor"
 ```
 
 ### T3-L8: varreduras AllDebrid nativas e fim do debrid TS
+
+**Status:** BLOQUEADA (medido em 2026-10-26). Não é ambiguidade: as premissas de
+deleção do plano não existiam no código, e o porte isolado só duplicaria
+manutenção no caminho mais destrutivo do projeto (apaga conteúdo da conta).
+
+| Premissa do plano | Medido |
+|---|---|
+| `src/utils/protected.ts`, "já esvaziado por L6/L7" | esse caminho **não existe**; o arquivo vivo é `src/debrid/protected.ts`, importado por ≥17 arquivos de `src/` (`autofetch-*`, `catalog-*`, `premiumize.ts`, `rd-warmer.ts`, pontes `rust-*`) |
+| `alldebrid-delete-gate.ts` a apagar | não existe; o gate único por conta é o `enqueueDelete` inline em `alldebrid-cleanup.ts:49-65` (o `test/alldebrid-delete-gate.test.ts` cobre esse corpo) |
+| apagar `alldebrid-inventory.ts` e `alldebrid-reupload.ts` | ambos têm chamadores **de produção**: `autofetch-candidates.ts`, `autofetch-evict.ts`, `autofetch-expired.ts`, `debrid-cache-steps.ts`, `catalog-env.ts`, `rust-check-blocked.ts`, `internal-debrid-marked.ts` |
+| as quatro varreduras são "as últimas escritoras" | são as últimas **varreduras**, mas não as últimas escritoras: dependem de `held.*` (`debrid/protected.ts`), `preexistingHashes` (espera de 30 s), `markReuploadBlocked` (`adrm` + `brOriginMark`) e `foreignVerdict` (`audio-quality.ts`) — nenhum é só do sweep |
+
+**Dependência real:** as varreduras só podem ser portadas **e apagadas** depois
+do Chupim nativo (T3-L5+T3-L6, que hoje estão bloqueadas juntas pelo formato da
+fila) e do `rd-warmer` (T3-L7b): enquanto `autofetch-*` e `catalog-*` viverem no
+Node, `protected.ts`/`inventory.ts`/`reupload.ts` continuam necessários e o
+sweep nativo teria de conviver com o TS — duas cópias do código que apaga da
+conta do usuário.
+
+Portar apenas o corpo (sem apagar nada) foi **rejeitado**: ganho zero, risco
+dobrado no único caminho que apaga acervo pago, e dois donos para o mesmo gate
+`DEBRID_AL_CLEANUP`/`DEBRID_AL_HOLDS`.
+
+**Ordem segura (debloqueio):** T3-L5 + T3-L6 (mesma leva, fila `v3` por sha da
+busca) → T3-L7b (`rdq` + agendador no gateway) → T3-L8 (varreduras + deleções).
+
+**Step 1 medido (prova do bloqueio):**
+
+```powershell
+rg -n "from .*debrid/protected" src        # ≥17 importadores vivos
+rg --files src | rg "alldebrid-delete-gate" # vazio (não existe)
+rg -n "sweepDead|sweepUndubbed" src/addon.ts # timers no processo do Node
+```
+
+Só depois de T3-L5/L6 estes dois voltam a ser apagáveis:
+
+```powershell
+rg -n "alldebrid-inventory|alldebrid-reupload" src/ test/
+```
+
+**Plano original (histórico — vale quando a fatia desbloquear):**
 
 As quatro varreduras (`sweepDead`, `sweepUndubbed`, reconcile, revalidate) são as
 últimas escritoras de estado AllDebrid no Node. O Rust já faz a checagem e a
