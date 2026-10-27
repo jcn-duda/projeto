@@ -21,9 +21,17 @@ mod check;
 #[path = "alldebrid_autofetch.rs"]
 mod autofetch;
 pub use autofetch::{
-    enqueue_decision, read_adrm_block, should_mark_owned, AutofetchProgress, AutofetchState,
-    AutofetchStatus, EnqueueDecision, Provenance, ReuploadEvidence,
+    enqueue_decision, guard_evidence, read_adrm_block, should_mark_owned, AutofetchProgress,
+    AutofetchState, AutofetchStatus, EnqueueDecision, Provenance, ReuploadEvidence, UploadOutcome,
 };
+
+#[path = "alldebrid_owned.rs"]
+mod owned;
+pub use owned::{mark_owned, owns};
+
+#[path = "alldebrid_enqueue.rs"]
+mod enqueue;
+pub use enqueue::EnqueueOutcome;
 
 #[path = "alldebrid_parse.rs"]
 mod parse;

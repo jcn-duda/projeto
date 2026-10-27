@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 
+use super::ReuploadEvidence;
 use crate::alldebrid_cleanup::adrm_key;
 
 /// `Ok(true)` é uma marca viva; `Ok(false)` prova ausência ou expiração.
@@ -33,6 +34,27 @@ pub fn read_adrm_block(
         .optional()
         .map_err(|e| format!("não foi possível consultar guarda adrm: {e}"))?;
     Ok(expiry.is_some_and(|at| at > now_ms))
+}
+
+/// Traduz a leitura crua da guarda `adrm` na EVIDÊNCIA que a decisão de
+/// enqueue consome. Só traduz fatos: não envia o magnet, não limpa a marca e
+/// não faz rede. Erro de leitura vira `Unavailable` — nunca `Clear`, senão
+/// um banco indisponível autorizaria o upload que a guarda existe para barrar.
+/// `inventory_ready` só é consultado com marca viva: sem marca não há o que
+/// liberar, e com marca sem inventário o worker continua bloqueado.
+pub fn guard_evidence(
+    path: &Path,
+    account: &str,
+    hash: &str,
+    inventory_ready: bool,
+    now_ms: i64,
+) -> ReuploadEvidence {
+    match read_adrm_block(path, account, hash, now_ms) {
+        Err(_) => ReuploadEvidence::Unavailable,
+        Ok(true) if inventory_ready => ReuploadEvidence::BlockedButInventoryReady,
+        Ok(true) => ReuploadEvidence::Blocked,
+        Ok(false) => ReuploadEvidence::Clear,
+    }
 }
 
 #[cfg(test)]
