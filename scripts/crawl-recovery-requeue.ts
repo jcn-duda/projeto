@@ -36,9 +36,9 @@
 //          --mico-error=<texto exato> (override do texto gravado pelo Rust)
 //          --sample é fixo em 10 URLs por critério (uma-shot; não é config).
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { probePort } from './crawl-requeue-probe.js';
 import {
   CANDIDATE_SQL, MICO_OWN_PACE_ERROR, NERDFILMES_SITE, MICO_SITE,
   REQUEUE_UPDATE_SQL, planRequeue, rowFromSqlite,
@@ -79,14 +79,9 @@ console.log(`[recovery] banco: ${crawlPath} (${apply ? 'ESCRITA (--apply)' : 'so
 console.log(`[recovery] janela de conclusão: ${sinceHours > 0 ? `${sinceHours}h (desde ${new Date(sinceMs).toISOString()})` : 'desligada (--since-hours=0)'} — marcador checked_at (fallback added_at)`);
 console.log(`[recovery] critério mico: status='error' AND error=${JSON.stringify(micoError)}`);
 
-function probePort(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ host: '127.0.0.1', port, timeout: 1500 });
-    const done = (up: boolean) => { socket.destroy(); resolve(up); };
-    socket.on('connect', () => done(true));
-    socket.on('timeout', () => done(false));
-    socket.on('error', () => done(false));
-  });
+async function probeOrFail(port: number): Promise<boolean> {
+  try { return await probePort(port); }
+  catch (error) { fail(`não foi possível verificar a porta ${port}: ${(error as Error).message}. Não é seguro executar --apply.`); }
 }
 
 /** Backup verificável: diretório existente com cópia não vazia do crawl.db. */
@@ -161,11 +156,13 @@ function reportPlan(plan: RequeuePlan): number {
 
 if (apply) {
   const addonPort = Number(flag('port') ?? process.env.ADDON_PORT ?? '7000');
-  if (Number.isFinite(addonPort) && addonPort > 0 && await probePort(addonPort)) {
+  if (!Number.isInteger(addonPort) || addonPort < 0 || addonPort > 65535) fail('--port deve ser uma porta válida (0 desliga a sonda).');
+  if (addonPort > 0 && await probeOrFail(addonPort)) {
     fail(`porta ${addonPort} respondendo em 127.0.0.1 — addon vivo no volume. Pare-o antes de --apply (ou --port=<porta correta>; --port=0 desliga a sonda).`);
   }
   const sidecarPort = Number(flag('sidecar-port') ?? process.env.CRAWL_SIDECAR_PORT ?? '7077');
-  if (Number.isFinite(sidecarPort) && sidecarPort > 0 && await probePort(sidecarPort)) {
+  if (!Number.isInteger(sidecarPort) || sidecarPort < 0 || sidecarPort > 65535) fail('--sidecar-port deve ser uma porta válida (0 desliga a sonda).');
+  if (sidecarPort > 0 && await probeOrFail(sidecarPort)) {
     fail(`porta ${sidecarPort} respondendo em 127.0.0.1 — sidecar Rust (dono do crawl.db com CRAWL_ENGINE=rust) vivo. Pare-o antes de --apply (ou --sidecar-port=0 desliga a sonda).`);
   }
   verifyBackup(flag('backup') ?? '');

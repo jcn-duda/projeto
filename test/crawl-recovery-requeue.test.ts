@@ -11,6 +11,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { probePort } from '../scripts/crawl-requeue-probe.js';
 import {
   CANDIDATE_SQL, MICO_OWN_PACE_ERROR, REQUEUE_UPDATE_SQL, VICTIM_SQL,
   completionMs, planRequeue, rowFromSqlite,
@@ -102,6 +104,23 @@ function runCliFails(extra: string[]): string {
 
 const NOW = Date.now();
 const OPTS = { sinceMs: NOW - 24 * HOUR, micoError: MICO_OWN_PACE_ERROR };
+
+test('sonda distingue porta fechada de erro de acesso e prazo esgotado', async () => {
+  const simulate = (event: 'connect' | 'error' | 'timeout', code?: string) => {
+    const socket = new EventEmitter() as net.Socket;
+    let destroyed = false;
+    socket.destroy = () => { destroyed = true; return socket; };
+    const result = probePort(7000, () => socket);
+    const error = Object.assign(new Error(code), { code });
+    socket.emit(event, error);
+    assert.equal(destroyed, true);
+    return result;
+  };
+  assert.equal(await simulate('connect'), true);
+  assert.equal(await simulate('error', 'ECONNREFUSED'), false);
+  await assert.rejects(simulate('error', 'EACCES'), /EACCES/);
+  await assert.rejects(simulate('timeout'), /tempo esgotado/);
+});
 
 test('seleção pura: vítimas por critério, janela, fallback added_at e relato loose', () => {
   const rows: RequeueRow[] = [
@@ -259,18 +278,22 @@ test('CLI --apply recusa: sem backup, com addon/sidecar vivo e com lock alheio',
   fs.copyFileSync(file, path.join(backup, 'crawl.db'));
   // 1. Sem --backup.
   assert.match(runCliFails(['--apply', `--crawl=${file}`, '--port=0', '--sidecar-port=0', `--lock=${path.join(dir, 'r1.lock')}`]), /exige --backup/);
+  assert.match(runCliFails(['--apply', `--crawl=${file}`, '--port=abc']), /--port deve ser uma porta válida/);
+  assert.match(runCliFails(['--apply', `--crawl=${file}`, '--port=0', '--sidecar-port=65536']), /--sidecar-port deve ser uma porta válida/);
   // 2. Addon respondendo na porta sonda.
   const server = net.createServer();
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as net.AddressInfo).port;
-  assert.match(runCliFails(['--apply', `--crawl=${file}`, `--backup=${backup}`, `--port=${port}`, '--sidecar-port=0', `--lock=${path.join(dir, 'r2.lock')}`]), /addon vivo no volume/);
-  server.close();
+  try {
+    assert.match(runCliFails(['--apply', `--crawl=${file}`, `--backup=${backup}`, `--port=${port}`, '--sidecar-port=0', `--lock=${path.join(dir, 'r2.lock')}`]), /addon vivo no volume/);
+  } finally { server.close(); }
   // 3. Sidecar respondendo (dono do banco com CRAWL_ENGINE=rust).
   const sidecar = net.createServer();
   await new Promise<void>((resolve) => sidecar.listen(0, '127.0.0.1', resolve));
   const sidecarPort = (sidecar.address() as net.AddressInfo).port;
-  assert.match(runCliFails(['--apply', `--crawl=${file}`, `--backup=${backup}`, '--port=0', `--sidecar-port=${sidecarPort}`, `--lock=${path.join(dir, 'r3.lock')}`]), /sidecar Rust/);
-  sidecar.close();
+  try {
+    assert.match(runCliFails(['--apply', `--crawl=${file}`, `--backup=${backup}`, '--port=0', `--sidecar-port=${sidecarPort}`, `--lock=${path.join(dir, 'r3.lock')}`]), /sidecar Rust/);
+  } finally { sidecar.close(); }
   // 4. Lock alheio presente.
   const lock = path.join(dir, 'alheio.lock');
   fs.writeFileSync(lock, 'outro');
