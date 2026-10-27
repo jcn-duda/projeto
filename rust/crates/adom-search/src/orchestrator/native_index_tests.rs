@@ -72,6 +72,7 @@ struct FakeBank {
     works: Vec<InstantWork>,
     sources: BTreeMap<String, Vec<InstantSource>>,
     br_row: bool,
+    uris: BTreeMap<String, String>,
     marks: Mutex<Vec<(Vec<Value>, Vec<Value>)>>,
 }
 
@@ -81,6 +82,7 @@ impl FakeBank {
             works,
             sources,
             br_row: false,
+            uris: BTreeMap::new(),
             marks: Mutex::new(Vec::new()),
         }
     }
@@ -107,7 +109,7 @@ impl MagnetBankSource for FakeBank {
             .iter()
             .map(|hash| BankRow {
                 hash: hash.clone(),
-                uri: String::new(),
+                uri: self.uris.get(hash).cloned().unwrap_or_default(),
                 title: String::new(),
             })
             .collect()

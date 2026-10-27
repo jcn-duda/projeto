@@ -247,3 +247,45 @@ async fn reserva_do_banco_nativo_reinjeta_item_de_indexer_falho() {
         Some(true)
     );
 }
+
+#[tokio::test]
+async fn item_do_indice_ganha_o_dn_do_acervo_e_perde_a_origem_br_russa() {
+    // Medido em produção (The Cycle, Apache index-only): o índice não guarda
+    // magnet, e o veto de `dn` russo só enxerga o arquivo pelo acervo.
+    let russa = "09454633d985a0716ed843d31fb3f4e392e619a9";
+    let br = "b2cf2e424fefb2cf2e424fefb2cf2e424fefb2cf";
+    let indexed = vec![
+        release(russa, true, false, "1080p", "apache"),
+        release(br, true, false, "1080p", "apache"),
+    ];
+    let mut bank = FakeBank::new(Vec::new(), Default::default());
+    bank.uris.insert(
+        russa.to_string(),
+        format!("magnet:?xt=urn:btih:{russa}&dn=The.Cycle.2026.D.WEB-DL.1O8Op.mkv"),
+    );
+    let orch = orch(config(), Some(FakeIndex::new(indexed, false)), Some(bank));
+    let scan = orch
+        .native_index_scan(
+            &input("movie", json!({"providers": ["jackett"]})),
+            &meta(None, None),
+        )
+        .await;
+    let by_hash = |hash: &str| {
+        scan.index_items
+            .iter()
+            .find(|item| item.hash() == hash)
+            .expect("item do índice")
+    };
+    let ru = by_hash(russa);
+    assert_eq!(
+        ru.bank_dn.as_deref(),
+        Some("The.Cycle.2026.D.WEB-DL.1O8Op.mkv")
+    );
+    assert!(ru.magnet.is_none(), "filtros e play seguem sem dn");
+    // Sem linha no acervo: nada anexado.
+    assert!(by_hash(br).bank_dn.is_none());
+
+    // O veto de origem lê `origin_dn`: o do acervo, já que o item não tem magnet.
+    assert!(adom_core::russian_dub_dn(&ru.origin_dn()));
+    assert!(by_hash(br).origin_dn().is_empty());
+}

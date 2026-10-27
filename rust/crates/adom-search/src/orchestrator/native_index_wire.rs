@@ -1,11 +1,13 @@
 //! Releases/instantanea -> `RawItem`/`PoolCoverageItem` (as reguas do TS).
 
-use adom_core::{InstantItem, PoolCoverageItem};
+use std::collections::HashMap;
+
+use adom_core::{magnet_display_name, InstantItem, PoolCoverageItem};
 use serde_json::{json, Map};
 
 use crate::raw_item::RawItem;
 
-use super::index_source::IndexedReleaseWire;
+use super::index_source::{IndexedReleaseWire, MagnetBankSource};
 
 /// Releases do índice → pseudo-item de cobertura (`PoolCoverageItem`).
 pub(super) fn release_to_coverage(release: &IndexedReleaseWire) -> PoolCoverageItem {
@@ -61,6 +63,33 @@ pub(super) fn release_to_raw(release: &IndexedReleaseWire, from_snapshot: bool) 
         media_source: release.media_source.clone(),
         extra,
         ..RawItem::default()
+    }
+}
+
+/// Anexa o `dn=` do acervo aos itens do índice (uma leitura em lote). Só a
+/// origem BR o lê: sem ele o veto de `dn` russo ficava cego no index-only.
+pub(super) fn attach_bank_dn(items: &mut [RawItem], bank: &dyn MagnetBankSource) {
+    let hashes: Vec<String> = items
+        .iter()
+        .map(RawItem::hash)
+        .filter(|hash| !hash.is_empty())
+        .collect();
+    if hashes.is_empty() {
+        return;
+    }
+    let by_hash: HashMap<String, String> = bank
+        .bank_rows_many(&hashes)
+        .into_iter()
+        .map(|row| {
+            let dn = magnet_display_name(Some(row.uri.as_str()), None, None);
+            (row.hash.to_lowercase(), dn)
+        })
+        .filter(|(_, dn)| !dn.is_empty())
+        .collect();
+    for item in items.iter_mut() {
+        if let Some(dn) = by_hash.get(&item.hash()) {
+            item.bank_dn = Some(dn.clone());
+        }
     }
 }
 

@@ -61,6 +61,10 @@ pub struct RawItem {
     pub tracker: Option<String>,
     /// Fonte gravada no índice (`mediaSource`) para raw sem magnet.
     pub media_source: Option<String>,
+    /// `dn=` do acervo (`magnets.db`) para o item do índice, que não carrega
+    /// magnet. Só a origem BR lê ([`RawItem::origin_dn`]): filtros e play
+    /// seguem sem `dn`, como antes.
+    pub bank_dn: Option<String>,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
     pub multi_work_admitted: bool,
     /// Campos públicos preservados que o build não lê.
@@ -116,6 +120,16 @@ impl RawItem {
             self.magnet_uri.as_deref(),
             self.guid.as_deref(),
         )
+    }
+
+    /// `dn=` que a origem BR lê: o do próprio item ou, sem ele, o do acervo.
+    pub fn origin_dn(&self) -> String {
+        let own = self.dn();
+        if own.is_empty() {
+            self.bank_dn.clone().unwrap_or_default()
+        } else {
+            own
+        }
     }
 
     pub fn to_relevance(&self) -> adom_core::RelevanceItem {
@@ -217,6 +231,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         pt_title_dual: bool_of("ptTitleDual"),
         tracker: str_of(&["tracker", "Tracker", "Indexer"]),
         media_source: str_of(&["mediaSource"]),
+        bank_dn: None,
         multi_work_admitted: false,
         extra,
     }

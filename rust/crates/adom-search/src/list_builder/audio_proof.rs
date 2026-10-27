@@ -54,10 +54,12 @@ pub fn apply_pt_title_dual(items: &mut [RawItem], titles: Option<&PtTitleDualTit
 /// O `dn=` de tracker russo (`russian_dub_dn`) veta ANTES do título: o post BR
 /// "The Cycle [1080p WEB-DL LEGENDADO]" carregava `The.Cycle.2026.D.WEB-DL`, e o
 /// "LEGENDADO" do post provava BR para um arquivo sem nada em PT. Só a prova de
-/// arquivo (dublado medido no play) passa por cima do `dn`.
+/// arquivo (dublado medido no play) passa por cima do `dn`. O item do índice
+/// não tem magnet: o `dn` dele vem do acervo (`origin_dn`) — o Apache é
+/// index-only e era justamente por ali que a The Cycle russa chegava.
 pub fn origin_is_br(item: &RawItem, title: &str, audit: &AudioAudit) -> bool {
     let proven_pt = item.proven_audio.as_deref().is_some_and(is_dub_label);
-    if !proven_pt && russian_dub_dn(&item.dn()) {
+    if !proven_pt && russian_dub_dn(&item.origin_dn()) {
         return false;
     }
     if item.pt_title_dual || looks_pt_br(title) {

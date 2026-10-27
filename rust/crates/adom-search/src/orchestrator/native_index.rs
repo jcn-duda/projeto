@@ -23,7 +23,7 @@ use super::index_effects::{effect_entries, follow_up_plan, FollowUpPlan};
 use super::index_metrics as metrics;
 use super::index_source::{allowed_source_indexer, obra_targets, IndexedReleaseWire};
 use super::meta::SearchMeta;
-use super::native_index_wire::{release_to_coverage, release_to_raw};
+use super::native_index_wire::{attach_bank_dn, release_to_coverage, release_to_raw};
 use super::respond::now_ms;
 use super::tail::EffectsBatch;
 use super::Orchestrator;
@@ -169,6 +169,9 @@ impl Orchestrator {
                     .iter()
                     .map(|release| release_to_raw(release, true))
                     .collect();
+                if let Some(bank) = self.bank.as_ref() {
+                    attach_bank_dn(&mut outcome.index_items, bank.as_ref());
+                }
             }
         } else {
             metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);

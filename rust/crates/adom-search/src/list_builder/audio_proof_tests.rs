@@ -255,6 +255,15 @@ fn dn_de_tracker_russo_tira_a_origem_br_do_post_legendado() {
         origin_is_br(&medido, title, &audit),
         "prova de arquivo com PT vence o dn"
     );
+
+    // Item do índice (Apache, index-only): sem magnet, o dn vem do acervo.
+    let mut do_indice = raw(title);
+    do_indice.is_br = true;
+    do_indice.bank_dn = Some("The.Cycle.2026.D.WEB-DL.1O8Op.mkv".into());
+    assert!(
+        !origin_is_br(&do_indice, title, &audit),
+        "dn do acervo também veta"
+    );
 }
 
 // ptTitleDual in-process (porte de src/providers/pt-title-dual.ts) -------
