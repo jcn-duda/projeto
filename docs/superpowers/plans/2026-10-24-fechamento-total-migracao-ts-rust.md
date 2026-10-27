@@ -2162,6 +2162,13 @@ git commit -m "feat(debrid): davail, mag e mag_meta nativos e ponte de leitura"
 portados para o crate, com testes de interoperabilidade com o Node. Ainda não
 há ligação ao worker: enfileiramento e drenagem seguem no Node. As fases L5 e
 L6 continuam abertas e devem virar juntas, preservando holds e proteção da conta.
+O estado v3 de remoções represadas (`sup:`) também foi portado sem ativação.
+Antes de conectá-lo ao dreno, conferir a ordem da listagem e a concorrência do
+id no retry contra o Node; nenhuma remoção passa pelo novo estado por enquanto.
+Há também bases isoladas para reservas e seleção da fila e operações de debrid.
+O worker ainda não está ligado: AllDebrid precisa coordenar hold, inventário e
+posse; o gate RD precisa resolver timeout incerto e ser compartilhado por todos
+os escritores. O autofetch TypeScript continua necessário até o corte completo.
 
 O estado é nativo (T3-L4). Esta fatia faz o **enfileiramento** ser nativo: os
 efeitos `autofetch`/`autofetch_batch` deixam de atravessar HTTP e o Node não tem

@@ -327,8 +327,11 @@ fn base_rejected() -> DebridError {
     DebridError::other("REALDEBRID_API_BASE só aceita https ou http em 127.0.0.1/localhost")
 }
 
+#[path = "realdebrid_autofetch.rs"]
+mod autofetch;
 #[path = "realdebrid_play.rs"]
 mod play;
+pub use autofetch::{RdTorrentStatus, RdTorrentStatuses};
 
 #[cfg(test)]
 #[path = "realdebrid_tests.rs"]

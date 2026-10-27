@@ -25,12 +25,20 @@
 //!   não tem LRU, toda leitura é "quiet".
 
 mod candidate;
+mod drain;
+mod obra;
+mod obra_reservation;
 mod queue;
+mod suppressed;
 
 use sha2::{Digest, Sha256};
 
 pub use candidate::{Number, QueueCandidate};
+pub use drain::{select_drain_candidate, DrainSelection};
+pub use obra::ObraStoreV3;
+pub use obra_reservation::{ObraLeaseV3, ObraReservationInput, ObraReservations};
 pub use queue::{marker_value, QueueV3, WriteReport};
+pub use suppressed::{suppressed_key, Suppressed, SuppressedRetry, SuppressedV3};
 
 /// Namespace inteiro da metade viva (a `v1` do [`crate::state`] é o alvo).
 pub const NAMESPACE_V3: &str = "autofetch:v3";

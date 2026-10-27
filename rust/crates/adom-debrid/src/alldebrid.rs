@@ -18,6 +18,13 @@ use crate::play_audit;
 #[path = "alldebrid_check.rs"]
 mod check;
 
+#[path = "alldebrid_autofetch.rs"]
+mod autofetch;
+pub use autofetch::{
+    enqueue_decision, read_adrm_block, should_mark_owned, AutofetchProgress, AutofetchState,
+    AutofetchStatus, EnqueueDecision, Provenance, ReuploadEvidence,
+};
+
 #[path = "alldebrid_parse.rs"]
 mod parse;
 use parse::{

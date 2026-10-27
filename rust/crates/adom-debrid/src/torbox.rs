@@ -1,8 +1,6 @@
-//! Fundação do adaptador TorBox. Só o HTTP que o TypeScript já faz:
-//! `call`, `check_cached`, `resolve_link` e `account_status`.
-//! Fora: enqueue, inventário, `torrentStatus`, `removeTorrent`, ocupação
+//! Adaptador TorBox: `call`, cache, play, conta e enqueue.
+//! Fora: inventário e ocupação.
 //! e `assertDubbedFiles`. Sem log de chave, magnet ou corpo.
-
 use std::time::Duration;
 
 use adom_core::{default_magnet, pick_file, DebridFile, PickOutcome, PlayHint};
@@ -389,6 +387,9 @@ fn js_truthy(value: Option<&Value>) -> bool {
 
 #[path = "torbox_check.rs"]
 mod torbox_check;
+#[path = "torbox_enqueue.rs"]
+mod torbox_enqueue;
+pub use torbox_enqueue::TorboxStatus;
 
 #[cfg(test)]
 #[path = "torbox_tests.rs"]

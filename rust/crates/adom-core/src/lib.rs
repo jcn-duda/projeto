@@ -157,7 +157,8 @@ pub use debrid_cache_verdict::{
 };
 pub use debrid_may_delete::{may_delete, DeleteFacts};
 pub use debrid_rd_gate::{
-    admit, initial_state, next_grant, on_finished, on_rate_limit, on_success, GateQueues, GateState,
+    admit, initial_state, next_grant, on_finished, on_rate_limit, on_success, AdmitAction,
+    GatePriority, GateQueues, GateState, GrantAction,
 };
 pub use debrid_rd_ledger::{
     ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state, LedgerWrite,

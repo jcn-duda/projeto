@@ -1,5 +1,5 @@
 //! Adaptador Premiumize (fase D1): cache, directdl e conta.
-//! Fora: `enqueue`, `torrentStatus`, `removeTorrent`, `sweepDead`. Sem log de chave, magnet ou corpo.
+//! Autofetch: enqueue, status e remoção por id; sweepDead ainda é do Node.
 //! `/cache/check` não dispara directdl — isso escreve na conta e fica em `file_list`.
 
 use std::collections::HashSet;
@@ -256,6 +256,10 @@ impl Premiumize {
 #[path = "premiumize_http.rs"]
 mod http_support;
 use http_support::*;
+
+#[path = "premiumize_autofetch.rs"]
+mod autofetch;
+pub use autofetch::{TransferState, TransferStatus, TransferStatusReport};
 
 #[cfg(test)]
 #[path = "premiumize_tests.rs"]
