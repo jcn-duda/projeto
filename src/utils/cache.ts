@@ -321,6 +321,7 @@ function clear() {
   magnetState().clear();
   kvClearPrefix(prefix('adsub'));
   kvClearPrefix(prefix('adprot'));
+  kvClearPrefix(prefix('adhold'));
   kvClearPrefix(prefix('adrm'));
   clearAutofetchNative();
 }

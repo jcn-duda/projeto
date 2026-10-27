@@ -115,6 +115,9 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Proteção durável dos BRs AllDebrid (`adprot:v1`): registro minúsculo por
   // hash, TTL de 10 anos — é a garantia do acervo BR sobreviver ao restart.
   adprot: 2000,
+  // Hold curto do Chupim (`adhold:v1`): um registro por download em voo, TTL de
+  // horas. Dezenas de chaves, nunca o acervo.
+  adhold: 500,
   // Posse durável dos uploads do próprio addon (`adsub:v1:<conta>:<hash>`,
   // registro { at }, TTL de 7 dias): quebra a catraca do `preexistente` — sem
   // isto, o restart reclassifica tudo que o addon subiu como acervo do

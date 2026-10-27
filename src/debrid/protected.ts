@@ -9,11 +9,12 @@
  *
  * Duas camadas, com vidas diferentes e objetivos diferentes:
  *
- * - **`held` (volátil, em memória):** só o hash escolhido para baixar agora, por
- *   tempo limitado (TTL do autofetch, 6h). Expirado ou processo reiniciado, ele
- *   volta a ser candidato à limpeza normal. É o freio de curto alcance para a
- *   corrida da própria busca — existe para o `dropReady`/`dropUncached` não
- *   matarem um download que a conta acabou de aceitar.
+ * - **`held` (curto alcance, no KV nativo):** só o hash escolhido para baixar
+ *   agora, por tempo limitado (TTL do autofetch, 6h). O TTL é do `NativeKv`, então
+ *   o hold sobrevive a um restart até vencer — antes o processo reiniciado
+ *   liberava o download em curso para a limpeza. É o freio da corrida da própria
+ *   busca: existe para o `dropReady`/`dropUncached` não matarem um download que a
+ *   conta acabou de aceitar.
  * - **`adprot` (durável, no cache persistente):** registro por
  *   adapter+accountScope+hash (`{ acceptedAt, readyAt }`) com TTL de 10 anos —
  *   é o que faz o acervo BR do usuário sobreviver a restart. Enquanto o hash
@@ -25,7 +26,7 @@ import { prefix } from '../utils/cache-keys.js';
 import { kvForget, kvKeys, kvPeek, kvRemaining, kvSet } from '../utils/native-kv.js';
 import * as metrics from '../utils/metrics.js';
 
-const held = new Map();
+const holdPrefix = prefix('adhold');
 
 // Único adapter que recebe proteção durável (o ponto 1 do contrato: só o pool
 // BR dublado no AllDebrid). `any`/`seeds` e os demais serviços não passam.
@@ -37,36 +38,25 @@ interface DurableProtection {
   readyAt: number | null;
 }
 
-function sweep() {
-  const now = Date.now();
-  for (const [hash, expiresAt] of held) if (expiresAt <= now) held.delete(hash);
+function holdKey(hash: string, account = 'none') {
+  return `${holdPrefix}${account}:${String(hash || '').toLowerCase()}`;
 }
 
-function key(hash: string, account = 'none') {
-  return `${account}:${String(hash || '').toLowerCase()}`;
-}
-
-/** Protege o hash por `ttlSeconds`. Chamar de novo renova o prazo. */
+/** Protege o hash por `ttlSeconds` (TTL do KV nativo). Chamar de novo renova. */
 function hold(hash: string, ttlSeconds: number, account = 'none') {
   if (!hash) return;
-  sweep();
-  held.set(key(hash, account), Date.now() + Math.max(1, Number(ttlSeconds) || 0) * 1000);
+  kvSet(holdKey(hash, account), { at: Date.now() }, Math.max(1, Number(ttlSeconds) || 0));
 }
 
 /** Libera o hash: volta a valer a limpeza normal. */
 function release(hash: string, account = 'none') {
-  held.delete(key(hash, account));
+  kvForget(holdKey(hash, account));
 }
 
+/** Leitura limpa: o vencido já não existe para o KV. */
 function isHeld(hash: string, account = 'none') {
-  const heldKey = key(hash, account);
-  const expiresAt = held.get(heldKey);
-  if (!expiresAt) return false;
-  if (expiresAt <= Date.now()) {
-    held.delete(heldKey);
-    return false;
-  }
-  return true;
+  if (!hash) return false;
+  return kvPeek(holdKey(hash, account)) != null;
 }
 
 // ---------------------------------------------------------------------------

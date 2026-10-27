@@ -148,6 +148,10 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // Proteção durável dos BR no AllDebrid (`adprot:v1:<adapter>:<account>:<hash>`),
   // registro `{ acceptedAt, readyAt }`. Não leva apiKey — escopo é conta + adapter.
   adprot: 'v1',
+  // Hold curto do Chupim (`adhold:v1:<conta>:<hash>`, TTL do autofetch): era
+  // memória do processo; no KV nativo sobrevive ao restart até vencer e o
+  // gateway pode lê-lo sem o feed HTTP.
+  adhold: 'v1',
   // Posse durável dos uploads do próprio addon no AllDebrid
   // (`adsub:v1:<account>:<hash>`, registro `{ at }`). Sobrevive ao restart:
   // é o que impede o snapshot seguinte de reclassificar o upload do addon como
@@ -207,7 +211,7 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // ela. `davail`, `mag`, `adsub`, `adprot` e `adrm` entram TAMBÉM em
 // `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo, e não o nome do
 // namespace, que bloqueia `get`/`peek` no L1.
-const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm']);
+const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm', 'adhold']);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
 //
