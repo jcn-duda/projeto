@@ -11,6 +11,11 @@
 //! o Node drena, as chaves dele são outras (`q:<sha>`, `m:`, `sup:`, `dead:`),
 //! então as duas metades convivem no mesmo `cache.db` sem se atropelar.
 //!
+//! O formato VIVO do Node — a fila `v3` por busca com `QueueCandidate`,
+//! `dead:`, `m:` e `pf:` — é o módulo [`v3`]: o porto dele ANTES do wiring é o
+//! que impede o enfileiramento nativo de gravar num formato que o dreno nunca
+//! leria (Chupim pararia de baixar sem erro visível).
+//!
 //! # Relógio
 //!
 //! Nenhuma função lê o relógio: `now_ms` entra por parâmetro e o TTL é aplicado
@@ -33,6 +38,8 @@ pub mod queue;
 pub mod state;
 pub mod suppressed;
 pub mod terminal;
+pub mod v3;
 
 pub use queue::{AutofetchQueue, EnqueueOutcome, Hold};
 pub use state::{Episode, MarkerRecord, ObraRecord, QueueEntry, SuppressedRecord, TerminalRecord};
+pub use v3::{marker_value, QueueCandidate, QueueV3, WriteReport, NAMESPACE_V3};

@@ -43,10 +43,15 @@ mod convert;
 // Regras puras AVULSAS (chave de mortas, portões, progresso, fila, seeds e o
 // resumo do trace) para as cascas que ainda importam `autofetch-*.ts`.
 pub mod rules;
+// Ponte do FORMATO v3 da fila por busca (`adom-autofetch::v3`): prova de
+// round-trip com o TS e base do worker nativo (T3-L5/L6).
+mod queue_v3;
 mod types;
 
 #[cfg(test)]
 mod tests;
+
+pub use queue_v3::*;
 
 use convert::{
     gates_in, hash_of, js_i64, pending_in, pool_stream_in, record_in, seeds_candidate_in, trunc,

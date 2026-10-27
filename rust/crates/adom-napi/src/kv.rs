@@ -20,6 +20,15 @@ pub struct NativeKv {
     inner: KvStore,
 }
 
+/// Acesso `pub(crate)` ao store para as pontes que compõem estado sobre o
+/// MESMO handle (a fila v3 do Chupim, `adom-autofetch::v3`), sem reabrir o
+/// cache.db. Bloco próprio FORA do `#[napi] impl`: método interno, sem porta JS.
+impl NativeKv {
+    pub(crate) fn v3_queue(&self) -> adom_autofetch::QueueV3<'_> {
+        adom_autofetch::QueueV3::new(&self.inner)
+    }
+}
+
 #[napi]
 impl NativeKv {
     /// Abre (ou cria) o `cache.db` em `dbPath`; `:memory:` sobe só em memória.

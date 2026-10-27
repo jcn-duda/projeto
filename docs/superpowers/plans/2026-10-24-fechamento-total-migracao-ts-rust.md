@@ -2158,6 +2158,11 @@ git commit -m "feat(debrid): davail, mag e mag_meta nativos e ponte de leitura"
 
 ### T3-L5: worker do Chupim — enfileiramento, pickers e gate — BLOQUEADA (medido)
 
+**Progresso parcial:** o formato v3 da fila por busca e sua ponte napi foram
+portados para o crate, com testes de interoperabilidade com o Node. Ainda não
+há ligação ao worker: enfileiramento e drenagem seguem no Node. As fases L5 e
+L6 continuam abertas e devem virar juntas, preservando holds e proteção da conta.
+
 O estado é nativo (T3-L4). Esta fatia faz o **enfileiramento** ser nativo: os
 efeitos `autofetch`/`autofetch_batch` deixam de atravessar HTTP e o Node não tem
 mais fila própria. O **drain** (rede e debrid) continua no TS até a T3-L6.

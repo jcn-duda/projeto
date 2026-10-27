@@ -37,6 +37,8 @@ net = []
 adom-core = { path = "../adom-core" }
 # Índice idx:v14 (store SQLite, sem rede): handle `IdxStore` para o Node.
 adom-index = { path = "../adom-index" }
+# Estado do Chupim: o formato v3 da fila por busca (`adom-autofetch::v3`).
+adom-autofetch = { path = "../adom-autofetch" }
 adom-crawl = { path = "../adom-crawl" }
 # Dump JSON das cotas do cache (`cache.rs`): preserve_order para a ordem de
 # inserção ser contrato, igual ao `config_encoding` do core.

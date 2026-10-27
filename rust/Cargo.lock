@@ -98,6 +98,7 @@ dependencies = [
 name = "adom-napi"
 version = "0.1.0"
 dependencies = [
+ "adom-autofetch",
  "adom-core",
  "adom-crawl",
  "adom-index",
