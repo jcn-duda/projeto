@@ -381,10 +381,6 @@ export const debrid = () => ({
     const value = Number(process.env.DEBRID_ACCOUNT_WARN_LIMIT_USED ?? 0.8);
     return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8;
   })(),
-  // Auditoria proativa (fase D): no passe tardio, prova os top N candidatos
-  // dublados em cache listando os arquivos reais no debrid. 0 desliga; a
-  // prova em si continua sujeita a AUDIO_AUDIT=1.
-  dubAuditTailMax: num(process.env.DEBRID_DUB_AUDIT_MAX, 2),
   // URL pública do addon, usada nos links de play resolvidos no debrid.
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
   // Segredo do HMAC dos links /resolve. Vazio = assina com a API key de

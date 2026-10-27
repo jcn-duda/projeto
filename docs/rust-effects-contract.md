@@ -36,7 +36,9 @@ prazo do cliente:
 
 1. `dub_audit`, `rd_warmer` e `autofetch_batch` — vêm do lote da passada
    **mais nova** (`FinishValue.effects`, calculado no `finish` porque depende do
-   veredito de cache por stream e do lote pós-checagem);
+   veredito de cache por stream e do lote pós-checagem). O `dub_audit` é
+   **interceptado no gateway** desde a T3-L7a e não chega ao Node
+   ([`dub-audit-native-contract.md`](dub-audit-native-contract.md));
 2. `harvester_enqueue` (`next-episode`) — quando a lista final tem play de
    verdade e a obra é série com S/E;
 3. `season_key` — emitido **na abertura** (`Orchestrator::handle`), antes do
@@ -56,22 +58,30 @@ Prazo: não há prazo de cliente no tail; o POST usa o timeout curto do
 
 ## Efeitos
 
-### `dub_audit` — interrogatório de áudio (COBERTO)
+### `dub_audit` — interrogatório de áudio (NATIVO desde a T3-L7a)
 
-- Origem TS: `debrid-pipeline-core.ts:311` (cache desconhecido) e `:382` (cache
-  conhecido), via `collectAuditCandidates`/`queueDubAudit` (`dub-audit.ts`).
+A **seleção** continua aqui (abaixo); a **execução** saiu do Node:
+`NativeTailEffects` (`rust/crates/adom-server/src/tail_effects.rs`) consome o
+`kind` e roda fila + `resolve` + escritas no gateway. O lote não atravessa mais
+`POST /internal/search/effects`, e o handler Node responde `rejected` para o kind.
+Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.md).
+
+- Origem TS (histórica): `debrid-pipeline-core.ts:311`/`:382`, via
+  `collectAuditCandidates`/`queueDubAudit` (`dub-audit.ts`, apagado).
 - Quem interroga: os ⚡ com promessa/prova de dublado e, em série, os ⚡ que não
   NOMEIAM o episódio pedido (pack de temporada pode conter outra coisa).
 - Payload (Rust): `{ adapter_id, api_key, candidates[], search_key }`; cada
   candidato `{ hash, season, episode, imdbId, work: {names, year, pack} | null,
   dubbed, needsPromote }`.
-- `api_key` é a chave da conta efetiva (defaults do operador + overlay da URL) e
-  viaja só no corpo da rota interna (loopback + `X-Indexer-Test-Token`).
-- Idempotência (Node): dedupe por hash+S/E na fila pendente, teto de 50, pula
-  hash já `lie` no banco de magnets e hash já provado `missing` no índice.
-- Kill-switch (Node): `config.audioAudit.enabled` e
-  `config.debrid.dubAuditTailMax > 0` — Rust emite mesmo com eles off; o handler
-  descarta.
+- `api_key` é a chave da conta efetiva (defaults do operador + overlay da URL);
+  com a execução nativa ela **nunca sai do processo** do gateway.
+- Idempotência (gateway): dedupe por `(adapter, api_key, hash, S, E)` na fila
+  pendente, teto de 50, pula hash já `lie` no banco de magnets e hash já provado
+  `missing` no índice; um drain por vez.
+- Nomeie a fila: `rust/crates/adom-server/src/dub_audit.rs`; escritas:
+  `dub_audit_writes.rs`; interceptação: `tail_effects.rs`.
+- Kill-switch (gateway, desde a T3-L7a): `AUDIO_AUDIT` e
+  `DEBRID_DUB_AUDIT_MAX` (lidos no boot); o handler Node não tem mais o braço.
 - Seleção Rust: `list_builder/effects.rs::audit_seeds`; fio:
   `orchestrator/effects.rs::dub_audit`.
 
@@ -203,6 +213,7 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 | `season_key` na abertura | `rust/crates/adom-search/src/orchestrator/mod.rs` (`emit_season_key`) |
 | Flag | `rust/crates/adom-server/src/stream_config.rs` (`EFFECTS_RUST`) |
 | Contrato do Node | `src/routes/internal-search-effects.ts` |
+| Execução nativa do `dub_audit` | `rust/crates/adom-server/src/dub_audit.rs`, `dub_audit_writes.rs`, `tail_effects.rs` |
 | Handler do lote do Chupim | `src/providers/autofetch-batch.ts` |
 | Teste TS do contrato | `test/internal-search-effects.test.ts`, `test/internal-search-autofetch-batch.test.ts` |
 | Testes Rust | `orchestrator/effects_tests.rs`, `orchestrator/tests_pipeline.rs`, `list_builder/effects.rs` |

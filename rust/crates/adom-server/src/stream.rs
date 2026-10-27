@@ -19,6 +19,11 @@ use adom_search::orchestrator::{
 use adom_search::{HoldsFeed, MemorySwrStore, NodeHoldsFeed, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
 
+use crate::dub_audit::{DubAudit, DubAuditConfig};
+use crate::dub_audit_writes::NativeWrites;
+use crate::resolve_native::DebridPlay;
+use crate::tail_effects::NativeTailEffects;
+
 /// Default relativo ao cwd do processo (volume `docker-data/addon` → `data/`).
 const DEFAULT_STREAMS_DB: &str = "data/streams.db";
 
@@ -97,7 +102,8 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
 /// FALLBACK; os efeitos de cauda continuam no Node quando as rotas existem.
 pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, String> {
     let config = orchestrator_config_from_env();
-    let mut orch = Orchestrator::new(config, stores.swr);
+    let StreamStores { swr, streams } = stores;
+    let mut orch = Orchestrator::new(config, swr);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
     // o Node usa (chave/valor idênticos).
     let raw_store = open_bludv_raw_store();
@@ -122,8 +128,19 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
             // C5: fonte nativa de metadados, com o Node de FALLBACK (rede
             // fora/título não resolvido).
             let meta = stream_meta::meta_source(Some(routes.clone() as Arc<dyn InternalRoutes>));
+            // T3-L7a: o `dub_audit` passou a ser executado AQUI (fila + veredito
+            // nativos, com as escritas em `mag`/`idx`/`adprot`/`streams`). O
+            // alvo abaixo só recebe os efeitos que ainda são do Node.
+            let audit = Arc::new(DubAudit::new(
+                DubAuditConfig::from_env(),
+                Arc::new(DebridPlay::new()),
+                Arc::new(NativeWrites::from_env(streams.clone())),
+            ));
             orch = orch
-                .with_tail(Arc::new(NodeTailEffects::new(routes.clone())))
+                .with_tail(Arc::new(NativeTailEffects::new(
+                    Arc::new(NodeTailEffects::new(routes.clone())),
+                    audit,
+                )))
                 .with_internal_routes(routes);
             if let Some(meta) = meta {
                 orch = orch.with_meta(meta);

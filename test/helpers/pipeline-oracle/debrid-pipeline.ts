@@ -29,7 +29,7 @@ import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from '../../../src/providers/autofetch-runner.js';
 import rdWarmer from '../../../src/providers/rd-warmer.js';
-import { queueDubAudit, collectAuditCandidates } from '../../../src/providers/dub-audit.js';
+import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { enrichInstantWithoutCacheCheck } from '../../../src/providers/debrid-cache-steps.js';
 import { countFirstBr, pruneKnownBroken } from './debrid-cache-steps.js';
 import type { FirstObserverState } from './first-observer.js';

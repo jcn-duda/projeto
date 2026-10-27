@@ -220,6 +220,11 @@ No `adom-search`: `SwrStore` (`cache.rs:103-116`) ganha `fence_for_key` e
   T3-L6).
 - `dub-audit` continua **oportunista** (fila em memória, limitada) — torná-lo
   durável é mudança de produto, não porte.
+- **Executado fora desse molde (T3-L7a):** o `dub_audit` saiu do caminho HTTP
+  pela costura `TailEffects` (`adom-server/src/tail_effects.rs` +
+  `dub_audit.rs`), não pelo worker do autofetch — ele é efeito de cauda do
+  `/stream` e não compartilha fila nem thread com o Chupim. O `rd_warmer`
+  continua no Node (T3-L7b, pendente).
 - Paridade: regras puras por golden (`adom-core/tests/*_golden.rs`); worker por
   teste de comportamento com stubs (`NetworkDrain` é o precedente do harvest),
   **não** por golden de rede.
@@ -248,7 +253,7 @@ compartilham arquivo.
 | 4 | B1 slot em voo durável | L4 `magnet_work` dono único | L4 estado do Chupim nativo |
 | 5 | B2 journal + outbox de invalidação | L5 `davail`/`mag`/`mag_meta` → Rust | L5 worker do Chupim (candidatos/batch/gate) |
 | 6 | B3 replay/exactly-once | L6 `adsub`/`adprot` → Rust + fim do feed de holds | L6 worker do Chupim (recheck/evict/seeds) |
-| 7 | C1 contador de geração + `set_fenced` | L7 `adrm` + dono das varreduras | L7 `rd-warmer` e `dub-audit` nativos |
+| 7 | C1 contador de geração + `set_fenced` | L7 `adrm` + dono das varreduras | L7 `dub-audit` nativo (7a) + `rd-warmer` (7b, pendente) |
 | 8 | C2 captura/uso da fence nos commits | L8 limpeza de pontes e shims | L8 varreduras AllDebrid nativas |
 | 9 | (bloqueada) fase 2 metadados — exige janela em produção | | |
 
@@ -2738,6 +2743,88 @@ git commit -m "refactor(debrid): adrm nativo e varreduras com dono unico"
 
 ### T3-L7: `rd-warmer` e `dub-audit` nativos
 
+**Status:** RECORTADA em duas fatias.
+
+- **T3-L7a — `dub_audit` nativo: EXECUTADA** (abaixo).
+- **T3-L7b — `rd_warmer` nativo: PENDENTE.** O `rd-warmer` tem chamadores
+  vivos fora do efeito (agendador do boot e painel), então não é um corte de
+  "apagar o TS": o dono do agendador precisa migrar junto. Recorte registrado
+  em [T3-L7b](#t3-l7b-rd_warmer-nativo-pendente).
+
+**Desvio de premissa medido no Step 1:** os arquivos são
+`src/providers/dub-audit.ts` (223 linhas) e `src/providers/rd-warmer.ts`
+(395 linhas) — não `src/utils/`. O `dub-audit.ts` só era chamado pelo braço do
+`dub_audit` no handler de efeitos (mais o pipeline congelado dos testes) e pôde
+sair; o `rd-warmer` **não**, daí o recorte.
+
+#### T3-L7a: `dub_audit` nativo (EXECUTADA)
+
+**Desvios do plano, medidos:**
+
+1. **Não ficou em `adom-server/src/autofetch/`.** O `dub_audit` é efeito de
+   CAUDA do `/stream`, não do Chupim, e o `adom-server` já tem a costura
+   `TailEffects`. Os arquivos reais são `dub_audit.rs` (fila/veredito),
+   `dub_audit_writes.rs` (escritas) e `tail_effects.rs` (interceptação).
+2. **`late.rs` NÃO foi tocado.** O plano mandava parar de emitir
+   `dub_audit`/`rd_warmer`; não é preciso: a emissão é a única fonte dos
+   candidatos (o Node não monta mais lista). O gateway intercepta o `dub_audit`
+   em `NativeTailEffects` e delega o resto — o efeito continua sendo emitido e
+   deixa de atravessar HTTP.
+3. **Métricas não recriadas.** O TS emitia `debrid.audit.lie.tail` e
+   `debrid.audit.episode`; o núcleo não tem registrador equivalente e ficou só o
+   log do veredito. Registrado em `docs/dub-audit-native-contract.md`.
+4. **`mark_lied` sem teste SQLite próprio.** O veredito de mentira é coberto
+   pelos fakes (`dub_audit_tests.rs`) e a paridade de SQLite cobre `lie`,
+   `adprot`, `miss` e `missS` (`dub_audit_writes_tests.rs`); `mark_lied` em si
+   não ganhou caso dedicado.
+5. **Knob `dubAuditTailMax` saiu de `src/config/debrid.ts`** (sem leitor em
+   produção); o oráculo congelado lê `DEBRID_DUB_AUDIT_MAX` direto, com o mesmo
+   default.
+
+**Files (executado):**
+- Create: `rust/crates/adom-server/src/dub_audit.rs`
+- Create: `rust/crates/adom-server/src/dub_audit_writes.rs`
+- Create: `rust/crates/adom-server/src/tail_effects.rs`
+- Create: `rust/crates/adom-server/src/dub_audit_tests.rs` (13 casos),
+  `dub_audit_fakes.rs` (duplos), `dub_audit_writes_tests.rs` (paridade SQLite),
+  `tail_effects_tests.rs` (4 casos)
+- Modify: `rust/crates/adom-server/src/main.rs` (módulos),
+  `Cargo.toml` (`adom-index`), `stream.rs` (fiação `NativeTailEffects`)
+- Modify: `src/routes/internal-search-effects.ts` (sem o braço `dub_audit`),
+  `src/config/debrid.ts` (knob morto)
+- Delete: `src/providers/dub-audit.ts` (223 linhas)
+- Create: `test/helpers/pipeline-oracle/dub-audit.ts` (oráculo congelado, lê a
+  env direto)
+- Modify: `test/internal-search-effects.test.ts`, `test/magnet-db.test.ts`,
+  `test/memory-fallback-suppress.test.ts`,
+  `test/helpers/pipeline-oracle/debrid-pipeline.ts`
+- Create: `docs/dub-audit-native-contract.md`; Modify:
+  `docs/rust-effects-contract.md`
+
+**Testes:** 13 casos de fila/veredito (`offer` com teto 50 e dedupe por
+conta+hash+S+E, `dub_lie` → `lie`+`adprot`+`lied`, `episode_pick` com prova →
+`miss`/`missS`, sem prova → nada, erro genérico → nada, promoção por obra,
+drenagem serializada, `parse_effect` rejeitando forma inválida) + paridade
+SQLite das quatro escritas + 4 casos da interceptação. No Node, os 3 testes que
+provavam o efeito foram removidos com o braço; `internal-search-effects.test.ts`
+agora prova que o kind é `rejected`.
+
+**Gate e commit (medidos):** `npm run typecheck` 0; `npm run build` 0; `npm test`
+**2378 pass / 0 fail** (2379 testes, 1 skip); `npm run test:complete` 274
+arquivos/2 harnesses; `npm run lint:lines -- --check` 643/0; `npm run
+parity:frozen` 1/1; `git diff --check` 0; `cargo fmt --all -- --check` 0; `cargo
+clippy --workspace --all-targets --locked -- -D warnings` 0; `cargo test
+--workspace --locked` 0 (sem `FAILED`); catraca `.rs` 976 fontes/0 acima.
+
+```powershell
+git commit -m "refactor(audit): dub_audit nativo e fim do efeito no Node"
+```
+
+---
+
+**Plano original (histórico — vale para o T3-L7b e como referência do
+`dub_audit`):**
+
 São os dois últimos efeitos de fundo que ainda atravessam HTTP até o Node.
 
 **Files:**
@@ -2826,6 +2913,40 @@ git add src rust test package.json
 ```powershell
 git commit -m "refactor(autofetch): rd-warmer e dub-audit nativos e fim dos efeitos"
 ```
+
+#### T3-L7b: `rd_warmer` nativo (PENDENTE)
+
+**Por que não saiu junto (medido):** o `rd-warmer` **não** é só um efeito. Além
+`rd_warmer` → `harvest-warmer.ts::queueRdWarmForRelevant`, ele tem dono de
+processo no Node:
+
+| Consumidor | Arquivo |
+|---|---|
+| Timer de boot (`start()`) | `src/addon.ts:105` |
+| Pausa/retomada/drenagem | `src/routes/dashboard-actions.ts:98-114` |
+| Estado no painel `/diagnostics` | `src/routes/diagnostics.ts:134` (`warm`) |
+| Alimentação pelo colhedor | `src/providers/harvest-warmer.ts` |
+| Fila + teto horário persistentes | `rdq:v1:wq` / `rdq:v1:hour` (`src/utils/cache-keys.ts`) |
+
+O corte exige decidir o **dono da fila** (`rdq` ainda é namespace do Node, com
+cota 500 em `cache-quotas.ts`) e migrar o agendador: `start()` só existe no
+processo do Node, e o timer precisa viver no gateway — senão o aquecimento
+contínuo morre em silêncio. Escrever o `rd_warmer` sem isso seria mover 395
+linhas e deixar o efeito sem consumidor.
+
+**Escopo mínimo da fatia:**
+1. `rdq` vira RUST_OWNED (leitura/gravação pelo núcleo; o Node só lê estado).
+2. Agendador no gateway (`start`/`tick`/`drain`/`set_paused`), com `rdGate`,
+   `rdLedger`, janela ociosa (`activity.recent_user_traffic`), holds e marker do
+   autofetch — as mesmas guardas de `processBatch`.
+3. Painel: pausa/retomada/drenagem e `warm` do `/diagnostics` via API
+   administrativa do gateway (padrão F4.4a), não pelo módulo TS.
+4. `harvest-warmer.ts` passa a enfileirar no gateway.
+5. `DeleteFile` em `src/providers/rd-warmer.ts` e ajuste de `services.ts`/
+   `types.ts`/`addon.ts`.
+
+Até lá o comportamento é o atual: `rd_warmer` continua atravessando HTTP até o
+Node (único efeito de fundo que sobrou nesse caminho).
 
 ---
 
@@ -3060,8 +3181,8 @@ priorizar, não para fechar conta.
 | Chupim (`autofetch*`) | 25 | 4.232 | T3-L4, T3-L5, T3-L6 |
 | Ingestão/raspador (`crawl-*`, `internal-crawl-result`) | 11 | 2.136 | T3-L3 |
 | Varreduras AllDebrid (`alldebrid-*`, `protected.ts`) | 6 | 1.598 | T2-L6, T2-L7, T3-L8 |
-| `rd-warmer.ts` | 1 | 395 | T3-L7 |
-| `dub-audit.ts` | 1 | 223 | T3-L7 |
+| `rd-warmer.ts` | 1 | 395 | T3-L7b |
+| `dub-audit.ts` | 1 | 223 | T3-L7a (feito) |
 | Pontes/shims sem consumidor | a medir | ≈ 322 | T2-L8 |
 | Corpos atrás do 501, `premiumize-files.ts`, `markBankFilterOutcome`, `markFilterResult` | 5 | ≈ 420 | Task 0.3, T2-L3 |
 
@@ -3134,7 +3255,8 @@ A migração está fechada quando **todos** valem:
   existe.
 - [ ] O Chupim roda em thread nativa; `src/**/autofetch*.ts` não existe.
 - [ ] `rd-warmer` e `dub-audit` são nativos; nenhum efeito de fundo atravessa
-  HTTP até o Node.
+  HTTP até o Node. (`dub-audit` feito na T3-L7a; `rd-warmer` pendente na
+  T3-L7b — enquanto isso o `rd_warmer` ainda atravessa.)
 - [ ] A fase 3 não tem corpo TS alcançável atrás de 501.
 - [ ] `npm run typecheck`, `build`, `test`, `test:complete`, `lint:lines --
   --check` verdes; `cargo clippy -D warnings` e `cargo test --workspace` verdes.

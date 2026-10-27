@@ -1,12 +1,12 @@
-// Fallback do banco (Etapa 4) — supressão de consumidores: dub-audit e
-// pools/cobertura do Chupim/warmer. Um item de reserva NÃO pode virar
-// candidato de download nem contar como cobertura cached BR que suprime o
-// download. Sem rede.
+// Fallback do banco (Etapa 4) — supressão de consumidores: pools/cobertura do
+// Chupim/warmer. Um item de reserva NÃO pode virar candidato de download nem
+// contar como cobertura cached BR que suprime o download. Sem rede.
+//
+// O consumidor `dub-audit` saiu deste arquivo na T3-L7a: a seleção de quem o
+// tail interroga passou para o núcleo Rust (`adom_search::list_builder::effects`,
+// teste `audita_so_o_dublado_em_cache_fora_da_reserva`).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import config from '../src/config.js';
-import debrid from '../src/debrid/index.js';
-import { collectAuditCandidates, queueDubAudit, runDubAudit } from '../src/providers/dub-audit.js';
 import { brDubbedPool, anyDubbedPool, topSeededPool } from '../src/utils/autofetch-pools.js';
 import {
   hasCachedBrDubbed,
@@ -28,30 +28,6 @@ const fbStream = {
   _seeders: 9,
   _fromFallback: true,
 } as unknown as Stream;
-
-test('dub-audit: fallback cacheado+dublado não vira candidato nem toca resolveLink', async () => {
-  const cached = new Set([cacheHash]);
-  const ctx = { season: 1, episode: 1, imdbId: 'tt900' };
-  assert.equal(collectAuditCandidates([fbStream], cached, ctx).length, 0, 'fallback fora da auditoria');
-  const normal = { ...fbStream, _fromFallback: undefined } as unknown as Stream;
-  assert.equal(collectAuditCandidates([normal], cached, ctx).length, 1, 'controle: item vivo entra');
-  const originalResolve = debrid.resolveLink;
-  const originalEnabled = config.audioAudit.enabled;
-  const originalMax = config.debrid.dubAuditTailMax;
-  let called = 0;
-  debrid.resolveLink = (async () => { called += 1; return null; }) as any;
-  config.audioAudit.enabled = true;
-  config.debrid.dubAuditTailMax = 5;
-  try {
-    queueDubAudit('premiumize', 'chave-audit', collectAuditCandidates([fbStream], cached, ctx), 'lista-audit');
-    await runDubAudit();
-    assert.equal(called, 0, 'resolveLink/markLie/idx não acionados pela reserva');
-  } finally {
-    debrid.resolveLink = originalResolve;
-    config.audioAudit.enabled = originalEnabled;
-    config.debrid.dubAuditTailMax = originalMax;
-  }
-});
 
 test('pools/warmer/cobertura: fallback não é candidato NEM cobertura cached', () => {
   const cached = new Set([cacheHash]);

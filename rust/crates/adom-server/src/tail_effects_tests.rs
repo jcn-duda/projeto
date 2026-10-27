@@ -1,0 +1,153 @@
+//! Testes da interceptação do `dub_audit` no tail (T3-L7a): o gateway executa
+//! o que ele mesmo decidiu e não duplica o trabalho no Node.
+
+use std::sync::{Arc, Mutex};
+
+use adom_search::orchestrator::{EffectsBatch, RouteFuture, TailEffects};
+use adom_search::{EffectEntry, EffectsResponse};
+use serde_json::json;
+
+use super::*;
+use crate::dub_audit_fakes::*;
+
+/// Alvo de repasse: guarda os lotes que chegaram e devolve o `ok` combinado.
+struct RecordingTail {
+    batches: Mutex<Vec<EffectsBatch>>,
+    ok: bool,
+}
+
+impl RecordingTail {
+    fn new(ok: bool) -> Self {
+        Self {
+            batches: Mutex::new(Vec::new()),
+            ok,
+        }
+    }
+
+    fn batches(&self) -> Vec<EffectsBatch> {
+        self.batches.lock().unwrap().clone()
+    }
+}
+
+impl TailEffects for RecordingTail {
+    fn effects<'a>(&'a self, batch: EffectsBatch) -> RouteFuture<'a, EffectsResponse> {
+        Box::pin(async move {
+            let accepted = i64::try_from(batch.effects.len()).unwrap_or(i64::MAX);
+            self.batches.lock().unwrap().push(batch);
+            Ok(EffectsResponse {
+                ok: self.ok,
+                accepted,
+                rejected: 0,
+            })
+        })
+    }
+}
+
+fn entry(kind: &str, payload: serde_json::Value) -> EffectEntry {
+    EffectEntry {
+        kind: kind.to_string(),
+        payload: serde_json::from_value(payload).unwrap(),
+    }
+}
+
+fn dub_audit_payload(hashes: &[String]) -> serde_json::Value {
+    json!({
+        "adapter_id": "alldebrid",
+        "api_key": "chave-a",
+        "candidates": hashes.iter().map(|hash| json!({
+            "hash": hash,
+            "season": 1,
+            "episode": 4,
+            "imdbId": "tt123",
+            "dubbed": true
+        })).collect::<Vec<_>>()
+    })
+}
+
+fn build(
+    tail: Arc<RecordingTail>,
+    tail_max: usize,
+) -> (Arc<FakeResolver>, Arc<DubAudit>, Arc<NativeTailEffects>) {
+    let (resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), tail_max, false);
+    let native = Arc::new(NativeTailEffects::new(tail, audit.clone()));
+    (resolver, audit, native)
+}
+
+#[tokio::test]
+async fn dub_audit_fica_no_gateway_e_o_resto_vai_ao_node() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (_resolver, audit, native) = build(target.clone(), 2);
+    let batch = EffectsBatch {
+        encoded: "cfg".into(),
+        effects: vec![
+            entry("dub_audit", dub_audit_payload(&[hash_of(1), hash_of(2)])),
+            entry("autofetch", json!({ "items": [] })),
+        ],
+    };
+    let response = native.effects(batch).await.unwrap();
+    assert!(response.ok);
+    assert_eq!(response.accepted, 2);
+    assert_eq!(response.rejected, 0);
+    // O Node recebeu SÓ o autofetch — o `dub_audit` não atravessa mais.
+    let batches = target.batches();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0].encoded, "cfg");
+    assert_eq!(batches[0].effects.len(), 1);
+    assert_eq!(batches[0].effects[0].kind, "autofetch");
+    // Os dois candidatos entraram na fila do interrogatório nativo.
+    assert_eq!(audit.pending(), 2);
+}
+
+#[tokio::test]
+async fn payload_invalido_e_rejeitado_sem_chamar_o_alvo() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (_resolver, audit, native) = build(target.clone(), 2);
+    let batch = EffectsBatch {
+        encoded: "cfg".into(),
+        effects: vec![entry(
+            "dub_audit",
+            json!({ "adapter_id": "alldebrid", "api_key": "chave-a",
+                    "candidates": [{ "hash": "curto" }] }),
+        )],
+    };
+    let response = native.effects(batch).await.unwrap();
+    assert!(response.ok);
+    assert_eq!(response.accepted, 0);
+    assert_eq!(response.rejected, 1);
+    assert!(target.batches().is_empty());
+    assert_eq!(audit.pending(), 0);
+}
+
+#[tokio::test]
+async fn veredito_do_alvo_propaga() {
+    let target = Arc::new(RecordingTail::new(false));
+    let (_resolver, _audit, native) = build(target.clone(), 2);
+    let batch = EffectsBatch {
+        encoded: "cfg".into(),
+        effects: vec![entry("autofetch", json!({ "items": [] }))],
+    };
+    let response = native.effects(batch).await.unwrap();
+    assert!(!response.ok);
+    assert_eq!(response.accepted, 1);
+}
+
+#[tokio::test]
+async fn aceite_dispara_a_drenagem_em_segundo_plano() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (resolver, audit, native) = build(target, 2);
+    let batch = EffectsBatch {
+        encoded: "cfg".into(),
+        effects: vec![entry("dub_audit", dub_audit_payload(&[hash_of(1)]))],
+    };
+    native.effects(batch).await.unwrap();
+    // A drenagem é fire-and-forget: cede a vez até a fila esvaziar.
+    for _ in 0..50 {
+        if audit.pending() == 0 {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(audit.pending(), 0);
+    assert_eq!(resolver.calls().len(), 1);
+    assert_eq!(resolver.calls()[0].hash, hash_of(1));
+}

@@ -1,10 +1,11 @@
 // Rotas internas de ESCRITA E EFEITOS da busca (Fase A, passo 2 da migração
 // strangler Node→Rust): POST /internal/search/effects. É o que o orquestrador
 // Rust (`adom-search`) pede ao Node DEPOIS do `collect`: disparar os efeitos de
-// fundo que ainda moram aqui (autofetch, warmer, auditoria, sonda, colhedor,
-// chave de temporada). A captura do banco VIVO e o índice são NATIVOS desde o
-// R4 — a rota `index-write` e o efeito `magnet_capture` foram removidos junto
-// com os ramos Node.
+// fundo que ainda moram aqui (autofetch, warmer, sonda, colhedor, chave de
+// temporada). A captura do banco VIVO e o índice são NATIVOS desde o R4 — a
+// rota `index-write` e o efeito `magnet_capture` foram removidos junto com os
+// ramos Node. O interrogatório de áudio (`dub_audit`) saiu na T3-L7a: fila,
+// `resolve` e veredito são do gateway, e o kind nem chega mais aqui.
 //
 // Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
 // vem no CORPO (`encoded`), e o contexto é restaurado com `runtime.run` (o
@@ -16,7 +17,6 @@ import type { AppServices } from './types.js';
 import { rejectedByGuard, decodeTarget } from './internal-search-shared.js';
 import { enqueueAutofetch } from '../providers/autofetch-runner.js';
 import { queueRdWarmForRelevant } from '../providers/harvest-warmer.js';
-import { queueDubAudit } from '../providers/dub-audit.js';
 import { requestBrProbe } from '../providers/br-probe.js';
 import { enqueueNativeHarvest } from '../utils/harvest-native.js';
 import type { NativeHarvestEnqueue } from '../utils/harvest-native.js';
@@ -40,8 +40,6 @@ export interface InternalSearchEffectsCollaborators {
   enqueueAutofetch: typeof enqueueAutofetch;
   /** Alimenta o warmer do RD com as releases relevantes do lote. */
   queueRdWarmForRelevant: typeof queueRdWarmForRelevant;
-  /** Enfileira candidatos BR em cache para interrogatório de áudio. */
-  queueDubAudit: typeof queueDubAudit;
   /** Sonda dirigida BR (colheita com `brProbe: true`). */
   requestBrProbe: typeof requestBrProbe;
   /** Enfileira obra no colhedor NATIVO (`POST /harvest/enqueue` do gateway). */
@@ -106,9 +104,6 @@ function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
             && typeof payload.known === 'boolean';
         case 'rd_warmer':
           return Array.isArray(payload.releases);
-        case 'dub_audit':
-          return typeof payload.adapter_id === 'string' && typeof payload.api_key === 'string'
-            && Array.isArray(payload.candidates);
         case 'br_probe':
           return typeof payload.imdbId === 'string' && IMDB_RE.test(payload.imdbId)
             && (payload.type === 'movie' || payload.type === 'series');
@@ -141,12 +136,6 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
       return;
     case 'rd_warmer':
       deps.queueRdWarmForRelevant(p.releases as any[]);
-      return;
-    case 'dub_audit':
-      deps.queueDubAudit(
-        String(p.adapter_id), String(p.api_key), p.candidates as any[],
-        typeof p.search_key === 'string' ? p.search_key : null,
-      );
       return;
     case 'br_probe': {
       const result = deps.requestBrProbe(p as any, p.mode === 'upgrade' ? { mode: 'upgrade' } : {});
@@ -235,7 +224,6 @@ export function registerInternalSearchEffects(
   const deps: InternalSearchEffectsCollaborators = {
     enqueueAutofetch: overrides.enqueueAutofetch ?? enqueueAutofetch,
     queueRdWarmForRelevant: overrides.queueRdWarmForRelevant ?? queueRdWarmForRelevant,
-    queueDubAudit: overrides.queueDubAudit ?? queueDubAudit,
     requestBrProbe: overrides.requestBrProbe ?? requestBrProbe,
     harvestEnqueue: overrides.harvestEnqueue ?? enqueueNativeHarvest,
     registerSeasonSearchKey: overrides.registerSeasonSearchKey ?? registerSeasonSearchKey,

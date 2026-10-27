@@ -8,6 +8,8 @@
 // dela foram removidos junto com os stubs `record`/`markBankFilterOutcome`.
 // A captura do banco VIVO (`magnet_capture`) saiu na T2-L1: ela acontece no
 // próprio processo Rust, no fim do tail — aqui só sobra a recusa do kind.
+// A auditoria de áudio (`dub_audit`) saiu na T3-L7a (fila e veredito do
+// gateway): o kind também só aparece para provar a recusa.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -25,7 +27,7 @@ const encoded = encodeConfig({ ds: 'torbox' });
 /** Stubs determinísticos que registram as chamadas recebidas. */
 function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: Record<string, any[]> } {
   const seen: Record<string, any[]> = {
-    autofetch: [], warmer: [], audit: [], probe: [], harvest: [], seasonKey: [],
+    autofetch: [], warmer: [], probe: [], harvest: [], seasonKey: [],
   };
   const deps: Partial<InternalSearchEffectsCollaborators> = {
     enqueueAutofetch: (candidate: any, request: any) => {
@@ -33,9 +35,6 @@ function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; see
       return true;
     },
     queueRdWarmForRelevant: (relevant: any[]) => { seen.warmer.push(relevant); },
-    queueDubAudit: (adapterId: string, apiKey: string, candidates: any[], searchKey: string | null) => {
-      seen.audit.push({ adapterId, apiKey, candidates, searchKey });
-    },
     requestBrProbe: (work: any) => { seen.probe.push(work); return { probe: true, pending: true, fallbackBrGap: false }; },
     harvestEnqueue: (entry: any) => {
       seen.harvest.push(entry);
@@ -119,7 +118,6 @@ test('effects: 202 imediato e dispara cada efeito com o contexto do usuário', a
         effects: [
           { kind: 'autofetch', payload: { candidate: { stream: { infoHash: HASH_A } }, request: { cached: false, imdbId: 'tt0000001' } } },
           { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
-          { kind: 'dub_audit', payload: { adapter_id: 'rd', api_key: 'k', candidates: [{ hash: HASH_A }], search_key: 's1' } },
           { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null } },
           { kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'miss' } },
           { kind: 'season_key', payload: { adapter_id: 'rd', account: 'acc', imdb: 'tt0000001', season: 2, cache_key: 'ck' } },
@@ -128,14 +126,13 @@ test('effects: 202 imediato e dispara cada efeito com o contexto do usuário', a
     });
     // A resposta sai ANTES de qualquer efeito: 202 com as contagens.
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 6, rejected: 0 });
+    assert.deepEqual(res.json, { ok: true, accepted: 5, rejected: 0 });
     await flushTimers();
     // Cada ponto de entrada real foi acionado uma vez.
     assert.equal(seen.autofetch.length, 1);
     assert.equal(seen.autofetch[0].candidate.stream.infoHash, HASH_A);
     assert.equal(seen.autofetch[0].opts, 'torbox', 'runtime.run restaurou a config do encoded');
     assert.deepEqual(seen.warmer, [[itemOf(HASH_A)]]);
-    assert.deepEqual(seen.audit, [{ adapterId: 'rd', apiKey: 'k', candidates: [{ hash: HASH_A }], searchKey: 's1' }]);
     assert.equal(seen.probe[0].imdbId, 'tt0000001');
     assert.equal(seen.harvest[0].reason, 'miss');
     assert.deepEqual(seen.seasonKey, [{ adapterId: 'rd', account: 'acc', imdb: 'tt0000001', season: 2, cacheKey: 'ck' }]);
@@ -237,15 +234,15 @@ test('effects: br_probe agendado NÃO duplica a colheita', async () => {
   }
 });
 
-test('effects: magnet_capture não é mais um efeito (captura é nativa)', async () => {
+test('effects: kinds com dono nativo (magnet_capture, dub_audit) são rejeitados', async () => {
   const { deps } = stubEffects();
   const app2 = express();
   registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
   const server2 = await createTestServer(app2);
   try {
-    // O kind virou desconhecido na T2-L1: a captura do acervo passou para o
-    // processo Rust, no fim da busca. Um lote com ele é recusado sem derrubar
-    // os demais efeitos.
+    // Os dois kinds saíram da rota: a captura do acervo passou para o processo
+    // Rust no fim da busca (T2-L1) e o interrogatório de áudio para o gateway
+    // (T3-L7a). Um lote com eles é recusado sem derrubar os demais efeitos.
     const res = await server2.request('POST', '/internal/search/effects', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: {
@@ -255,12 +252,16 @@ test('effects: magnet_capture não é mais um efeito (captura é nativa)', async
             kind: 'magnet_capture',
             payload: { items: [itemOf(HASH_A)], indexer: 'bludv', resetPassedFilter: false },
           },
+          {
+            kind: 'dub_audit',
+            payload: { adapter_id: 'rd', api_key: 'k', candidates: [{ hash: HASH_A }] },
+          },
           { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
         ],
       },
     });
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 1 });
+    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2 });
     await flushTimers();
   } finally {
     await server2.close();

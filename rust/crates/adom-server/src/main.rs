@@ -1,4 +1,7 @@
 mod config;
+/// Interrogatório de áudio do tail (T3-L7a): fila e veredito sem o Node.
+mod dub_audit;
+mod dub_audit_writes;
 /// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
 mod harvest;
 mod proxy;
@@ -7,6 +10,12 @@ mod resolve_hint;
 mod resolve_native;
 mod store_admin;
 mod stream;
+mod tail_effects;
+
+/// Duplos do interrogatório de áudio, compartilhados pelos testes do crate.
+#[cfg(test)]
+#[path = "dub_audit_fakes.rs"]
+mod dub_audit_fakes;
 
 #[cfg(test)]
 mod tests;

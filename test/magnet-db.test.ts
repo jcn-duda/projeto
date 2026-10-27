@@ -10,15 +10,11 @@ import * as magnetdb from '../src/utils/magnetdb.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as cache from '../src/utils/cache.js';
 import { magnetState, davailState } from '../src/utils/debrid-state-native.js';
 import debrid from '../src/debrid/index.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from './helpers/pipeline-oracle/format.js';
-import { pickFile, NoVideoError, DubLieError } from '../src/debrid/common.js';
-import * as held from '../src/debrid/protected.js';
-import { queueDubAudit, runDubAudit } from '../src/providers/dub-audit.js';
+import { pickFile, NoVideoError } from '../src/debrid/common.js';
 import { createStreamTrace } from '../src/utils/stream-trace.js';
 
 const runWith = (patch: { opts: any; encoded: string }, fn: () => any) => runtime.run(patch, fn);
@@ -267,44 +263,6 @@ test('applyDebrid sem adapter: stream _lied some da lista (pre-debrid)', async (
     assert.equal(trace.items[0].reason, 'lie', 'pre-debrid registra o mesmo motivo do pruneKnownBroken');
     assert.match(String(trace.items[0].label), new RegExp(lied.slice(0, 8)));
   } finally {
-    metrics.reset();
-  }
-});
-
-test('runDubAudit: mentira do tail destrava adprot (paridade com /resolve)', async () => {
-  const originalResolve = debrid.resolveLink;
-  const originalProtect = config.debrid.autoFetchProtectBr;
-  const apiKey = 'chave-mag-audit-lie';
-  const account = accountScope(apiKey);
-  const h = 'f1'.repeat(20);
-  cache.clearNamespace('adprot');
-  // L2 residual de lie faria o audit pular o candidato (isLie → continue).
-  // Não há `forgetLie` na ponte: esvaziar o namespace `mag` é o equivalente.
-  magnetState().clear();
-  metrics.reset();
-  try {
-    config.debrid.autoFetchProtectBr = true;
-    held.protectBr('alldebrid', account, h);
-    assert.equal(held.isDurablyProtected('alldebrid', account, h), true, 'precondição: retido');
-    debrid.resolveLink = async () => {
-      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
-    };
-    await runWith(
-      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: apiKey }, encoded: 'cfg-mag-audit' },
-      async () => {
-        queueDubAudit('alldebrid', apiKey, [{ hash: h, season: null, episode: null, imdbId: null, dubbed: true }]);
-        const r = await runDubAudit();
-        assert.equal(r.lies, 1, 'tail provou a mentira');
-      },
-    );
-    assert.equal(held.isDurablyProtected('alldebrid', account, h), false, 'audit destrava retenção');
-    assert.equal(magnetdb.isLie('alldebrid', apiKey, h), true, 'lie gravado na conta');
-  } finally {
-    debrid.resolveLink = originalResolve;
-    config.debrid.autoFetchProtectBr = originalProtect;
-    held.unprotect('alldebrid', account, h);
-    cache.clearNamespace('adprot');
-    magnetState().clear();
     metrics.reset();
   }
 });

@@ -11,6 +11,9 @@ adom-core = { path = "../adom-core" }
 adom-debrid = { path = "../adom-debrid" }
 # Fila durável + worker do colhedor nativo (Fase 5).
 adom-harvest = { path = "../adom-harvest" }
+# `mag:v1` (lie/bad) do banco de magnets da conta — escrita do interrogatório
+# de áudio (T3-L7a).
+adom-index = { path = "../adom-index" }
 adom-search = { path = "../adom-search" }
 # Metadados nativos (C5): `MetaSources` + store do cache.db.
 adom-sources = { path = "../adom-sources" }

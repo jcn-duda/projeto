@@ -1,26 +1,28 @@
-import config from '../config.js';
-import type { DebridAdapter, Stream, WorkHint } from '../../types/domain.js';
-import { parseTitleSeasonEpisode } from '../utils/format.js';
-import debrid from '../debrid/index.js';
-import * as magnetdb from '../utils/magnetdb.js';
-import * as releaseIndex from '../utils/release-index.js';
-import * as log from '../utils/logger.js';
-import * as metrics from '../utils/metrics.js';
-import * as cache from '../utils/cache.js';
-import { opts } from '../runtime.js';
-import { accountScope } from '../utils/request-key.js';
-import * as protectedApi from '../debrid/protected.js';
-import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
-import { invalidateStreamsForObra } from '../utils/br-gap.js';
-// O tipo sobreviveu ao pipeline (o applyDebrid TS virou oráculo de teste; a
-// auditoria de áudio continua no Node e lê as mesmas opções).
-import type { ApplyDebridOptions } from './debrid-apply-types.js';
+// ORÁCULO CONGELADO — NÃO É CÓDIGO DE PRODUÇÃO.
+//
+// Cópia fiel de `src/providers/dub-audit.ts` no commit dff6ed73 (branch rust),
+// congelada em `test/helpers/pipeline-oracle/` no momento em que o T3-L7a
+// levou o interrogatório de áudio para o gateway Rust. O pipeline congelado
+// (`debrid-pipeline.ts`) continua enfileirando por aqui para que o oráculo do
+// `applyDebrid` siga reproduzindo o comportamento de antes do corte. Não edite
+// para "acompanhar" produção: o comportamento novo é validado no núcleo Rust
+// (`adom-server::dub_audit`); este arquivo só preserva o passado.
+import config from '../../../src/config.js';
+import type { DebridAdapter, Stream, WorkHint } from '../../../types/domain.js';
+import { parseTitleSeasonEpisode } from '../../../src/utils/format.js';
+import debrid from '../../../src/debrid/index.js';
+import * as magnetdb from '../../../src/utils/magnetdb.js';
+import * as releaseIndex from '../../../src/utils/release-index.js';
+import * as log from '../../../src/utils/logger.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import * as cache from '../../../src/utils/cache.js';
+import { opts } from '../../../src/runtime.js';
+import { accountScope } from '../../../src/utils/request-key.js';
+import * as protectedApi from '../../../src/debrid/protected.js';
+import { isDubLieError, isEpisodePickError } from '../../../src/debrid/common.js';
+import { invalidateStreamsForObra } from '../../../src/utils/br-gap.js';
+import type { ApplyDebridOptions } from '../../../src/providers/debrid-apply-types.js';
 
-// Fase D da auditoria de áudio: candidatos ⚡ dublados confirmados em cache
-// nesta busca. A prova (paths reais dos vídeos) só existe no debrid; esperar
-// o play descobrir entrega inglês sob selo DUB BR uma vez por hash — o tail
-// prova ANTES, grava a mesma evidência do play e a próxima lista já nasce
-// honesta. Fila curta de propósito: sobra de busca sem tail não acumula.
 type DubAuditCandidate = {
   hash: string;
   season: number | null;
@@ -28,19 +30,15 @@ type DubAuditCandidate = {
   imdbId: string | null;
   work?: WorkHint;
   dubbed: boolean;
-  /** Claim sem prova: OK do resolve precisa invalidar pra reopen promover `_dubbed`. */
   needsPromote?: boolean;
   key?: string | null;
   extraKeys?: string[];
 };
-// Estado mutável com dono único: a fila pendente vive AQUI e em mais nenhum
-// módulo — o pipeline só enfileira candidatos, nunca toca o array direto.
+// Lido aqui, e não de `config`: o knob saiu do TS junto com a fila (o gateway
+// o lê em `dub_audit.rs::DubAuditConfig::from_env`). Mesmo default, mesma env.
+const TAIL_MAX = Number(process.env.DEBRID_DUB_AUDIT_MAX ?? 2);
 const dubAuditPending: DubAuditCandidate[] = [];
 
-/** ⚡ em cache = o que o usuário vai tocar; é isso que o tail interrogará.
- * Dois grupos: (1) dublados — provam a promessa de áudio; (2) em série, os
- * que NÃO nomeiam o episódio pedido — pack de temporada pode conter outra
- * coisa (caso True Detective). Dedupe por hash preserva a variante dublada. */
 export function collectAuditCandidates(
   list: Stream[],
   cached: Set<string>,
@@ -49,9 +47,6 @@ export function collectAuditCandidates(
   const work = (s: Stream): WorkHint | undefined => (workHint ? { names: workHint.n, year: workHint.y, pack: Boolean(s._multiWork) } : undefined);
   const byHash = new Map<string, DubAuditCandidate>();
   for (const s of list) {
-    // Fallback do banco (Etapa 4) fica FORA: auditar um item de reserva
-    // dispararia resolveLink/auditoria de áudio por um hash que o vivo não
-    // confirmou nesta coleta — a prova de áudio não pode vir da reserva.
     if (s._fromFallback) continue;
     if (!s.infoHash || !(s._dubbed || s._dubClaim) || !cached.has(s.infoHash)) continue;
     byHash.set(String(s.infoHash), {
@@ -61,7 +56,6 @@ export function collectAuditCandidates(
       imdbId: imdbId || null,
       work: work(s),
       dubbed: true,
-      // Já `_dubbed`: lista honesta; OK não precisa forget (evita churn de TTL).
       needsPromote: Boolean(s._dubClaim && !s._dubbed),
     });
   }
@@ -70,8 +64,6 @@ export function collectAuditCandidates(
       if (s._fromFallback) continue;
       if (!s.infoHash || !cached.has(s.infoHash)) continue;
       const hash = String(s.infoHash);
-      // A variante dublada já interrogará este hash — e o resultado dela vale
-      // para os dois grupos (a prova é sobre o conteúdo, não sobre o selo).
       if (byHash.has(hash)) continue;
       if (nomeiaEpisodio(s.title || s.name || '', season, episode)) continue;
       byHash.set(hash, {
@@ -88,17 +80,10 @@ export function collectAuditCandidates(
 }
 
 export function queueDubAudit(adapterId: string, apiKey: string, candidates: DubAuditCandidate[], searchKey: string | null = null) {
-  if (!config.audioAudit.enabled || config.debrid.dubAuditTailMax <= 0) return;
+  if (!config.audioAudit.enabled || TAIL_MAX <= 0) return;
   let added = false;
   for (const cand of candidates) {
-    // Já condenado nesta conta não gasta consulta de novo.
     if (magnetdb.isLie(adapterId, apiKey, cand.hash)) continue;
-    // Já está na fila para o MESMO episódio: busca repetida não pode duplicar
-    // o interrogatório. Temporada/episódio entram na comparação porque o
-    // MESMO pack serve episódios diferentes (navegação E01 → E02 enfileira de
-    // novo, com a própria chave de lista). Se a candidatura repete com chave
-    // de busca diferente, acumula a chave extra: a prova invalida TODAS as
-    // listas afetadas, não só a primeira.
     const candHash = String(cand.hash || '').toLowerCase();
     const prev = dubAuditPending.find((p) => String(p.hash || '').toLowerCase() === candHash
       && p.season === cand.season && p.episode === cand.episode);
@@ -109,19 +94,12 @@ export function queueDubAudit(adapterId: string, apiKey: string, candidates: Dub
       }
       continue;
     }
-    // Já provou não servir ESTE episódio (play ou tail anterior).
     if (cand.imdbId && cand.season != null && cand.episode != null
       && releaseIndex.isMissing(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash)) continue;
     dubAuditPending.push({ ...cand, key: searchKey });
     added = true;
   }
   if (dubAuditPending.length > 50) dubAuditPending.splice(0, dubAuditPending.length - 50);
-  // A drenagem é agendada NO enfileiramento, de propósito: os candidatos BR
-  // costumam chegar pelo passe tardio, DEPOIS do ponto da busca que responderia
-  // — e a busca seguinte pode sair do cache sem rodar doSearch de novo. O
-  // setImmediate criado AQUI herda o AsyncLocalStorage da requisição que
-  // enfileirou (opts() continua vendo a conta certa), e cada drenagem leva
-  // consigo a chave da lista para invalidar quem provou mentira.
   if (added) {
     const handle = setImmediate(async () => {
       try {
@@ -135,13 +113,7 @@ export function queueDubAudit(adapterId: string, apiKey: string, candidates: Dub
   }
 }
 
-/**
- * Prova os candidatos pendentes no debrid; mentira vira a MESMA evidência do
- * play (mag lie + idx.lied). Falha de rede/credencial não é evidência — o
- * candidato volta a entrar na próxima busca. O link resolvido é descartado:
- * aqui não é play, é interrogatório.
- */
-export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
+export async function runDubAudit(limit = TAIL_MAX) {
   const batch = dubAuditPending.splice(0, Math.max(0, Math.trunc(Number(limit) || 0)));
   let lies = 0;
   let wrongEpisodes = 0;
@@ -151,8 +123,6 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
   for (const cand of batch) {
     try {
       await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
-      // resolveLink OK com candidatura dublada: fileEvidence gravado —
-      // invalida só quando a lista ainda era claim (promover → `_dubbed`).
       if (cand.dubbed && cand.needsPromote) {
         if (cand.key) okKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) okKeys.add(extra);
@@ -164,8 +134,6 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         const adapter = debrid.current() as DebridAdapter | null;
         if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
         if (adapter) {
-          // Release provou EN apesar da promessa de dublado: não é acervo BR
-          // confiável — destrava a proteção durável daquela conta/adapter.
           protectedApi.unprotect(adapter.id, accountScope(opts().debridApiKey), cand.hash);
         }
         if (cand.imdbId) releaseIndex.markLied(cand.imdbId, { season: cand.season, episode: cand.episode }, cand.hash);
@@ -175,9 +143,6 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
         metrics.count('debrid.audit.lie.tail');
         log.warn(`[audit] tail provou mentira ${String(cand.hash).slice(0, 8)}${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`);
       } else if (isEpisodePickError(err)) {
-        // Ambiguidade (SEM evidência): o throw multi-vídeo diz "não
-        // identifiquei", não "é outro episódio" — loga para observabilidade
-        // e segue sem gravar nada nem invalidar lista.
         if (!err.evidence) {
           log.warn(
             `[audit] tail: episódio não identificado em ${String(cand.hash).slice(0, 8)} (ambiguidade, sem prova)` +
@@ -185,9 +150,6 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
           );
           continue;
         }
-        // Prova MEDIDA (com evidência): o nome do arquivo declarou outro s/e.
-        // NÃO é mentira de áudio nem magnet quebrado: markLie/markLied ficam
-        // de fora — a evidência é fina, só o episódio pedido está errado.
         wrongEpisodes += 1;
         metrics.count('debrid.audit.episode');
         if (cand.imdbId && cand.season != null && cand.episode != null) {
@@ -203,19 +165,12 @@ export async function runDubAudit(limit = config.debrid.dubAuditTailMax) {
       }
     }
   }
-  // A lista corrente ainda carrega o candidato: invalida para a próxima
-  // busca nascer limpa (mentira) ou com `_dubbed` promovido (prova OK).
-  // `forget` só alcança namespaces do Node — `streams` é Rust-owned e o
-  // caminho vivo é o pedido por obra abaixo (ponte do `streams.db`).
   for (const key of liedKeys) cache.forget(key);
   for (const key of okKeys) cache.forget(key);
   for (const imdb of okImdb) invalidateStreamsForObra(imdb);
   return { audited: batch.length, lies, wrongEpisodes };
 }
 
-/** O título NOMEIA este episódio? Pack de temporada casa o episódio no
- * `matchesEpisode` de propósito (ele contém o episódio), mas não o NOMEIA —
- * e a diferença decide quem pode sustentar a cobertura do índice. */
 export function nomeiaEpisodio(title: string, season: number, episode: number) {
   const { seasons, episodes } = parseTitleSeasonEpisode(String(title || ''));
   return episodes.includes(episode) && (seasons.length === 0 || seasons.includes(season));
