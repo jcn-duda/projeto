@@ -27,6 +27,7 @@ use adom_autofetch::v3::{
 use adom_index::NativeKv;
 use serde::{Deserialize, Serialize};
 
+use super::season_fill::SeasonHint;
 use super::{lot_key, Policy, LOT_PREFIX};
 
 /// `isDead` do Node: duas observações de morte seguidas.
@@ -55,6 +56,11 @@ pub(crate) struct Lot {
     pub(crate) stall_streak: BTreeMap<String, i64>,
     #[serde(default)]
     pub(crate) transfers: BTreeMap<String, String>,
+    /// Fatos do PACK por hash (título do release + obra declarada). O recheck do
+    /// gateway não os vê no status do debrid: eles vêm do lote
+    /// `autofetch_batch` e sobrevivem ao restart aqui.
+    #[serde(default)]
+    pub(crate) season_hints: BTreeMap<String, SeasonHint>,
 }
 
 /// Resultado de uma passagem. `terminal` avisa o laço que vale a pena drenar.
@@ -68,6 +74,10 @@ pub(crate) struct StepReport {
     pub(crate) suppressed: usize,
     pub(crate) terminal: bool,
     pub(crate) remaining: usize,
+    /// Packs que ficaram `ready` nesta passagem, com os fatos do lote. O
+    /// preenchimento roda no laço (`serve::timers`), não aqui: este módulo não
+    /// conhece o cache de streams.
+    pub(crate) ready: Vec<SeasonHint>,
 }
 
 impl StepReport {
@@ -125,16 +135,19 @@ pub(crate) fn write(kv: &NativeKv, lot: &Lot, policy: Policy, now_ms: i64) -> Re
 ///
 /// Lote existente da MESMA busca é reusado (união dos hashes, `attempts` e
 /// `createdAt` preservados): reiniciar a contagem a cada busca deixaria o lote
-/// eterno — o Node faz o mesmo reuso.
+/// eterno — o Node faz o mesmo reuso. `hints` são os fatos do PACK por hash;
+/// só entram para hash que está (ou passou a estar) no lote. `scope` é
+/// `(adapter, conta)`: o dono do lote, nunca o "corrente".
 pub(crate) fn schedule(
     kv: &NativeKv,
     policy: Policy,
     search_key: &str,
-    adapter: &str,
-    account: &str,
+    scope: (&str, &str),
     enqueued: &[(String, Option<String>)],
+    hints: &BTreeMap<String, SeasonHint>,
     now_ms: i64,
 ) -> Result<Option<Lot>, String> {
+    let (adapter, account) = scope;
     if search_key.is_empty() || enqueued.is_empty() {
         return Ok(None);
     }
@@ -159,6 +172,13 @@ pub(crate) fn schedule(
     }
     if lot.account.is_empty() {
         lot.account = account.to_string();
+    }
+    // Hint só de hash que ficou no lote: o mapa é do lote, não do payload.
+    for (hash, hint) in hints {
+        let hash = hash.to_ascii_lowercase();
+        if lot.info_hashes.contains(&hash) {
+            lot.season_hints.insert(hash, hint.clone());
+        }
     }
     write(kv, &lot, policy, now_ms)?;
     Ok(Some(lot))
@@ -264,6 +284,11 @@ async fn poll(
         match action {
             RecheckAction::Ready => {
                 report.resolved += 1;
+                // Fato do PACK: o release pronto leva título e obra declarada
+                // para fora da passagem — quem invalida é o laço.
+                if let Some(hint) = lot.season_hints.get(hash) {
+                    report.ready.push(hint.clone());
+                }
             }
             RecheckAction::TerminalDead => {
                 queue.mark_dead(
@@ -292,6 +317,7 @@ async fn poll(
     }
     next.info_hashes = kept.clone();
     next.transfers.retain(|hash, _| kept.contains(hash));
+    next.season_hints.retain(|hash, _| kept.contains(hash));
     report.remaining = kept.len();
     if kept.is_empty() {
         // Terminal (morto/parado) NÃO derruba a fila: é dela que sai o próximo

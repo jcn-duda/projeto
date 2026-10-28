@@ -18,6 +18,8 @@
 //!   settle LRU e expiração com prova de posse;
 //! - [`serve`] — laço da thread (`current_thread`) sobre canal `mpsc` + timers
 //!   lidos dos lotes; o adaptador de debrid entra pela fábrica por conta;
+//! - [`season_fill`] — lado do PACK: o release que ficou pronto invalida no
+//!   cache de streams as buscas da temporada registradas por `season_key`;
 //! - [`ports`] — adaptador do trait do crate sobre as portas do `adom-debrid` e
 //!   a FÁBRICA (`scope` → adaptador, chave lida do cofre no momento do uso);
 //! - [`build`] — fábrica de PRODUÇÃO (cinco serviços, gate RD único, fatos da
@@ -63,6 +65,7 @@ mod rd_store;
 mod recheck;
 mod recheck_expire;
 mod routes;
+mod season_fill;
 mod season_step;
 mod serve;
 mod suppressed_step;
@@ -131,7 +134,8 @@ pub(crate) fn worker_enabled() -> bool {
 pub(crate) struct Policy {
     /// `autoFetchMax` — torrents por busca.
     pub(crate) max_attempts: i64,
-    /// Profundidade da fila v3 (o `depth` do `writeQueue`).
+    /// Profundidade da fila v3 (o `depth` do `writeQueue`). `0` desliga a fila,
+    /// como no `Math.min(12, Math.max(0, num(env, 6)))` de `config/debrid.ts`.
     pub(crate) queue_depth: usize,
     /// `autoFetchQueueTtl` — TTL da fila persistida.
     pub(crate) queue_ttl_seconds: i64,
@@ -159,7 +163,7 @@ impl Policy {
         let ttl = env_num("DEBRID_AUTO_FETCH_TTL", 6 * 3_600).max(1);
         Self {
             max_attempts: env_num("DEBRID_AUTO_FETCH_MAX", 3).clamp(1, 12),
-            queue_depth: env_num("DEBRID_AUTO_FETCH_QUEUE_DEPTH", 12).clamp(1, 64) as usize,
+            queue_depth: env_num("DEBRID_AUTO_FETCH_QUEUE_DEPTH", 6).clamp(0, 12) as usize,
             queue_ttl_seconds: env_num("DEBRID_AUTO_FETCH_QUEUE_TTL", 86_400).max(1),
             lot_ttl_seconds: ttl,
             marker_ttl_seconds: ttl,
@@ -178,7 +182,7 @@ impl Policy {
     pub(crate) fn fixture() -> Self {
         Self {
             max_attempts: 3,
-            queue_depth: 12,
+            queue_depth: 6,
             queue_ttl_seconds: 86_400,
             lot_ttl_seconds: 21_600,
             marker_ttl_seconds: 21_600,

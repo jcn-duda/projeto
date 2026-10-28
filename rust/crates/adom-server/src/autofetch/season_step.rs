@@ -99,6 +99,24 @@ impl SeasonRegister {
     pub(crate) fn key(&self) -> String {
         SeasonIndex::key(&self.adapter_id, &self.account, &self.imdb_id, self.season)
     }
+
+    /// Alvo do PREENCHIMENTO: o pack pronto invalida a temporada INTEIRA, então
+    /// não existe busca concreta para registrar (`cache_key` vazio). A chave do
+    /// KV é a mesma do [`execute`] — `adapter:conta:imdb:temporada`.
+    pub(crate) fn target(adapter_id: &str, account: &str, imdb_id: &str, season: i64) -> Self {
+        Self {
+            adapter_id: adapter_id.to_string(),
+            account: account.to_string(),
+            imdb_id: imdb_id.to_string(),
+            season,
+            cache_key: String::new(),
+        }
+    }
+
+    /// Entrada do KV desta temporada (`SEASON_PREFIX` + chave lógica).
+    fn entry_key(&self) -> String {
+        index_key(&self.adapter_id, &self.account, &self.imdb_id, self.season)
+    }
 }
 
 /// Motivo do skip. Os da régua pura vêm de [`SeasonFillSkip`]; pausa e índice
@@ -141,10 +159,10 @@ pub(crate) enum SeasonStep {
 
 /// Fatos do release que ficou pronto — o que a régua precisa para decidir.
 ///
-/// Lado do PACK, ainda sem chamador na passagem: o recheck que descobre o pack
-/// pronto (`autofetch-recheck.ts:277-284`) é o próximo fio desta fatia; a régua
-/// fica aqui (e no golden) para o porte não se perder.
-#[allow(dead_code)]
+/// Chegam do lote `autofetch_batch`: título do release, temporada DECLARADA pela
+/// obra e `is_pack` derivado do título pela mesma régua do TS
+/// (`isSeasonPackFillEligible`, `autofetch-runner.ts:66`). O fio que os monta é
+/// [`super::season_fill::fill`], chamado pelo laço quando o recheck vê `ready`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SeasonFillFacts<'a> {
     /// Título do release que ficou pronto (`autoFetchRecheck` → hint do lote).
@@ -155,7 +173,6 @@ pub(crate) struct SeasonFillFacts<'a> {
     pub(crate) is_pack: bool,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FillStep {
     Fill { season: i64 },
@@ -182,7 +199,9 @@ pub(crate) fn plan(payload: &Map<String, Value>, config: &SeasonStepConfig) -> S
 }
 
 /// Lado do PACK: o release pronto preenche o buraco declarado?
-#[allow(dead_code)]
+///
+/// `Skip` não consome nada no KV: o índice da temporada só é tocado quando a
+/// régua responde [`FillStep::Fill`] E a invalidação confirmou.
 pub(crate) fn plan_fill(config: &SeasonStepConfig, facts: SeasonFillFacts<'_>) -> FillStep {
     if config.paused {
         return FillStep::Skip(SeasonSkip::WorkerPaused);
@@ -252,12 +271,7 @@ pub(crate) fn execute(
     config: &SeasonStepConfig,
     now_ms: i64,
 ) -> Result<SeasonIndexReport, String> {
-    let key = index_key(
-        &register.adapter_id,
-        &register.account,
-        &register.imdb_id,
-        register.season,
-    );
+    let key = register.entry_key();
     let existing = read_keys(kv, &key, now_ms)?;
     let mut index = SeasonIndex::new();
     // Uma temporada por entrada: o LRU de temporadas do `SeasonIndex` é
@@ -301,22 +315,30 @@ pub(crate) fn execute(
     })
 }
 
+/// Buscas registradas da temporada, SEM consumir a entrada.
+///
+/// É o primeiro tempo do preenchimento ([`super::season_fill::fill`]): ler antes
+/// de apagar permite que uma falha na invalidação do cache de streams deixe o
+/// índice INTACTO para a passagem seguinte. Consumir primeiro transformaria
+/// erro de I/O em perda silenciosa do registro.
+pub(crate) fn peek(
+    kv: &NativeKv,
+    register: &SeasonRegister,
+    now_ms: i64,
+) -> Result<Vec<String>, String> {
+    read_keys(kv, &register.entry_key(), now_ms)
+}
+
 /// Invalidação do pack pronto: devolve as buscas registradas e apaga a entrada.
 ///
-/// Par de [`plan_fill`] (mesmo fio pendente): o pack só invalida as buscas da
-/// temporada depois que a decisão diz que ele PREENCHE o buraco.
-#[allow(dead_code)]
+/// Segundo tempo de [`super::season_fill::fill`]: só depois de o cache de
+/// streams confirmar a remoção das buscas (ver [`peek`]).
 pub(crate) fn take(
     kv: &NativeKv,
     register: &SeasonRegister,
     now_ms: i64,
 ) -> Result<Vec<String>, String> {
-    let key = index_key(
-        &register.adapter_id,
-        &register.account,
-        &register.imdb_id,
-        register.season,
-    );
+    let key = register.entry_key();
     let keys = read_keys(kv, &key, now_ms)?;
     kv.forget(&key)?;
     Ok(keys)

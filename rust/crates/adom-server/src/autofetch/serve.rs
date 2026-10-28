@@ -60,6 +60,10 @@ pub(crate) struct Pass {
     pub(crate) probed: usize,
     /// Buscas de temporada registradas nesta passagem.
     pub(crate) seasons: usize,
+    /// Packs prontos que PREENCHERAM a temporada (índice consumido).
+    pub(crate) filled: usize,
+    /// Buscas da temporada invalidadas no cache de streams.
+    pub(crate) invalidated: usize,
     pub(crate) skips: BTreeMap<String, usize>,
     pub(crate) errors: Vec<String>,
 }
@@ -163,6 +167,19 @@ impl<'a> Engine<'a> {
                 }
             };
             pass.rechecked += usize::from(report.ran);
+            // Lado do PACK: o release que ficou pronto invalida as buscas da
+            // temporada dele. Falha aqui não derruba a passagem nem o lote.
+            let fill = self.fill_ready(&lot, paused, &report.ready, now_ms);
+            pass.filled += fill.filled;
+            pass.invalidated += fill.invalidated;
+            for (label, count) in &fill.skips {
+                pass.skip(label, *count);
+            }
+            pass.errors.extend(
+                fill.errors
+                    .into_iter()
+                    .map(|err| format!("season-fill: {err}")),
+            );
             if report.terminal {
                 pass.drained += self.drain_lot(&lot, paused, now_ms, pass).await;
             }

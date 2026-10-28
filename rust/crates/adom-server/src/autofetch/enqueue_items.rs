@@ -8,8 +8,12 @@
 //! `_size`, `_seeders` e `_seedFloorWaived`. Campo ausente é `false`/`None`,
 //! nunca inventado.
 
+use std::collections::BTreeMap;
+
 use adom_autofetch::v3::{CascadeAttempt, CascadePool, Number, QueueCandidate};
 use serde_json::{Map, Value};
+
+use super::season_fill::SeasonHint;
 
 /// Item do lote, já normalizado (só o que a cascata e a fila leem).
 #[derive(Debug, Clone)]
@@ -92,6 +96,15 @@ impl Item {
     pub(super) fn is_br_dubbed_proven(&self) -> bool {
         self.br && (self.dubbed || self.dub_claim || self.bank_dub) && !self.lied
     }
+
+    /// Título do release: `stream.title || stream.name || ''` do TS. Título
+    /// vazio cai para o `name` (é o rótulo que o pack prova a temporada).
+    fn label(&self) -> String {
+        let usable = |value: &Option<String>| value.clone().filter(|text| !text.trim().is_empty());
+        usable(&self.title)
+            .or_else(|| usable(&self.name))
+            .unwrap_or_default()
+    }
 }
 
 /// Itens válidos do lote, na ordem de entrada (a cascata depende dela).
@@ -110,6 +123,45 @@ pub(super) fn parse_items(payload: &Map<String, Value>) -> Vec<Item> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Fatos do PACK por hash para o lote do recheck: IMDb e temporada declarados
+/// pelo pedido mais o título do release.
+///
+/// `is_pack` NÃO nasce aqui: o TS o deriva do TÍTULO no momento do aceite
+/// (`isSeasonPackFillEligible(stream, season ?? null)`,
+/// `autofetch-runner.ts:66`) e o gateway aplica a MESMA régua no preenchimento,
+/// com o título já persistido. Persistir um booleano aqui seria uma segunda
+/// régua para a mesma pergunta.
+///
+/// Sem IMDb ou sem temporada declarada não existe chave de temporada: o mapa
+/// sai vazio em vez de guardar fato inútil.
+pub(super) fn season_hints(
+    items: &[Item],
+    payload: &Map<String, Value>,
+) -> BTreeMap<String, SeasonHint> {
+    let imdb_id = payload
+        .get("imdbId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string);
+    let season = payload.get("season").and_then(Value::as_i64);
+    let (Some(imdb_id), Some(season)) = (imdb_id, season) else {
+        return BTreeMap::new();
+    };
+    items
+        .iter()
+        .map(|item| {
+            (
+                item.info_hash.clone(),
+                SeasonHint {
+                    imdb_id: Some(imdb_id.clone()),
+                    season: Some(season),
+                    title: item.label(),
+                },
+            )
+        })
+        .collect()
 }
 
 /// Traduz a tentativa da cascata para o payload PERSISTIDO da fila. O item é a

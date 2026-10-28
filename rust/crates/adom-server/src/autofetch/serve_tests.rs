@@ -5,12 +5,16 @@ use std::sync::Arc;
 
 use adom_autofetch::v3::QueueV3;
 use adom_index::NativeKv;
+use adom_search::StreamsEntry;
 use adom_sources::now_ms;
+use adom_store::StreamsStore;
 use tokio::sync::mpsc;
 
 use super::super::fakes::{batch_payload, factory_for, job, no_factory, FakeDebrid, SCOPE};
 use super::super::ports::DebridIo;
 use super::super::recheck::{self, Lot};
+use super::super::season_fill::{self, SeasonHint};
+use super::super::season_step::{self, SeasonRegister, SeasonStepConfig};
 use super::super::vault::Vault;
 use super::super::worker::AutofetchHandle;
 use super::super::Policy;
@@ -122,6 +126,91 @@ async fn timer_processa_lote_vencido_e_limpa_quando_resolve() {
     assert_eq!(pass.rechecked, 1);
     assert_eq!(pass.drained, 0, "sem terminal não há dreno");
     assert!(recheck::read(&kv, SEARCH, now).unwrap().is_none());
+}
+
+/// Fio do PACK de ponta a ponta: o release que o recheck vê ficar `ready` chega
+/// ao preenchimento na MESMA passagem e invalida as buscas da temporada.
+///
+/// O fato (`title`/`season`/`imdbId`) vem do lote `autofetch_batch` e mora em
+/// `Lot::season_hints`; quem decide se o pack preenche é a régua pura
+/// (`season_fill_decision`), nunca o `state` do debrid.
+#[tokio::test]
+async fn pack_pronto_no_timer_invalida_as_buscas_da_temporada() {
+    let kv = kv();
+    let now = now_ms();
+    let policy = Policy::fixture();
+    let hash = hash_of(1);
+    let imdb = "tt1234567";
+    let cached = format!("streams:v21:series:{imdb}:s1-dublado");
+    // Lote vencido com o fato do PACK JÁ persistido por hash.
+    let mut armed = due_lot(SEARCH, &hash, now);
+    armed.season_hints.insert(
+        hash.clone(),
+        SeasonHint {
+            imdb_id: Some(imdb.to_string()),
+            season: Some(1),
+            title: "Titulo de Teste Temporada 1 Completa".to_string(),
+        },
+    );
+    recheck::write(&kv, &armed, policy, now).unwrap();
+    // Índice da temporada gravado pelo efeito `season_key` (a outra metade).
+    let register = SeasonRegister {
+        adapter_id: ADAPTER.to_string(),
+        account: ACCOUNT.to_string(),
+        imdb_id: imdb.to_string(),
+        season: 1,
+        cache_key: cached.clone(),
+    };
+    let config = SeasonStepConfig {
+        enabled: true,
+        paused: false,
+        max_seasons: 200,
+        max_keys: 256,
+        ttl_seconds: 21_600,
+    };
+    assert!(
+        season_step::execute(&kv, &register, &config, now)
+            .unwrap()
+            .registered
+    );
+    // Cache de streams REAL: o teste mede linha apagada, não a chamada do sink.
+    let store = Arc::new(StreamsStore::open_memory().unwrap());
+    store
+        .set(&cached, &StreamsEntry::default(), 600, now as u64)
+        .unwrap();
+    let handle = Arc::clone(&store);
+    season_fill::register(Arc::new(move |keys: &[String]| {
+        for key in keys {
+            handle.forget(key)?;
+        }
+        Ok(())
+    }));
+
+    let debrid = Arc::new(FakeDebrid::accepting().state(&hash, "ready"));
+    let factory = factory_for(SCOPE, debrid);
+    let control = Control::new(false, 60_000);
+    let (_tx, mut rx) = mpsc::channel(4);
+    let engine = Engine::new(&kv, policy, None, &factory, &control, None);
+
+    let pass = engine.run_once(&mut rx, now).await;
+
+    assert_eq!(pass.rechecked, 1);
+    assert_eq!(
+        pass.filled, 1,
+        "o pack pronto tinha de preencher: {:?}",
+        pass.skips
+    );
+    assert_eq!(pass.invalidated, 1);
+    assert!(pass.errors.is_empty(), "{:?}", pass.errors);
+    assert!(
+        store.get(&cached, now as u64).unwrap().is_none(),
+        "busca da temporada continua no cache de streams"
+    );
+    let index = season_step::index_key(ADAPTER, ACCOUNT, imdb, 1);
+    assert!(
+        kv.get_json(&index, now).unwrap().is_none(),
+        "índice da temporada tinha de ser consumido"
+    );
 }
 
 #[tokio::test]

@@ -34,7 +34,7 @@ use adom_core::{classify_enqueue, rollback_for, EnqueueGates, RollbackAction};
 use adom_index::NativeKv;
 use serde_json::{Map, Value};
 
-use super::enqueue_items::{candidate_of, parse_items};
+use super::enqueue_items::{candidate_of, parse_items, season_hints};
 use super::Policy;
 #[path = "enqueue_holds.rs"]
 mod holds;
@@ -75,6 +75,9 @@ pub(crate) struct Report {
     pub(crate) queue_len: usize,
     /// Motivo de desistência → contagem (`autofetch.skip.<motivo>`).
     pub(crate) skips: BTreeMap<String, usize>,
+    /// Fatos do PACK por hash (título do release, obra declarada). Vão para o
+    /// lote do recheck; o preenchimento de temporada lê de lá.
+    pub(crate) season_hints: BTreeMap<String, super::season_fill::SeasonHint>,
     /// Lote inteiro recusado por um motivo só (sem escrita nenhuma).
     pub(crate) refused: Option<&'static str>,
 }
@@ -120,6 +123,9 @@ pub(crate) async fn run(
     if items.is_empty() {
         return Ok(Report::refused(&search_key, "empty-batch"));
     }
+    // Fatos do PACK: o status do debrid nunca traz título, então eles precisam
+    // sair daqui com o lote do recheck.
+    let hints = season_hints(&items, payload);
 
     let live = gates::LivePolicy::load(kv, adapter, now_ms)?;
 
@@ -146,6 +152,7 @@ pub(crate) async fn run(
     let queue = QueueV3::new(kv);
     let mut report = Report {
         search_key: search_key.clone(),
+        season_hints: hints,
         ..Report::default()
     };
 

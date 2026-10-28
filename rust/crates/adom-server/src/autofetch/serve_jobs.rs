@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use super::super::enqueue::{self, Job};
-use super::super::{probe_step, recheck, season_step, suppressed_step};
+use super::super::{probe_step, recheck, season_fill, season_step, suppressed_step};
 use super::{Engine, Pass};
 use crate::tail_effects::{AUTOFETCH_BATCH, BR_PROBE, SEASON_KEY};
 
@@ -132,13 +132,42 @@ impl<'a> Engine<'a> {
             self.kv,
             self.policy,
             &report.search_key,
-            adapter,
-            account,
+            (adapter, account),
             &report.enqueued,
+            &report.season_hints,
             now_ms,
         ) {
             Ok(_) => pass.scheduled += 1,
             Err(err) => pass.errors.push(err),
         }
+    }
+
+    /// Pack pronto (`RecheckAction::Ready`) → invalida as buscas da temporada
+    /// registradas pelo efeito `season_key` (`autofetch-recheck.ts:277-284`).
+    ///
+    /// Roda DEPOIS do poll: `ready` só existe com resposta do serviço, então o
+    /// passo herda a mesma credencial do lote. Daqui para frente não há rede —
+    /// só o KV do worker e o cache de streams.
+    pub(super) fn fill_ready(
+        &self,
+        lot: &recheck::Lot,
+        paused: bool,
+        ready: &[season_fill::SeasonHint],
+        now_ms: i64,
+    ) -> season_fill::FillReport {
+        if ready.is_empty() {
+            return season_fill::FillReport::default();
+        }
+        let config = season_step::SeasonStepConfig::from_env(paused, self.policy.lot_ttl_seconds);
+        let sink = season_fill::sink();
+        season_fill::fill(
+            self.kv,
+            &config,
+            sink.as_ref(),
+            &lot.adapter_id,
+            &lot.account,
+            ready,
+            now_ms,
+        )
     }
 }

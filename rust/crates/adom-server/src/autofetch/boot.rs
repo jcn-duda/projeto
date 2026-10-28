@@ -15,7 +15,7 @@
 //! cinco serviços e o gate RD nasce UMA vez (ver [`super::build`]).
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use adom_index::NativeKv;
 
@@ -58,6 +58,40 @@ pub(crate) fn production_factory(
     Some(build.factory(Arc::clone(vault)))
 }
 
+/// Porta de invalidação do Preenchimento de temporada: o `cache.forgetMany` do
+/// Node é o `StreamsStore` do `streams.db` — OUTRO SQLite (o KV do worker é o
+/// `cache.db`), com WAL e `busy_timeout` no schema, então a conexão do worker
+/// convive com a do orquestrador.
+///
+/// Abre na PRIMEIRA invalidação: boot sem pack pronto não paga `quick_check`, e
+/// nenhum teste toca disco (o sink só existe com o worker ligado).
+pub(crate) fn streams_sink() -> super::season_fill::SeasonFillSink {
+    let store: Arc<OnceLock<Option<Arc<adom_store::StreamsStore>>>> = Arc::new(OnceLock::new());
+    Arc::new(move |keys: &[String]| {
+        let store = store.get_or_init(|| {
+            let path = crate::stream::streams_db_path();
+            match adom_store::StreamsStore::open(&path) {
+                Ok(store) => Some(Arc::new(store)),
+                Err(err) => {
+                    eprintln!(
+                        "[autofetch] streams.db indisponível ({}): {err}; pack pronto não invalidou",
+                        path.display()
+                    );
+                    None
+                }
+            }
+        });
+        let Some(store) = store else {
+            // `Err` mantém o índice vivo: a passagem seguinte tenta de novo.
+            return Err("streams.db indisponível".to_string());
+        };
+        for key in keys {
+            store.forget(key)?;
+        }
+        Ok(())
+    })
+}
+
 /// Boot com injeção: `Some(factory)` = fábrica pronta (teste/leva futura),
 /// `None` = monta a de produção quando a trava está ligada.
 pub(crate) fn spawn_at(
@@ -76,6 +110,9 @@ pub(crate) fn spawn_at(
     if let Some(factory) = debrid.as_ref() {
         super::suppressed_step::register_factory(factory.clone());
     }
+    // Preenchimento de temporada: o cache a invalidar é o `streams.db`, não o KV
+    // do worker — a porta é registrada UMA vez, aqui.
+    super::season_fill::register(streams_sink());
     Some(AutofetchHandle::build(
         kv,
         &Policy::from_env(),
