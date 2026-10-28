@@ -263,7 +263,7 @@ pub fn admit(
     };
     let queue = queue_mut(&mut next.queues, priority);
     queue.push(waiter);
-    queue.sort_by(|a, b| a.order.cmp(&b.order));
+    queue.sort_by_key(|a| a.order);
     next.next_order = state.next_order + 1;
     AdmitDecision {
         action: AdmitAction::Enqueue,

@@ -167,12 +167,11 @@ fn parse_datetime_with_time(text: &str) -> Option<i64> {
     // Separa o offset do fim antes de validar o relógio.
     let (clock, offset_ms) = if let Some(stripped) = time_part.strip_suffix('Z') {
         (stripped, 0)
-    } else if let Some(sign_pos) = time_part.rfind(['+', '-']) {
+    } else {
+        let sign_pos = time_part.rfind(['+', '-'])?;
         let (clock, offset) = time_part.split_at(sign_pos);
         let offset = parse_utc_offset(offset)?;
         (clock, offset)
-    } else {
-        return None; // sem offset: dependente de fuso, deliberadamente rejeitado
     };
     let clock_parts: Vec<&str> = clock.split(':').collect();
     let (hour, minute, second, milli) = match clock_parts.as_slice() {

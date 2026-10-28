@@ -302,11 +302,8 @@ pub(super) fn parse_iso_ms(text: &str) -> Option<i64> {
     let rest = text.get(10..).unwrap_or("");
     let (hour, min, sec, frac, rest) = if rest.is_empty() {
         (0u64, 0u64, 0u64, 0i64, "")
-    } else if let Some(rest) = rest.strip_prefix('T') {
-        let clock = parse_clock(rest)?;
-        clock
     } else {
-        return None;
+        parse_clock(rest.strip_prefix('T')?)?
     };
     Some(unix_ms(year, month, day, hour, min, sec)? + frac - parse_offset(rest)?)
 }
@@ -352,10 +349,8 @@ fn parse_offset(rest: &str) -> Option<i64> {
     }
     let (sign, rest) = if let Some(rest) = rest.strip_prefix('+') {
         (1i64, rest)
-    } else if let Some(rest) = rest.strip_prefix('-') {
-        (-1, rest)
     } else {
-        return None;
+        (-1, rest.strip_prefix('-')?)
     };
     let (hh, mm) = if rest.len() == 5 && rest.as_bytes().get(2) == Some(&b':') {
         (rest.get(0..2)?, rest.get(3..5)?)

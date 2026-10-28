@@ -299,13 +299,12 @@ pub fn meta_from_response(response: &MetaResponse, req: &MetaQuery) -> SearchMet
         first_aired,
         episode_aired_at_ms,
         home_release_at: response.home_release_at,
-        titles: Some(MetaTitles {
+        titles: titles.is_some().then_some(MetaTitles {
             pt,
             original,
             en,
             year: titles_year,
-        })
-        .filter(|_| titles.is_some()),
+        }),
         collection_root,
         episode_counts: episode_counts(response.meta.as_ref()),
     })
