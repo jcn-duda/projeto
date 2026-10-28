@@ -153,3 +153,115 @@ fn adrm_le_a_marca_viva_sem_escrever_nada() {
         .unwrap()
         .is_empty());
 }
+
+/// `autoFetchTtl` (`src/config/debrid.ts:208`) — JANELA deslizante do teto por
+/// obra. Prova (a) o default de 6 h, (b) o valor explícito e (c) o inválido
+/// (cai no default) e o negativo (piso `0`, o `Math.max(0, n)` de
+/// `utils/autofetch-live.ts:130`).
+#[test]
+fn auto_fetch_ttl_usa_default_seis_horas_com_piso_zero() {
+    let _guard = crate::autofetch::build::test_lock();
+    let kv = NativeKv::open_memory().unwrap();
+    let now = 1_800_000_000_000;
+    std::env::remove_var("DEBRID_AUTO_FETCH_TTL");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.obra_ttl_seconds, 21_600, "(a) default 6 h");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_TTL", "900");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.obra_ttl_seconds, 900, "(b) valor explícito");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_TTL", "seis-horas");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.obra_ttl_seconds, 21_600, "(c) inválido → default");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_TTL", "-30");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.obra_ttl_seconds, 0, "(c) negativo → piso 0");
+    std::env::remove_var("DEBRID_AUTO_FETCH_TTL");
+}
+
+/// `autoFetchRareMax` (`src/config/debrid-autofetch-seeds.ts:27`) — teto do
+/// pool `seeds` no regime RARO. Prova (a) o default `4`, (b) o explícito, o
+/// clamp `1..6` e (c) o inválido (default) e o negativo (piso `1`).
+#[test]
+fn auto_fetch_rare_max_usa_default_quatro_com_clamp() {
+    let _guard = crate::autofetch::build::test_lock();
+    let kv = NativeKv::open_memory().unwrap();
+    let now = 1_800_000_000_000;
+    std::env::remove_var("DEBRID_AUTO_FETCH_RARE_MAX");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 4, "(a) default 4");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_RARE_MAX", "6");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 6, "(b) valor explícito");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_RARE_MAX", "99");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 6, "(b) clamp superior 6");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_RARE_MAX", "0");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 1, "(c) zero → piso 1");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_RARE_MAX", "-3");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 1, "(c) negativo → piso 1");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_RARE_MAX", "quatro");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.rare_max, 4, "(c) inválido → default");
+    std::env::remove_var("DEBRID_AUTO_FETCH_RARE_MAX");
+}
+
+/// `autoFetchMax` (`src/config/debrid.ts:215`) — TETO por obra/pool. Prova
+/// (a) o default `3`, (b) o explícito e o clamp `1..12` e (c) o inválido
+/// (default) e o negativo (piso `1`).
+#[test]
+fn auto_fetch_max_usa_default_tres_com_clamp() {
+    let _guard = crate::autofetch::build::test_lock();
+    let kv = NativeKv::open_memory().unwrap();
+    let now = 1_800_000_000_000;
+    std::env::remove_var("DEBRID_AUTO_FETCH_MAX");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.max_attempts, 3, "(a) default 3");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_MAX", "7");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.max_attempts, 7, "(b) valor explícito");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_MAX", "40");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.max_attempts, 12, "(b) clamp superior 12");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_MAX", "tres");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.max_attempts, 3, "(c) inválido → default");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_MAX", "-1");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert_eq!(live.max_attempts, 1, "(c) negativo → piso 1");
+    std::env::remove_var("DEBRID_AUTO_FETCH_MAX");
+}
+
+/// `autoFetchSeasonFill` (`src/config/debrid.ts:246`): default LIGADO e só o
+/// literal `true` liga — `KEY=` vazia cai no default, como o `|| 'true'` do TS.
+#[test]
+fn auto_fetch_season_fill_e_ligado_por_default() {
+    let _guard = crate::autofetch::build::test_lock();
+    let kv = NativeKv::open_memory().unwrap();
+    let now = 1_800_000_000_000;
+    std::env::remove_var("DEBRID_AUTO_FETCH_SEASON_FILL");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert!(live.season_fill, "(a) default ligado");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_SEASON_FILL", "");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert!(live.season_fill, "(b) vazia mantém o default");
+
+    std::env::set_var("DEBRID_AUTO_FETCH_SEASON_FILL", "false");
+    let live = LivePolicy::load(&kv, "alldebrid", now).unwrap();
+    assert!(!live.season_fill, "(c) só `true` liga");
+    std::env::remove_var("DEBRID_AUTO_FETCH_SEASON_FILL");
+}

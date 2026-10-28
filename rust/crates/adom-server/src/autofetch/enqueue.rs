@@ -24,15 +24,16 @@
 //! (o laço resolve `scope` → adaptador a cada passo); este módulo nunca vê a
 //! chave — quem a tem é o cofre.
 //!
-//! Peças vizinhas: itens/candidato em [`super::enqueue_items`], dreno do próximo
-//! em [`super::enqueue_drain`].
+//! Peças vizinhas: itens/candidato em [`super::enqueue_items`], gates vivos em
+//! [`gates`], medição em [`facts`], teto por obra e encerramento em [`obra`],
+//! entrada em [`Job`] e saída em [`Report`].
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
-use adom_autofetch::v3::{cascade, marker_value, CascadeCandidate, CascadeFacts, QueueV3};
-use adom_core::{classify_enqueue, rollback_for, EnqueueGates, RollbackAction};
+use adom_autofetch::v3::{cascade, marker_value, CascadeCandidate, QueueV3};
+use adom_core::{classify_enqueue, rollback_for, EnqueueGates};
 use adom_index::NativeKv;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use super::enqueue_items::{candidate_of, parse_items, season_hints};
 use super::Policy;
@@ -40,61 +41,22 @@ use super::Policy;
 mod holds;
 pub(super) use holds::Holds;
 
+#[path = "enqueue_facts.rs"]
+pub(super) mod facts;
+
 #[path = "enqueue_gates.rs"]
 pub(super) mod gates;
 
-/// Trabalho que chega pelo canal: o kind do efeito, o escopo da conta e o
-/// payload. O kind é o que separa o lote de debrid (`autofetch_batch`) da sonda
-/// dirigida (`br_probe`) e do índice de temporada (`season_key`) — sem ele todo
-/// job cairia em [`run`] e viraria `empty-batch`.
-#[derive(Clone, Debug)]
-pub(crate) struct Job {
-    /// `autofetch_batch`, `br_probe` ou `season_key` (`tail_effects::*`).
-    pub(crate) kind: String,
-    /// `adapter:sha256(chave)` — o escopo do cofre, nunca a chave.
-    pub(crate) scope: String,
-    pub(crate) payload: Map<String, Value>,
-}
+#[path = "enqueue_job.rs"]
+mod job;
+pub(crate) use job::Job;
 
-impl Job {
-    fn parts(&self) -> Option<(&str, &str)> {
-        let (adapter, account) = self.scope.split_once(':')?;
-        (!adapter.is_empty() && !account.is_empty()).then_some((adapter, account))
-    }
-}
+#[path = "enqueue_obra.rs"]
+pub(super) mod obra;
 
-/// Resultado de um lote: o que foi aceito, o que ficou na fila e os motivos.
-#[derive(Debug, Default)]
-pub(crate) struct Report {
-    pub(crate) search_key: String,
-    /// Hashes aceitos pelo debrid, com o id do transfer (vão para o lote).
-    pub(crate) enqueued: Vec<(String, Option<String>)>,
-    pub(crate) attempts: usize,
-    pub(crate) deferred: usize,
-    pub(crate) dropped: usize,
-    pub(crate) queue_len: usize,
-    /// Motivo de desistência → contagem (`autofetch.skip.<motivo>`).
-    pub(crate) skips: BTreeMap<String, usize>,
-    /// Fatos do PACK por hash (título do release, obra declarada). Vão para o
-    /// lote do recheck; o preenchimento de temporada lê de lá.
-    pub(crate) season_hints: BTreeMap<String, super::season_fill::SeasonHint>,
-    /// Lote inteiro recusado por um motivo só (sem escrita nenhuma).
-    pub(crate) refused: Option<&'static str>,
-}
-
-impl Report {
-    fn skip(&mut self, label: &str) {
-        *self.skips.entry(label.to_string()).or_default() += 1;
-    }
-
-    fn refused(search_key: &str, label: &'static str) -> Self {
-        Self {
-            search_key: search_key.to_string(),
-            refused: Some(label),
-            ..Self::default()
-        }
-    }
-}
+#[path = "enqueue_report.rs"]
+mod report;
+pub(crate) use report::Report;
 
 /// Executa um lote inteiro. Devolve `Err` só em falha de store/rede que impede
 /// decidir; payload fora da forma vira `Report::refused` (sem escrita).
@@ -175,62 +137,39 @@ pub(crate) async fn run(
         .map(|hash| hash.to_ascii_lowercase())
         .collect();
 
-    // 3. Fatos da cascata. O que o worker ainda não mede (sonda, seeds stop,
-    // teto por obra) entra no default do crate — que não bloqueia nada.
-    let probe_account = if live.pause_at > 0 {
-        debrid.account().await.ok()
+    // 3. Fatos da cascata: orçamento, sonda da conta, cache por hash e `adrm`
+    // (invariante 6). O teto por OBRA tem portão próprio no passo 4 — medir os
+    // dois aqui daria duas réguas para a mesma pergunta.
+    let account_used = if live.pause_at > 0 {
+        debrid
+            .account()
+            .await
+            .ok()
+            .and_then(|evidence| evidence.used)
     } else {
         None
     };
-    let budget_full = match gates::budget_count(kv, adapter, account, now_ms) {
-        Ok(count) => count >= live.hourly_limit,
-        Err(err) => {
-            release_all(holds, account, &hashes);
-            return Err(err);
-        }
-    };
-    let mut facts = CascadeFacts {
+    let measured = match facts::measure(facts::Measure {
+        kv,
+        adapter,
+        account,
+        live: &live,
         paused,
-        cache_known: true,
-        slots: live.max_attempts,
-        account_blocked: probe_account
-            .as_ref()
-            .is_some_and(|evidence| gates::account_is_blocked(evidence.used, live.pause_at)),
-        budget_blocked: budget_full,
-        ..CascadeFacts::default()
-    };
-    facts.has_cached_br_dubbed = items.iter().any(|item| {
-        eligible.contains(item.info_hash.as_str())
-            && item.is_br_dubbed_proven()
-            && cached.contains(&item.info_hash)
-    });
-    facts.has_cached_any_dubbed = items.iter().any(|item| {
-        eligible.contains(item.info_hash.as_str())
-            && item.dubbed
-            && !item.lied
-            && cached.contains(&item.info_hash)
-    });
-    facts.covered_qualities = items
-        .iter()
-        .filter(|item| {
-            eligible.contains(item.info_hash.as_str())
-                && item.is_br_dubbed_proven()
-                && cached.contains(&item.info_hash)
-        })
-        .filter_map(|item| item.quality.clone())
-        .collect();
-
-    // Invariante 6: hash que a evicção apagou DE PROPÓSITO (`adrm:v1`) sai dos
-    // candidatos ANTES dos pools — só LEITURA aqui: quem marca é a evicção. A
-    // checagem consulta o mesmo `adrm` (`blocked_for_check`, fail-closed): a
-    // marca fecha as DUAS portas que reenviam hash ao serviço.
-    let adrm_blocked = match gates::adrm_blocked(kv, account, &hashes, now_ms) {
-        Ok(blocked) => blocked,
+        account_used,
+        items: &items,
+        eligible: &eligible,
+        cached: &cached,
+        hashes: &hashes,
+        now_ms,
+    }) {
+        Ok(measured) => measured,
         Err(err) => {
             release_all(holds, account, &hashes);
             return Err(err);
         }
     };
+    let mut facts = measured.facts;
+    let adrm_blocked = measured.adrm;
 
     let mut by_hash: HashMap<&str, &super::enqueue_items::Item> = HashMap::new();
     let mut candidates = Vec::with_capacity(items.len());
@@ -252,8 +191,12 @@ pub(crate) async fn run(
             info_hash: item.info_hash.clone(),
             pool: item.pool(),
             quality: item.quality.clone(),
-            slot_limit: None,
-            rare: false,
+            // `slotLimit`/`rare` vêm do lote quando quem selecionou já decidiu
+            // (o regime RARO do pool seeds sobe o teto imediato para
+            // `rareMax`: `autofetch-seeds-pool.ts:101-121`); ausentes, o teto
+            // sai da config viva do worker.
+            slot_limit: item.slot_limit,
+            rare: item.rare,
             cached: cached.contains(&item.info_hash),
             dead: match queue.is_dead(adapter, account, &item.info_hash, now_ms) {
                 Ok(dead) => dead,
@@ -268,12 +211,21 @@ pub(crate) async fn run(
         });
     }
 
+    // Teto imediato do pool seeds: raro (poucos candidatos fracos) sobe de
+    // `topSeedsMax` para `rareMax` — o `pickSeedsPool` do TS já entrega esse
+    // limite ao lote (`autofetch-seeds-pool.ts:103-121`); aqui ele é
+    // reconstruído a partir do mesmo flag.
     let seeds_only = candidates
         .iter()
         .filter(|candidate| !candidate.dead && candidate.viable && !candidate.adrm)
         .all(|candidate| candidate.pool == adom_autofetch::v3::CascadePool::Seeds);
     facts.slots = if seeds_only {
-        live.top_seeds_max
+        let rare = candidates.iter().any(|candidate| candidate.rare);
+        if rare {
+            live.rare_max
+        } else {
+            live.top_seeds_max
+        }
     } else {
         live.max_attempts
     };
@@ -289,7 +241,10 @@ pub(crate) async fn run(
         report.skip(deferred.reason.as_str());
     }
 
-    // 4. Portões por candidato: marker/blacklist do KV + o enqueue de verdade.
+    // 4. Portões por candidato: marker/blacklist do KV, teto por OBRA e o
+    // enqueue de verdade. A config do teto sai uma vez por lote das mesmas
+    // réguas do TS.
+    let obra_cfg = obra::live_config(&live);
     let mut queue_out = Vec::with_capacity(items.len());
     for attempt in &decision.attempts {
         let Some(item) = by_hash.get(attempt.info_hash.as_str()) else {
@@ -303,16 +258,43 @@ pub(crate) async fn run(
                 return Err(err);
             }
         };
+        // Ordem do TS (`autofetch-gates.ts:57`): `marker` vem ANTES do teto por
+        // obra. Só quem passou dos portões anteriores pede a reserva — reserva
+        // pedida e não usada ficaria presa pelo lease de 60 s.
+        let obra_gate = if marker_active {
+            obra::Gate::Skipped
+        } else {
+            let identity = obra::identity(adapter, account, payload, item, live.season_fill);
+            match holds
+                .obra()
+                .reserve(kv, &identity, &obra_cfg, attempt, now_ms)
+            {
+                Ok(gate) => gate,
+                Err(err) => {
+                    release_all(holds, account, &hashes);
+                    return Err(err);
+                }
+            }
+        };
         let gates = EnqueueGates {
             is_paused: paused,
             is_dead: false,
             is_cached: cached.contains(&attempt.info_hash),
             marker_active,
+            // `false` = teto da obra fechado nesta janela (o `reserveObra`
+            // devolveu `null`).
+            obra_cap_granted: !matches!(obra_gate, obra::Gate::Closed),
             ..EnqueueGates::default()
         };
         match classify_enqueue(&gates) {
             Some(reason) => {
-                rollback(holds, account, &attempt.info_hash, rollback_for(reason));
+                obra::rollback(
+                    holds,
+                    account,
+                    &attempt.info_hash,
+                    rollback_for(reason),
+                    &obra_gate,
+                );
                 report.skip(reason.as_str());
             }
             None => match gates::reserve_budget(kv, adapter, account, live.hourly_limit, now_ms) {
@@ -321,6 +303,9 @@ pub(crate) async fn run(
                     return Err(err);
                 }
                 Ok(false) => {
+                    // Orçamento cheio é backoff, não recusa: vaga da obra e hold
+                    // voltam (`budget` = obra+lock+slot+hold, `autofetch-gates.ts:95`).
+                    obra::refuse(holds, account, &attempt.info_hash, &obra_gate);
                     report.skip("budget");
                 }
                 Ok(true) => match debrid.enqueue(&candidate).await {
@@ -336,12 +321,32 @@ pub(crate) async fn run(
                             release_all(holds, account, &hashes);
                             return Err(err);
                         }
+                        // Aceite confirmado: o hash vira entrada DURÁVEL da obra
+                        // (`commitObra`), com o id do transfer. Reserva recusada
+                        // nunca é persistida.
+                        if let Err(err) = obra::commit_obra(
+                            holds,
+                            kv,
+                            &obra_gate,
+                            attempt,
+                            item,
+                            evidence.transfer_id.as_deref(),
+                            live.obra_ttl_seconds,
+                            now_ms,
+                        ) {
+                            release_all(holds, account, &hashes);
+                            return Err(err);
+                        }
                         report
                             .enqueued
                             .push((attempt.info_hash.clone(), evidence.transfer_id));
                     }
-                    // Falha de rede/serviço: o hash fica na fila, sem marker.
-                    Ok(_) | Err(_) => report.skip("enqueue-error"),
+                    // Falha de rede/serviço: o hash fica na fila, sem marker, e
+                    // `releaseObra` + `held.release` voltam (`autofetch-runner.ts:163-165`).
+                    Ok(_) | Err(_) => {
+                        obra::refuse(holds, account, &attempt.info_hash, &obra_gate);
+                        report.skip("enqueue-error");
+                    }
                 },
             },
         }
@@ -382,15 +387,6 @@ pub(crate) async fn run(
 
 fn release_all(holds: &Holds, account: &str, hashes: &[String]) {
     for hash in hashes {
-        holds.release(account, hash);
-    }
-}
-
-/// Aplica a tabela do `rollbackFor`: só o hold existe neste worker (lock/vaga/
-/// obra são do dreno da próxima leva), mas o mapa é lido do núcleo para o
-/// motivo `in-flight` continuar NÃO soltando o hold.
-fn rollback(holds: &Holds, account: &str, hash: &str, actions: &[RollbackAction]) {
-    if actions.contains(&RollbackAction::Hold) {
         holds.release(account, hash);
     }
 }

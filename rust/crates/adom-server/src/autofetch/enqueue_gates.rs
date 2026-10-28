@@ -30,6 +30,22 @@ pub(in crate::autofetch) struct LivePolicy {
     pub(in crate::autofetch) queue_depth: usize,
     pub(in crate::autofetch) hourly_limit: usize,
     pub(in crate::autofetch) pause_at: u64,
+    /// `autoFetchRareMax` (`DEBRID_AUTO_FETCH_RARE_MAX`, default `4`) — teto do
+    /// pool `seeds` no regime RARO. Régua de `src/config/debrid-autofetch-seeds.ts:27`
+    /// (`Math.min(6, Math.max(1, Math.trunc(num(env, 4))))`) com o clamp do
+    /// overlay ao vivo (`utils/autofetch-live.ts:113`).
+    pub(in crate::autofetch) rare_max: i64,
+    /// `autoFetchTtl` (`DEBRID_AUTO_FETCH_TTL`, default `6h`) — JANELA deslizante
+    /// do registro por obra (`src/config/debrid.ts:208` + o `Math.max(0, n)` do
+    /// overlay em `utils/autofetch-live.ts:130`). É o TTL do registro que a
+    /// reserva grava no aceite (`commitObra` → `cache.set(key, …, autoFetchTtl)`,
+    /// `src/providers/autofetch-obra.ts:352`).
+    pub(in crate::autofetch) obra_ttl_seconds: i64,
+    /// `autoFetchSeasonFill` (`DEBRID_AUTO_FETCH_SEASON_FILL`, default ligado) —
+    /// entra na IDENTIDADE da obra: com ele ligado um pack de temporada conta a
+    /// vaga da TEMPORADA, não a do episódio
+    /// (`src/providers/autofetch-runner.ts:67`).
+    pub(in crate::autofetch) season_fill: bool,
 }
 
 impl LivePolicy {
@@ -72,6 +88,10 @@ impl LivePolicy {
         let max_attempts = number("autoFetchMax", "DEBRID_AUTO_FETCH_MAX", 3).clamp(1, 12);
         let top_seeds_max =
             number("autoFetchTopSeedsMax", "DEBRID_AUTO_FETCH_TOP_SEEDS_MAX", 2).clamp(1, 4);
+        // Mesmo par default/clamp do TS para o regime raro e para a janela do
+        // teto por obra: sem eles o `reserve` do crate usaria 4 e 6h fixos.
+        let rare_max = number("autoFetchRareMax", "DEBRID_AUTO_FETCH_RARE_MAX", 4).clamp(1, 6);
+        let obra_ttl_seconds = number("autoFetchTtl", "DEBRID_AUTO_FETCH_TTL", 21_600).max(0);
         let queue_depth = if boolean("autoFetchQueue", "DEBRID_AUTO_FETCH_QUEUE", true) {
             number("autoFetchQueueDepth", "DEBRID_AUTO_FETCH_QUEUE_DEPTH", 6).clamp(0, 12) as usize
         } else {
@@ -102,6 +122,9 @@ impl LivePolicy {
             queue_depth,
             hourly_limit,
             pause_at,
+            rare_max,
+            obra_ttl_seconds,
+            season_fill: boolean("autoFetchSeasonFill", "DEBRID_AUTO_FETCH_SEASON_FILL", true),
         })
     }
 }

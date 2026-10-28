@@ -5,8 +5,19 @@
 //!
 //! Os campos internos do pipeline viajam com `_` (contrato do
 //! `list_builder/effects.rs` no `adom-search`): `_br`, `_dubbed`, `_quality`,
-//! `_size`, `_seeders` e `_seedFloorWaived`. Campo ausente é `false`/`None`,
-//! nunca inventado.
+//! `_size`, `_seeders`, `_seedFloorWaived`, `_rare` e `_slotLimit`. Campo
+//! ausente é `false`/`None`, nunca inventado.
+//!
+//! # Fronteira do `rare` (TS → nativo)
+//!
+//! `rare` e `slotLimit` NASCEM no build: `pickSeedsPool` decide o regime raro e
+//! devolve `{ rare, slotLimit }` em todo candidato do pool `seeds`
+//! (`src/providers/autofetch-candidates.ts:268,296`,
+//! `src/providers/autofetch-seeds-pool.ts:174,190`). O worker do Node só
+//! TRANSPORTA o par até `tryObraCap` (`autofetch-runner.ts:82`); o teto que ele
+//! aplica vem de `rare` (`poolCap`, `autofetch-obra.ts:161`) e `slotLimit` é a
+//! vaga por busca. Aqui o worker faz o mesmo: lê os dois do item e não recalcula
+//! — recalculá-los seria uma SEGUNDA régua de um fato que já veio decidido.
 
 use std::collections::BTreeMap;
 
@@ -33,6 +44,14 @@ pub(super) struct Item {
     pub(super) fallback_fetchable: bool,
     pub(super) multi_work_admitted: bool,
     pub(super) waived: bool,
+    /// Candidato do regime RARO do pool `seeds` (`rare` em
+    /// `autofetch-candidates.ts:40`). Decide entre `rareMax` e `topSeedsMax` no
+    /// teto por obra (`autofetch-obra.ts:161`) e nos slots do lote.
+    pub(super) rare: bool,
+    /// `slotLimit` do pool que decidiu o candidato
+    /// (`autofetch-candidates.ts:281`): quantas vagas a BUSCA pode gastar com
+    /// ele. `None` = pool sem regime de vaga (o teto do lote manda).
+    pub(super) slot_limit: Option<i64>,
 }
 
 impl Item {
@@ -76,6 +95,8 @@ impl Item {
                 .get("_seedFloorWaived")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            rare: raw.get("_rare").and_then(Value::as_bool).unwrap_or(false),
+            slot_limit: raw.get("_slotLimit").and_then(Value::as_i64),
         })
     }
 
@@ -99,7 +120,7 @@ impl Item {
 
     /// Título do release: `stream.title || stream.name || ''` do TS. Título
     /// vazio cai para o `name` (é o rótulo que o pack prova a temporada).
-    fn label(&self) -> String {
+    pub(super) fn label(&self) -> String {
         let usable = |value: &Option<String>| value.clone().filter(|text| !text.trim().is_empty());
         usable(&self.title)
             .or_else(|| usable(&self.name))
