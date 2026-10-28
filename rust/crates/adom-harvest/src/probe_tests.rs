@@ -385,15 +385,15 @@ fn json_do_registro_e_o_mesmo_do_ts() {
 
 #[test]
 fn registro_expira_pelo_ttl_configurado() {
-    let (store, mut queue) = (store(), queue());
+    let store = store();
     let probe = BrProbe::new(ProbeConfig {
         ttl_seconds: 1,
         ..config()
     });
-    probe.request(&store, &mut queue, &movie(), NOW).unwrap();
-    assert_eq!(
-        probe.state(&store, &movie(), NOW + 999).unwrap(),
-        Some(BrProbeState::Pending)
-    );
+    // `pending` tem piso de lease; o TTL do env governa o estado FINAL.
+    let gravou = probe.finalize(&store, &movie(), ProbeFinal::Empty, NOW);
+    assert!(gravou.unwrap());
+    let estado = probe.state(&store, &movie(), NOW + 999).unwrap();
+    assert_eq!(estado, Some(BrProbeState::Empty));
     assert_eq!(probe.state(&store, &movie(), NOW + 1_000).unwrap(), None);
 }

@@ -82,6 +82,21 @@ fn bool_or(key: &str, default: bool) -> bool {
     }
 }
 
+/// `BR_PROBE_TTL_S` — TTL do registro da sonda (`autofetch:v3:probe:<sha>`).
+/// Mesma régua de `src/config/debrid.ts`: default 12 h, piso de 60 s.
+///
+/// A sonda é gravada pelo colhedor (`Settler`), então o TTL tem que sair
+/// daqui: `DEFAULT_PROBE_TTL_SECONDS` fixo no loop ignorava o env e o Node
+/// (`brProbeTtl`) lia um registro com prazo diferente do que escreveu.
+pub(crate) fn br_probe_ttl_seconds() -> u64 {
+    clamp_probe_ttl(num_or("BR_PROBE_TTL_S", 43_200.0))
+}
+
+/// `Math.max(60, trunc(n))` do Node.
+fn clamp_probe_ttl(value: f64) -> u64 {
+    value.max(60.0) as u64
+}
+
 /// `Number(env)` com fallback para `NaN` (default do TS).
 fn num_or(key: &str, default: f64) -> f64 {
     let Ok(raw) = std::env::var(key) else {
@@ -124,5 +139,21 @@ mod tests {
 
     fn clamp_timeout(value: f64) -> u64 {
         value.clamp(5_000.0, 120_000.0) as u64
+    }
+
+    /// O TTL da sonda segue a régua do Node, e o piso NÃO é o lease: com
+    /// `BR_PROBE_TTL_S=60` quem protege o `pending` é o clamp do
+    /// `BrProbe::write_pending` (TTL ≥ lease), não este valor.
+    #[test]
+    fn probe_ttl_segue_a_regua_do_ts() {
+        assert_eq!(clamp_probe_ttl(0.0), 60);
+        assert_eq!(clamp_probe_ttl(1.0), 60);
+        let do_crate = adom_harvest::DEFAULT_PROBE_TTL_SECONDS;
+        assert_eq!(
+            clamp_probe_ttl(do_crate as f64),
+            do_crate,
+            "default do env ausente = default do crate"
+        );
+        assert_eq!(clamp_probe_ttl(86_400.0), 86_400);
     }
 }

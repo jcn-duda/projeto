@@ -67,18 +67,32 @@ pub struct DrainOutcome {
     pub ok: bool,
     /// Consultas debitadas do teto horário (stub; Jackett real não existe aqui).
     pub queries: u32,
+    /// O teto horário cortou alvos PLANEJADOS: o desfecho não prova ausência.
+    /// `false` por default — só quem corta de fato liga a flag.
+    pub truncated: bool,
 }
 
 impl DrainOutcome {
     pub fn ok_with_queries(queries: u32) -> Self {
-        Self { ok: true, queries }
+        Self {
+            ok: true,
+            queries,
+            truncated: false,
+        }
     }
 
     pub fn failed() -> Self {
         Self {
             ok: false,
             queries: 0,
+            truncated: false,
         }
+    }
+
+    /// Declara o corte do teto horário sem mexer em `ok`/`queries`: quantos
+    /// alvos sobraram só o drain que montou o plano sabe.
+    pub fn with_truncated(self, truncated: bool) -> Self {
+        Self { truncated, ..self }
     }
 }
 

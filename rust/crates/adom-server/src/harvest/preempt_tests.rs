@@ -96,6 +96,7 @@ async fn preempcao_interrompe_o_drain_e_devolve_a_entrada_a_cabeca() {
     let mut next = ImmediateDrain {
         ok: true,
         queries: 1,
+        truncated: false,
     };
     assert_eq!(
         run_iteration(&inner, &mut worker, &mut next, &mut settler, NOW).await,

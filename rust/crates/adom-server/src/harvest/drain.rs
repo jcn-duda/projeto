@@ -304,21 +304,25 @@ impl NetworkDrain {
         }
 
         let batch = self.search(jackett, entry, &search, queries_left).await;
+        // O teto cortou alvos planejados ⇒ o desfecho NÃO prova ausência: viaja
+        // em `truncated` até a sonda, que grava `capped` em vez de `empty`.
+        let truncated = batch.remaining_targets > 0;
         // Cortou alvos ⇒ registro parcial: `jackett_complete` exige TODOS os
         // alvos planejados consultados e respondidos.
-        let jackett_complete = batch.remaining_targets == 0
-            && jackett_targets_complete(batch.attempted, batch.answered);
+        let jackett_complete =
+            !truncated && jackett_targets_complete(batch.attempted, batch.answered);
         match source_plan(batch.answered, !batch.items.is_empty()) {
             SourcePlan::FailNoWrite => {
                 // Consultas Jackett já tentadas continuam debitadas.
                 DrainOutcome {
                     ok: false,
                     queries: batch.attempted,
+                    truncated,
                 }
             }
             SourcePlan::OkNoWrite => {
                 // Nada a gravar: entrada vazia apagaria o que o `/stream` já provou.
-                DrainOutcome::ok_with_queries(batch.attempted)
+                DrainOutcome::ok_with_queries(batch.attempted).with_truncated(truncated)
             }
             SourcePlan::Write { ok: succeed } => {
                 let year = search.year_text();
@@ -348,11 +352,12 @@ impl NetworkDrain {
                 });
                 self.last_found = recorded.found;
                 if succeed {
-                    recorded.outcome
+                    recorded.outcome.with_truncated(truncated)
                 } else {
                     DrainOutcome {
                         ok: false,
                         queries: batch.attempted,
+                        truncated,
                     }
                 }
             }

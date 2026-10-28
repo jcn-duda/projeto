@@ -19,6 +19,7 @@ use adom_harvest::{
 use adom_search::orchestrator::Orchestrator;
 use adom_store::StreamsStore;
 
+use super::config::br_probe_ttl_seconds;
 use super::drain::NetworkDrain;
 use super::drain_outbox::drain_outbox;
 use super::evidence::order_and_publish;
@@ -87,7 +88,9 @@ pub(super) async fn serve(
         streams.clone(),
         Some(inner.store.clone()),
     );
-    let mut settler = Settler::new(adom_harvest::DEFAULT_PROBE_TTL_SECONDS);
+    // TTL do registro final vem do env (`BR_PROBE_TTL_S`), como no
+    // `probe_step`/`brProbeTtl`: constante fixa aqui divergia do leitor.
+    let mut settler = Settler::new(br_probe_ttl_seconds());
     loop {
         // Primeiro passo do tick, ANTES de qualquer guarda: a outbox é do
         // processo, não da obra. O drain que gravou o índice e morreu antes de
@@ -221,6 +224,8 @@ where
         intent: queue.inflight().pending(&identity),
         ok: outcome.ok,
         br_found,
+        // Teto cortou alvos: a sonda finaliza `capped`, não `empty`.
+        capped: outcome.truncated,
     };
     worker.finish(&mut queue, &identity, outcome, now);
     inner.set_inflight_rank(None);
@@ -281,16 +286,13 @@ where
     let resumed = resumed_entry(&entry, intent.as_ref());
     settler.note_preempted(&inner.store, &resumed, now);
     queue.head(resumed);
-    // `finish` só debita `queries` e fecha o slot: `ok` não é lido aqui.
-    worker.finish(
-        &mut queue,
-        &identity,
-        DrainOutcome {
-            ok: false,
-            queries: spent,
-        },
-        now,
-    );
+    // `finish` só debita `queries` e fecha o slot: `ok`/`truncated` não são lidos.
+    let closed = DrainOutcome {
+        ok: false,
+        queries: spent,
+        truncated: false,
+    };
+    worker.finish(&mut queue, &identity, closed, now);
     inner.set_inflight_rank(None);
     inner.persist_queue(&queue, now);
     inner.publish(&queue, worker, now);

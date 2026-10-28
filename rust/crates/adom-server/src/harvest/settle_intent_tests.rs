@@ -33,6 +33,7 @@ fn settlement(intent: Option<PendingIntent>, ok: bool) -> Settlement {
         intent,
         ok,
         br_found: false,
+        capped: false,
     }
 }
 
@@ -54,7 +55,16 @@ fn run_once(
         assert!(queue.enqueue(req).accepted);
     }
     let intent = queue.inflight().pending(&start.1);
-    worker.finish(queue, &start.1, DrainOutcome { ok, queries: 1 }, NOW);
+    worker.finish(
+        queue,
+        &start.1,
+        DrainOutcome {
+            ok,
+            queries: 1,
+            truncated: false,
+        },
+        NOW,
+    );
     let entry = start.0;
     settler.settle(queue, store, entry.clone(), settlement(intent, ok), NOW);
     entry

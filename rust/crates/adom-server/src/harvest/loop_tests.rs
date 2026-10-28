@@ -52,7 +52,11 @@ impl HarvestDrainAsync for BarrierDrain {
             if let Some(rx) = release {
                 let _ = rx.await;
             }
-            DrainOutcome { ok, queries }
+            DrainOutcome {
+                ok,
+                queries,
+                truncated: false,
+            }
         })
     }
 }
@@ -66,6 +70,8 @@ impl DrainFound for BarrierDrain {
 struct ImmediateDrain {
     ok: bool,
     queries: u32,
+    /// O teto horário cortou alvos planejados (sonda truncada).
+    truncated: bool,
 }
 
 impl HarvestDrainAsync for ImmediateDrain {
@@ -77,6 +83,7 @@ impl HarvestDrainAsync for ImmediateDrain {
         let outcome = DrainOutcome {
             ok: self.ok,
             queries: self.queries,
+            truncated: self.truncated,
         };
         Box::pin(async move { outcome })
     }
@@ -270,6 +277,7 @@ async fn restart_apos_save_reconstroi_fila_e_dedupe() {
     let mut drain = ImmediateDrain {
         ok: true,
         queries: 1,
+        truncated: false,
     };
     assert_eq!(
         run_iteration(&inner, &mut worker, &mut drain, &mut settler, NOW).await,
@@ -351,6 +359,7 @@ async fn ttl_da_fila_e_balde_da_hora() {
     let mut drain = ImmediateDrain {
         ok: true,
         queries: 4,
+        truncated: false,
     };
     assert_eq!(
         run_iteration(&inner, &mut worker, &mut drain, &mut settler, NOW).await,
@@ -376,6 +385,10 @@ async fn ttl_da_fila_e_balde_da_hora() {
 // Preempção intradrain: módulo filho para não estourar o teto deste arquivo.
 #[path = "preempt_tests.rs"]
 mod preempt;
+
+// Sonda TRUNCADA pelo teto (mesmo motivo de teto de linhas).
+#[path = "capped_tests.rs"]
+mod capped;
 
 // Claim durável (T1-B1): mesmo motivo de teto de linhas.
 #[path = "durable_tests.rs"]

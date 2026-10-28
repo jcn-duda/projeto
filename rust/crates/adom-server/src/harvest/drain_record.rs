@@ -130,6 +130,9 @@ pub(super) fn record_collected(args: RecordArgs<'_>) -> RecordedDrain {
                 outcome: DrainOutcome {
                     ok: false,
                     queries: args.attempted,
+                    // A verdade do corte vive no `drain.rs` (que reescreve a
+                    // flag no desfecho real); aqui só há falha de gravação.
+                    truncated: false,
                 },
                 found: false,
             }

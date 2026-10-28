@@ -132,22 +132,26 @@ impl BrProbe {
         store.put_value(&probe_key(work), &encoded, self.config.ttl_seconds, now_ms)
     }
 
+    /// `pending` com o lease de 10 min. O TTL do registro nunca fica abaixo
+    /// do lease: `BR_PROBE_TTL_S` curto apagaria o gate de seeds no meio da
+    /// janela que o próprio registro declara.
     fn write_pending(
         &self,
         store: &HarvestStore,
         work: &BrProbeWork,
         now_ms: i64,
     ) -> Result<(), String> {
-        self.write_record(
-            store,
-            work,
-            BrProbeRecord {
-                state: BrProbeState::Pending,
-                at: now_ms,
-                lease_until: Some(now_ms.saturating_add(PENDING_LEASE_MS)),
-            },
-            now_ms,
-        )
+        let record = BrProbeRecord {
+            state: BrProbeState::Pending,
+            at: now_ms,
+            lease_until: Some(now_ms.saturating_add(PENDING_LEASE_MS)),
+        };
+        let ttl = self
+            .config
+            .ttl_seconds
+            .max((PENDING_LEASE_MS / 1_000) as u64);
+        let encoded = serde_json::to_string(&record).map_err(|err| err.to_string())?;
+        store.put_value(&probe_key(work), &encoded, ttl, now_ms)
     }
 
     /// Estado para diagnóstico, leitura QUIET. `None` é o `off` do TS: toggle
@@ -388,3 +392,7 @@ fn is_pending_record(raw: Option<&BrProbeRecord>, now_ms: i64) -> bool {
 #[cfg(test)]
 #[path = "probe_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "probe_lease_tests.rs"]
+mod lease_tests;

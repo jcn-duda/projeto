@@ -6,6 +6,10 @@
 //! - **entrada dirigida** finaliza a sonda, inclusive quando ela coalesceu
 //!   em voo numa execução completa;
 //! - sonda bem-sucedida com FULL pendente devolve exatamente uma FULL;
+//! - sonda **truncada** pelo teto horário (alvos sobraram) finaliza como
+//!   `capped`, nunca como `empty`: `empty` afirma "procurei e não há", e uma
+//!   passada cortada não provou isso — `capped` tem retry curto (5 min) e o
+//!   aviso do painel não congela 12 h dizendo que a obra não tem dublado;
 //! - FULL bem-sucedida absorve as intenções da mesma identidade;
 //! - obra que **concluiu** zera o contador de tentativas, mesmo deixando
 //!   um remanescente FULL.
@@ -31,6 +35,9 @@ pub(crate) struct Settlement {
     pub ok: bool,
     /// Achou BR viável nesta passada (vence `ok` na finalização da sonda).
     pub br_found: bool,
+    /// O teto horário cortou alvos planejados (`DrainOutcome::truncated`): a
+    /// passada não provou ausência.
+    pub capped: bool,
 }
 
 /// Estado do desfecho entre ciclos (contadores por obra + sonda).
@@ -79,11 +86,20 @@ impl Settler {
             intent,
             ok,
             br_found,
+            capped,
         } = outcome;
         let is_probe = entry.br_probe || intent.as_ref().is_some_and(|intent| intent.br_probe);
         if is_probe {
+            // Ordem do estado final: achado real > corte do teto > ausência
+            // provada > falha. `Found` vence sempre (o achado é prova); `capped`
+            // vence `empty` porque cortou alvos sem responder; e vence `failed`
+            // porque a falha de fonte continua visível no `last`/contadores do
+            // status — o que o registro da sonda precisa dizer é que o PLANO
+            // ficou incompleto.
             let state = if br_found {
                 ProbeFinal::Found
+            } else if capped {
+                ProbeFinal::Capped
             } else if ok {
                 ProbeFinal::Empty
             } else {
