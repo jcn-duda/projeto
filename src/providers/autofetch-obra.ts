@@ -20,11 +20,8 @@
 // 3. RELEASE: enqueue false/erro, portão posterior (account-gate/budget),
 //    requeue do dreno, cooldown. A vaga volta a existir.
 //
-// Pools são contadores SEPARADOS: `seeds` nunca consome vaga de `br`.
-//
-// O registro persistido guarda o mínimo para futuras leituras (F6): por hash o
-// pool, o instante do aceite, o título, a classificação br/dubbed e o id
-// quando o adapter devolve. NÃO há eviction — quem apaga é o TTL da janela.
+// Pools são separados (`seeds` não consome vaga de `br`). O registro mantém
+// hash, pool, aceite, título, classificação e id; o TTL da janela o expira.
 // A leitura é defensiva: formato estranho conta como registro vazio, nunca
 // derruba a busca.
 //
@@ -43,6 +40,7 @@
 import crypto from 'node:crypto';
 import { prefix } from '../utils/cache-keys.js';
 import * as cache from '../utils/cache.js';
+import { commitObraRecordNative, forgetObraRecordHashNative, readObraRecord } from './autofetch-obra-state.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';
 import { overflowUpgradeAllowed } from './autofetch-obra-overflow.js';
@@ -53,7 +51,6 @@ export const OBRA_PREFIX = `${prefix('autofetch')}o:`;
 // timer — a expiração é lida de `at` a cada consulta, o que mantém o módulo
 // determinístico (sem setTimeout) e imune a `mock.timers` dos testes.
 export const OBRA_LEASE_TTL_MS = 60_000;
-
 /** Entrada persistida por hash aceito (mínimo do F6). */
 export interface ObraEntry {
   hash: string;
@@ -183,28 +180,7 @@ function windowMs(live: ReturnType<typeof autofetchLive.effective>): number {
 
 /** Leitura defensiva do registro persistido: formato estranho = vazio. */
 function readRecord(key: string): ObraEntry[] {
-  if (!key) return [];
-  const raw = cache.get(key) as { entries?: unknown } | null;
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entries)) return [];
-  const out: ObraEntry[] = [];
-  for (const item of raw.entries) {
-    if (!item || typeof item !== 'object') continue;
-    const e = item as Record<string, unknown>;
-    const hash = String(e.hash || '').toLowerCase();
-    if (!hash) continue;
-    out.push({
-      hash,
-      pool: String(e.pool || ''),
-      acceptedAt: Number.isFinite(Number(e.acceptedAt)) ? Number(e.acceptedAt) : 0,
-      ...(e.title != null ? { title: String(e.title) } : {}),
-      br: e.br === true,
-      dubbed: e.dubbed === true,
-      ...(e.id != null && e.id !== '' ? { id: String(e.id) } : {}),
-      ...(e.quality != null && e.quality !== '' ? { quality: String(e.quality) } : {}),
-      ...(e.overflow === true ? { overflow: true } : {}),
-    });
-  }
-  return out;
+  return readObraRecord(key);
 }
 
 /** Reservas vivas da obra, podando as vencidas de passagem. */
@@ -333,6 +309,18 @@ export function commitObra(
   const live = autofetchLive.effective();
   const now = Date.now();
   const span = windowMs(live);
+  const nativeCommitted = commitObraRecordNative(lease.key, {
+    hash,
+    pool: String(entry.pool || lease.pool || ''),
+    acceptedAt: now,
+    title: entry.title,
+    br: entry.br === true,
+    dubbed: entry.dubbed === true,
+    id: entry.id,
+    quality: entry.quality,
+    overflow: (entry.overflow ?? lease.overflow) === true,
+  }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)), now);
+  void nativeCommitted;
   const kept = readRecord(lease.key).filter((e) => {
     if (e.hash === hash) return false;
     if (span <= 0) return false;
@@ -369,9 +357,14 @@ export function forgetObraHash(input: ObraIdentityInput & { hash: string }): boo
   const hash = String(input.hash || '').toLowerCase();
   if (!key || !hash) return false;
   const before = readRecord(key);
-  const kept = before.filter((e) => e.hash !== hash);
-  if (kept.length === before.length) return false;
   const live = autofetchLive.effective();
+  const nativeForgotten = forgetObraRecordHashNative(
+    key,
+    hash,
+    Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)),
+  );
+  const kept = before.filter((e) => e.hash !== hash);
+  if (kept.length === before.length && !nativeForgotten) return false;
   if (kept.length > 0) {
     cache.set(key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
   } else {

@@ -1,6 +1,4 @@
-//! Adaptador Debrid-Link (fase D1). Sem endpoint de disponibilidade:
-//! `check_cached` não faz HTTP. Enqueue, inventário, status, remoção e o
-//! áudio dublado ficam fora desta fundação.
+//! Adaptador Debrid-Link; disponibilidade não consulta rede.
 
 use std::time::Duration;
 
@@ -36,7 +34,6 @@ impl DebridLink {
         }
     }
 
-    /// Conjunto vazio, sem rede. A Debrid-Link não publica disponibilidade.
     pub async fn check_cached(&self) -> Result<Vec<String>, DebridError> {
         Ok(Vec::new())
     }
@@ -127,6 +124,10 @@ impl DebridLink {
         value_of(data)
     }
 }
+
+#[path = "debridlink_autofetch.rs"]
+mod autofetch;
+pub use autofetch::DebridLinkStatus;
 
 fn base_from_env() -> String {
     match std::env::var("DEBRIDLINK_API_BASE") {

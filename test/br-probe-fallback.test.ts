@@ -9,6 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvClearPrefix } from '../src/utils/native-kv.js';
 import * as runtime from '../src/runtime.js';
 import * as brProbe from '../src/providers/br-probe.js';
 import * as autofetch from '../src/providers/autofetch.js';
@@ -55,6 +56,7 @@ function setup() {
   config.releaseIndex.enabled = true;
   autofetchLive.reset();
   cache.clear();
+  kvClearPrefix('autofetch:v3:probe:');
   return saved;
 }
 
@@ -64,6 +66,7 @@ function restore(saved: ReturnType<typeof setup>) {
   config.releaseIndex.enabled = saved.releaseIndex;
   autofetchLive.reset();
   cache.clear();
+  kvClearPrefix('autofetch:v3:probe:');
 }
 
 /** Marca pending sem passar pela fila do colhedor — o alvo aqui é a leitura. */

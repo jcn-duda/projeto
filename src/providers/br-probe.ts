@@ -23,6 +23,7 @@ import crypto from 'node:crypto';
 import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
+import { brProbeNativeKey, readBrProbeNative, writeBrProbeNative } from '../utils/autofetch-state-native.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import autofetchLive from '../utils/autofetch-live.js';
@@ -88,7 +89,8 @@ export function probeIdentity(work: BrProbeWork): string {
 }
 
 function probeKey(work: BrProbeWork): string {
-  return `${prefix('autofetch')}probe:${crypto.createHash('sha256').update(probeIdentity(work)).digest('hex')}`;
+  return brProbeNativeKey(work)
+    || `${prefix('autofetch')}probe:${crypto.createHash('sha256').update(probeIdentity(work)).digest('hex')}`;
 }
 
 /**
@@ -107,7 +109,10 @@ export function probeEnabled(): boolean {
 }
 
 function readRecord(work: BrProbeWork): BrProbeRecord | null {
-  const raw = cache.peek(probeKey(work)) as BrProbeRecord | null;
+  const native = readBrProbeNative(work);
+  const raw = (native == null
+    ? cache.peek(probeKey(work))
+    : native) as BrProbeRecord | null;
   if (!raw || typeof raw.state !== 'string') return null;
   return raw;
 }
@@ -155,6 +160,7 @@ export function probeState(workInput: BrProbeWork): BrProbeState | 'off' {
 }
 
 function writeRecord(work: BrProbeWork, record: BrProbeRecord): void {
+  writeBrProbeNative(work, record, config.debrid.brProbeTtl);
   cache.set(probeKey(work), record, config.debrid.brProbeTtl);
 }
 

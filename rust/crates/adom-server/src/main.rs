@@ -4,6 +4,7 @@ mod dub_audit;
 mod dub_audit_writes;
 /// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
 mod harvest;
+mod ownership_admin;
 mod proxy;
 mod resolve_bridge;
 mod resolve_hint;

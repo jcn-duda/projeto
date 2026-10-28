@@ -6,6 +6,7 @@
 // posse/anti-reenchimento para o verde não depender do .env do operador.
 import config from '../../src/config.js';
 import * as cache from '../../src/utils/cache.js';
+import { kvClearPrefix } from '../../src/utils/native-kv.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as metrics from '../../src/utils/metrics.js';
 import { accountScope } from '../../src/utils/request-key.js';
@@ -45,6 +46,7 @@ export const hint = { imdbId: IMDB };
 
 export const limpa = () => {
   cache.clearNamespace('autofetch');
+  kvClearPrefix('autofetch:v3:o:');
   cache.clearNamespace('adrm');
   cache.clearNamespace('adprot');
   cache.clearNamespace('adsub');

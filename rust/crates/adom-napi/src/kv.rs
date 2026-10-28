@@ -24,6 +24,10 @@ pub struct NativeKv {
 /// MESMO handle (a fila v3 do Chupim, `adom-autofetch::v3`), sem reabrir o
 /// cache.db. Bloco próprio FORA do `#[napi] impl`: método interno, sem porta JS.
 impl NativeKv {
+    pub(crate) fn store(&self) -> &KvStore {
+        &self.inner
+    }
+
     pub(crate) fn v3_queue(&self) -> adom_autofetch::QueueV3<'_> {
         adom_autofetch::QueueV3::new(&self.inner)
     }

@@ -25,19 +25,31 @@
 //!   não tem LRU, toda leitura é "quiet".
 
 mod candidate;
+mod dispatch;
 mod drain;
+mod evict;
 mod obra;
 mod obra_reservation;
+mod probe;
 mod queue;
+mod recheck;
+mod season;
+mod seeds;
 mod suppressed;
 
 use sha2::{Digest, Sha256};
 
 pub use candidate::{Number, QueueCandidate};
+pub use dispatch::{dispatch, DispatchDecision, DispatchInput};
 pub use drain::{select_drain_candidate, DrainSelection};
+pub use evict::{eligible_evictions, EvictCandidate, EvictInput};
 pub use obra::ObraStoreV3;
 pub use obra_reservation::{ObraLeaseV3, ObraReservationInput, ObraReservations};
+pub use probe::{probe_blocks_seeds, probe_state, ProbeState};
 pub use queue::{marker_value, QueueV3, WriteReport};
+pub use recheck::{recheck_step, RecheckAction, RecheckInput};
+pub use season::season_fill_eligible;
+pub use seeds::seeds_stop;
 pub use suppressed::{suppressed_key, Suppressed, SuppressedRetry, SuppressedV3};
 
 /// Namespace inteiro da metade viva (a `v1` do [`crate::state`] é o alvo).

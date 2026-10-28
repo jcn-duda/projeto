@@ -5,12 +5,14 @@
 // painel. Cobre o contrato novo do registro `{ id, at, fails, nextAt }`, a
 // manutenção de elegibilidade por `nextAt`, a preservação do TTL restante na
 // reescrita e a desistência em 5 falhas.
-import { test } from 'node:test';
+import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
+import * as cache from '../src/utils/cache.js';
+import { kvClearPrefix, kvForget, kvPeek, kvSetForTest } from '../src/utils/native-kv.js';
+import { readSuppressedNative, remainingNative } from '../src/utils/autofetch-state-native.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import type { DebridAdapter } from '../types/domain.js';
 
@@ -32,11 +34,17 @@ function draftAdapter(): DebridAdapter {
 
 const H = 'a'.repeat(40);
 
+beforeEach(() => kvClearPrefix('autofetch:v3:sup:'));
+
+function remaining(key: string): number {
+  return remainingNative(key) ?? 0;
+}
+
 test('noteSuppressed usa TTL próprio de 30 dias, não o DEAD_TTL', () => {
   const account = 'conta-ttl';
   try {
     suppressed.noteSuppressed('draft', account, H, 'id-1');
-    const restante = cache.peekRemaining(suppressed.suppressedKey('draft', account, H)) || 0;
+    const restante = remaining(suppressed.suppressedKey('draft', account, H));
     assert.ok(restante > 2_591_000, `TTL ~30 dias, obtive ${restante}s`);
   } finally {
     suppressed.forgetSuppressed('draft', account, H);
@@ -147,7 +155,7 @@ test('falha agenda nextAt e o registro não é reentregue antes da hora', async 
     assert.equal(chamadas, 1);
     assert.equal(suppressed.countSuppressed('draft', account), 1, 'falha isolada não desiste');
 
-    const rec = cache.peek(suppressed.suppressedKey('draft', account, H)) as { fails: number; nextAt: number };
+    const rec = readSuppressedNative('draft', account, H) as { fails: number; nextAt: number };
     assert.equal(rec.fails, 1, 'a falha é contada');
     assert.ok(rec.nextAt > Date.now(), 'a próxima tentativa é agendada no futuro');
 
@@ -177,17 +185,17 @@ test('reescrita por falha preserva a validade restante (não renova 30 dias)', a
     // TTL cheio (2592000s); com preservacao fica na casa do TTL curto pedido.
     suppressed.noteSuppressed('draft', account, H, 'id-validade', 120);
     const key = suppressed.suppressedKey('draft', account, H);
-    const antes = cache.peekRemaining(key) || 0;
+    const antes = remaining(key);
     assert.ok(antes > 100);
 
     assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0);
-    const depois = cache.peekRemaining(key) || 0;
+    const depois = remaining(key);
     assert.ok(depois < 3600, `nao renasce de 30 dias: depois ${depois}s`);
     assert.ok(depois <= antes, `e preserva a validade restante: antes ${antes}s, depois ${depois}s`);
 
     // Re-notar tambem preserva: o id ja espera ha algum tempo, nao ganha 30d.
     suppressed.noteSuppressed('draft', account, H, 'id-validade', 120);
-    const renotado = cache.peekRemaining(key) || 0;
+    const renotado = remaining(key);
     assert.ok(renotado < 3600, 're-note nao devolve a validade cheia');
     assert.ok(renotado <= antes, 're-note preserva o que falta');
   } finally {
@@ -209,7 +217,7 @@ test('cinco falhas esquecem o registro e contam givenup', async () => {
     let fails = 0;
     while (suppressed.countSuppressed('draft', account) > 0) {
       // Simula o tempo passando: o recheck roda de novo depois do backoff.
-      cache.set(key, { id: 'id-fatal', at: Date.now() - 1000, fails, nextAt: 0 }, 60);
+      kvSetForTest(key, { id: 'id-fatal', at: Date.now() - 1000, fails, nextAt: 0 }, 60);
       fails += 1;
       assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0);
     }
@@ -233,12 +241,15 @@ test('registro em formato antigo {id, at} continua drenável', async () => {
   try {
     config.debrid.removeById = true;
     // Registro gravado ANTES da Etapa 2 (só id/at, sem fails/nextAt).
-    cache.set(suppressed.suppressedKey('draft', account, H), { id: 'legado-1', at: Date.now() - 3600_000 }, 3600);
+    const key = suppressed.suppressedKey('draft', account, H);
+    kvForget(key);
+    cache.set(key, { id: 'legado-1', at: Date.now() - 3600_000 }, 3600);
 
     assert.equal(suppressed.listSuppressed('draft', account).length, 1, 'legado nasce elegível');
     assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 1);
     assert.deepEqual(removidos, ['legado-1']);
     assert.equal(suppressed.countSuppressed('draft', account), 0);
+    assert.equal(cache.peek(key), null, 'a cópia L1 legado também é removida');
   } finally {
     config.debrid.removeById = originalRemove;
     suppressed.forgetSuppressed('draft', account, H);
@@ -283,7 +294,7 @@ test('falha de drain sobre registro já liquidado não recria o registro', async
     config.debrid.removeById = true;
     suppressed.noteSuppressed('draft', account, H, 'id-corrida');
     await suppressed.drainSuppressed(adapter, 'chave', account);
-    assert.equal(cache.peek(suppressed.suppressedKey('draft', account, H)), null, 'não ressuscitado');
+    assert.equal(kvPeek(suppressed.suppressedKey('draft', account, H)), null, 'não ressuscitado');
     assert.equal(suppressed.countSuppressed('draft', account), 0);
   } finally {
     config.debrid.removeById = originalRemove;

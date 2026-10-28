@@ -43,6 +43,15 @@
 // por id que o freio de rollout adiou.
 import { prefix } from '../utils/cache-keys.js';
 import * as cache from '../utils/cache.js';
+import {
+  forgetSuppressedNative,
+  listSuppressedKeysNative,
+  noteSuppressedNative,
+  readSuppressedNative,
+  remainingNative,
+  retrySuppressedNative,
+  setKvNative,
+} from '../utils/autofetch-state-native.js';
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -77,6 +86,11 @@ function suppressedKey(adapterId: string, account: string, infoHash: string) {
   return `${SUP_PREFIX}${adapterId}:${account}:${String(infoHash || '').toLowerCase()}`;
 }
 
+function remaining(key: string): number | null {
+  const native = remainingNative(key);
+  return native == null ? cache.peekRemaining(key) : native;
+}
+
 /**
  * Lê o registro SEM efeito (peek não promove o LRU nem conta métrica). Registro
  * antigo `{ id, at }` lê como `fails: 0, nextAt: 0` — mesma tolerância que o
@@ -84,7 +98,9 @@ function suppressedKey(adapterId: string, account: string, infoHash: string) {
  * represado que ainda não falhou.
  */
 function readSuppressed(key: string): SuppressedRead {
-  const stored = cache.peek(key) as { id?: unknown; at?: unknown; fails?: unknown; nextAt?: unknown } | null;
+  const parts = key.startsWith(SUP_PREFIX) ? key.slice(SUP_PREFIX.length).split(':') : [];
+  const native = parts.length >= 3 ? readSuppressedNative(parts[0], parts[1], parts.slice(2).join(':')) : undefined;
+  const stored = (native == null ? cache.peek(key) : native) as { id?: unknown; at?: unknown; fails?: unknown; nextAt?: unknown } | null;
   if (!stored || typeof stored !== 'object' || stored.id == null) {
     return { id: '', at: 0, fails: 0, nextAt: 0 };
   }
@@ -112,8 +128,11 @@ function noteSuppressed(
   if (!adapterId || !account || !infoHash) return;
   if (transferId == null || transferId === '') return;
   const key = suppressedKey(adapterId, account, infoHash);
-  const restante = cache.peekRemaining(key);
+  const nativeRemaining = remainingNative(key);
+  const shadowRemaining = cache.peekRemaining(key);
+  const restante = nativeRemaining != null && nativeRemaining > 0 ? nativeRemaining : shadowRemaining;
   const ttl = restante != null && restante > 0 ? restante : ttlSeconds;
+  noteSuppressedNative(adapterId, account, infoHash, String(transferId), ttl);
   cache.set(key, { id: String(transferId), at: Date.now(), fails: 0, nextAt: 0 }, ttl);
   knownSuppressed.add(key);
 }
@@ -131,7 +150,7 @@ function listSuppressedForAccount(adapterId: string, account: string): Array<Sup
   const out: Array<SuppressedRead & { hash: string }> = [];
   for (const key of [...knownSuppressed]) {
     if (!key.startsWith(escopo)) continue;
-    if (cache.peekRemaining(key) == null) {
+    if (remaining(key) == null) {
       knownSuppressed.delete(key);
       continue;
     }
@@ -150,7 +169,9 @@ function listAllSuppressed(adapterId: string, account: string): Array<Suppressed
   // registros que o reindex do boot não pegou). O caminho quente do PAINEL
   // (agregado de todas as contas) usa o índice `knownSuppressed`; esta é a
   // leitura por conta, que age em passagens pontuais, não em poll.
-  for (const key of cache.keysMatching(escopo)) {
+  const nativeKeys = listSuppressedKeysNative();
+  const keys = new Set([...cache.keysMatching(escopo), ...(nativeKeys || []).filter((key) => key.startsWith(escopo))]);
+  for (const key of keys) {
     const rec = readSuppressed(key);
     if (!rec.id) continue;
     knownSuppressed.add(key);
@@ -170,6 +191,7 @@ function listSuppressed(adapterId: string, account: string, agora = Date.now()) 
 function forgetSuppressed(adapterId: string, account: string, infoHash: string) {
   const key = suppressedKey(adapterId, account, infoHash);
   knownSuppressed.delete(key);
+  forgetSuppressedNative(adapterId, account, infoHash);
   cache.forget(key);
 }
 
@@ -182,7 +204,7 @@ function countSuppressed(adapterId: string, account: string) {
 function countAllSuppressed(): number {
   let total = 0;
   for (const key of knownSuppressed) {
-    if (cache.peekRemaining(key) == null) {
+    if (remaining(key) == null) {
       knownSuppressed.delete(key);
       continue;
     }
@@ -199,6 +221,19 @@ function countAllSuppressed(): number {
  */
 function scheduleRetry(adapterId: string, account: string, reg: SuppressedRead & { hash: string }, agora: number) {
   const key = suppressedKey(adapterId, account, reg.hash);
+  const nativeRetry = retrySuppressedNative(adapterId, account, reg.hash, config.debrid.suppressedTtl, agora);
+  if (nativeRetry === 'missing' && !readSuppressed(key).id) return;
+  if (nativeRetry === 'given-up') {
+    knownSuppressed.delete(key);
+    cache.forget(key);
+    metrics.count('autofetch.suppressed.givenup');
+    return;
+  }
+  if (nativeRetry === 'scheduled') {
+    const updated = readSuppressedNative(adapterId, account, reg.hash);
+    if (updated) cache.set(key, updated, remaining(key) ?? config.debrid.suppressedTtl);
+    return;
+  }
   const ant = readSuppressed(key);
   // Registro sumido = outro ator (recheck de outro lote, porta do painel) já
   // liquidou a transferência antes de nós. Sem isso a falha do removeTorrent
@@ -208,14 +243,16 @@ function scheduleRetry(adapterId: string, account: string, reg: SuppressedRead &
   const fails = (ant.fails || 0) + 1;
   if (fails >= GIVE_UP_AFTER) {
     knownSuppressed.delete(key);
-    cache.forget(key);
+    forgetSuppressed(adapterId, account, reg.hash);
     metrics.count('autofetch.suppressed.givenup');
     return;
   }
   const espera = Math.min(BACKOFF_BASE_MS * 2 ** (fails - 1), BACKOFF_CAP_MS);
-  const restante = cache.peekRemaining(key);
+  const restante = remaining(key);
   const ttl = restante != null && restante > 0 ? restante : config.debrid.suppressedTtl;
-  cache.set(key, { id: reg.id, at: ant.at || agora, fails, nextAt: agora + espera }, ttl);
+  const updated = { id: reg.id, at: ant.at || agora, fails, nextAt: agora + espera };
+  cache.set(key, updated, ttl);
+  setKvNative(key, updated, ttl, agora);
 }
 
 /**
@@ -273,7 +310,9 @@ async function drainSuppressed(
  */
 function reindexSuppressed() {
   let n = 0;
-  for (const key of cache.keysMatching(SUP_PREFIX)) {
+  const nativeKeys = listSuppressedKeysNative();
+  const keys = new Set([...cache.keysMatching(SUP_PREFIX), ...(nativeKeys || [])]);
+  for (const key of keys) {
     if (knownSuppressed.has(key)) continue;
     if (readSuppressed(key).id) {
       knownSuppressed.add(key);

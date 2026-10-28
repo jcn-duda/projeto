@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
+import { kvClearPrefix, kvForget } from '../src/utils/native-kv.js';
+import { brProbeNativeKey } from '../src/utils/autofetch-state-native.js';
 import config from '../src/config.js';
 import * as brProbe from '../src/providers/br-probe.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
@@ -42,6 +44,7 @@ function setup() {
   autofetchLive.reset();
   harvesterLive.reset();
   cache.clearNamespace('autofetch');
+  kvClearPrefix('autofetch:v3:probe:');
   // `streams` é Rust-owned desde o F4.2(c): não há L1 a limpar aqui — cada
   // teste que olha a lista pronta sobe a ponte dublada.
   cache.clearNamespace('idx');
@@ -160,6 +163,21 @@ test('toggle off não agenda nem bloqueia, mas o br-gap normal segue possível',
     assert.equal(r.fallbackBrGap, true, 'chamador do índice mantém a rede de segurança');
     assert.equal(brProbe.isBrProbePending(MOVIE), false);
   } finally {
+    restore(s);
+  }
+});
+
+test('miss nativo consulta registro legado semeado no L1', () => {
+  const s = setup();
+  const key = brProbeNativeKey(MOVIE)!;
+  const record = { state: 'empty', at: Date.now() };
+  try {
+    kvForget(key);
+    cache.set(key, record, 3600);
+    assert.equal(brProbe.probeState(MOVIE), 'empty');
+  } finally {
+    cache.forget(key);
+    kvForget(key);
     restore(s);
   }
 });

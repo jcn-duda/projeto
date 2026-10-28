@@ -20,6 +20,7 @@ import * as cache from '../utils/cache.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import { OBRA_PREFIX } from './autofetch-obra.js';
 import { hasBrReady } from './autofetch-evict.js';
+import { listObraKeysNative, readObraNative } from '../utils/autofetch-state-native.js';
 
 /** Quantas obras o status devolve (as mais recentes por entrada). */
 export const OBRA_SUMMARY_MAX = 12;
@@ -37,6 +38,10 @@ export interface ObraSummary {
 
 /** Parse quiet de `{ entries: [...] }`; formato estranho conta como vazio. */
 function peekEntries(key: string): Array<Record<string, unknown>> {
+  const native = readObraNative(key);
+  if (native != null) {
+    return (native || []).filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
+  }
   const raw = cache.peek(key) as { entries?: unknown } | null;
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entries)) return [];
   return raw.entries.filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
@@ -50,7 +55,8 @@ export function obraSummaries(limit = OBRA_SUMMARY_MAX): ObraSummary[] {
   const now = Date.now();
   const span = Math.max(0, Number(autofetchLive.effective().autoFetchTtl) || 0) * 1000;
   const out: ObraSummary[] = [];
-  for (const key of cache.keysMatching(OBRA_PREFIX)) {
+  const keys = new Set([...cache.keysMatching(OBRA_PREFIX), ...(listObraKeysNative(now) || [])]);
+  for (const key of keys) {
     const digest = key.slice(OBRA_PREFIX.length);
     if (!digest) continue;
     const entries = peekEntries(key).filter((e) => {

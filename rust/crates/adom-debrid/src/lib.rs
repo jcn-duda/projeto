@@ -28,6 +28,8 @@ pub mod alldebrid_cleanup;
 pub mod alldebrid_delete;
 // Inventário PRONTO da conta como fonte (F3): leitura pura, sem memo/efeitos.
 pub mod account;
+/// Memo local, não bloqueante e fail-open da ocupação da conta no autofetch.
+pub mod account_gate;
 pub mod api;
 pub mod debridlink;
 pub mod error;

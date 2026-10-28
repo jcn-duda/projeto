@@ -145,6 +145,34 @@ export type AutofetchMarkerCore = {
   autofetchV3ForgetMarker(kv: NativeKvNapi, adapterId: string, account: string, infoHash: string): boolean;
 };
 
+/** Estado adicional do Chupim v3 preparado sobre o mesmo NativeKv.
+ * Mantido sem roteamento de prefixos até os consumidores Node migrarem juntos. */
+export type AutofetchStateV3Core = {
+  autofetchV3ProbeKey(kind: string, imdbId: string, season?: number | null, episode?: number | null): string;
+  autofetchV3ProbeRead(
+    kv: NativeKvNapi, kind: string, imdbId: string,
+    season: number | null | undefined, episode: number | null | undefined, nowMs: number,
+  ): string | null;
+  autofetchV3ProbeWrite(
+    kv: NativeKvNapi, kind: string, imdbId: string,
+    season: number | null | undefined, episode: number | null | undefined,
+    recordJson: string, ttlSeconds: number, nowMs: number,
+  ): void;
+  autofetchV3ObraRead(kv: NativeKvNapi, key: string, nowMs: number): string | null;
+  autofetchV3ObraCommit(kv: NativeKvNapi, key: string, entryJson: string, ttlSeconds: number, nowMs: number): boolean;
+  autofetchV3ObraForgetHash(kv: NativeKvNapi, key: string, hash: string, ttlSeconds: number, nowMs: number): boolean;
+  autofetchV3SuppressedKey(adapterId: string, account: string, hash: string): string;
+  autofetchV3SuppressedRead(kv: NativeKvNapi, adapterId: string, account: string, hash: string, nowMs: number): string | null;
+  autofetchV3SuppressedNote(kv: NativeKvNapi, adapterId: string, account: string, hash: string, id: string, ttlSeconds: number, nowMs: number): boolean;
+  autofetchV3SuppressedRetry(kv: NativeKvNapi, adapterId: string, account: string, hash: string, ttlSeconds: number, nowMs: number): 'missing' | 'scheduled' | 'given-up';
+  autofetchV3SuppressedForget(kv: NativeKvNapi, adapterId: string, account: string, hash: string): boolean;
+  autofetchV3LotKey(searchKey: string): string;
+  autofetchV3LotRead(kv: NativeKvNapi, searchKey: string, nowMs: number): string | null;
+  autofetchV3LotWrite(kv: NativeKvNapi, searchKey: string, lotJson: string, ttlSeconds: number, nowMs: number): void;
+  autofetchV3LotForget(kv: NativeKvNapi, searchKey: string): boolean;
+  autofetchV3LotKeys(kv: NativeKvNapi, nowMs: number): string[];
+};
+
 export type AutofetchCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type QueueCandidateNapi = { infoHash: string; pool: string; rare: boolean; slotLimit?: number | null };
 export type SkipNapi = { reason: string; rollback: string[]; infoHash: string };
@@ -155,7 +183,7 @@ export type AutofetchDecisionNapi = {
   trace?: { pool?: string; disabled?: boolean };
 };
 
-export type AutofetchCore = AutofetchQueueCore & AutofetchMarkerCore & {
+export type AutofetchCore = AutofetchQueueCore & AutofetchMarkerCore & AutofetchStateV3Core & {
   evaluateAutofetchCandidates(input: AutofetchInputNapi): AutofetchDecisionNapi;
 };
 

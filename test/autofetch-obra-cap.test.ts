@@ -21,6 +21,7 @@ import { classifyEnqueue, ENQUEUE_ROLLBACK } from '../src/providers/autofetch-ga
 import {
   reserveObra, commitObra, releaseObra, obraRecord, obraKey, obraStatus, resetObraForTest,
 } from '../src/providers/autofetch-obra.js';
+import { obraSummaries } from '../src/providers/autofetch-obra-summary.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 const PM = 'premiumize';
@@ -32,6 +33,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const hx = (seed: string) => seed.repeat(40).slice(0, 40);
 const trash: string[] = [];
+
+test('obraRecord consulta L1 legado no miss do NativeKv', () => { const id = identity('legado-l1', { imdbId: 'tt7100999', season: 1, episode: 2 }), key = obraKey(id), hash = hx('f3'); kvForget(key); cache.set(key, { entries: [{ hash, pool: 'br', acceptedAt: Date.now(), br: true, dubbed: true }] }, 3600); try { assert.equal(obraRecord(id)[0]?.hash, hash); const digest = key.slice(key.lastIndexOf(':') + 1, key.lastIndexOf(':') + 13); assert.ok(obraSummaries().some((item) => item.digest === digest)); } finally { cache.forget(key); kvForget(key); } });
 
 function identity(apiKey: string, o: { imdbId?: string | null; season?: number | null; episode?: number | null; searchKey?: string | null } = {}) {
   return {

@@ -103,16 +103,35 @@ pub(crate) struct AdminState {
     /// enxerga exatamente o que a busca enxergaria (inclusive stale).
     grace_seconds: u64,
     /// Colhedor nativo; `None` = desligado (`HARVEST_ENABLED=false`), store
-    /// indisponível ou corte nativo desligado. As rotas `/harvest*` respondem
     /// o contrato com `enabled:false`.
     pub(crate) harvest: Option<HarvestHandle>,
+    pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
 }
 
+#[cfg(test)]
 pub fn router(
     cfg: &AdminConfig,
     store: Arc<StreamsStore>,
     grace_seconds: u64,
     harvest: Option<HarvestHandle>,
+) -> Router {
+    router_with_ownership(
+        cfg,
+        store,
+        grace_seconds,
+        harvest,
+        crate::ownership_admin::router(),
+        None,
+    )
+}
+
+fn router_with_ownership(
+    cfg: &AdminConfig,
+    store: Arc<StreamsStore>,
+    grace_seconds: u64,
+    harvest: Option<HarvestHandle>,
+    ownership: Router<Arc<AdminState>>,
+    ownership_kv: Option<Arc<adom_index::NativeKv>>,
 ) -> Router {
     if cfg.token.is_empty() {
         eprintln!("[gateway] streams admin sem token; responde 503");
@@ -122,6 +141,7 @@ pub fn router(
         store,
         grace_seconds,
         harvest,
+        ownership_kv,
     });
     Router::new()
         .route("/streams/invalidate", post(invalidate))
@@ -129,6 +149,7 @@ pub fn router(
         .route("/streams/trace", get(trace))
         .route("/streams/stats", get(stats))
         .route("/indexers/status", get(indexer_status))
+        .merge(ownership)
         .merge(crate::harvest::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
@@ -143,7 +164,9 @@ pub async fn serve(
     harvest: Option<HarvestHandle>,
 ) -> Result<(), String> {
     let listen = cfg.listen;
-    let app = router(&cfg, store, grace_seconds, harvest);
+    let ownership = crate::ownership_admin::router();
+    let ownership_kv = crate::ownership_admin::from_env();
+    let app = router_with_ownership(&cfg, store, grace_seconds, harvest, ownership, ownership_kv);
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|err| format!("nao escutei {listen}: {err}"))?;

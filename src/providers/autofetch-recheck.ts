@@ -24,26 +24,8 @@ import { collapseTerminal, cleanLotHash } from './autofetch-terminal.js';
 import { expiredRemovalAllowed } from './autofetch-expired.js';
 import { deriveStall, forgetLotProgress } from './autofetch-progress.js';
 import { seasonSearchKeys, seasonIndexKey, registerSeasonSearchKey } from './autofetch-season-index.js';
-export type SeasonHint = { imdbId?: string | null; season?: number | null; episode?: number | null; isPack?: boolean };
-export type RecheckLot = {
-  hashes: Set<string>;
-  attempts: number;
-  timer: ReturnType<typeof setTimeout> | null;
-  inFlight: boolean;
-  ctx: RuntimeContext;
-  deadStreak: Map<string, number>;
-  stallStreak: Map<string, number>;
-  seasonHints: Map<string, SeasonHint>;
-  createdAt: number;
-  isSettle: boolean;
-  refusals: number;
-  /**
-   * Adapter DONO do lote, gravado no enqueue. A evicção do LRU de settle usa
-   * ESTE id — nunca `debrid.current()`, que no contexto de outra request pode
-   * ser outro serviço e limparia a memória do lote errado.
-   */
-  adapterId: string;
-};
+import { forgetLot, persistLot, restoreLot, type RecheckLot, type SeasonHint } from './autofetch-lot-state.js';
+export type { RecheckLot, SeasonHint } from './autofetch-lot-state.js';
 /** Lotes aceitos aguardando ficar tocáveis, morrer ou drenar a fila. */
 export const recheckLots = new Map<string, RecheckLot>();
 // Índice de temporadas do Season Pack Fill extraído para
@@ -69,6 +51,7 @@ export function scheduleRecheck(
   const live = autofetchLive.effective();
   if (live.autoFetchRecheckMs <= 0 || live.autoFetchRecheckMax <= 0) return;
   let lot = recheckLots.get(searchKey);
+  if (!lot) lot = restoreLot(searchKey, requestCtx, adapterId) || undefined;
   if (!lot) {
     lot = {
       hashes: new Set<string>(), attempts: 0, timer: null, inFlight: false, ctx: requestCtx,
@@ -76,12 +59,17 @@ export function scheduleRecheck(
       createdAt: Date.now(), isSettle: false, refusals: 0, adapterId: String(adapterId || ''),
     };
     recheckLots.set(searchKey, lot);
+  } else {
+    lot.ctx = requestCtx;
+    lot.inFlight = false;
+    recheckLots.set(searchKey, lot);
   }
   const hash = String(infoHash).toLowerCase();
   lot.hashes.add(hash);
   lot.seasonHints.set(hash, hint);
   lot.ctx = requestCtx;
   if (adapterId) lot.adapterId = String(adapterId);
+  persistLot(searchKey, lot);
   if (!lot.timer && !lot.inFlight) armRecheck(searchKey, lot);
 }
 
@@ -221,6 +209,7 @@ export function runRecheck(searchKey: string) {
         lot.hashes,
       );
       recheckLots.delete(searchKey);
+      forgetLot(searchKey);
       return;
     }
     // O lote passa a ter o adapter RESOLVIDO desta passagem; a evicção do
@@ -302,6 +291,7 @@ export function runRecheck(searchKey: string) {
         // não pode apagar o backup do 1080p ainda stallado — era exatamente
         // o que esvaziava a reposição inteligente no meio do caminho.
         if (lot.hashes.size === 0) autofetch.dropQueue(searchKey);
+        persistLot(searchKey, lot);
         held.noteReady(adapter.id, account, hash);
         held.release(hash, account);
         // Fase 6: só DEPOIS de o hold do próprio ready sair, para o fallback
@@ -323,6 +313,7 @@ export function runRecheck(searchKey: string) {
             adapter, account, apiKey: opts().debridApiKey, hash, searchKey,
             statusInfo, streak, mode: 'native', reason: isDead ? 'dead' : 'stalled',
           });
+          persistLot(searchKey, lot);
           drainNext(searchKey, lot);
         }
       } else if (derived.stalled.has(hash)) {
@@ -334,6 +325,7 @@ export function runRecheck(searchKey: string) {
           adapter, account, apiKey: opts().debridApiKey, hash, searchKey,
           statusInfo, streak: live.autoFetchStallStreak, mode: 'progress', reason: 'progress',
         });
+        persistLot(searchKey, lot);
         drainNext(searchKey, lot);
       } else if (statusOk && statusInfo) {
         lot.deadStreak.set(hash, 0);
@@ -347,6 +339,7 @@ export function runRecheck(searchKey: string) {
     lot.inFlight = false;
     if (lot.hashes.size === 0) {
       recheckLots.delete(searchKey);
+      forgetLot(searchKey);
       return;
     }
 
@@ -380,6 +373,7 @@ export function runRecheck(searchKey: string) {
       // Fim de lote: a memória de progresso não sobrevive ao registro do lote.
       forgetLotProgress(adapter.id, account, [...lot.hashes]);
       recheckLots.delete(searchKey);
+      forgetLot(searchKey);
     } else {
       if (!lot.isSettle && lot.attempts >= liveAfter.autoFetchRecheckMax) {
         lot.isSettle = true;
@@ -390,11 +384,13 @@ export function runRecheck(searchKey: string) {
       // parada DERIVADA por progresso (Fase 3, AllDebrid). Lote sem sinal
       // espera o TTL; drenar por "estar em settle" era o dreno cego removido.
       armRecheck(searchKey, lot);
+      persistLot(searchKey, lot);
     }
   })).catch((err) => {
     lot.inFlight = false;
     log.warn('[autofetch] recheck falhou:', err?.message || err);
     if (lot.hashes.size > 0) armRecheck(searchKey, lot);
-    else recheckLots.delete(searchKey);
+    if (lot.hashes.size > 0) persistLot(searchKey, lot);
+    else { recheckLots.delete(searchKey); forgetLot(searchKey); }
   });
 }

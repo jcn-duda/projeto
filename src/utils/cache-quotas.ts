@@ -99,7 +99,8 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   idx: 2000,
   // Fila do autofetch: markers vivos, dead/queues/prefetch, os registros `sup:`
   // com TTL próprio de 30 dias e — desde a Fase 2 — os registros por OBRA
-  // (`o:<sha256>`, teto por janela). Os represados são lidos via `peek` (não
+  // (`o:<sha256>`, teto por janela), sonda dirigida (`probe:<sha256>`) e
+  // snapshots de recheck retomáveis (`lot:<sha256>`). Os represados são lidos via `peek` (não
   // promovem LRU) e ficam como os itens mais frios do namespace: cota apertada
   // ali evicta justamente o acervo que a fila existe para tornar retroativo.
   // Recalculado na Fase 2: o registro `o:` soma ao balde que já carregava

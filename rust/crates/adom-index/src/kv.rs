@@ -35,6 +35,16 @@ pub struct NativeKv {
     conn: Mutex<Connection>,
 }
 
+/// Escrita JSON usada em uma operação atômica do NativeKv.
+pub struct KvWrite<'a> {
+    pub key: &'a str,
+    pub value: &'a Value,
+    pub ttl_seconds: i64,
+    pub now_ms: i64,
+    /// `true` preserva o primeiro registro (ex.: acceptedAt do adprot).
+    pub only_if_absent: bool,
+}
+
 impl NativeKv {
     /// Abre (ou cria) o `cache.db` em `path`.
     pub fn open(path: &Path) -> Result<Self, String> {
@@ -83,6 +93,75 @@ impl NativeKv {
             params![key, encoded, expires_at],
         )
         .map_err(|err| err.to_string())?;
+        Ok(())
+    }
+
+    /// Grava uma marca e apaga um hold na mesma transação SQLite.
+    ///
+    /// Usado quando o serviço confirmou um upload que o snapshot provou novo:
+    /// a posse durável precisa estar gravada antes de soltar o hold que protege
+    /// o torrent da limpeza. Qualquer falha faz rollback das duas operações.
+    pub fn put_json_and_forget(
+        &self,
+        key: &str,
+        value: &Value,
+        ttl_seconds: i64,
+        now_ms: i64,
+        forget_key: &str,
+    ) -> Result<(), String> {
+        self.put_many_json_and_forget(
+            &[KvWrite {
+                key,
+                value,
+                ttl_seconds,
+                now_ms,
+                only_if_absent: false,
+            }],
+            &[forget_key],
+        )
+    }
+
+    /// Grava várias linhas e apaga um hold em uma única transação.
+    pub fn put_many_json_and_forget(
+        &self,
+        writes: &[KvWrite<'_>],
+        forget_keys: &[&str],
+    ) -> Result<(), String> {
+        let encoded = writes
+            .iter()
+            .map(|write| {
+                serde_json::to_string(write.value)
+                    .map(|value| (write, value))
+                    .map_err(|err| err.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut conn = self.lock();
+        let tx = conn
+            .transaction()
+            .map_err(|err| format!("início da transação KV: {err}"))?;
+        for (write, value) in encoded {
+            let sql = if write.only_if_absent {
+                "INSERT OR IGNORE INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)"
+            } else {
+                "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at"
+            };
+            tx.execute(
+                sql,
+                params![
+                    write.key,
+                    value,
+                    expires_at_for(write.ttl_seconds, write.now_ms)
+                ],
+            )
+            .map_err(|err| format!("gravação KV: {err}"))?;
+        }
+        for forget_key in forget_keys {
+            tx.execute("DELETE FROM cache WHERE key = ?1", params![forget_key])
+                .map_err(|err| format!("remoção de proteção KV: {err}"))?;
+        }
+        tx.commit()
+            .map_err(|err| format!("commit da transação KV: {err}"))?;
         Ok(())
     }
 

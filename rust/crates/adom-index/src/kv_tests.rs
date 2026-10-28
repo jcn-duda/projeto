@@ -112,3 +112,40 @@ fn forget_prefix_apaga_so_o_namespace_e_conta_linhas() {
         "prefixo mais longo não casa"
     );
 }
+
+#[test]
+fn put_and_forget_rollback_ambas_as_operacoes_se_a_remocao_falhar() {
+    let kv = NativeKv::open_memory().unwrap();
+    kv.put_json("adhold:v1:account:hash", &json!({"at": 1}), 60, 1_000)
+        .unwrap();
+    kv.conn
+        .lock()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER fail_hold_delete BEFORE DELETE ON cache
+             WHEN OLD.key = 'adhold:v1:account:hash'
+             BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END;",
+        )
+        .unwrap();
+
+    assert!(kv
+        .put_many_json_and_forget(
+            &[super::KvWrite {
+                key: "adsub:v1:account:hash",
+                value: &json!({"at": 2}),
+                ttl_seconds: 600,
+                now_ms: 2_000,
+                only_if_absent: false,
+            }],
+            &["adhold:v1:account:hash"],
+        )
+        .is_err());
+    assert!(kv
+        .get_json("adsub:v1:account:hash", 2_001)
+        .unwrap()
+        .is_none());
+    assert!(kv
+        .get_json("adhold:v1:account:hash", 2_001)
+        .unwrap()
+        .is_some());
+}
