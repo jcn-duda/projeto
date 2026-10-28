@@ -329,9 +329,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   pools `br > any > seeds`, cobertura por qualidade-alvo, teto por obra,
   recheck com detecção de torrent morto, fila persistente, sonda dirigida
   `br-probe`, evicção de fallbacks (OFF por padrão). O **worker nativo está no
-  gateway**, desligado por padrão; o cofre de credencial é **RAM** (TTL 6 h,
-  por `adapter:conta`, nada em KV/log) e liga com `AUTOFETCH_WORKER=on` — que
-  hoje ainda não basta (falta a fábrica de produção; ver `AGENTS-DETALHADO`).
+  gateway** e liga com `AUTOFETCH_WORKER=on` (o compose liga): a fábrica dos
+  cinco serviços nasce em `autofetch/build.rs` e o cofre de credencial é **RAM**
+  (TTL 6 h, por `adapter:conta`, nada em KV/log). Ver a seção seguinte.
   `hold` **antes** da
   checagem, marker só após o aceite; nunca no caminho da resposta. Hash com
   marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,
@@ -341,6 +341,20 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `DEBRID_ALLOW_ENV_KEY=false` (+ `DEBRID_OPERATOR_ENV_ACCOUNT=true` para o painel).
 - Serviço novo: adaptador + entrada em `ADAPTERS`; o seletor da página se
   alimenta sozinho.
+
+## Worker nativo do Chupim (leva C1)
+- `AUTOFETCH_WORKER=on` (compose) monta a fábrica dos cinco serviços em
+  `autofetch/build.rs`; a chave vem do cofre em RAM, escopo `adapter:sha256`.
+- Já consome: `autofetch_batch` (enqueue → recheck → dreno). A represa `sup:`
+  tem dreno real pela rota, e a evicção F6 e os passos `br_probe`/`season_key`
+  estão escritos mas **sem chamador no laço**.
+- Ainda é do Node (flip B4 não feito): sonda dirigida, Season Pack Fill, dreno
+  da represa no ciclo, `pf:`/`obra:` e o `harvester_enqueue`. O TS do Chupim
+  (`src/providers/autofetch*.ts`, `src/debrid/alldebrid-fallback-evict.ts`)
+  continua dono desses fluxos.
+- **Não apague o TS do Chupim antes de fiar o substituto**: passo pronto não é
+  passo consumido, e o efeito aceito pelo canal não volta ao Node (`Deferred`
+  só existe antes do `submit`) — tirar o TS com o ramo faltando apaga trabalho.
 
 ## Cache e índice
 

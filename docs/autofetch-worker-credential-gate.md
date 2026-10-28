@@ -1,12 +1,13 @@
 # Gate de credencial do worker nativo do Chupim (T3-L5/L6)
 
-**Status (2026-10-28, branch `rust` @ `721512eb`):** a **opção (2) — cofre em
-memória por conta — está IMPLEMENTADA** (`d51f53c0`, refinada por `d50a7bdd` e
-`4e0617e6`). O worker nativo existe de ponta a ponta, mas continua **desligado
-por padrão**: sem `AUTOFETCH_WORKER=on` o cofre nem é criado e os efeitos do
-Chupim seguem ao Node (só o `dub_audit` é nativo incondicional). O que ainda
-falta não é o cofre — é a **fábrica de produção** dos cinco adaptadores e o flip
-(fim deste documento).
+**Status (2026-10-28, branch `rust` @ `47e475fb` + leva C1):** a **opção (2) —
+cofre em memória por conta — está IMPLEMENTADA** (`d51f53c0`, refinada por
+`d50a7bdd` e `4e0617e6`), a **fábrica de produção dos cinco serviços também**
+(`0159b9f2`, `autofetch/build.rs`) e o `docker-compose.yml` liga
+`AUTOFETCH_WORKER=on`. O que falta não é mais credencial nem fábrica: é o
+**flip B4** — o TS do Chupim continua dono do que o worker ainda não consome
+(sonda, Season Pack Fill, dreno da represa) e só sai depois que o substituto
+estiver fiado (fim deste documento).
 
 **O bloqueio original:** o dreno/recheck do Chupim rodava no Node dentro do
 `RuntimeContext` da requisição e a chave do debrid vinha de
@@ -112,27 +113,77 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
 
 ### O que ainda falta para o flip
 
-1. **A fábrica de produção (cinco serviços).** `autofetch::ports` já tem o
-   adaptador (`PortedDebrid` sobre `adom_debrid::autofetch_ports`, construtores
-   `realdebrid`/`alldebrid`/`torbox`/`premiumize`/`debridlink`) e a
-   `factory(vault, build)`; **não existe o `AdapterBuilder` de produção** que
-   escolha o serviço e monte as portas. Hoje só o duplo de teste
-   (`fakes.rs::factory_for`) e os testes de `ports_tests.rs` chamam a fábrica.
-2. **`spawn_with(Some(factory))` no boot.** `autofetch::spawn()` (chamado em
-   `proxy.rs`) passa **`None`** de propósito: `enabled = worker_enabled() &&
-   debrid.is_some()`, então **mesmo com `AUTOFETCH_WORKER=on` o worker fica
-   `prepared`** e `submit` devolve `false`. O `TODO(flip)` em
-   `autofetch/worker.rs` explica o porquê: montar a fábrica exige o
-   `RdGateExecutor`/`RdUncertainStore` **compartilhados** com o play nativo, e
-   nenhum dos dois nasce hoje no `adom-server`.
-3. **Varreduras AllDebrid no boot.** `adom-debrid/src/alldebrid_sweeps*.rs`
-   (`bf846820`) entrega as quatro decisões puras e o executor com `may_delete`
-   fail-closed, mas o próprio módulo declara "fora desta fatia (wiring no
-   gateway, não feito aqui)": montar fatos, agendar e gravar o `adrm` continua
-   no Node.
-4. **Flip do kill-switch** (default `on` ou `on` no compose) e a bateria de
-   aceitação com duas contas de serviços diferentes.
+1. **A fábrica de produção (cinco serviços) — ENTREGUE** (`0159b9f2`).
+   `autofetch/build.rs` monta `Build` (cliente HTTP, KV, `cache.db`, **um**
+   `RdGateExecutor` por processo, `RdKvStore` e o ledger) e devolve a
+   `factory(vault)` sobre `ports::factory`; `boot::production_factory` só a cria
+   com `AUTOFETCH_WORKER=on` **e** cofre vivo. O `AdapterBuilder` escolhe o
+   serviço (`alldebrid`/`torbox`/`premiumize`/`realdebrid`/`debridlink`);
+   serviço fora dos cinco devolve `None` e o passo é pulado, nunca erro do lote.
+2. **Boot — FIADO.** `autofetch::spawn()` continua passando `None`, mas isso
+   agora significa "monte a de PRODUÇÃO quando a trava estiver ligada"
+   (`boot::spawn_at`); `spawn_with(Some(factory))` ficou como injeção de teste.
+   A fábrica usa o MESMO `RdGateExecutor`/`RdKvStore` das outras pontas do
+   processo, e sem cliente HTTP o worker volta a `prepared` em vez de quebrar o
+   boot.
+3. **Varreduras AllDebrid — agendador FIADO, `Apply` ainda freado** (`bf846820`
+   + `016b3690`). `al_sweeps` (`rust/crates/adom-server/src/al_sweeps.rs`, ligado
+   em `main.rs`) monta os fatos, respeita `DEBRID_AL_SWEEP_MS` e roda as quatro
+   decisões puras com `may_delete` fail-closed. Mas a listagem nativa não prova
+   posse (`adsub`), retenção (`adprot`) nem a fila `sup:` — fatos do `cache.db`
+   do Node —, então `DEBRID_AL_CLEANUP=on` fica em `ReadOnly`
+   (`native::ROW_PROOFS_COMPLETE`) e a gravação do `adrm` continua sem fio.
+4. **Flip B4** — a trava já está `on` no compose (`94268f0a`), então o que
+   falta é a bateria de aceitação com duas contas de serviços diferentes e o
+   **flip do TS**: sonda, Season Pack Fill e dreno da represa só saem do Node
+   quando o laço nativo consumir os passos (abaixo).
 
-Enquanto a fábrica de produção e o `spawn_with(Some(..))` não fecham, o efeito
-do Chupim continua **voltando ao Node** pelo seam do tail — é ele que paga o
-gate na prática.
+Com a fábrica e o boot fiados, o gate deixou de ser o bloqueio do worker: quem
+ainda decide o destino de um efeito é o seam do tail (escopo derivável ou não,
+canal aceitando ou não) e, depois do aceite, o próprio passo. O que continua no
+Node é o que o laço não consome — ver a seção seguinte.
+
+---
+
+## O que a leva C1 mudou no gate (2026-10-28)
+
+As três peças novas (evicção F6, dreno da represa e sonda dirigida) **não
+carregam `dk`**. Elas recebem o mesmo vocabulário que o cofre já fala:
+`adapter:sha256(chave)`, nunca a chave crua.
+
+| Peça | Como chega à credencial |
+|---|---|
+| `adom_autofetch::v3::evict` via `evict_step` | nada de chave: o plano é puro (`EvictFacts`/`EvictGates`); quem toca a conta é o `&dyn AutofetchDebrid` já resolvido pela fábrica |
+| `suppressed_step::drain` | recebe a `DebridFactory` e resolve `adapter:conta` **por entrada**; escopo sem chave viva é `kept`, não falha |
+| `probe_step` | nenhuma credencial: pede a obra ao colhedor NATIVO (`HarvestHandle::enqueue` com `brProbe`) e grava o lease no KV |
+| `season_step` | nenhuma credencial: `adapter_id` + `account` (digest) vêm do payload do efeito |
+
+**O escopo é `adapter:sha256(chave)` nos quatro.** Em `season_key` o `account`
+do payload JÁ É o digest, e `tail_effects::payload_scope` monta o escopo sem
+re-hashear; nos outros o caminho é o cofre (`Vault::ingest` →
+`Vault::scope_of`). O `drain` da represa é o único que resolve a conta no meio
+da passagem: ele relê o registro e usa o **id atual**, para não apagar um
+transfer que outro ator trocou.
+
+**A fábrica vem de `autofetch/build.rs`** (`0159b9f2`): `Build::new` cria o
+cliente HTTP, compartilha o KV e o `cache.db`, cria **um** `RdGateExecutor` por
+processo e devolve `factory(vault)` sobre `ports::factory`. É a MESMA fábrica
+que o laço recebe — então a chave é lida do cofre a cada passo, e nenhum passo
+guarda adaptador entre lotes.
+
+Kill-switches que continuam valendo na credencial:
+
+- evicção: `DEBRID_AUTO_FETCH_EVICT_FALLBACK` (default **false**) e, por cima,
+  `DEBRID_AL_CLEANUP_KILL`; teto `DEBRID_EVICT_MAX_PER_CALL` (só aperta);
+- represa: `DEBRID_SUPPRESSED_DRAIN_MAX` (teto por passagem) e
+  `DEBRID_SUPPRESSED_TTL` preservado ao reagendar o `nextAt`;
+- sonda: `AUTOFETCH_BR_PROBE` **e** `RELEASE_INDEX` (sem índice não há onde
+  escrever), além da pausa do worker;
+- Season Pack Fill: `DEBRID_AUTO_FETCH_SEASON_FILL` e
+  `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX` (`0` desliga só o índice).
+
+O que ainda depende de fiação (uma linha em cada, sem credencial nova):
+`register_factory` do dreno da represa não é chamado em `boot::spawn_at`; com
+isso a rota `POST /autofetch/suppressed-drain` responde `factory-unavailable`
+mesmo com a trava ligada. E `evict_step` ainda não está declarado em
+`autofetch/mod.rs` (`mod evict_step;`), logo não entra no binário.

@@ -1748,23 +1748,28 @@ continuam no cache do Node; o namespace `autofetch` NÃO entra inteiro, senão
 `cache.db` continua legível: é a MESMA tabela `cache`, a MESMA chave e o MESMO
 valor/TTL — só o transporte mudou, sem migração.
 
-**Worker nativo do Chupim (estado real, `rust` @ `721512eb`).** O ciclo inteiro
-está no gateway e **desligado por padrão** (`AUTOFETCH_WORKER` ausente ou
-`off`). Arquivos-âncora, todos sob `rust/crates/adom-server/src/autofetch/`:
-`vault.rs` (cofre em RAM por `adapter:conta`, TTL `DEBRID_AUTO_FETCH_TTL`
-default 6 h, LRU `DEBRID_AUTO_FETCH_VAULT_MAX` default 64, `Debug` redigido,
-buffer zerado no `Drop`), `enqueue.rs` (com `enqueue_items.rs` e
-`enqueue_drain.rs`: **escritor único** da fila v3), `recheck.rs` (com
-`recheck_expire.rs`), `serve.rs` (laço `current_thread` sobre canal `mpsc`,
-timers lidos dos lotes), `ports.rs` (adaptador `PortedDebrid` sobre o
-`adom-debrid` e a **fábrica por conta** — não existe `build.rs`; a fabricação
-mora aqui) e `worker.rs` (config `autofetch-worker:v1:config`, canal e painel:
-`GET /autofetch` e `POST /autofetch/config|pause|drain|suppressed-drain`, em
-loopback + token). Fora dessa pasta: `tail_effects.rs` é a **porta única** —
+**Worker nativo do Chupim (estado real, `rust` @ `47e475fb` + leva C1).** O
+ciclo inteiro está no gateway e liga com `AUTOFETCH_WORKER=on` — o compose liga
+e `scripts/check-autofetch.sh` confere `enabled`/`phase` pela admin de loopback
+(o log de boot não distingue `prepared` de `active`). Arquivos-âncora, todos sob
+`rust/crates/adom-server/src/autofetch/`: `vault.rs` (cofre em RAM por
+`adapter:conta`, TTL `DEBRID_AUTO_FETCH_TTL` default 6 h, LRU
+`DEBRID_AUTO_FETCH_VAULT_MAX` default 64, `Debug` redigido, buffer zerado no
+`Drop`), `enqueue.rs` (com `enqueue_items.rs` e `enqueue_drain.rs`: **escritor
+único** da fila v3), `recheck.rs` (com `recheck_expire.rs`, que escreve a
+represa `sup:`), `serve.rs` (laço `current_thread` sobre canal `mpsc`, timers
+lidos dos lotes), `ports.rs` (adaptador `PortedDebrid` sobre o `adom-debrid` e a
+**fábrica por conta** `factory(vault, build)`), `build.rs` (fábrica de
+**PRODUÇÃO**: os cinco serviços, um `RdGateExecutor` por processo e os fatos da
+AllDebrid lidos do `cache.db`; `boot::production_factory` só a monta com a trava
+ligada e o cofre vivo) e `worker.rs` (config `autofetch-worker:v1:config`, canal
+e painel: `GET /autofetch` e `POST /autofetch/config|pause|drain|suppressed-drain`,
+em loopback + token). Fora dessa pasta: `tail_effects.rs` é a **porta única** —
 alimenta o cofre com o `encoded` de cada lote e entrega `adapter:sha256(chave)`
 ao sink (sem escopo derivável, o efeito volta ao Node), `rd_warmer*.rs` é o
 aquecimento do RD nativo e `adom-debrid/src/alldebrid_sweeps*.rs` são as
-varreduras de conteúdo da AllDebrid.
+varreduras de conteúdo da AllDebrid (agendador em `al_sweeps.rs`, ligado no
+`main.rs`).
 
 Já é nativo: fila/marker/blacklist (`autofetch:v3:q|m|dead`), as decisões puras
 (cascata, `recheck_step`/`lot_outcome`/settle LRU), o cofre, o enfileiramento, o
@@ -1772,15 +1777,59 @@ recheck, o laço, o painel do worker, o `dub_audit`, o `rd_warmer` (sonda com
 chave do cofre e ledger `rdc:v2`) e o **executor** das quatro varreduras da
 AllDebrid (decisão pura + `apply_plan` com `may_delete` fail-closed).
 
-Continua no Node: a execução do lote `autofetch_batch`/`br_probe`/`season_key`
-(enquanto `autofetch::spawn()` passar fábrica `None`, `enabled =
-worker_enabled() && debrid.is_some()` é falso e o worker fica `prepared` **mesmo
-com a trava ligada**); a montagem da fábrica dos cinco serviços com o
-`RdGateExecutor`/`RdUncertainStore` compartilhados com o play nativo; o
-agendamento das varreduras da AllDebrid e a gravação do `adrm`; o dreno da
-represa `sup:` (o worker escreve a represa, mas `suppressed-drain` só devolve o
-estado do laço); `pf:`/`obra:` (seguem no cache do Node) e o
-`harvester_enqueue`.
+Continua no Node (ver a subseção seguinte): a sonda dirigida, o Season Pack
+Fill, o dreno da represa DENTRO do ciclo (`pf:`/`obra:` seguem no cache do Node)
+e o `harvester_enqueue`. O flip B4 não foi feito: o TS do Chupim
+(`src/providers/autofetch*.ts`, `src/debrid/alldebrid-fallback-evict.ts`) segue
+dono desses fluxos.
+
+#### Leva C1 — o que o worker nativo já consome (2026-10-28)
+
+- **`autofetch_batch`** — `serve.rs::Engine::batch` → `enqueue::run` (hold antes
+  da checagem, cascata, portões e o **escritor único** da fila
+  `autofetch:v3:q:`) → `recheck::schedule`; o dreno do lote terminal é
+  `enqueue_drain::drain_one`. Sem escopo no cofre o passo é pulado com
+  `no-credential`: a fila espera, não morre.
+- **Represa `sup:`** — escrita por `recheck_expire.rs` e agora **drenada de
+  verdade** por `suppressed_step::drain` (`DrainReport` com
+  `retried`/`dropped`/`kept`/`failed`/`operations`/`depth`/`at`). O
+  `POST /autofetch/suppressed-drain` chama o passo e devolve `effect:"applied"`
+  quando houve chamada de serviço; o `GET /autofetch` publica `suppressed`,
+  `suppressedSource` e `lastSuppressedDrain`. O id é RELIDO imediatamente antes
+  do `remove` — o Node usava o id do começo da passagem, que outro ator pode ter
+  trocado.
+- **Evicção F6** — `evict_step` tem a política pura (`plan`: a régua do crate
+  decide QUEM pode sair, mais os vetos fail-closed de `transfer_id`, nome
+  autoritativo, retenção BR, marker de outra obra e `overflow`) e o executor
+  (`execute` → `remove(transfer_id)`, parando no primeiro erro). A porta `evict`
+  só existe na AllDebrid (`adom-debrid/src/autofetch_ports_evict.rs`) e nasce
+  OFF (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, com `DEBRID_AL_CLEANUP_KILL` por
+  cima). **Ainda não entra no binário**: falta `mod evict_step;` no `mod.rs`.
+- **Passos prontos, sem chamador** — `probe_step` (plan/execute/settle da sonda
+  `br_probe`, com lease `pending` e o KV `autofetch:v3:probe:<sha256>`) e
+  `season_step` (plan/plan_fill/execute/take do Season Pack Fill, com o índice
+  em `autofetch:v3:season:`). Nenhum ramo do laço os chama; e como o canal já os
+  aceita, o lote é recusado depois por `no-search-key` — **sem** voltar ao Node.
+
+#### O que ainda é do Node (flip B4 não feito)
+
+- a sonda dirigida (`br-probe.ts`) e o Season Pack Fill
+  (`autofetch-season-index.ts`): os passos nativos existem, mas o laço não os
+  chama — quem agenda e executa hoje é o TS;
+- o dreno da represa no ciclo: `register_factory` ainda não é chamado em
+  `boot::spawn_at`, então a rota responde `factory-unavailable`;
+- a evicção de fallbacks: `evict_step` fora do módulo e o TS
+  (`alldebrid-fallback-evict.ts`) ainda roda pelo recheck do Node;
+- `pf:`/`obra:` (cache do Node), o `harvester_enqueue`, o agendamento das
+  varreduras da AllDebrid (`ReadOnly` até as provas por linha) e a gravação do
+  `adrm`.
+
+**Regra: não apague o TS do Chupim antes de fiar o substituto.** Passo escrito
+não é passo consumido: o efeito aceito pelo canal **não volta** ao Node
+(`Deferred` só existe antes do `submit`), então remover o TS com o ramo do laço
+faltando transforma trabalho em silêncio. A ordem é sempre (1) o ramo em
+`serve.rs` com teste, (2) o efeito deixando de chegar ao Node por medição, (3)
+só então apagar o TS.
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou

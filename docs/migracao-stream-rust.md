@@ -791,3 +791,44 @@ Pendências de validação (não bloqueiam a fase C):
    `cachedOnly`).
 2. Sem vídeo, dublagem falsa e episódio ausente só têm teste por fixture e de
    rota; validar no real quando aparecer um caso.
+
+## Leva C1 — worker nativo do Chupim (2026-10-28)
+
+Esta leva fecha as lacunas P1 do worker nativo do Chupim **sem** cumprir o flip
+B4: os passos existem e compilam, mas o laço ainda não os chama e o TS do
+Chupim continua dono desses fluxos. Base: `47e475fb` + a leva C1 (working tree
+da branch `rust`).
+
+### O que foi fiado
+
+| Peça | O que entrou | Onde |
+|---|---|---|
+| Represa `sup:` | `suppressed_step` (drain, `DrainReport`, `register_factory`, `last`) e a rota `POST /autofetch/suppressed-drain` rodando o passo de verdade; o `GET /autofetch` publica `suppressed`, `suppressedSource` e `lastSuppressedDrain` | `autofetch/suppressed_step.rs`, `autofetch/routes.rs` |
+| Porta `evict` | evicção por hash SÓ na AllDebrid (`/magnet/status` → `remove(id)`), guarda `may_delete` reutilizada, kill-switch duplo e teto por chamada | `adom-debrid/src/autofetch_ports_evict.rs` |
+| Evicção F6 | política pura (`plan`, com veto final `may_delete`) + executor (`execute`, para no primeiro erro) sobre a régua do crate | `autofetch/evict_step.rs` (ainda fora do `mod.rs`) |
+| Sonda `br_probe` | `plan`/`execute`/`settle`, `ProbeStepConfig`, `ProbeSkipReason`, lease `pending` e KV `autofetch:v3:probe:<sha256>` | `autofetch/probe_step.rs` |
+| Season Pack Fill | `plan`/`plan_fill`/`execute`/`take`, `SEASON_PREFIX`, índice em KV com a chave lógica do TS | `autofetch/season_step.rs` |
+| Crate | `v3::evict::execute`/`EvictReport`/`EvictStop` e as decisões puras de sonda e temporada | `adom-autofetch/src/v3/{evict,probe,season}.rs` |
+
+### O que ficou pendente
+
+1. **`evict_step` fora do binário.** O arquivo existe (com testes próprios), mas
+   `autofetch/mod.rs` ainda não o declara: falta `mod evict_step;`. A fiação
+   prevista é `serve.rs::timers`, depois de o recheck provar o ready BR.
+2. **`probe_step` e `season_step` sem chamador.** Estão declarados com
+   `#[allow(dead_code)]` e nenhum ramo do laço os chama. Como o canal JÁ aceita
+   os dois kinds, o lote entra e é recusado por `enqueue::run` com
+   `no-search-key` — e, depois do aceite, **não volta ao Node** (`Deferred` só
+   existe antes do `submit`). Enquanto o ramo não existir, a sonda e o Season
+   Pack Fill de produção continuam sendo os do TS.
+3. **Fábrica do dreno não registrada.** `suppressed_step::register_factory` não
+   é chamado no `boot::spawn_at`, então a rota responde `factory-unavailable`
+   mesmo com `AUTOFETCH_WORKER=on`. É uma linha no boot.
+4. **Flip B4 não feito.** O TS do Chupim (`src/providers/autofetch*.ts`,
+   `src/debrid/alldebrid-fallback-evict.ts`) segue dono de sonda, Season Pack
+   Fill, evicção de fallbacks, dreno no ciclo, `pf:`/`obra:` e
+   `harvester_enqueue`. Regra: **não apagar o TS antes de fiar o substituto** —
+   passo escrito não é passo consumido.
+5. **Aceitação em produção** com duas contas de serviços diferentes, incluindo
+   uma passagem de evicção com o kill-switch ligado e o dreno da represa pelo
+   painel.
