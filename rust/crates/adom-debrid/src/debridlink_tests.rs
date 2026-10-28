@@ -12,7 +12,6 @@ use axum::{Json, Router};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex as AsyncMutex;
 
 use super::DebridLink;
 
@@ -20,16 +19,22 @@ pub(super) const API_KEY: &str = "test-debridlink-key-123";
 pub(super) const H1: &str = "1111111111111111111111111111111111111111";
 pub(super) const SHOW: &str = "ShowSeason";
 
-static ENV_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
-
+/// A MESMA trava de `crate::test_env`: `debridlink_autofetch_tests` também
+/// aponta `DEBRIDLINK_API_BASE` e uma trava privada aqui deixava os dois
+/// módulos escrevendo a env um do outro (base do mock errada, falha
+/// intermitente).
+///
+/// O guarda é `std` e fica preso pelo teste inteiro porque `EnvReset` restaura
+/// no `Drop`; é o mesmo padrão de `debridlink_autofetch_tests`. As rotinas que
+/// esperam por ele são SÍNCRONAS e rápidas (só constroem o adaptador).
 pub(super) struct EnvReset {
     prev: Option<String>,
-    _guard: tokio::sync::MutexGuard<'static, ()>,
+    _guard: std::sync::MutexGuard<'static, ()>,
 }
 
 impl EnvReset {
     async fn set(base: &str) -> Self {
-        let guard = ENV_LOCK.lock().await;
+        let guard = crate::test_env::lock();
         let prev = std::env::var("DEBRIDLINK_API_BASE").ok();
         // SAFETY: o mutex serializa estes testes. A variável só aponta o
         // adaptador para o servidor local e o Drop restaura o valor anterior.

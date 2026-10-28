@@ -31,6 +31,14 @@ pub mod account;
 /// Memo local, não bloqueante e fail-open da ocupação da conta no autofetch.
 pub mod account_gate;
 pub mod api;
+/// Portas do autofetch v3 (`adom_autofetch::v3::AutofetchDebrid`) para os cinco
+/// adaptadores: a chave entra no construtor (`adapter:account`), nunca no
+/// `QueueCandidate`; `unknown` nunca vira morte e capacidade inexistente é
+/// desligada explicitamente. O `impl` do trait mora em
+/// `adom-server/src/autofetch` porque `adom-autofetch` e `adom-debrid` estão em
+/// ciclo de pacote — os dados do contrato vêm espelhados de
+/// `autofetch_ports_contract`.
+pub mod autofetch_ports;
 pub mod debridlink;
 /// Orçamento deslizante de enqueues por hora, por `adapter:account` (porte do
 /// `checkAndRecordBudget`/`blockBudget` do TS); puro em memória, `now_ms` do
@@ -58,6 +66,11 @@ pub mod store;
 pub mod torbox;
 pub mod verdict;
 
+pub use autofetch_ports::{
+    scope_of, AccountEvidence, AlldebridFacts, AutofetchPorts, CacheEvidence, Capabilities,
+    DebridFuture, EnqueueEvidence, PortCandidate, PortError, RdLedgerPeek, RdPorts, Service,
+    TorrentEvidence, TorrentProgress,
+};
 pub use enqueue_budget::EnqueueBudget;
 pub use error::DebridError;
 pub use http::{Call, HttpClient};

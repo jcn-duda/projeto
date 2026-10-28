@@ -8,6 +8,9 @@ license = "UNLICENSED"
 
 [dependencies]
 adom-core = { path = "../adom-core" }
+# O contrato `AutofetchDebrid` NÃO entra como dependência: `adom-autofetch` →
+# `adom-store` → `adom-search` → `adom-debrid` é ciclo de pacote (o Cargo
+# recusa). O espelho fica em `src/autofetch_ports_contract.rs`.
 regex = "=1.13.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
