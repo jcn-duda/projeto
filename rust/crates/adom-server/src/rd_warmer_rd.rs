@@ -151,6 +151,11 @@ impl WarmKey for VaultKey {
             .clone()?;
         self.vault.as_deref()?.key(&scope, now_ms)
     }
+
+    /// O seam do tail entrega o escopo do `encoded` da busca; só conta RD entra.
+    fn learn(&self, scope: &str) {
+        VaultKey::learn(self, scope);
+    }
 }
 
 // ---------------------------------------------------------------------------

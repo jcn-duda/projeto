@@ -91,6 +91,9 @@ pub(crate) trait WarmPort: Send + Sync {
 /// momento do uso. NUNCA vem do payload do efeito.
 pub(crate) trait WarmKey: Send + Sync {
     fn rd_key(&self, now_ms: i64) -> Option<String>;
+    /// Escopo entregue pelo seam do tail (`realdebrid:sha256(chave)`). O
+    /// duplo de teste ignora; o cofre passa a saber de qual conta sondar.
+    fn learn(&self, _scope: &str) {}
 }
 
 /// Ledger `rdc:v2` (leitura para pular, escrita para o ⚡).
@@ -358,10 +361,16 @@ impl Warmer {
 }
 
 impl NativeEffectSink for Warmer {
-    fn offer(&self, kind: &str, payload: &Value) {
-        if kind == RD_WARMER {
-            self.publish(payload);
+    fn offer(&self, kind: &str, payload: &Value, scope: Option<&str>) {
+        if kind != RD_WARMER {
+            return;
         }
+        // O seam só chega aqui com escopo (sem ele o efeito vai ao Node); o
+        // `learn` garante que a chave saia do cofre, nunca do payload.
+        if let Some(scope) = scope {
+            self.inner.key.learn(scope);
+        }
+        self.publish(payload);
     }
 }
 

@@ -89,11 +89,17 @@ pub async fn run(config: Config) -> Result<(), String> {
     } else {
         None
     };
+    // Donos nativos de efeito: o canal do Chupim e o warmer do RD nascem ANTES
+    // do orquestrador porque o tail é construído junto com ele. Sem
+    // `AUTOFETCH_WORKER=on` o handle é `prepared` e `RD_WARM` desligado devolve
+    // `None` — nos dois casos o efeito segue ao Node, como antes.
+    let warmer = crate::rd_warmer::register();
+    let autofetch = crate::autofetch::spawn();
     // Falha de boot da coleta nativa (nenhuma fonte montada) é erro VISÍVEL:
     // `main` loga e sai — nunca queda silenciosa para uma lista vazia.
     let orchestrator = stores
         .as_ref()
-        .map(|stores| stream::build_orchestrator_from(stores.clone()))
+        .map(|stores| stream::build_orchestrator_from(stores.clone(), autofetch.clone(), warmer))
         .transpose()?;
     // Freio do colhedor: o `dispatch` marca AQUI (uma vez por requisição do
     // `/stream` nativo); o worker lê via `TrafficSense`.
@@ -108,7 +114,6 @@ pub async fn run(config: Config) -> Result<(), String> {
         )
     });
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
-        let autofetch = crate::autofetch::spawn();
         spawn_store_admin(
             stores,
             orch.config().stale_grace_seconds,

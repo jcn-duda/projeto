@@ -276,9 +276,13 @@ async fn offer_consome_so_o_kind_dono() {
         port,
         Arc::new(FakeLedger::default()),
     );
-    warm.offer(RD_WARMER, &payload(&[HASH_READY]));
+    warm.offer(RD_WARMER, &payload(&[HASH_READY]), Some("realdebrid:conta"));
     assert_eq!(warm.pending(), 1);
-    warm.offer("dub_audit", &payload(&[HASH_OTHER]));
+    warm.offer(
+        "dub_audit",
+        &payload(&[HASH_OTHER]),
+        Some("realdebrid:conta"),
+    );
     assert_eq!(warm.pending(), 1);
 }
 

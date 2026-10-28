@@ -100,7 +100,11 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
 /// sozinha loga `[search] <fonte> nativa indisponível` e fica fora (reduz
 /// resultado, nunca derruba a busca). Metadados são nativos, com o Node de
 /// FALLBACK; os efeitos de cauda continuam no Node quando as rotas existem.
-pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, String> {
+pub fn build_orchestrator_from(
+    stores: StreamStores,
+    autofetch: Option<crate::autofetch::AutofetchHandle>,
+    warmer: Option<Arc<crate::rd_warmer::Warmer>>,
+) -> Result<Orchestrator, String> {
     let config = orchestrator_config_from_env();
     let StreamStores { swr, streams } = stores;
     let mut orch = Orchestrator::new(config, swr);
@@ -136,12 +140,17 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
                 Arc::new(DebridPlay::new()),
                 Arc::new(NativeWrites::from_env(streams.clone())),
             ));
-            orch = orch
-                .with_tail(Arc::new(NativeTailEffects::new(
-                    Arc::new(NodeTailEffects::new(routes.clone())),
-                    audit,
-                )))
-                .with_internal_routes(routes);
+            // Donos nativos: o Chupim (canal) e o warmer do RD (sink). Sem os
+            // dois, o efeito segue ao Node — o comportamento de antes.
+            let mut tail =
+                NativeTailEffects::new(Arc::new(NodeTailEffects::new(routes.clone())), audit);
+            if let Some(warmer) = warmer {
+                tail = tail.with_sink(crate::rd_warmer::RD_WARMER, warmer);
+            }
+            if let Some(autofetch) = autofetch {
+                tail = tail.with_queue(Arc::new(autofetch));
+            }
+            orch = orch.with_tail(Arc::new(tail)).with_internal_routes(routes);
             if let Some(meta) = meta {
                 orch = orch.with_meta(meta);
             }

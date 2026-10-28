@@ -47,8 +47,10 @@ pub const SEASON_KEY: &str = "season_key";
 /// Dono de um `kind` que mora FORA deste arquivo (`rd_warmer`…). Quem registra
 /// é responsável pelo próprio kill-switch: aqui não se lê config alheia.
 pub(crate) trait NativeEffectSink: Send + Sync {
-    /// Entrega o efeito já montado (o mesmo payload que iria ao Node).
-    fn offer(&self, kind: &str, payload: &Value);
+    /// Entrega o efeito já montado (o mesmo payload que iria ao Node) e o
+    /// escopo `adapter:sha256(chave)` derivado do `encoded` da busca. Sem
+    /// escopo o efeito NÃO é entregue aqui: volta ao Node (`Deferred`).
+    fn offer(&self, kind: &str, payload: &Value, scope: Option<&str>);
 }
 
 /// Canal do worker nativo do Chupim.
@@ -100,9 +102,6 @@ impl NativeTailEffects {
     /// Registra o dono de um `kind` de outro módulo — sem reabrir este arquivo
     /// para cada subsistema que ganha dono nativo.
     ///
-    /// `allow(dead_code)`: nenhum módulo registra ainda; o primeiro consumidor
-    /// é o warmer do RD, que chega com o dono dele.
-    #[allow(dead_code)]
     pub(crate) fn with_sink(mut self, kind: &'static str, sink: Arc<dyn NativeEffectSink>) -> Self {
         self.sinks.push((kind, sink));
         self
@@ -110,9 +109,6 @@ impl NativeTailEffects {
 
     /// Liga o canal do worker do Chupim (`AutofetchHandle`).
     ///
-    /// `allow(dead_code)`: a fiação de produção entra na leva do flip (quem
-    /// constrói o laço e o adaptador por conta é `autofetch`, não este módulo).
-    #[allow(dead_code)]
     pub(crate) fn with_queue(mut self, queue: Arc<dyn NativeWorkQueue>) -> Self {
         self.worker = Some(queue);
         self
@@ -156,9 +152,23 @@ impl NativeTailEffects {
             }
         }
 
-        // Donos registrados por outro módulo (`rd_warmer` diante do Node).
+        // Donos registrados por outro módulo (`rd_warmer` diante do Node). A
+        // chave do serviço não viaja no payload: o escopo sai do cofre, que é
+        // a mesma leitura de `dk` do `/resolve`. Sem escopo, o efeito segue ao
+        // Node (nunca se perde por falta de credencial local).
         if let Some((_, sink)) = self.sinks.iter().find(|(kind, _)| *kind == effect.kind) {
-            sink.offer(&effect.kind, &Value::Object(effect.payload.clone()));
+            let Some(scope) = self.scope_for(&effect.payload, encoded) else {
+                eprintln!(
+                    "[effects] {} sem escopo de conta; segue ao Node",
+                    effect.kind
+                );
+                return Routed::Deferred;
+            };
+            sink.offer(
+                &effect.kind,
+                &Value::Object(effect.payload.clone()),
+                Some(&scope),
+            );
             return Routed::Native;
         }
         Routed::Forward

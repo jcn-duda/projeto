@@ -61,8 +61,8 @@ async fn run_gateway() {
         }
         Err(err) => eprintln!("[debrid] API interna não sobe: {err}"),
     }
-    // TODO(T3-L7b): registrar o dono — falta `NativeTailEffects::with_sink("rd_warmer", warmer)` em `stream.rs`.
-    let _warmer = rd_warmer::register();
+    // O warmer e o worker do Chupim são construídos no boot do gateway, junto
+    // com o tail que os recebe (`proxy::run`).
     if let Err(err) = proxy::run(config).await {
         eprintln!("[gateway] {err}");
         std::process::exit(1);

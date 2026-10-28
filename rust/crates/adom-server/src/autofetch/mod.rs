@@ -53,6 +53,26 @@ mod worker;
 pub(crate) use routes::router as admin_router;
 pub(crate) use vault::{shared as shared_vault, Vault};
 pub(crate) use worker::{spawn, AutofetchHandle};
+// O `Job` atravessa a fronteira do módulo pelo seam do tail (`NativeWorkQueue`).
+pub(crate) use enqueue::Job;
+
+/// Ponte de produção do canal: o seam do tail só conhece o escopo e o payload,
+/// e quem monta o `Job` é o dono do tipo.
+impl crate::tail_effects::NativeWorkQueue for AutofetchHandle {
+    fn enabled(&self) -> bool {
+        self.status().enabled
+    }
+
+    fn submit(&self, scope: &str, payload: &serde_json::Map<String, serde_json::Value>) -> bool {
+        AutofetchHandle::submit(
+            self,
+            Job {
+                scope: scope.to_string(),
+                payload: payload.clone(),
+            },
+        )
+    }
+}
 
 /// Prefixo da fila por busca (`autofetch:v3:q:<sha256(searchKey)>`), o mesmo do
 /// `queueKey` do Node.

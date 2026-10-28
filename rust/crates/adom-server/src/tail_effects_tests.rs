@@ -105,7 +105,7 @@ impl RecordingSink {
 }
 
 impl NativeEffectSink for RecordingSink {
-    fn offer(&self, kind: &str, payload: &Value) {
+    fn offer(&self, kind: &str, payload: &Value, _scope: Option<&str>) {
         self.offers
             .lock()
             .unwrap()
