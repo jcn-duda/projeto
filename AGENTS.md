@@ -328,7 +328,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - **Autofetch (Chupim)**: baixa dublado BR quando nada tocável está em cache;
   pools `br > any > seeds`, cobertura por qualidade-alvo, teto por obra,
   recheck com detecção de torrent morto, fila persistente, sonda dirigida
-  `br-probe`, evicção de fallbacks (OFF por padrão). `hold` **antes** da
+  `br-probe`, evicção de fallbacks (OFF por padrão). O **worker nativo está no
+  gateway**, desligado por padrão; o cofre de credencial é **RAM** (TTL 6 h,
+  por `adapter:conta`, nada em KV/log) e liga com `AUTOFETCH_WORKER=on` — que
+  hoje ainda não basta (falta a fábrica de produção; ver `AGENTS-DETALHADO`).
+  `hold` **antes** da
   checagem, marker só após o aceite; nunca no caminho da resposta. Hash com
   marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,
   como o morto — senão o Chupim parava nele a cada busca (o `enqueue` recusa)

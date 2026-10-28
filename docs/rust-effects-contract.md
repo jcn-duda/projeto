@@ -28,6 +28,37 @@ Com o pipeline de debrid do Node fora, não há duplicação: a emissão nativa 
 única. `EFFECTS_RUST=off` **não** devolve a emissão ao Node — o Node não monta
 mais lista; sem o lote do Rust, os efeitos de cauda deixam de ser enfileirados.
 
+## Dono de cada efeito (2026-10-28, `rust` @ `721512eb`)
+
+O emissor (`adom-search`) não é mais necessariamente o executor: o seam
+`NativeTailEffects` (`rust/crates/adom-server/src/tail_effects.rs`) intercepta
+o `kind` e decide **quem roda**. Regra única: efeito com dono nativo só é
+consumido quando o dono está LIGADO **e** aceitou; qualquer recusa volta ao
+Node na mesma posição e conta em `rejected`.
+
+| `kind` | Dono hoje | Volta ao Node quando |
+|---|---|---|
+| `dub_audit` | **gateway** (incondicional desde T3-L7a) | payload fora da forma é `rejected`, não volta |
+| `autofetch_batch` | **gateway** com `AUTOFETCH_WORKER=on` **e** canal aceitando | trava desligada, worker `prepared` ou canal cheio |
+| `br_probe` | idem `autofetch_batch` (mesmo canal, `Job` do worker) | idem |
+| `season_key` | idem `autofetch_batch` (escopo sai do próprio payload) | idem |
+| `rd_warmer` | **gateway** (`NativeEffectSink` registrado em `stream.rs`) | escopo de conta não derivável (sem cofre/chave) |
+| `harvester_enqueue` | **Node** (continua na rota interna) | sempre |
+
+**Sem escopo derivável o efeito volta ao Node.** O escopo é
+`adapter:sha256(chave)` e sai de duas fontes: o payload (`adapterId`+`account`
+no `season_key`) ou o cofre em RAM (`Vault::ingest` sobre o `encoded` do lote).
+Sem `AUTOFETCH_WORKER=on` o cofre **não existe** — nesse caso `autofetch_batch`,
+`br_probe`, `season_key` e `rd_warmer` seguem todos ao Node, como antes.
+
+**Estado real hoje:** `autofetch::spawn()` passa `None` como fábrica de debrid,
+então `enabled = worker_enabled() && debrid.is_some()` é falso **mesmo com a
+trava ligada**: o worker fica `prepared` e os três kinds do Chupim continuam
+indo ao Node. `rd_warmer` já é nativo de verdade (o sink aceita o efeito e a
+chave sai do cofre): sem escopo derivável o efeito volta ao Node na hora; se o
+escopo foi aprendido mas a chave expirou entre a oferta e a drenagem, o lote é
+descartado com `dropped_no_key` — não volta ao Node, porque já foi consumido.
+
 ## O que é emitido, quando
 
 Uma vez por busca, no fim da fila tardia (`orchestrator/late.rs` →
@@ -100,9 +131,19 @@ Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.
   com prioridade própria. Fidelidade hoje: até 10 por busca. Fechar a lacuna
   exige um `kind`/campo de score explícito na rota (`rendimento` vs prioridade)
   — não foi feito para não mudar o contrato do Node nesta fatia.
-- Kill-switch (Node): `config.debrid.rdWarm.enabled` + `rdWarmer.rdInPlay()`
-  (painel/env/chave de sessão), ledger/alive por hash no processamento,
-  `queueMax`, `maxPerHour`, janela ociosa e `rdGate`.
+- **Execução nativa desde `9919104e`**: `NativeTailEffects` registra o sink
+  `rd_warmer` (`rust/crates/adom-server/src/rd_warmer.rs`, lado de produção em
+  `rd_warmer_rd.rs`, sonda em `rd_warmer_probe.rs`) e entrega o efeito com o
+  escopo `realdebrid:sha256(chave)`; a chave sai do cofre (`VaultKey::rd_key`),
+  nunca do payload. Fila em RAM, um drain por vez, teto por hora civil
+  (`DEBRID_RD_WARM_MAX_HOUR`) e `hit`/`miss`/`blocked` no ledger `rdc:v2`.
+  Sem escopo (cofre ausente, chave expirada) o efeito **não** é consumido: volta
+  ao Node no mesmo lote.
+- Kill-switch (gateway): `DEBRID_RD_WARM` (`false` desliga o sink; ausente =
+  ligado), `DEBRID_RD_WARM_BATCH/QUEUE_MAX/MAX_HOUR/POLL_MS`. O ledger por hash
+  no processamento é o `rdc:v2`; rate limit/quota são do `RdGateExecutor`
+  compartilhado, sem backoff paralelo. Não portados: fila persistente
+  `rdq:v1:wq`, balde horário em KV, janela ociosa e `markAlive` do boot.
 - Seleção Rust: `list_builder/effects.rs::warmer_seeds`; fio:
   `orchestrator/effects.rs::rd_warmer`.
 
@@ -191,6 +232,12 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
   obra, conta bloqueada, orçamento, fila, `protectBr`).
 - Seleção Rust: `list_builder/effects.rs::autofetch_items`; fio:
   `orchestrator/effects.rs::autofetch_batch`.
+- **Worker nativo no gateway (desligado por padrão, `d51f53c0`/`d50a7bdd`).**
+  Com `AUTOFETCH_WORKER=on` **e** a fábrica por conta presente, o lote vira um
+  `Job { scope, payload }` no canal do worker (`autofetch::{enqueue,recheck,serve}`)
+  e não atravessa mais o HTTP; o `scope` vem do cofre. Hoje a fábrica é `None`
+  no boot (`autofetch::spawn`), então o worker fica `prepared` e o caminho real
+  continua sendo o handler Node abaixo.
 - Kill-switches (Node, inalterados): `autoFetchBr`, pausa do painel,
   `classifyEnqueue`, orçamento/janela ociosa e `config.debrid` do operador.
   `EFFECTS_RUST=off` desliga a emissão; não há outro emissor do `/stream` — o
@@ -213,7 +260,10 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 | `season_key` na abertura | `rust/crates/adom-search/src/orchestrator/mod.rs` (`emit_season_key`) |
 | Flag | `rust/crates/adom-server/src/stream_config.rs` (`EFFECTS_RUST`) |
 | Contrato do Node | `src/routes/internal-search-effects.ts` |
-| Execução nativa do `dub_audit` | `rust/crates/adom-server/src/dub_audit.rs`, `dub_audit_writes.rs`, `tail_effects.rs` |
+| Seam de dono dos efeitos | `rust/crates/adom-server/src/tail_effects.rs` |
+| Execução nativa do `dub_audit` | `rust/crates/adom-server/src/dub_audit.rs`, `dub_audit_writes.rs` |
+| Execução nativa do `rd_warmer` | `rust/crates/adom-server/src/rd_warmer.rs`, `rd_warmer_rd.rs`, `rd_warmer_probe.rs` |
+| Worker nativo do Chupim | `rust/crates/adom-server/src/autofetch/{mod,vault,enqueue,recheck,serve,ports,worker}.rs` |
 | Handler do lote do Chupim | `src/providers/autofetch-batch.ts` |
 | Teste TS do contrato | `test/internal-search-effects.test.ts`, `test/internal-search-autofetch-batch.test.ts` |
 | Testes Rust | `orchestrator/effects_tests.rs`, `orchestrator/tests_pipeline.rs`, `list_builder/effects.rs` |

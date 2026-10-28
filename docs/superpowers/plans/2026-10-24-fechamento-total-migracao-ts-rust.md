@@ -23,6 +23,54 @@ caminho de leitura).
 
 ---
 
+## 0. Estado de execução (2026-10-28, branch `rust` @ `721512eb`)
+
+Hashtags tiradas de `git log --oneline` no próprio branch. O que não tem hash
+**não está entregue** — esta seção não antecipa fatia nenhuma; ela só marca o
+que o código já prova.
+
+**Fase A (A1–A5) — CONCLUÍDA.** O Chupim ganhou ciclo nativo no gateway,
+inteiro atrás da trava `AUTOFETCH_WORKER=on`:
+
+| | Entrega | Commit |
+|---|---|---|
+| A1 | Portas do autofetch nativo para os cinco serviços (`adom-debrid/src/autofetch_ports*.rs`) | `8e091d39` |
+| A2 | Cofre de credencial em RAM por `adapter:conta` + ciclo nativo (enqueue/recheck/serve) | `d51f53c0` |
+| A3 | Painel que lê e age pelo worker nativo (`GET/POST /autofetch*`) | `b0d0b67e` |
+| A4 | Fábrica de debrid por conta no worker (chave lida do cofre a cada passo) | `d50a7bdd` |
+| A5 | Seam de dono dos efeitos no gateway (`tail_effects.rs`), com o cofre alimentado pelo `encoded` do lote | `4e0617e6` |
+
+Base que a Fase A consumiu e já estava no branch: `ceccca33` (worker do Chupim
+preparado no gateway), `e058b3ec` (namespace nativo de holds), `874fc9fd`
+(MUT-05 realinhado ao hold no KV nativo).
+
+**Fase C — EM ANDAMENTO.** Donos de execução fora do worker:
+
+- entregue: `9919104e` — `rd_warmer` nativo (sink com escopo, chave do cofre,
+  ledger `rdc:v2`);
+- entregue: `721512eb` (HEAD) — fiação do canal do Chupim e do warmer no tail
+  nativo (`proxy.rs` → `stream::build_orchestrator_from` → `with_queue`/`with_sink`);
+- falta: a **fábrica de produção dos cinco serviços** com o
+  `RdGateExecutor`/`RdUncertainStore` compartilhados com o play nativo,
+  `spawn_with(Some(factory))` no boot (hoje `spawn()` passa `None`, então a
+  trava ligada ainda deixa o worker `prepared`), o flip da trava e o dreno da
+  represa `sup:`.
+
+**Fase D — EM ANDAMENTO.** Varreduras de conteúdo da AllDebrid:
+
+- entregue: `bf846820` — as quatro decisões puras (`plan_sweep_dead`,
+  `plan_sweep_undubbed`, `plan_reconcile`, `plan_revalidate`) e o executor
+  `apply_plan` com `may_delete` fail-closed em `adom-debrid/src/alldebrid_sweeps*.rs`;
+- falta: o wiring no gateway (montar fatos de `/magnet/status`, `adsub`/`adrm`/`adprot`
+  e hold, agendar com anti-reentrada por conta e gravar o `adrm` do que saiu) —
+  o próprio módulo declara isso como fora da fatia.
+
+Enquanto C e D não fecham, `autofetch_batch`/`br_probe`/`season_key` e
+`harvester_enqueue` continuam sendo executados pelo Node, e as varreduras da
+AllDebrid também.
+
+---
+
 ## 1. Regras de execução (valem em toda fatia)
 
 - **Três frentes em paralelo por leva, uma por trilha.** Dentro da mesma trilha
@@ -2158,10 +2206,15 @@ git commit -m "feat(debrid): davail, mag e mag_meta nativos e ponte de leitura"
 
 ### T3-L5: worker do Chupim — enfileiramento, pickers e gate — BLOQUEADA (medido)
 
-**Progresso parcial:** o formato v3 da fila por busca e sua ponte napi foram
-portados para o crate, com testes de interoperabilidade com o Node. Ainda não
-há ligação ao worker: enfileiramento e drenagem seguem no Node. As fases L5 e
-L6 continuam abertas e devem virar juntas, preservando holds e proteção da conta.
+**Progresso parcial (atualizado 2026-10-28):** o formato v3 da fila por busca e
+sua ponte napi foram portados para o crate, com testes de interoperabilidade com
+o Node. O ciclo nativo do worker EXISTE no gateway (cofre, enfileiramento,
+recheck e laço — `d51f53c0`), mas fica `prepared`: `autofetch::spawn()` ainda
+passa fábrica `None`, então `enabled = worker_enabled() && debrid.is_some()` é
+falso MESMO com a trava ligada. Com `AUTOFETCH_WORKER` desligado (default),
+enfileiramento e drenagem seguem no Node, como antes; o que falta para L5/L6
+fecharem está em §0 (fábrica dos cinco serviços + flip), preservando holds e
+proteção da conta.
 O estado v3 de remoções represadas (`sup:`) também foi portado sem ativação.
 Antes de conectá-lo ao dreno, conferir a ordem da listagem e a concorrência do
 id no retry contra o Node; nenhuma remoção passa pelo novo estado por enquanto.

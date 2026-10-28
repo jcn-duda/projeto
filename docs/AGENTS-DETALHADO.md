@@ -1748,6 +1748,40 @@ continuam no cache do Node; o namespace `autofetch` NÃO entra inteiro, senão
 `cache.db` continua legível: é a MESMA tabela `cache`, a MESMA chave e o MESMO
 valor/TTL — só o transporte mudou, sem migração.
 
+**Worker nativo do Chupim (estado real, `rust` @ `721512eb`).** O ciclo inteiro
+está no gateway e **desligado por padrão** (`AUTOFETCH_WORKER` ausente ou
+`off`). Arquivos-âncora, todos sob `rust/crates/adom-server/src/autofetch/`:
+`vault.rs` (cofre em RAM por `adapter:conta`, TTL `DEBRID_AUTO_FETCH_TTL`
+default 6 h, LRU `DEBRID_AUTO_FETCH_VAULT_MAX` default 64, `Debug` redigido,
+buffer zerado no `Drop`), `enqueue.rs` (com `enqueue_items.rs` e
+`enqueue_drain.rs`: **escritor único** da fila v3), `recheck.rs` (com
+`recheck_expire.rs`), `serve.rs` (laço `current_thread` sobre canal `mpsc`,
+timers lidos dos lotes), `ports.rs` (adaptador `PortedDebrid` sobre o
+`adom-debrid` e a **fábrica por conta** — não existe `build.rs`; a fabricação
+mora aqui) e `worker.rs` (config `autofetch-worker:v1:config`, canal e painel:
+`GET /autofetch` e `POST /autofetch/config|pause|drain|suppressed-drain`, em
+loopback + token). Fora dessa pasta: `tail_effects.rs` é a **porta única** —
+alimenta o cofre com o `encoded` de cada lote e entrega `adapter:sha256(chave)`
+ao sink (sem escopo derivável, o efeito volta ao Node), `rd_warmer*.rs` é o
+aquecimento do RD nativo e `adom-debrid/src/alldebrid_sweeps*.rs` são as
+varreduras de conteúdo da AllDebrid.
+
+Já é nativo: fila/marker/blacklist (`autofetch:v3:q|m|dead`), as decisões puras
+(cascata, `recheck_step`/`lot_outcome`/settle LRU), o cofre, o enfileiramento, o
+recheck, o laço, o painel do worker, o `dub_audit`, o `rd_warmer` (sonda com
+chave do cofre e ledger `rdc:v2`) e o **executor** das quatro varreduras da
+AllDebrid (decisão pura + `apply_plan` com `may_delete` fail-closed).
+
+Continua no Node: a execução do lote `autofetch_batch`/`br_probe`/`season_key`
+(enquanto `autofetch::spawn()` passar fábrica `None`, `enabled =
+worker_enabled() && debrid.is_some()` é falso e o worker fica `prepared` **mesmo
+com a trava ligada**); a montagem da fábrica dos cinco serviços com o
+`RdGateExecutor`/`RdUncertainStore` compartilhados com o play nativo; o
+agendamento das varreduras da AllDebrid e a gravação do `adrm`; o dreno da
+represa `sup:` (o worker escreve a represa, mas `suppressed-drain` só devolve o
+estado do laço); `pf:`/`obra:` (seguem no cache do Node) e o
+`harvester_enqueue`.
+
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou
 `infoHash`). Item de aviso (`name` + `externalUrl`) não conta — senão a

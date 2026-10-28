@@ -28,9 +28,7 @@ prowlarr-config/
 # Backups da VPS: tarballs nao pertencem ao historico.
 backups-vps/
 # Workspace Rust (fatia F0): artefatos locais de build.
-rust/target/
-# Target de worktree de agente (mesmo conteudo descartavel).
-rust/target-wt/
+rust/target*/
 
 # Artefatos locais de depuracao/experimento (logs, shadow runs, probes).
 .tmp-*
