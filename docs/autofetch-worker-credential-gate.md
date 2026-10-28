@@ -1,14 +1,17 @@
 # Gate de credencial do worker nativo do Chupim (T3-L5/L6)
 
-**Status (2026-10-28, branch `rust` + leva C1):** a **opção (2) — cofre em
-memória por conta — está IMPLEMENTADA** (`d51f53c0`, refinada por `d50a7bdd` e
-`4e0617e6`), a **fábrica de produção dos cinco serviços também** (`0159b9f2`,
-`autofetch/build.rs`) e o `docker-compose.yml` liga `AUTOFETCH_WORKER=on`. O
+**Status (2026-10-28, branch `rust`):** a **opção (2) — cofre em memória por
+conta — está IMPLEMENTADA** (`d51f53c0`, refinada por `d50a7bdd` e `4e0617e6`),
+a **fábrica de produção dos cinco serviços também** (`0159b9f2`,
+`autofetch/build.rs`) e o `docker-compose.yml` traz `${AUTOFETCH_WORKER:-on}`
+(o `.env` da VPS vence a interpolação). O
 gate deixou de ser o bloqueio: os TRÊS kinds do Chupim são despachados pelo laço
-(`autofetch/serve_jobs.rs:57-64`), a represa drena com a fábrica registrada no
-boot e a evicção F6 roda no ciclo com kill-switch próprio. O que falta é o
-**flip B4** — apagar o TS do Chupim — e ele depende dos FATOS que só o Node
-produz (fim deste documento).
+(`autofetch/serve_jobs.rs:57-65`), a represa drena com a fábrica registrada no
+boot e a evicção F6 roda no ciclo com kill-switch próprio. O **corte do TS do
+Chupim (leva B4) foi EXECUTADO**: o corpo TS saiu de `src/`,
+`services.autofetchRunner` saiu do registro de serviços e não existe segundo
+dono. O que ainda é do Node são os FATOS que o nativo não produz (fim deste
+documento) — **não há flip pendente**.
 
 **O bloqueio original:** o dreno/recheck do Chupim rodava no Node dentro do
 `RuntimeContext` da requisição e a chave do debrid vinha de
@@ -18,7 +21,12 @@ não guardam credencial por desenho (`QueueCandidate` em
 `adom-autofetch/src/v3/candidate.rs:65`; valor do marker em
 `adom-core/src/autofetch_marker.rs:44-61`).
 
-## (a) De onde a chave vem hoje
+## (a) De onde a chave vinha antes da B4 (histórico)
+
+> Esta seção é o registro do desenho que justificou o cofre. Os arquivos que ela
+> cita como donos do laço (`autofetch-runner.ts`, `autofetch-recheck.ts`) saíram
+> de `src/` no corte; hoje o único consumidor da chave de usuário no gateway é o
+> cofre (`autofetch/vault.rs`).
 
 1. `debridApiKey` (`dk`) viaja no install URL (`SCHEMA`,
    `src/runtime.ts:60-91`); `/:userConfig` decodifica e abre o ALS
@@ -27,17 +35,20 @@ não guardam credencial por desenho (`QueueCandidate` em
 2. O gateway emite `autofetch_batch` com o `encoded` da requisição no corpo
    (`orchestrator/late.rs:250-279`); o payload do lote NÃO leva a chave
    (`orchestrator/effects.rs:198-215`) e o cliente interno exige `encoded`
-   (`internal_client.rs:85-95`). O Node decodifica o corpo (`internal-search-shared.ts:47-53`),
-   monta `ctx` e roda o efeito sob ele (`internal-search-effects.ts:196-204`).
-3. `enqueueAutofetch` faz `capture()` (`autofetch-runner.ts:55`) e passa o
-   contexto a `scheduleRecheck` (:147), guardado em `lot.ctx`
-   (`autofetch-recheck.ts:61-86`); `runRecheck` restaura com `run(lot.ctx)`
-   (:215) e usa `opts().debridApiKey` em `drainNext` (:99), `accountScope`
-   (:229), `torrentStatus` (:256) e `maybeEvictFallbacks` (:309) — são
-   ESCRITAS no debrid, não só o `enqueue`.
+   (`internal_client.rs:85-95`). O Node decodifica o corpo (`decodeTarget`,
+   `internal-search-shared.ts:47-53`), monta `ctx` e roda o efeito sob ele
+   (`internal-search-effects.ts:166-183` e `:232`) — hoje só para `rd_warmer` e
+   `harvester_enqueue`.
+3. No desenho antigo, `enqueueAutofetch` fazia `capture()` e passava o contexto
+   a `scheduleRecheck`, guardado em `lot.ctx`; `runRecheck` restaurava com
+   `run(lot.ctx)` e usava `opts().debridApiKey` em `drainNext`, `accountScope`,
+   `torrentStatus` e `maybeEvictFallbacks` (**removido na B4**: o delete é o passo
+   `evict_job::run`, `autofetch/evict_job.rs:138`, pela porta
+   `autofetch_ports_evict.rs:127`) — são ESCRITAS no debrid, não só o
+   `enqueue`. Tudo isso é do worker nativo desde a B4, e é o motivo do cofre.
 
-A chave existe **só em RAM** (`recheckLots` é um `Map` de processo,
-`autofetch-recheck.ts:48`). O gateway já vê o `encoded`
+A chave existe **só em RAM** (`recheckLots` era um `Map` de processo no TS; hoje
+o dono é o `Vault`, um `HashMap` no gateway). O gateway já vê o `encoded`
 (`adom-search/src/request.rs:21-43`), sabe extrair a chave no processo
 (`adom-search/src/resolve_url.rs:320-329`, o caminho do `/resolve`) e o
 `dub_audit` já fazia isso: chave no efeito (`orchestrator/effects.rs:99-100`),
@@ -49,8 +60,9 @@ interceptada em `adom-server/src/tail_effects.rs`, só em memória
 O worker é um laço de fundo (recheck de horas, TTL do autofetch) fora de
 qualquer requisição. Três desenhos, e eles mudam **quem** opera o Chupim:
 
-1. **Job com chave pela admin/loopback** — rota nova em `store_admin.rs` (hoje só
-   `/streams/*`, `/harvest*` e `/autofetch*`; loopback + token).
+1. **Job com chave pela admin/loopback** — rota nova em `store_admin.rs` (hoje
+   `/streams/*`, `/indexers/status`, `/harvest*` e `/autofetch*`; loopback +
+   token).
 2. **Cofre em memória por conta** — decodificar o `encoded` que já chega e
    guardar `{account_scope -> apiKey}` enquanto houver lote; é o desenho do
    `dub_audit` e dispensa transporte novo.
@@ -109,10 +121,11 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
    `encoded` e cria um escopo novo; o escopo antigo expira pelo TTL (a fila
    antiga daquela conta continua lá, órfã de credencial).
 4. **Não cobre a conta do operador sem `dk`.** Sem `encoded` com chave, o efeito
-   volta ao Node (ver abaixo) — não há leitura de `DEBRID_API_KEY` como atalho
-   dentro do cofre.
+   de trabalho é encaminhado ao Node (`Deferred`) — e lá o `kind` só conta em
+   `nativeOnly`, não é executado (o corpo TS saiu na B4). Não há leitura de
+   `DEBRID_API_KEY` como atalho dentro do cofre.
 
-### O que ainda falta para o flip
+### O que já está fiado (e o que sobrou do lado do Node)
 
 1. **A fábrica de produção (cinco serviços) — ENTREGUE** (`0159b9f2`).
    `autofetch/build.rs` monta `Build` (cliente HTTP, KV, `cache.db`, **um**
@@ -138,12 +151,18 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
    (`autofetch/evict_job.rs:352-378`) grava `{"at":now}` e nunca poda marca, gated
    por `DEBRID_REUPLOAD_BLOCK` e com o TTL de `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`.
    Sem fio continua só o `adrm` das VARREDURAS (`al_sweeps`, `ReadOnly`).
-4. **Flip B4 — pendente, e menor do que era.** A trava já está `on` no compose
-   (`94268f0a`) e o laço já consome os passos. Falta a bateria de aceitação com
-   duas contas de serviços diferentes e o **flip do TS**. O que ainda prende o
-   TS ao Node não é mais "passo sem chamador": são os fatos que nascem lá
-   (marker com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/`adprot`,
-   `pf:`) e o `harvester_enqueue`.
+4. **Corte do TS (B4) — EXECUTADO.** A trava já está `on` no compose
+   (`94268f0a`), o laço já consome os passos e o corpo TS saiu de `src/` — são
+   os 19 caminhos congelados em `CUT_SOURCES`
+   (`test/autofetch-cut-edges.test.ts:36-56`): os 16 `autofetch-*.ts` da classe
+   (a), `br-probe.ts`, `autofetch-chupim-trace.ts` e
+   `src/debrid/alldebrid-fallback-evict.ts`. Rollback é **imagem/commit
+   anterior**: `AUTOFETCH_WORKER=off` desliga o Chupim e não devolve o trabalho a
+   ninguém. O que ainda prende o Node ao assunto não é passo sem chamador: são
+   os fatos que nascem lá (`adsub`/`adprot`, que o nativo só LÊ) e o
+   `harvester_enqueue`.
+   A bateria de aceitação com duas contas de serviços diferentes continua
+   **não medida** (`DEPLOY.md` §8.4).
 
 Com a fábrica e o boot fiados, o gate deixou de ser o bloqueio do worker: quem
 ainda decide o destino de um efeito é o seam do tail (escopo derivável ou não,
@@ -189,11 +208,15 @@ Kill-switches que continuam valendo na credencial:
 - Season Pack Fill: `DEBRID_AUTO_FETCH_SEASON_FILL` e
   `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX` (`0` desliga só o índice).
 
-O que ainda depende de FATOS do Node (não é fiação do gateway): o marker com
-`obra` e o registro F2 `autofetch:v3:o:<digest>` nascem na ponte napi
-(`adom-napi/src/autofetch/state_v3.rs`), e o `enqueue` nativo grava marker SEM
-meta (`enqueue.rs:331`); `adsub`/`adprot` e `pf:` também. Sem eles a evicção é
-fail-closed (`evict-no-marker`/`evict-no-record`). As duas pendências de fiação
+O que ainda depende de FATOS do Node (não é fiação do gateway): `adsub`/`adprot`
+— as marcas de posse e de retenção que o nativo só LÊ — e o
+`harvester_enqueue`. O marker com `obra` e o registro F2
+`autofetch:v3:o:<digest>` **não** estão mais nessa lista: o próprio aceite
+nativo grava os dois (`enqueue.rs:299-316` via `obra::marker_meta`,
+`enqueue_obra.rs:294-295` → `ObraLeaseV3::commit`), como já fazia a ponte napi
+(`adom-napi/src/autofetch/state_v3.rs`). Sem eles a evicção é fail-closed
+(`evict-no-marker`/`evict-no-record`); `pf:` hoje só tem construtor de chave, sem
+escritor (`src/utils/cache-keys.ts:264-266`). As duas pendências de fiação
 da leva anterior **fecharam**: `suppressed_step::register_factory` é chamado em
 `boot::spawn_at` (`autofetch/boot.rs:110-112`) e `mod evict_step;` está
 declarado em `autofetch/mod.rs:55-56`.
@@ -202,15 +225,16 @@ declarado em `autofetch/mod.rs:55-56`.
 
 | Item | Contrato |
 |---|---|
-| Valor que liga | só o literal `on` (`autofetch/mod.rs:127-129`: `var("AUTOFETCH_WORKER").map(\|v\| v == "on") == Ok(true)`) |
-| Ausente / vazio / `1` / `true` | `prepared`: canal desligado, efeito volta ao Node |
+| Valor que liga | só o literal `on` (`autofetch/mod.rs:128-130`: `var("AUTOFETCH_WORKER").map(\|v\| v == "on") == Ok(true)`) |
+| Ausente / vazio / `1` / `true` | `prepared`: canal desligado; o efeito de trabalho é encaminhado ao Node, que **só o conta em `nativeOnly`** e não executa — o lote morre (rollback = imagem anterior) |
 | Sem trava | `boot::production_factory` devolve `None` antes de qualquer I/O (`boot.rs:44-51`) e `shared_vault()` não cria cofre (`vault.rs:235-242`) |
 | Trava ligada, sem cofre | `production_factory` devolve `None` + log "worker fica prepared" (`boot.rs:52-55`) |
 | Trava ligada, sem cliente HTTP | `Build::new` devolve `None` (`build.rs:66-79`): `prepared` |
 | Trava ligada, sem KV | `open_kv` falha ⇒ `spawn_at` devolve `None` (`boot.rs:102`) |
 
 **Ausência de chave nunca derruba o boot.** Chave ausente é escopo sem cofre: o
-passo é pulado com `no-credential` (`serve_jobs.rs:107-110`), a fila persistida
+passo é pulado com `no-credential` (`serve_jobs.rs:135-137`), a fila persistida
 espera no KV e nada vira erro de processo. O mesmo vale para `br_probe` sem
-colhedor: o `submit` devolve `false` e o efeito volta ao Node
-(`mod.rs:99-101`) — recusa de trabalho, não falha de boot.
+colhedor: o `submit` devolve `false` e o efeito é encaminhado ao Node
+(`mod.rs:99-101`), onde só entra na conta de `nativeOnly` — recusa de trabalho,
+não falha de boot.

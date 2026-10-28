@@ -143,17 +143,22 @@ base64 — por isso ele só deve trafegar por HTTPS, e por isso o passo 3 prende
 
 ---
 
-## 8. Worker nativo do Chupim — flip, verificação e rollback
+## 8. Worker nativo do Chupim — verificação e rollback (pós-corte do TS)
 
-O autofetch ("Chupim") roda no gateway Rust desde que `AUTOFETCH_WORKER=on`.
-O default vive no `docker-compose.yml` como `${AUTOFETCH_WORKER:-on}` — logo, o
-`.env` **manda**: `AUTOFETCH_WORKER=off` desliga sem rebuild de imagem.
+O autofetch ("Chupim") roda **só** no gateway Rust: o corpo TS que executava o
+mesmo trabalho saiu da imagem na leva B4 (2026-10-28). `AUTOFETCH_WORKER` deixou
+de ser "quem é o dono" e virou a **trava do worker nativo**: `on` (default do
+`docker-compose.yml`, `${AUTOFETCH_WORKER:-on}`; o `.env` da VPS vence a
+interpolação) liga o laço, e `off`/vazio desliga o Chupim inteiro — **não há
+segundo dono para assumir**.
 
 Com o worker **on**, o gateway consome três kinds de trabalho emitidos pelo
-orquestrador: `autofetch_batch`, `br_probe` e `season_key`. Sem worker (ou sem
-escopo de chave no cofre) o efeito volta ao Node por
-`/internal/search/effects` e o TS do Chupim executa. O resto (marker, hold,
-fila v3, painel) continua no Node/painel dos dois jeitos.
+orquestrador — `autofetch_batch`, `br_probe` e `season_key` — mais a represa
+`sup:` e a evicção F6 na passagem do laço. O que segue no Node: `adsub`/`adprot`
+(marcas de posse e retenção que o nativo só LÊ), o `harvester_enqueue` e o
+agendamento das varreduras da AllDebrid. O marker com `obra` e o registro F2 da
+obra são gravados pelo próprio aceite nativo (`enqueue.rs:299-316`,
+`enqueue_obra.rs:294-295`). O painel lê os dois lados (§8.4).
 
 ### 8.1 Pré-requisitos
 
@@ -179,15 +184,15 @@ docker compose exec adom sh -lc \
    http://127.0.0.1:8711/autofetch' | jq .
 ```
 
-| campo do `GET /autofetch` | esperado | o que significa se não estiver |
+| campo de `status` no `GET /autofetch` | esperado | o que significa se não estiver |
 |---|---|---|
 | `phase` | `active` | `prepared` = o **laço** não subiu (fábrica/`HttpClient` ausente ou `AUTOFETCH_WORKER` diferente de `on`); `paused` = botão do painel |
-| `enabled` | `true` | `false` com `phase=prepared` = flip não aplicado neste container |
+| `enabled` | `true` | `false` com `phase=prepared` = o laço não subiu neste container (trava fora do literal `on` ou fábrica ausente) — com o TS fora da imagem não há segundo dono que assuma |
 | `vaultAccounts` | `> 0` depois de tráfego com `dk` | `0` = nenhuma chave chegou ao cofre; worker vivo, todo lote em `no-credential` |
-| `processed` / `inflight` | cresce após uma busca | `processed` são os **jobs despachados pelo canal** desde o boot (`control.rs:88-89`); parado = nada foi emitido (ver `EFFECTS_RUST`) ou nenhum lote passou os portões |
+| `processed` / `inflight` | cresce após uma busca | `processed` são os **jobs despachados pelo canal** desde o boot (`control.rs:88-89`); parado = nada foi emitido (ver `EFFECTS_RUST`), nenhum lote passou os portões, ou o worker não é o dono — depois do corte do TS **não há Node** que execute o lote (§8.4) |
 | `skips` | `no-credential`, `paused`, `budget`, `marker` aparecem | é o diagnóstico do que barrou o lote |
 | `lastError` | `null` ou erro pontual de debrid | erro repetido = credencial/adaptador, não deploy |
-| `lots` / `queueDepth` | **foto do boot**, não da fila viva (`worker.rs:69-70`) | valor congelado desde que o container subiu: não prova dreno nem crescimento. Prova de consumo é `processed` |
+| `lots` / `queueDepth` | **foto do boot**, não da fila viva (`worker.rs:74-79`) | valor congelado desde que o container subiu: não prova dreno nem crescimento. Prova de consumo é `processed` |
 | `suppressed` / `lastSuppressedDrain` | presença do campo | ausência = gateway antigo (imagem anterior à rota) |
 
 Prova de escrita pela admin (o painel usa as mesmas). As rotas são de
@@ -207,34 +212,23 @@ Sinais no log do container: `docker compose logs adom | grep -i autofetch` —
 um `[autofetch] passagem com N falha(s)` isolado é aceitável; a cada passagem,
 não.
 
-### 8.3 Rollback (três degraus, do mais barato ao mais caro)
+### 8.3 Rollback (dois degraus, e nenhum deles é env)
 
-**Degrau 1 — env.** O rollback do Chupim **é env**, e sobrevive a rebuild
-porque o `.env` não é versionado (o cron de deploy não o toca):
+O degrau de env **não existe mais**. Depois do corte do TS,
+`AUTOFETCH_WORKER=off` desliga o laço e **não devolve o trabalho a ninguém**: o
+efeito de trabalho segue ao Node por `/internal/search/effects`, onde a forma é
+aceita, o `kind` entra em `nativeOnly` e nada é executado — o lote morre, e o
+único sintoma no 202 é `nativeOnly` subindo sem `rejected`. `off` serve para
+PARAR o Chupim, nunca para voltar ao estado anterior.
 
-```bash
-# no .env da VPS
-AUTOFETCH_WORKER=off
+**Degrau 1 — imagem/commit anterior.** Se o worker não sobe (gateway não sobe,
+8711 em conflito, `/stream` em 503, `phase=prepared` com `enabled=false`), o
+rollback é a **imagem/commit anterior** — em `esm`, é `git revert` do commit do
+flip e deixar o cron reconstruir, ou `docker compose up -d --build` sobre o
+commit anterior. O `/stream` nativo (fatia anterior) e o Chupim (pós-corte)
+**não** têm rollback por env.
 
-docker compose up -d          # recria o container e RELÊ o .env
-```
-
-`docker compose restart` **não** relê o `.env` — use `up -d` (sem `--build`).
-Com `off`, `worker_enabled()` fica falso, nenhuma thread `adom-autofetch` sobe
-e os três kinds voltam ao Node por `Forward`: o TS do Chupim (que segue na
-imagem) reassume em um intervalo. Isso vale inclusive se o laço estiver
-panicando — sem `on` o laço nem é criado. **Este degrau só existe enquanto o TS
-estiver na imagem**: depois do corte do §8.4, `off` fica sem quem execute o
-efeito e o rollback começa no degrau 2.
-
-**Degrau 2 — imagem/commit anterior.** Se a env não bastar (gateway não sobe,
-8711 em conflito, `/stream` em 503), rollback é a **imagem/commit anterior** —
-em `esm`, é `git revert` do commit do flip e deixar o cron reconstruir, ou
-`docker compose up -d --build` sobre o commit anterior. O `/stream` nativo
-(fatia anterior) **não** tem rollback por env; o Chupim tem (até o corte do TS,
-que promove este degrau a primeiro).
-
-**Degrau 3 — volume.** Último recurso, e só com o KV ilegível: restaurar o
+**Degrau 2 — volume.** Último recurso, e só com o KV ilegível: restaurar o
 backup inteiro de `docker-data/`. O `cache.db` é um só e carrega fila v3,
 marker, blacklist de mortas, represa e os demais namespaces — restaurar o
 volume devolve o estado anterior ao corte, e a fila se reconcilia na busca
@@ -242,8 +236,11 @@ seguinte.
 
 O que **não** é rollback:
 
-- `EFFECTS_RUST=off` — corta a emissão dos kinds; o Chupim para inteiro (nem
-  nativo, nem Node). Use só como diagnóstico.
+- `AUTOFETCH_WORKER=off` — desliga o laço do gateway e deixa o efeito de
+  trabalho sem executor (o Node aceita a forma e só conta em `nativeOnly`). Para
+  o Chupim; não restaura o dono anterior.
+- `EFFECTS_RUST=off` — corta a emissão dos kinds; o Chupim para inteiro. Use só
+  como diagnóstico.
 - apagar `docker-data/addon/cache.db` — leva junto fila v3, marker e blacklist
   de mortas; o sintoma piora.
 - tirar a chave do `.env` — não desliga nada: o worker fica `active` com
@@ -253,44 +250,90 @@ Efeito colateral esperado do rollback: o cofre de chaves é RAM, então lotes em
 voo perdem a credencial e são re-injetados pela ponte do `/stream` na próxima
 busca — nenhuma fila é perdida (ela é no `cache.db`).
 
-### 8.4 Checklist do corte do TS
+### 8.4 Checklist do corte do TS — código cortado, falta MEDIR em produção
 
-Só depois que os três kinds e a represa estiverem consumidos por **medição**, não
-por leitura de código. A ordem existe porque o rollback fica mais caro a cada
-passo: no fim, `AUTOFETCH_WORKER=off` não tem quem execute o efeito (o TS que
-reassumia saiu da imagem) e o rollback passa a ser sempre imagem.
+O código **já está cortado** nesta leva (2026-10-28): os **19** arquivos da classe
+(a) saíram de `src/`, `services.autofetchRunner` saiu do registro de serviços e
+`evictFallbacks` saiu de `alldebrid.ts` (o método opcional do `DebridAdapter`
+fica sem implementação de propósito — nada é apagado por omissão). **Nenhum
+número deste checklist foi medido em produção nesta leva**: o que vem nos passos
+1 e 2 é o que o operador ainda precisa medir e provar; o resto descreve o que já
+está no código.
 
 1. **Prova do worker** — `./scripts/check-autofetch.sh` com `AUTOFETCH_WORKER=on`
-   tem que sair 0: `enabled=true` e `phase=active`. Exit 1 aqui não é "cortar
-   depois", é incidente.
+   tem que sair 0: `enabled=true` e `phase=active`. Exit 1 aqui não é "medir
+   depois", é incidente: com o TS fora da imagem, `prepared` significa lote
+   emitido para ninguém. Se a produção ainda estiver na imagem ANTERIOR, rode a
+   sonda nela antes de subir — é o baseline; depois do deploy, repita e compare.
 2. **Uma busca real** — uma obra que precise de dublado BR. Em `GET /autofetch`:
    `processed` sobe (jobs despachados pelo canal) e `skips` ganha o motivo;
    `lastError` fica `null`. **Não existe `enqueued` no status** e
    `queueDepth`/`lots` são foto do boot (§8.2): a prova de enfileiramento é
    `processed` subindo + a fila `autofetch:v3:q:` no KV, não o `queueDepth`.
-3. **Só então remover os arquivos da lista (a)** — os que o nativo já cobre e
-   cujo único chamador restante é o caminho de fallback do Node
-   (`/internal/search/effects`):
-   - `src/providers/autofetch-{runner,candidates,batch,drain,recheck,settle,
-     expired,terminal,index,lot-state,progress,season-index,seeds-pool,policy,
-     gates,evict,fallback}.ts`
-   - `src/providers/br-probe.ts`
-   - `src/debrid/alldebrid-fallback-evict.ts`
+3. **Critério de aceite do deploy** — o que se pode afirmar com esses dois
+   números, sem inventar medição:
+   - `phase=active` com `enabled=true` ⇒ o laço nativo subiu e é ele quem consome
+     `autofetch_batch`/`br_probe`/`season_key`;
+   - `processed` crescente depois de uma busca ⇒ o efeito saiu do orquestrador e
+     foi despachado pelo canal — não existe mais fallback no Node que possa
+     explicar o número;
+   - `AUTOFETCH_WORKER=off` **não** é mais rollback: desliga o Chupim e o lote
+     morre na rota do Node (§8.3). Voltar é imagem/commit anterior.
+4. **O que sobe nativo x o que continua no Node** (estado do código, sem
+   medição):
+
+   | fluxo | onde roda depois do corte |
+   |---|---|
+   | lote pós-debrid (`autofetch_batch`): hold, cascata, pools, portões, escritor único da fila v3 | nativo (`rust/crates/adom-server/src/autofetch/`) |
+   | recheck, settle, expiração, terminal, blacklist `dead:` e fila `autofetch:v3:q:` | nativo |
+   | sonda dirigida (`br_probe`) e chave de temporada (`season_key`) | nativo (mesmo canal, despacho por `Job.kind`) |
+   | represa `sup:` e evicção F6 (com o `adrm` que ela grava) | nativo (passagem do laço) |
+   | interrogatório de áudio (`dub_audit`), warmer do RD (`rd_warmer`), colhedor | nativo — `rd_warmer` só volta ao Node se o sink recusar por falta de escopo |
+   | ponte `/internal/search/effects` no Node | **só executa** `rd_warmer` e `harvester_enqueue`; os três kinds de trabalho são aceitos na forma e somados em `nativeOnly` |
+   | marker com `obra` e registro F2 (`autofetch:v3:o:`) no aceite | nativo (`enqueue.rs:299-316`, `enqueue_obra.rs:294-295`); a ponte napi grava o mesmo marker |
+   | `adsub`/`adprot` (posse e retenção que o nativo só LÊ) | Node (`alldebrid-inventory.ts`, `protected.ts`) |
+   | painel do Chupim | do Node: config ao vivo (`cfg:v1:autofetch`) e pausa, obras do registro F2 e `lastSkips`/`trace.chupim` do anel do trace (**vazios desde o corte**: não há mais escritor no Node); do worker: os números da admin 8711. Sem a admin, o bloco sai `partial:true` e o card mostra "—", nunca zero |
+   | agendamento das varreduras da AllDebrid | Node, `ReadOnly` |
 
    **Ficam** (o nativo não cobre): `autofetch.ts` (encolhido — `reindexQueues`/
    `reindexDead` no boot, `markerActive` no `rd-warmer`, `isDeadQuiet` no
-   `trace-recompute`), `autofetch-obra.ts` e família (registro F2 que o nativo
-   só LÊ), `autofetch-marker.ts` (marker com `obra`), `autofetch-gate.ts`,
-   `autofetch-keys.ts`, `autofetch-suppressed.ts` (painel), `autofetch-chupim-trace.ts`
-   e `utils/autofetch-trace.ts` (`trace.chupim` e o anel de motivos), as pontes
-   (`utils/autofetch-native.ts`, `autofetch-state-native.ts`, `rust-autofetch.ts`)
-   e o vocabulário/painel (`utils/autofetch-live*`, `autofetch-pools`,
-   `autofetch-picks`, `autofetch-obra-summary`, `config/debrid*`,
-   `routes/dashboard-*`, `client/painel/view-chupim.ts`).
-4. **Rollback = imagem anterior** — com o TS fora da imagem, `AUTOFETCH_WORKER=off`
-   não devolve o trabalho a ninguém: o efeito é `Deferred` e morre. Voltar é
-   `docker compose up -d --build` sobre o commit/imagem anterior (§8.3, degrau 2,
-   que aqui vira o primeiro).
+   `trace-recompute`), `autofetch-obra.ts` e família (registro F2: o aceite
+   nativo grava, o Node lê no resumo), `autofetch-marker.ts` (chave, valor e
+   `forget` do marker — a gravação de produção é do aceite nativo),
+   `autofetch-gate.ts`,
+   `autofetch-keys.ts`, `autofetch-suppressed.ts` (painel), `autofetch-evict.ts`
+   (leitor da prova `er:` que o painel usa — só `hasBrReady`; política e executor
+   são o passo nativo `evict_job.rs`),
+   `utils/autofetch-trace.ts` (`trace.chupim` e o
+   anel de motivos — **sem escritor desde o corte**: saem vazios e os números do
+   laço vêm da admin 8711), as pontes (`utils/autofetch-native.ts`,
+   `autofetch-state-native.ts`, `rust-autofetch.ts`) e o vocabulário/painel
+   (`utils/autofetch-live*`, `autofetch-pools`, `autofetch-picks`,
+   `autofetch-obra-summary`, `config/debrid*`, `routes/dashboard-*`,
+   `client/painel/view-chupim.ts`).
+
+   **Saíram** (a classe (a), **19 arquivos** — a lista é a mesma de
+   `CUT_SOURCES` na catraca, `test/autofetch-cut-edges.test.ts:36-56`):
+   `autofetch-{runner,candidates,batch,drain,recheck,settle,expired,terminal,
+   index,lot-state,progress,season-index,seeds-pool,policy,gates,fallback}.ts`,
+   `br-probe.ts`, `autofetch-chupim-trace.ts` e
+   `src/debrid/alldebrid-fallback-evict.ts`. `autofetch-evict.ts`
+   **não** está nessa lista: ele lê a ausência do evict do adaptador e não tenta
+   outra via.
+5. **A catraca muda de lado** (é o Juiz quem troca). A troca **já entrou**:
+   `test/autofetch-cut-edges.test.ts` tem duas metades. `CUT_SOURCES` (19
+   caminhos) é asserção de **não-existência** — cada caminho tem que **não
+   existir** em `src/` (`:199-212`) — e de **não-importação** por `src/` e por
+   `test/` (`:214-229`, `:284-299`); `LIVE_BOUNDARY` é a fronteira VIVA que
+   precisa continuar existindo e exportando (`:231-247`). Reintroduzir um dos
+   arquivos reprova o teste em vez de passar batido. A lista é a definição do
+   corte: quem mexer no contrato da rota (`rd_warmer`/`harvester_enqueue`, testado
+   em `:249-282`) mexe nela junto.
+6. **Rollback = imagem anterior** — com o TS fora da imagem,
+   `AUTOFETCH_WORKER=off` não devolve o trabalho a ninguém: o efeito vai ao Node,
+   a forma é aceita e o `kind` só soma em `nativeOnly` (sem executor), e o lote
+   morre. Voltar é `docker compose up -d --build` sobre o commit/imagem anterior
+   (§8.3, degrau 1).
 
 ---
 

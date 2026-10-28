@@ -10,9 +10,12 @@ TS saiu e `EFFECTS_RUST` virou **default on** — estas são as únicas emissõe
 
 O transporte é a rota interna já existente `POST /internal/search/effects`
 (`src/routes/internal-search-effects.ts`), fire-and-forget, resposta **202** com
-`{ ok, accepted, rejected }`. O handler valida a forma de cada `kind` e roda
-cada efeito dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem do
-`encoded` do corpo, nunca do `.env`.
+`{ ok, accepted, rejected, nativeOnly }`. O handler valida a forma de TODOS os
+kinds conhecidos, mas só EXECUTA dois (`rd_warmer` e `harvester_enqueue`):
+`autofetch`, `autofetch_batch`, `br_probe` e `season_key` entram em `nativeOnly`
+e não chamam nada (`internal-search-effects.ts:50-52`, `:148-151`). Cada efeito
+executado roda dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem
+do `encoded` do corpo, nunca do `.env`.
 
 ## Flag e rollback
 
@@ -22,7 +25,7 @@ cada efeito dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem 
 | Default | **ON** desde o F4.4 (env ausente = ligado; `off` desliga) |
 | Onde liga | `adom-server` (`stream_config.rs` → `OrchestratorConfig::effects_enabled`) |
 | Alcance | só o orquestrador nativo (o pipeline TS de busca saiu no F4.4) |
-| Rollback | `EFFECTS_RUST=off` desliga a emissão (o Node continua executando as filas) e reiniciar o gateway |
+| Rollback | `EFFECTS_RUST=off` desliga a emissão (sem lote, as duas filas do Node — `rd_warmer`/`harvester_enqueue` — ficam sem o que executar) e reiniciar o gateway |
 
 Com o pipeline de debrid do Node fora, não há duplicação: a emissão nativa é a
 única. `EFFECTS_RUST=off` **não** devolve a emissão ao Node — o Node não monta
@@ -33,36 +36,44 @@ mais lista; sem o lote do Rust, os efeitos de cauda deixam de ser enfileirados.
 O emissor (`adom-search`) não é mais necessariamente o executor: o seam
 `NativeTailEffects` (`rust/crates/adom-server/src/tail_effects.rs`) intercepta
 o `kind` e decide **quem roda**. Regra única: efeito com dono nativo só é
-consumido quando o dono está LIGADO **e** aceitou; qualquer recusa volta ao
-Node na mesma posição e conta em `rejected`.
+consumido quando o dono está LIGADO **e** aceitou; a recusa produz `Deferred`
+(o efeito segue ao Node na mesma posição e conta em `rejected` do seam).
 
-| `kind` | Dono hoje | Volta ao Node quando |
+| `kind` | Dono hoje | `Deferred`/`Forward` do seam |
 |---|---|---|
 | `dub_audit` | **gateway** (incondicional desde T3-L7a) | payload fora da forma é `rejected`, não volta |
-| `autofetch_batch` | **gateway** com `AUTOFETCH_WORKER=on` **e** canal aceitando | trava desligada, worker `prepared` ou canal cheio |
+| `autofetch_batch` | **gateway** (worker nativo, `AUTOFETCH_WORKER=on`) | sem a trava, `prepared` ou canal cheio: vai ao Node, que **não executa** (só `nativeOnly`) |
 | `br_probe` | idem `autofetch_batch` (mesmo canal, `Job` do worker) | idem |
 | `season_key` | idem `autofetch_batch` (escopo sai do próprio payload) | idem |
-| `rd_warmer` | **gateway** (`NativeEffectSink` registrado em `stream.rs`) | escopo de conta não derivável (sem cofre/chave) |
-| `harvester_enqueue` | **Node** (continua na rota interna) | sempre |
+| `rd_warmer` | **gateway** (`NativeEffectSink` registrado em `stream.rs`) | escopo de conta não derivável (sem cofre/chave): o Node executa (`queueRdWarmForRelevant`) |
+| `harvester_enqueue` | **Node** (único dono; a rota executa) | sempre `Forward` — o Node executa |
 
-**Sem escopo derivável o efeito volta ao Node.** O escopo é
-`adapter:sha256(chave)` e sai de duas fontes: o payload (`adapterId`+`account`
-no `season_key`) ou o cofre em RAM (`Vault::ingest` sobre o `encoded` do lote).
-Sem `AUTOFETCH_WORKER=on` o cofre **não existe** — nesse caso `autofetch_batch`,
-`br_probe`, `season_key` e `rd_warmer` seguem todos ao Node, como antes.
+**`Deferred` não é execução.** Depois do corte da B4 o seam ainda produz
+`Deferred` para os kinds de trabalho (`tail_effects.rs:136-156`), mas o destino
+não tem mais o executor: a rota valida a forma, soma em `nativeOnly` e não chama
+nada. Na prática, worker em `prepared` = lote aceito no 202 e descartado. Os
+únicos kinds que hoje voltam ao Node **e rodam lá** são `rd_warmer` (sem escopo,
+o Node ainda enfileira o aquecimento) e `harvester_enqueue` (`Forward`).
 
-**Estado real hoje (leva C1, 2026-10-28):** `autofetch::spawn()` continua
-passando `None`, mas `boot::spawn_at` monta a fábrica de PRODUÇÃO
-(`autofetch/build.rs`) quando `AUTOFETCH_WORKER=on` e o cofre do processo
-existe; o `docker-compose.yml` liga a trava. Logo `enabled = worker_enabled()
-&& debrid.is_some()` pode ser verdadeiro e os TRÊS kinds do Chupim são
-consumidos no gateway (ver "Destino do `Job` por kind", abaixo).
-`worker_enabled()` aceita só o literal `on` (`autofetch/mod.rs:127-129`):
-ausente, vazio, `1` ou `true` mantêm `prepared` e o efeito volta ao Node.
-`rd_warmer` já é nativo de verdade (o sink aceita o efeito e a chave sai do
-cofre): sem escopo derivável o efeito volta ao Node na hora; se o escopo foi
-aprendido mas a chave expirou entre a oferta e a drenagem, o lote é descartado
-com `dropped_no_key` — não volta ao Node, porque já foi consumido.
+O escopo é `adapter:sha256(chave)` e sai de duas fontes: o payload
+(`adapterId`+`account` no `season_key`) ou o cofre em RAM (`Vault::ingest` sobre
+o `encoded` do lote). Sem `AUTOFETCH_WORKER=on` o cofre **não existe**: os três
+kinds de trabalho ficam sem escopo e o efeito vira `Deferred` — não há braço no
+Node que os execute.
+
+**Estado real hoje (pós-B4, 2026-10-28):** `boot::spawn_at` monta a fábrica de
+PRODUÇÃO (`autofetch/build.rs`) quando `AUTOFETCH_WORKER=on` e o cofre do
+processo existe; o `docker-compose.yml` traz `${AUTOFETCH_WORKER:-on}` (o `.env`
+da VPS vence a interpolação). Logo
+`enabled = worker_enabled() && debrid.is_some()` é verdadeiro no deploy padrão e
+os TRÊS kinds do Chupim são consumidos no gateway (ver "Destino do `Job` por
+kind", abaixo). `worker_enabled()` aceita só o literal `on`
+(`autofetch/mod.rs:128-130`): ausente, vazio, `1` ou `true` mantêm `prepared` —
+e o efeito de trabalho, sem executor no Node, morre (rollback = imagem/commit
+anterior). `rd_warmer` já é nativo de verdade (o sink aceita o efeito e a chave
+sai do cofre): sem escopo derivável o efeito volta ao Node na hora; se o escopo
+foi aprendido mas a chave expirou entre a oferta e a drenagem, o lote é
+descartado com `dropped_no_key` — não volta ao Node, porque já foi consumido.
 
 ## Destino do `Job` por kind — leva C1 (2026-10-28)
 
@@ -75,7 +86,7 @@ derivado do payload (`season_key`) ou do cofre (`autofetch_batch`, `br_probe`).
 (`tail_effects::NativeWorkQueue::submit`, `tail_effects.rs:63-70`): sem ele,
 sonda e season cairiam em `enqueue::run` e seriam recusadas como `empty-batch`
 — o trabalho sumiria sem chegar ao passo nem voltar ao Node. O despacho é
-`serve_jobs.rs::Engine::batch` (`:57-64`):
+`serve_jobs.rs::Engine::batch` (`:57-65`):
 
 | `Job.kind` | Passo | Recusa |
 |---|---|---|
@@ -91,10 +102,12 @@ silencioso. Com colhedor montado, o passo roda e a recusa posterior
 (`no-harvester`, `queue-full`, `paused`) fica no gateway.
 
 **Aceite não tem volta.** `Deferred` só existe ANTES do `submit`: sem escopo
-derivável, canal desligado (`prepared`) ou `try_send` cheio, o efeito volta ao
-Node na mesma posição e conta em `rejected`. Depois do aceite, quem recusa o
-passo é o próprio worker (`Skip`/`refused`) e o lote NÃO é reenviado — é a
-diferença entre "o Node não recebeu" e "o gateway recebeu e desistiu".
+derivável, canal desligado (`prepared`) ou `try_send` cheio, o efeito segue ao
+Node na mesma posição e conta em `rejected`. Do lado de lá ele **não roda mais**
+(entra em `nativeOnly`), então `Deferred` de trabalho é lote perdido — o aceite
+do Node não é execução. Depois do `submit`, quem recusa o passo é o próprio
+worker (`Skip`/`refused`) e o lote NÃO é reenviado — é a diferença entre "o Node
+recebeu e descartou" e "o gateway recebeu e desistiu".
 
 ### `autofetch_batch` — lote pós-debrid (consumido)
 
@@ -103,10 +116,33 @@ diferença entre "o Node não recebeu" e "o gateway recebeu e desistiu".
 | Consome | `serve_jobs.rs::Engine::batch` → `enqueue_batch` → `enqueue::run` (escritor único da fila v3) → `recheck::schedule`; o dreno do lote terminal é `enqueue_drain::drain_one` |
 | Payload | `{ items[], cached[], known, season, episode, imdbId, searchKey }` — detalhe na seção "`autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)", abaixo |
 | Lê do lote | `searchKey`, `known` e `items` (`enqueue_items::parse_items`); o resto é contexto |
-| `prepared` | sem canal (`enabled=false`): `Deferred` ao Node |
+| `prepared` | sem canal (`enabled=false`): `Deferred`; o Node só conta em `nativeOnly` |
 | Pausado | o lote ENTRA e roda; `CascadeFacts.paused` manda tudo para `deferred` (nada é enfileirado) e `classify_enqueue` recusa por `paused`; cada motivo entra em `skips` no `GET /autofetch` |
 | Fila cheia | dois sentidos: canal (`try_send` falha → `Deferred`) e fila v3 persistida, cortada pelo `queueDepth` do `LivePolicy` no `write_queue` — o adiado nunca se perde |
-| Volta ao Node | só antes do `submit`. Depois, `refused` do lote (`no-search-key`, `empty-batch`, `unknown-cache`, `in-flight`) e `no-credential` do passo ficam no gateway: a fila já gravada espera no KV |
+| Volta ao Node | só antes do `submit`, e sem executor do outro lado (`nativeOnly`). Depois, `refused` do lote (`no-search-key`, `empty-batch`, `unknown-cache`, `in-flight`) e `no-credential` do passo ficam no gateway: a fila já gravada espera no KV |
+
+**Registro do Chupim no índice (`source:'autofetch'`) — escritor NATIVO.** A B4 cortou
+`recordAutofetchRelease` com o runner TS e os leitores ficaram inertes
+(`native_index.rs:139-166`: filtro de indexador + `autofetch_seeded` → via rápida;
+`index_effects.rs:109-118`: `gap` no follow-up). O ACEITE do lote (`enqueue.rs`, depois
+de `commit_obra`) chama `index_record::keep` → `ReleaseIndexStore::record` com
+`source = autofetch`, no formato do TS; pool `seeds` sem prova de dublagem não grava
+(`Skip("index-no-dub")`). A gravação sai do caminho da resposta (canal `try_send` +
+thread dona do `cache.db`; falha = `Skip("index-error")`, o aceite já é durável) e
+NÃO é cobertura BR: `br_gap.rs:28-30,88-92` e `search_pool_coverage.rs:283-287`
+excluem a fonte, que é promovida a observação pública quando uma busca real revê o
+hash. `RELEASE_INDEX` off/TTL 0 = sem sink; `forget_autofetch_hash` volta a ter alvo.
+
+**Perda limitada a 256 no shutdown — decisão ACEITA, não bug.** O canal do escritor tem
+teto fixo de 256 (`index_record_ops.rs:32`) e o aceite usa `try_send`: cheio vira
+`Refuse::Full` (backoff) e o laço do lote NUNCA espera (`:76-84`). O `JoinHandle` da
+thread `adom-idx-record` não é guardado em lugar nenhum (`:62-74`), então no shutdown do
+processo a thread morre com até 256 `Keep`/`Forget` ainda no canal — o `for op in rx`
+só drenaria se alguém esperasse a thread, e ninguém espera. É aceitável porque o índice
+é CACHE reconstruível: o aceite do lote já está durável (marker/obra/fila) e a busca
+seguinte volta a coletar; o efeito é a obra ficar fora do fast-path do índice até uma
+nova observação. Não acrescentar drain no shutdown: sincronizar o desligamento não
+devolve nada que a próxima busca não recupere.
 
 ### `br_probe` — sonda dirigida (consumido)
 
@@ -118,9 +154,9 @@ diferença entre "o Node não recebeu" e "o gateway recebeu e desistiu".
 | Alvo e estado | index-only ∩ pt-BR menos os isentos da busca viva (`ProbeStepConfig::indexers`); registro em `autofetch:v3:probe:<sha256>` (`probe_key`), com `pending` só depois de a fila do colhedor confirmar a entrada com `brProbe` |
 | TTL | `ProbeStepConfig::from_env` lê `BR_PROBE_TTL_S` (default `43 200`, piso `60`) a cada job (`probe_job.rs:41-56`); o `pending` tem piso próprio de 10 min (`PENDING_LEASE_MS`, `adom-harvest/src/probe.rs:43`) |
 | Teto de fila | `queue_len >= HARVEST_QUEUE_MAX` → `Skip("queue-full")`, sem tocar o KV (o `enqueue` do colhedor recusaria por `Capacity` e evictaria a cauda) |
-| `prepared` | `Deferred` ao Node (aí sim o caminho do TS, `br-probe.ts`) |
+| `prepared` | `Deferred`; o Node conta em `nativeOnly` e não executa (`br-probe.ts` saiu na B4 — o passo é `probe_job.rs`) |
 | Pausado | `Skip("paused")` — o mesmo `Control::paused`; nada é escrito no KV |
-| Volta ao Node | só antes do `submit`: sem colhedor, `AutofetchHandle::submit` devolve `false`. Depois do aceite, `Skip` do passo (`paused`, `queue-full`, `release-index-off`, `disabled`, `no-intersection`, `pending`, `found`) NÃO volta ao Node |
+| Volta ao Node | só antes do `submit`: sem colhedor, `AutofetchHandle::submit` devolve `false` (e o Node só conta em `nativeOnly`). Depois do aceite, `Skip` do passo (`paused`, `queue-full`, `release-index-off`, `disabled`, `no-intersection`, `pending`, `found`) NÃO volta ao Node |
 
 O teto horário do colhedor que corta alvos planejados grava `capped` — não
 `empty`; a ordem de decisão está em `harvest-native-contract.md`.
@@ -139,10 +175,10 @@ e o `String(env || 'true') === 'true'` do Node não fazem `trim` —
 | Lê do lote | os cinco campos; `account == "none"`, `imdb` sem `tt`, `season <= 0` ou texto vazio → `Skip("invalid")` |
 | KV | `autofetch:v3:season:<adapter>:<conta>:<imdb>:<temporada>` (`season_step::SEASON_PREFIX`) guarda as `cache_key`s da temporada |
 | Consumo do índice | ordem `peek` → `sink` → `take` (`season_fill.rs`): o índice só é apagado DEPOIS de a invalidação do `streams.db` confirmar. Sem sink registrado o registro fica vivo e a passagem seguinte tenta de novo |
-| `prepared` | `Deferred` ao Node |
+| `prepared` | `Deferred`; o Node conta em `nativeOnly` |
 | Pausado | `Skip("paused")` no registro E no preenchimento |
 | Fila cheia | não existe para este kind; o que existe é toggle/teto: `DEBRID_AUTO_FETCH_SEASON_FILL` off → `fill-off`, `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX=0` → `index-off` |
-| Volta ao Node | só antes do `submit`; aceito, a recusa (`invalid`, `paused`, `fill-off`, `index-off`, `not-pack`) fica no gateway |
+| Volta ao Node | só antes do `submit`, sem executor do outro lado; aceito, a recusa (`invalid`, `paused`, `fill-off`, `index-off`, `not-pack`) fica no gateway |
 
 Os motivos de `Skip` mantêm os nomes que o painel do Node já conta (`invalid`,
 `paused`, `queue-full`, `index-off`, `fill-off`, `pending`, `found`, `empty`,
@@ -168,8 +204,9 @@ prazo do cliente:
 A seleção roda sobre o **pool pós-debrid, antes do `limitReservingBr`** — a
 mesma lista que o `applyDebrid` enxerga — e não sobre o corte final.
 
-Reemissão: o Node reemite a cada `applyDebrid` (resposta e passes tardios). Aqui
-o lote é o da passada final do tail; como a lista final é superconjunto das
+Reemissão: até o F4.4 o Node reemia a cada `applyDebrid` (resposta e passes
+tardios). Hoje só o tail nativo emite: o lote é o da passada final, e como a
+lista final é superconjunto das
 anteriores e cada fila do Node dedupa (marker do Chupim, fila, pending da
 auditoria), o efeito prático é o mesmo. As diferenças conhecidas estão em
 `rd_warmer` (abaixo) e na conta `unusable` do autofetch.
@@ -187,7 +224,7 @@ A **seleção** continua aqui (abaixo); a **execução** saiu do Node:
 `POST /internal/search/effects`, e o handler Node responde `rejected` para o kind.
 Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.md).
 
-- Origem TS (histórica): `debrid-pipeline-core.ts:311`/`:382`, via
+- Origem TS (histórica nos dois casos; `debrid-pipeline-core.ts` removido no F4.4): `debrid-pipeline-core.ts:311`/`:382`, via
   `collectAuditCandidates`/`queueDubAudit` (`dub-audit.ts`, apagado).
 - Quem interroga: os ⚡ com promessa/prova de dublado e, em série, os ⚡ que não
   NOMEIAM o episódio pedido (pack de temporada pode conter outra coisa).
@@ -208,7 +245,7 @@ Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.
 
 ### `rd_warmer` — aquecimento do Real-Debrid (COBERTO, com divergência)
 
-- Origem TS: `debrid-pipeline-core.ts:221-243` — até 10 hashes de cada tier:
+- Origem TS (histórica; `debrid-pipeline-core.ts` removido no F4.4): `:221-243` — até 10 hashes de cada tier:
   BR dublado (score 100), dublado global (50), melhor swarm (10, `minSeeders:1`),
   sempre fora de `_multiWorkAdmitted`/`_fromFallback` e fora do que já está em
   cache.
@@ -239,7 +276,7 @@ Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.
 
 ### `harvester_enqueue` — episódio seguinte (COBERTO)
 
-- Origem TS: `search-orchestrator.ts:314-316` — série com play e S/E enfileira
+- Origem TS (histórica; `search-orchestrator.ts` removido no F4.4): `:314-316` — série com play e S/E enfileira
   `episode + 1`, motivo `next-episode` (topo absoluto da fila do colhedor).
 - Payload (Rust): `{ imdbId, type: "series", season, episode: e+1,
   reason: "next-episode" }`.
@@ -252,7 +289,7 @@ Contrato completo em [`dub-audit-native-contract.md`](dub-audit-native-contract.
 
 ### `season_key` — LRU de temporadas com pack pronto (COBERTO)
 
-- Origem TS: `search-cache.ts:64-72` (`findStreams`, antes de consultar o cache)
+- Origem TS (histórica; `search-cache.ts` removido no F4.4): `:64-72` (`findStreams`, antes de consultar o cache)
   → `registerSeasonSearchKey`; invalida buscas antigas quando o pack da
   temporada chega (Season Pack Fill).
 - Payload (Rust): `{ adapter_id, account, imdb, season, cache_key }`, com
@@ -287,18 +324,18 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 
 ### `autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)
 
-- Origem TS: `debrid-pipeline-core.ts:130-134` (`autoFetchCandidates`, que
-  escolhe e SEGURA os hashes antes da checagem) e `:213-220`
-  (`autoFetchBrDubbed`, que despacha depois do veredito de cache).
-- **Por que um lote, e não a seleção no Rust**: a decisão depende de estado de
-  PROCESSO que o orquestrador nativo não tem — config viva do painel
-  (`autofetchLive.effective()`), teto por OBRA/reservas (`autofetch-obra.ts`),
-  portões do enqueue (`classifyEnqueue`), `hold` durável
-  (`debrid/protected.ts`), fila persistente (`autofetch.writeQueue`/`drainNext`)
-  e `debrid.enqueue`. Em vez de duplicar esse estado, o Rust entrega os FATOS
-  medidos (`kind: "autofetch_batch"`) e o Node roda as MESMAS funções.
-- Payload (Rust → Node): `{ items[], cached[], known, season, episode, imdbId,
-  searchKey }`.
+- Origem TS (histórica, arquivo removido no F4.4): `debrid-pipeline-core.ts:130-134` (`autoFetchCandidates`,
+  que escolhia e SEGURAVA os hashes antes da checagem) e `:213-220`
+  (`autoFetchBrDubbed`, que despachava depois do veredito de cache). O pipeline
+  saiu no F4.4; o corpo do Chupim saiu na B4.
+- **Por que um lote** (razão histórica, mantida porque explica o payload): a
+  decisão depende de estado de PROCESSO — config viva do painel
+  (`autofetchLive.effective()`), teto por OBRA/reservas, portões do enqueue,
+  `hold` durável (`debrid/protected.ts`) e a fila persistente. O Rust entrega os
+  FATOS medidos (`kind: "autofetch_batch"`) e o dono do trabalho os aplica.
+  Desde a B4 esse dono é o **worker nativo** — não há mais handler TS.
+- Payload (Rust → consumidor): `{ items[], cached[], known, season, episode,
+  imdbId, searchKey }`.
   - `items` = o lote **pós-checagem e PRÉ-corte `cachedOnly`** (o BR frio que o
     corte esconde é justamente o alvo do download), sem pack multiobra admitido
     e sem reserva não elegível (`_fromFallback && !_fallbackFetchable`); ordem
@@ -308,40 +345,36 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
     `_multiWorkAdmitted`, `_bankDub`, `_lied`, `_indexer`, `_tracker` (campo
     ausente é omitido);
   - `cached` = hashes confirmados em cache pela checagem, em minúsculas;
-  - `known` = veredito do lote (`debrid_known && !needsDebridRefresh`); com
-    `false`, o Node escolhe/segura e o despacho libera os holds sem enfileirar,
-    como no `applyDebrid`. O handler ainda completa o veredito com o inventário
-    da conta (`enrichInstantWithoutCacheCheck`): adaptador sem `cacheCheck`
-    (RD/Debrid-Link) pode responder pelo acervo mesmo com `known:false` — esse
-    estado é do Node e não viaja no payload.
-- Handler Node: `src/providers/autofetch-batch.ts::runAutofetchBatch` —
-  reconstrói os `Stream`s, aplica o mesmo filtro de entrada e chama
-  `autoFetchCandidates` → `enrichInstantWithoutCacheCheck` →
-  `autoFetchBrDubbed`. Nada do caminho normal muda: a rota só ENFILEIRA (202) e
-  o teste do enqueue é o mesmo (`marker`, lock, `acquireSearchSlot`, teto por
-  obra, conta bloqueada, orçamento, fila, `protectBr`).
+  - `known` = veredito do lote (`debrid_known && !needsDebridRefresh`). O
+    enriquecimento pelo inventário da conta (`enrichInstantWithoutCacheCheck`,
+    que respondia pelo acervo mesmo com `known:false` para adaptador sem
+    `cacheCheck` como RD/Debrid-Link) sobrevive em
+    `src/providers/debrid-cache-steps.ts` para o oráculo, **sem consumidor de
+    produção** desde a B4.
+- Consumidor: o worker nativo. Com `AUTOFETCH_WORKER=on` **e** a fábrica por
+  conta presente, o lote vira um `Job { kind, scope, payload }` no canal
+  (`autofetch/{serve,serve_jobs,enqueue,recheck}`) e não atravessa o HTTP; o
+  `scope` vem do cofre. `boot::production_factory` (`autofetch/boot.rs:42-59`)
+  monta a fábrica de PRODUÇÃO no boot; sem a trava, sem cofre ou sem cliente
+  HTTP (`build.rs:66-79`) o worker fica `prepared` — e o lote encaminhado ao Node
+  só conta em `nativeOnly` (não há segundo executor). Boot nunca quebra.
 - Seleção Rust: `list_builder/effects.rs::autofetch_items`; fio:
   `orchestrator/effects.rs::autofetch_batch`.
-- **Worker nativo no gateway (fiado; liga com `AUTOFETCH_WORKER=on`).**
-  Com `AUTOFETCH_WORKER=on` **e** a fábrica por conta presente, o lote vira um
-  `Job { kind, scope, payload }` no canal do worker (`autofetch/{serve,serve_jobs,enqueue,recheck}`)
-  e não atravessa mais o HTTP; o `scope` vem do cofre. `boot::production_factory`
-  (`autofetch/boot.rs:42-59`) monta a fábrica de PRODUÇÃO no boot; sem a trava,
-  sem cofre ou sem cliente HTTP (`build.rs:66-79`) o worker fica `prepared` e o
-  caminho é o handler Node abaixo — boot nunca quebra.
-- Kill-switches (Node, inalterados): `autoFetchBr`, pausa do painel,
-  `classifyEnqueue`, orçamento/janela ociosa e `config.debrid` do operador.
-  `EFFECTS_RUST=off` desliga a emissão; não há outro emissor do `/stream` — o
-  Node só executa as filas.
-- O que **não** vai no lote e continua no Node: `harvester_enqueue`, a purga da
-  fila seeds, contadores de skip do painel, `releaseIndex`/banco de magnets
-  (usados pela seleção), inventário da conta e o `debrid.enqueue` em si. A
-  sonda, a Season Pack Fill e o dreno da represa **saíram** desta lista: já são
-  passos do laço (os três kinds acima).
+- Kill-switches: `autoFetchBr` e a pausa do painel (config ao vivo
+  `cfg:v1:autofetch`, que o Node grava e o gateway lê), os portões do enqueue
+  (`autofetch/enqueue_gates.rs`), orçamento/janela ociosa e `config.debrid` do
+  operador. `EFFECTS_RUST=off` desliga a emissão; não há outro emissor do
+  `/stream`.
+- O que **não** vai no lote e continua no Node: `harvester_enqueue`, os FATOS de
+  posse/retenção (`adsub`/`adprot`, que o nativo só LÊ) e o painel. O marker com
+  `obra` e o registro F2 são gravados pelo aceite nativo (`enqueue.rs:299-316`,
+  `enqueue_obra.rs:294-295`). Os motivos de
+  skip do painel vêm do worker (`GET /autofetch` da admin 8711), não do Node. A
+  sonda, a Season Pack Fill e o dreno da represa são passos do laço (os três
+  kinds acima).
 - **Divergência conhecida**: conta `unusable` (auth/quota) não emite o lote —
-  o Rust trata como os demais efeitos. No Node, o `applyDebrid` ainda roda a
-  seleção antes de sair e libera os holds; a sonda/fila que ela gravaria nesse
-  caminho não é replicada. Sem download possível, o efeito prático é nulo.
+  o Rust trata como os demais efeitos. Sem download possível, o efeito prático
+  é nulo.
 
 ## Arquivos
 
@@ -352,7 +385,6 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 | Emissão no tail | `rust/crates/adom-search/src/orchestrator/late.rs` (`emit_effects`) |
 | `season_key` na abertura | `rust/crates/adom-search/src/orchestrator/mod.rs` (`emit_season_key`) |
 | Flag | `rust/crates/adom-server/src/stream_config.rs` (`EFFECTS_RUST`) |
-| Contrato do Node | `src/routes/internal-search-effects.ts` |
 | Seam de dono dos efeitos | `rust/crates/adom-server/src/tail_effects.rs` |
 | Execução nativa do `dub_audit` | `rust/crates/adom-server/src/dub_audit.rs`, `dub_audit_writes.rs` |
 | Execução nativa do `rd_warmer` | `rust/crates/adom-server/src/rd_warmer.rs`, `rd_warmer_rd.rs`, `rd_warmer_probe.rs` |
@@ -370,6 +402,6 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 | Dreno da represa `sup:` | `rust/crates/adom-server/src/autofetch/suppressed_step.rs` |
 | Porta `evict` (só AllDebrid) | `rust/crates/adom-debrid/src/autofetch_ports_evict.rs` |
 | Rotas do painel do worker | `rust/crates/adom-server/src/autofetch/routes.rs` |
-| Handler do lote do Chupim | `src/providers/autofetch-batch.ts` |
-| Teste TS do contrato | `test/internal-search-effects.test.ts`, `test/internal-search-autofetch-batch.test.ts` |
+| Contrato da rota no Node (2 kinds executados, `nativeOnly`) | `src/routes/internal-search-effects.ts` |
+| Teste TS do contrato | `test/internal-search-effects.test.ts`, `test/autofetch-cut-edges.test.ts` (catraca do corte) |
 | Testes Rust | `orchestrator/effects_tests.rs`, `orchestrator/tests_pipeline.rs`, `list_builder/effects.rs` |

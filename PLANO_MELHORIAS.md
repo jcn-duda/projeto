@@ -283,7 +283,8 @@ reexporta (os imports dos 63 arquivos de teste que consomem a fachada não
 mudaram):
 
 - `providers/autofetch-runner.ts` — seleção de candidatos, holds/markers,
-  `drainNext`, recheck, settle, detecção de morte;
+  `drainNext`, recheck, settle, detecção de morte; **(o arquivo saiu na leva
+  B4, 2026-10-28 — hoje o laço é o worker nativo, ver 7.x)**;
 - `providers/debrid-pipeline.ts` — `applyDebrid`, filtro pré-checagem,
   auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`);
 - `providers/stream-builder.ts` — `buildStreams`, `applyFileEvidence`,
@@ -302,9 +303,11 @@ fica dentro de corpo de função — nunca em top-level — e é exatamente esse
 caso; confirmado pelo typecheck, build e pela suíte inteira.
 
 `index.ts` caiu de 2220 para 17 linhas: só import + reexport dos 9 nomes
-públicos, mais o glue de `autofetchStatus` (agrega `autofetchRunnerStatus()`
+públicos, mais o glue de `autofetchStatus` (agregava `autofetchRunnerStatus()`
 de `autofetch-runner.js` com `searchesInFlightCount()` de `search-cache.js`
-— não guarda mais estado próprio).
+— não guarda mais estado próprio). **Pós-B4 (2026-10-28):** `autofetchStatus`
+virou foto PARCIAL (`config`, `paused`, `obras`, `lastSkips`) — o laço do
+Chupim é do worker nativo e os números dele vêm da admin 8711, não daqui.
 
 **Não feito:** o `SearchPhase` explícito (A3, `'collecting' |
 'response-built' | 'late-collecting' | 'pack-fallback' | 'enriching' |
@@ -497,6 +500,11 @@ async. Os testes de rota seguem passando por cima do app real (`createApp`).
 O nome de diretório ficou `routes/`, não `app/*-routes.ts` como o plano
 provisório sugeria.
 
+> **Atualização (B4, 2026-10-28).** `src/routes/state.ts` foi apagado: o
+> `prefetchInFlight` era um `Set` no ctx sem produtor nem consumidor, e saiu do
+> `AppServices` junto com o arquivo (`src/routes/types.ts:73`). O resto da lista
+> acima continua valendo.
+
 ### 5.6 — `process.env` centralizado (A5) — esforço S — CONCLUÍDO
 
 `config.resolvers` (inclusive controles de carga, host, offset, portas e URLs
@@ -526,13 +534,16 @@ ou um cast cego sobre contrato de terceiro.
 
 **Métrica reproduzível:** a sondagem oficial é
 `@(git grep -n -E '\bany\b' -- src).Count` no PowerShell. Ela conta **linhas**
-com o token e hoje retorna **146**. Quando ela retornava 152, os cinco itens
+com o token e retornava **146** na medição de 2026-08. Quando ela retornava 152, os cinco itens
 subtraídos para chegar aos 147 documentados eram os quatro literais em
 `autofetch-runner.ts` — `pool = 'any'`, `autofetch.any-dubbed` e os dois testes
 de `pool === 'any'` — e `source || 'any'` em `search-names.ts`; nenhum é o tipo
 `any`. Logo, os cinco são falsos positivos de strings, não tipos reais. Há ainda
 um sexto falso positivo independente, o comentário em `net-safety.ts`; por isso
 147 não era uma métrica honesta de ocorrências explícitas e foi aposentado.
+**Depois da leva B4 `autofetch-runner.ts` saiu de `src/`**, então esse recorte
+perdeu quatro dessas linhas: o número atual **não foi remedido** e a citação
+acima fica como histórico da medição.
 
 A meta “menos de 150” usa ocorrências explícitas do tipo `any`, não linhas nem
 texto. Para reproduzi-la, execute o contador da AST do TypeScript:

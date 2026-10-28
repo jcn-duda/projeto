@@ -643,6 +643,9 @@ pública (o gateway recusa `/internal/*`) e nunca por Caddy.
 | `POST /streams/clear` `{}` / `{"suffix":":…"}` | limpa tudo / só o escopo da instalação |
 | `GET /streams/trace?type=&id=[&key=]` | ledger + estado da entrada da obra |
 | `GET /streams/stats` | ocupação/cota (diagnóstico) |
+| `GET /indexers/status` | última consulta medida de cada indexer + foto do circuito (`store_admin.rs:362-373`) |
+| `GET /harvest` + `POST /harvest/{enqueue,pause,config,drain,clear}` + `GET /harvest/pending` | painel e controle do colhedor nativo (`harvest/routes.rs:34-40`; mesmos loopback e token, sem segundo servidor) |
+| `GET /autofetch` + `POST /autofetch/{config,pause,drain,suppressed-drain}` | painel e controle do worker nativo do Chupim (`autofetch/routes.rs:17-21`); a resposta do `GET` vem envelopada em `{"ok":true,"status":{…}}` |
 
 **Rollback (histórico):** as flags `STREAM_STORE_RUST`/`STREAM_BAD_RUST` não
 existem mais (R2/R4): o store admin é incondicional no corte e a poda
@@ -745,14 +748,18 @@ só "tem stream tocável", não paridade BR+cotas.
 
 ### R.4 — O que ficou fora da remoção
 
-- **Efeitos** (`EFFECTS_RUST`, default ON): o Rust emite, o Node executa as
-  filas (`/internal/search/effects`).
+- **Efeitos** (`EFFECTS_RUST`, default ON): o Rust emite; a rota
+  `/internal/search/effects` só executa `rd_warmer` (fallback do sink nativo) e
+  `harvester_enqueue`. Os kinds de trabalho (`autofetch_batch`, `br_probe`,
+  `season_key`) têm dono nativo desde a B4: o Node apenas os aceita na forma e
+  conta em `nativeOnly`, sem executar.
 - **Feed de holds** da AllDebrid (`/internal/debrid/holds`).
 - **Banco VIVO** (`magnets.db`), `raw:v1` e `davail` — caminhos que a série R
   não moveu de dono.
 - **Rotas internas vivas**: `POST /internal/search/meta`,
-  `POST /internal/search/effects`, `POST /internal/debrid/holds`,
-  `POST /internal/crawl-result` e `GET /internal/activity`.
+  `POST /internal/search/effects`, `POST /internal/debrid/holds` e
+  `GET /internal/activity`. O `POST /internal/crawl-result` saiu na T3-L3
+  (`src/routes/register.ts:62`): a ingestão da página é nativa.
 
 ## F4.7 — `/resolve` nativo (fases A e C entregues; incondicional)
 
@@ -794,10 +801,10 @@ Pendências de validação (não bloqueiam a fase C):
 
 ## Leva C1 — worker nativo do Chupim (2026-10-28)
 
-Esta leva fecha as lacunas P1 do worker nativo do Chupim **sem** cumprir o flip
-B4: os passos existem, o laço OS DESPACHA por `Job.kind` e o TS do Chupim
-continua dono dos FATOS que só ele produz. Base: `47e475fb` + a leva C1
-(working tree da branch `rust`).
+Esta leva fecha as lacunas P1 do worker nativo do Chupim — o corte do TS viria
+logo depois, na leva B4: os passos existem, o laço OS DESPACHA por `Job.kind` e
+o TS do Chupim ainda era dono dos FATOS que só ele produz. Base: `47e475fb` + a
+leva C1 (working tree da branch `rust`).
 
 ### O que foi fiado
 
@@ -814,7 +821,7 @@ continua dono dos FATOS que só ele produz. Base: `47e475fb` + a leva C1
 
 ### O que foi fiado no ciclo
 
-- **Despacho por `kind`** — `serve_jobs.rs::Engine::batch` (`:57-64`) manda
+- **Despacho por `kind`** — `serve_jobs.rs::Engine::batch` (`:57-65`) manda
   `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH` para `probe`/`season`/`enqueue_batch`,
   e `Job.kind` viaja pelo canal (`enqueue.rs:46-57`, `tail_effects.rs:63-70`).
   Sem esse despacho, sonda e season cairiam em `enqueue::run` e virariam
@@ -822,7 +829,7 @@ continua dono dos FATOS que só ele produz. Base: `47e475fb` + a leva C1
   (`autofetch/mod.rs:99-101`) e volta ao Node.
 - **Evicção F6 no ciclo** — `evict_step` declarado em `autofetch/mod.rs:55-56`;
   `serve.rs::timers` lê `evict_job::EvictConfig::from_env()` e corta por RODADA
-  (`evict_left = gates.max_per_run`, `:149-152`). Kill-switch próprio
+  (`evict_left = gates.max_per_run`, `:175-176`). Kill-switch próprio
   (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, default OFF), `may_delete` em duas
   camadas (plano e porta) e `adrm` gravado pelo Rust
   (`evict_job::mark_removed`: `{"at":now}`, nunca poda).
@@ -838,28 +845,34 @@ continua dono dos FATOS que só ele produz. Base: `47e475fb` + a leva C1
 
 ### O que ficou pendente
 
-1. **Flip B4.** O TS do Chupim (`src/providers/autofetch*.ts`,
-   `src/debrid/alldebrid-fallback-evict.ts`) segue dono dos FATOS que o nativo
-   não produz: marker com `obra` e registro F2 `autofetch:v3:o:<digest>`
-   (ponte napi, `enqueue.rs:331` grava marker SEM meta), `adsub`/`adprot`,
-   `pf:`; somam-se `harvester_enqueue` e o agendamento das varreduras da
-   AllDebrid (`ReadOnly` até as provas por linha). Regra: **não apagar o TS
-   antes de fiar o substituto** — passo escrito não é passo consumido.
+1. **Corte do TS do Chupim (B4) — EXECUTADO em 2026-10-28.** O corpo TS saiu de
+   `src/` (os 19 caminhos de `CUT_SOURCES` em `test/autofetch-cut-edges.test.ts`:
+   os 16 `autofetch-*.ts` da classe (a), `br-probe.ts`,
+   `autofetch-chupim-trace.ts` e `src/debrid/alldebrid-fallback-evict.ts`) e o
+   que ficou no Node são `adsub`/`adprot` (marcas que o nativo só LÊ) e o
+   `harvester_enqueue`; somam-se o agendamento das varreduras da AllDebrid
+   (`ReadOnly` até as provas por linha). O marker com `obra` e o registro F2
+   `autofetch:v3:o:<digest>` **saíram** dessa lista: o aceite nativo grava os dois
+   (`enqueue.rs:299-316` via `obra::marker_meta`, `enqueue_obra.rs:294-295`).
+   Rollback: **imagem/commit anterior** — `AUTOFETCH_WORKER=off` desliga o
+   Chupim e o efeito de trabalho é aceito na rota do Node só para constar em
+   `nativeOnly`; não há env que devolva o trabalho ao Node.
 2. **Divergência conhecida (fill, RD).** `cache_check_honest` é estático e
-   responde `false` para `realdebrid` (`season_fill.rs:114`), enquanto o Node
-   consulta `cacheCheck` dinâmico (`src/debrid/registry.ts:66`): lote de RD não
-   preenche no nativo — falha fechada, cobertura menor que a do TS.
+   responde `false` para `realdebrid` (`season_fill.rs:114`), enquanto o TS
+   consultava `cacheCheck` dinâmico (`src/debrid/registry.ts:66`, sem consumidor
+   de season fill desde a B4): lote de RD não preenche no nativo — falha fechada,
+   cobertura menor que a do TS que existia.
 3. **Divergência conhecida (`readded`).** O skip existe só na porta
-   (`adom-debrid/src/autofetch_ports_evict.rs:332`, par do
-   `alldebrid-fallback-evict.ts:114`); `evict_step::plan` (`evict_step.rs:175`)
-   e o veto `may_delete` (`:63-73`) não o conhecem — a porta continua barrando a
-   remoção, mas o contador do painel não vê o motivo.
-4. **Divergência conhecida (knobs inertes).** `DEBRID_AUTO_FETCH_SETTLE_MS` e
-   `DEBRID_AUTO_FETCH_STALL_STREAK` são lidos por `Policy::from_env` e não têm
-   consumidor: `recheck.rs` usa `recheck_interval_ms` no `due_at` (`:192-195`,
-   par do `armRecheck` do Node em `src/providers/autofetch-recheck.ts:38`) e a
-   constante `STALL_THRESHOLD = 3` (`:37`, aplicada em `:272`, par de
-   `src/config/debrid.ts:236`).
+   (`adom-debrid/src/autofetch_ports_evict.rs:332`); o lado TS que o contava
+   (`alldebrid-fallback-evict.ts`) saiu na B4, então não há contador par no
+   Node; `evict_step::plan` (`evict_step.rs:175`) e o veto `may_delete`
+   (`:63-73`) também não o conhecem — a porta continua barrando a remoção, mas o
+   contador do painel não vê o motivo.
+4. **Knobs de recheck — resolvidos.** `DEBRID_AUTO_FETCH_SETTLE_MS` e
+   `DEBRID_AUTO_FETCH_STALL_STREAK` agora têm consumidor: o `due_at` usa
+   `policy.recheck_interval_ms` (`recheck.rs:197`) e o passo recebe
+   `stall_threshold` (`recheck.rs:277-279`). O par TS (`autofetch-recheck.ts`)
+   saiu na B4 — não há mais o que comparar.
 5. **Aceitação em produção** com duas contas de serviços diferentes, incluindo
    uma passagem de evicção com o kill-switch ligado e o dreno da represa pelo
    painel.

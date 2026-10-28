@@ -512,10 +512,14 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_ALLOW_ENV_KEY`
 `DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_STALL_STREAK`,
 `DEBRID_AUTO_FETCH_SETTLE_MS`, `DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`,
 `DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`, `DEBRID_AUTO_FETCH_SEASON_FILL`,
-`DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_PREFETCH_NEXT_EP`,
-`DEBRID_PREFETCH_TTL`, `DEBRID_SWEEP_DEAD`, `DEBRID_ACCOUNT_WARN_TOTAL`,
-`DEBRID_ACCOUNT_WARN_LIMIT_USED`, `DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS`,
-`DEBRID_DASHBOARD_ACCOUNT_TTL_MS`.
+`DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_SWEEP_DEAD`,
+`DEBRID_ACCOUNT_WARN_TOTAL`, `DEBRID_ACCOUNT_WARN_LIMIT_USED`,
+`DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS`, `DEBRID_DASHBOARD_ACCOUNT_TTL_MS`.
+
+`DEBRID_PREFETCH_NEXT_EP` e `DEBRID_PREFETCH_TTL` estão **aposentadas** desde a
+leva B4: saíram do código sem leitor no TS nem no Rust, e a nota está em
+[`src/config/debrid.ts`](src/config/debrid.ts), linhas 351-353. Defini-las no
+`.env` não tem efeito.
 
 **Ocupação da conta AllDebrid (Fase 8).** Todos tocam uma conta real; os três
 primeiros são os que apagam.
@@ -538,7 +542,7 @@ entre magnets que ninguém provou serem nossos. Ambos valem só para a conta do
 **operador** (nunca chave BYO de instalação) e ambos dependem de `dropReady` ou
 `dropUncached` estar ativo.
 
-**Paridade Real-Debrid (F1/F2/F5; F3 vem depois):**
+**Paridade Real-Debrid (F1/F2/F3/F5):**
 
 - Governador de escrita (`DEBRID_RD_GATE*`): `DEBRID_RD_GATE` (default `true`;
   `false` restaura o fluxo pré-governador, inclusive gap/cooldown locais da
@@ -589,8 +593,9 @@ Combinação que explica a maior parte das dúvidas de "sumiu o dublado":
 `dc=1` + `bu=0` esconde toda fonte BR fora do cache. Com `ab=1` ela é enviada
 para download assim que aparece — e só fica visível na busca seguinte, já com
 ⚡. Candidatos excedentes entram na fila persistente e downloads mortos são
-substituídos automaticamente pelo próximo da fila. Com `prefetchNextEp=true`,
-pesquisar um episódio já dispara o prefetch em background do próximo (`E+1`).
+substituídos automaticamente pelo próximo da fila. O prefetch do `E+1`
+(`prefetchNextEp`, `DEBRID_PREFETCH_*`) está **aposentado** desde a leva B4 —
+sem leitor no TS nem no Rust, com a nota em `src/config/debrid.ts:351-353`.
 Ligar `bu=1` troca o silêncio inicial por uma entrada P2P visível enquanto o
 download acontece.
 

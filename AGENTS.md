@@ -53,8 +53,10 @@ trabalho de código é em `src/`.
   de títulos** (`matchesBrTitle`, `matchesName`, `short_name_tail`,
   `non_feature_release`), o **ranking** (dedupe + sortAndLimit), o **💾 de
   episódio** (`annotateEpisodeSizes`), a **fonte de mídia do índice**, a
-  **seleção do autofetch** (imediatos e fila; a cascata TS fica só pelos
-  efeitos: sonda, purga, skips, trace) e as decisões de debrid (**`pickFile`**,
+  **seleção do autofetch** (imediatos e fila; o laço e a cascata são do
+  worker nativo desde a B4 — ao TS sobraram a ponte, o painel e o agendamento
+  das varreduras da AllDebrid) e as
+  decisões de debrid (**`pickFile`**,
   **veredito de cache**, **ledger/gate do RD**, **limpeza**) e, desde a ponte da
   F-1, o **fim da busca** (`search_finish`: commit, promoção tardia, SWR), a
   **saída de cada stream** (`play_disposition`), a **via do banco de magnets**
@@ -220,7 +222,8 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
-painel/config e os workers próprios do autofetch (o crawl é do sidecar).
+painel/config e as pontes do Chupim (os efeitos ficaram só com `rd_warmer` e
+`harvester_enqueue`; o crawl é do sidecar).
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
@@ -328,10 +331,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - **Autofetch (Chupim)**: baixa dublado BR quando nada tocável está em cache;
   pools `br > any > seeds`, cobertura por qualidade-alvo, teto por obra,
   recheck com detecção de torrent morto, fila persistente, sonda dirigida
-  `br-probe`, evicção de fallbacks (OFF por padrão). O **worker nativo está no
-  gateway** e liga com `AUTOFETCH_WORKER=on` (o compose liga): a fábrica dos
-  cinco serviços nasce em `autofetch/build.rs` e o cofre de credencial é **RAM**
-  (TTL 6 h, por `adapter:conta`, nada em KV/log). Ver a seção seguinte.
+  `br-probe`, evicção de fallbacks (OFF por padrão). O **corpo TS saiu** (leva
+  B4, 2026-10-28): quem executa é o **worker nativo do gateway**, que liga com
+  `AUTOFETCH_WORKER=on` (o compose liga); a fábrica dos cinco serviços nasce em
+  `autofetch/build.rs` e o cofre de credencial é **RAM** (TTL 6 h, por
+  `adapter:conta`, nada em KV/log). Ver a seção seguinte.
   `hold` **antes** da
   checagem, marker só após o aceite; nunca no caminho da resposta. Hash com
   marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,
@@ -342,12 +346,13 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - Serviço novo: adaptador + entrada em `ADAPTERS`; o seletor da página se
   alimenta sozinho.
 
-## Worker nativo do Chupim (leva C1)
+## Worker nativo do Chupim (leva C1; corte do TS na B4)
 - `AUTOFETCH_WORKER` é o gate único do dono: o compose traz
   `${AUTOFETCH_WORKER:-on}` (`docker-compose.yml:68`), o `.env` da VPS vence a
   interpolação **e** o `env_file`, e `worker_enabled()` aceita SÓ o literal `on`
-  (`rust/crates/adom-server/src/autofetch/mod.rs:128-130`) — `true`/`1`/vazio
-  mantêm o Node como dono.
+  (`rust/crates/adom-server/src/autofetch/mod.rs:128-130`). Desde o corte do TS
+  não existe segundo dono: `true`/`1`/vazio/`off` param o Chupim inteiro e o
+  efeito de trabalho fica sem quem execute — rollback é commit/imagem anterior.
 - Com a trava, o boot monta a fábrica dos cinco serviços
   (`autofetch/boot.rs::production_factory`) e a injeta no laço
   (`boot.rs:103-106`); a chave vem do cofre em RAM, escopo `adapter:sha256`. Sem
@@ -356,24 +361,42 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - Já consome, pelo `kind` do job (`autofetch/serve_jobs.rs:57-65`):
   `autofetch_batch` (enqueue → recheck → dreno), `br_probe` (`probe_job`) e
   `season_key` (`season_step`); a cada passagem, a represa `sup:`
-  (`serve.rs:131` → `suppressed_step`) e a evicção F6 (`serve.rs:149-152`).
+  (`serve.rs:155` → `suppressed_step`) e a evicção F6 (`serve.rs:175-176`).
   Kind desconhecido vira `Skip("unknown-kind")` — não volta ao Node.
-- **Ainda é do Node** (o flip do TS não foi feito): os FATOS que o nativo não
-  produz — marker com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/
-  `adprot` e `pf:` —, o `harvester_enqueue` e o agendamento das varreduras da
-  AllDebrid (`ReadOnly`). O TS do Chupim (`src/providers/autofetch*.ts`,
-  `src/debrid/alldebrid-fallback-evict.ts`) continua dono desses fluxos.
+- **O corpo TS do Chupim SAIU** (leva B4, 2026-10-28), como antes o dos
+  resolvers e o do raspador. Em `src/providers/` o assunto virou **ponte e
+  painel**: `autofetch.ts` (encolhido — reindexação no boot, `markerActive` do
+  `rd-warmer`, `isDeadQuiet` do trace), `autofetch-obra*` (registro F2: o aceite
+  NATIVO grava e o Node lê no resumo do painel), `autofetch-marker.ts` (chave,
+  valor e `forget` do marker — a gravação de produção é do aceite nativo),
+  `autofetch-gate.ts`,
+  `autofetch-keys.ts`, `autofetch-suppressed.ts`, `autofetch-evict.ts` (leitor
+  da prova `er:`: só `hasBrReady`; política e executor são nativos),
+  `utils/autofetch-live*` e
+  `utils/autofetch-trace.ts` (`trace.chupim` e `lastSkips` — **sem escritor
+  desde o corte**: os dois anéis ficam vazios, os números do laço vêm do
+  worker nativo pela admin 8711) e
+  as pontes (`utils/autofetch-native.ts`, `autofetch-state-native.ts`,
+  `rust-autofetch.ts`). A rota `/internal/search/effects` ficou com **dois**
+  kinds executados, `rd_warmer` e `harvester_enqueue`; os três de trabalho
+  (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e somados
+  em `nativeOnly`, sem executor do outro lado.
+- **Ainda é do Node**: `adsub`/`adprot` (marcas de posse e de retenção que o
+  nativo só LÊ), o `harvester_enqueue` e o agendamento das varreduras da
+  AllDebrid (`ReadOnly`). O marker com `obra` e o registro F2 **não** estão mais
+  aqui: o aceite nativo grava os dois (`enqueue.rs:299-316`,
+  `enqueue_obra.rs:294-295`).
 - **Dono por namespace**: fila (`autofetch:v3:q:`), marker (`m:`) e blacklist
   (`dead:`) são escritos pelo worker no KV nativo; a represa `sup:` é escrita e
   drenada no Rust (`recheck_expire.rs` → `SuppressedV3`, `suppressed_step`).
-  `pf:` e `obra:` seguem decisão do Node — o nativo só LÊ o registro da obra
-  (`evict_job.rs:174`) e grava marker sem `obra` (`enqueue.rs:328-336`), então
-  apagar `src/providers/autofetch-obra.ts` degrada a evicção para
-  `evict-no-record`.
-- **Não apague o TS do Chupim antes de fiar o substituto**: passo pronto não é
-  passo consumido, e o efeito aceito pelo canal não volta ao Node (`Deferred`
-  só existe antes do `submit`) — tirar o TS com o ramo faltando apaga trabalho.
-  Ordem segura do corte e o que é rollback: `DEPLOY.md` §8.3 e §8.4.
+  O registro da obra (`autofetch:v3:o:`) é gravado pelo commit nativo
+  (`enqueue_obra.rs:294-295`) e LIDO pela evicção (`evict_job.rs:176-177`);
+  `pf:` hoje só tem construtor de chave, sem escritor
+  (`src/utils/cache-keys.ts:264-266`).
+- **Não reintroduza o TS do Chupim**: o trabalho que o canal aceita não volta ao
+  Node (`Deferred` só existe antes do `submit`), então um "fallback" novo é dono
+  duplicado do mesmo lote. Ordem do corte e o que é rollback: `DEPLOY.md` §8.3 e
+  §8.4.
 
 ## Cache e índice
 
@@ -566,7 +589,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos e o feed de holds (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
 | Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
-| Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6); no Node ficam os FATOS (`obra:`, marker com `obra`, `pf:`) e o painel — `autofetch-*.ts`, `br-probe.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
+| Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710) |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |

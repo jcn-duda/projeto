@@ -36,7 +36,7 @@ services:
       GATEWAY: "on"
       ROUTES_RUST: "stream"
       # Worker NATIVO do Chupim (autofetch do gateway): `on` = o gateway é dono
-      # do canal; `off`/vazio = o Node segue dono — este é o kill-switch.
+      # do canal; `off`/vazio PARA o Chupim — kill-switch, não rollback (sem 2º dono).
       #
       # O default `on` mora AQUI (`${...:-on}`), não no código: `worker_enabled()`
       # no Rust só liga com a env valendo EXATAMENTE `on` (qualquer outro valor,
@@ -60,7 +60,7 @@ services:
       # `EFFECTS_RUST` NÃO é fixado aqui de propósito: o default do código é ON
       # (`stream_config.rs`) e é ele que emite os kinds de trabalho. Desligá-lo
       # não devolve nada ao Node — com o `/stream` nativo ninguém emite, e o
-      # Chupim para inteiro. Rollback do worker é a env acima.
+      # Chupim para inteiro; ela é kill-switch, não rollback (este é commit/imagem).
       #
       # Confira o estado real com `scripts/check-autofetch.sh` (GET /autofetch
       # na admin de loopback 8711): `phase` distingue `active` de `prepared`

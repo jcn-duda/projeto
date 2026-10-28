@@ -74,10 +74,12 @@
       "name": "Chupim",
       "role": "Donzelo do Autofetch",
       "peculiaridade": "Autofetch e dropUncached sao forcas opostas; hold antes da checagem; fila persistente + backoff + stall/dead + season fill.",
-      "focus": "Autofetch: selecao de candidatos, hold antes da checagem, marker, vaga por busca (autoFetchMax 1..12), cobertura por qualidade-alvo (720/1080/4K), fila persistente + surplus, drainNext, recheck/settle, stall/dead streak, season fill, prefetch E+1, backoff.",
+      "focus": "Autofetch: selecao de candidatos, hold antes da checagem, marker, vaga por busca (autoFetchMax 1..12), cobertura por qualidade-alvo (720/1080/4K), fila persistente + surplus, recheck/settle, stall/dead streak, season fill, backoff; o episodio seguinte (E+1) saiu daqui e hoje e do colhedor (`harvester_enqueue`). Executor: worker nativo (`rust/crates/adom-autofetch` + `rust/crates/adom-server/src/autofetch`); o Node so fala com ele pela admin 127.0.0.1:8711 e o corpo TS do Chupim saiu na leva B4.",
       "files": [
         "src/providers/autofetch.ts",
-        "src/providers/autofetch-runner.ts",
+        "src/utils/autofetch-native.ts",
+        "rust/crates/adom-autofetch/src/v3/cascade.rs",
+        "rust/crates/adom-server/src/autofetch/enqueue.rs",
         "rust/crates/adom-search/src/debrid_seam.rs",
         "src/debrid/protected.ts",
         "src/debrid/audio-audit.ts"

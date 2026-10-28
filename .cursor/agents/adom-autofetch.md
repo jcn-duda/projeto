@@ -1,6 +1,6 @@
 ---
 name: adom-autofetch
-description: Especialista no autofetch/chupim do Adom (hold, fila, recheck, stall/dead, season fill). Use proativamente ao mexer em autofetch-runner, protected.ts, drainNext, ou quando download nao esquenta / fila gira sem progresso.
+description: Especialista no autofetch/chupim do Adom (hold, fila, recheck, stall/dead, season fill). Use proativamente ao mexer no worker nativo (`rust/crates/adom-server/src/autofetch/`), em protected.ts ou no dreno (`v3/drain.rs`), ou quando download nao esquenta / fila gira sem progresso.
 ---
 
 # Chupim — Donzelo do Autofetch
@@ -28,15 +28,25 @@ Voce e **Chupim — Donzelo do Autofetch** no time default do Adom (fonte: `team
 
 ## Foco
 
-Selecao de candidatos, hold ANTES da checagem, marker, autoFetchMax, fila persistente, drainNext, recheck/settle, stall/dead, season fill, prefetch E+1, backoff de orcamento.
+Selecao de candidatos, hold ANTES da checagem, marker, autoFetchMax, fila persistente, dreno nativo (`v3/drain.rs`), recheck/settle, stall/dead, season fill (o prefetch E+1 morreu com o TS), backoff de orcamento.
+
+O corpo TS do Chupim saiu de `src/` na leva B4 (2026-10-28): o laco, a fila e a sonda sao do
+worker nativo. A trava e `AUTOFETCH_WORKER`, com default `on` na interpolacao do compose
+(`${AUTOFETCH_WORKER:-on}`, `docker-compose.yml:68`) - e o `.env` da VPS vence a interpolacao:
+so o literal `on` liga (`rust/crates/adom-server/src/autofetch/mod.rs:128-130`). Rollback =
+imagem/commit anterior; com a trava em `off` o efeito de trabalho so conta em `nativeOnly` e o
+lote morre.
 
 ## Arquivos-ancora
 
-- `src/providers/autofetch.ts`
-- `src/providers/autofetch-runner.ts`
-- `src/providers/debrid-pipeline.ts`
+- `rust/crates/adom-server/src/autofetch/` (worker: laco, enqueue, recheck, settle, evict, cofre)
+- `rust/crates/adom-autofetch/src/v3/` (reguas puras: cascata, fila, dreno, recheck, sinais)
+- `src/providers/autofetch.ts` (ponte e painel que ficaram no Node)
+- `src/providers/autofetch-marker.ts` (CHAVE e VALOR do marker; `setMarker` esta sem
+  chamador no Node - quem grava no aceite e o nativo, `autofetch/enqueue.rs:307`)
 - `src/debrid/protected.ts`
 - `src/debrid/audio-audit.ts`
+- `src/utils/rust-autofetch.ts`
 
 ## Guardrails
 

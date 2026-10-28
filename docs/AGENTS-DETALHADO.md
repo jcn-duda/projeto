@@ -1282,8 +1282,9 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   vaga; pool sem nenhuma faixa-alvo cai no pick clássico, senão fonte BR sem
   resolução no título deixaria de ser esquentada. Consequência de dimensionamento:
   são no máximo 3 candidatos, então com `autoFetchMax=3` (default) `immediate`
-  consome todos e a **fila persistente do pool BR nasce vazia** — o `drainNext`
-  não tem o que drenar quando um torrent morre. Com `autoFetchMax` menor (preset
+  consome todos e a **fila persistente do pool BR nasce vazia** — o dreno
+  (`rust/crates/adom-autofetch/src/v3/drain.rs`) não tem o que drenar quando um
+  torrent morre. Com `autoFetchMax` menor (preset
   Conservador) a fila volta a receber os excedentes;
 - hold **por candidato imediato, antes** da checagem; marker só depois do aceite;
 - recheck em fundo (`DEBRID_AUTO_FETCH_RECHECK_MS`) com detecção de **torrent
@@ -1292,14 +1293,14 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
   (`autofetch:v3:dead:`) e drenam automaticamente o próximo item da fila (`takeNext`),
   respeitando o orçamento horário (`DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR` ou
   `adapter.enqueueHourlyLimit`). **Orçamento cheio não é recusa do torrent**:
-  o `drainNext` pausa a drenagem daquele `adapter:conta` por
+  o dreno nativo pausa a drenagem daquele `adapter:conta` por
   `DEBRID_AUTO_FETCH_DRAIN_BACKOFF_MS` (60s) em vez de reenfileirar a mesma
   cabeça e reprocessá-la a cada recheck — o giro infinito era bug real;
 - downloads lentos migram para o ciclo de **settle** (`DEBRID_AUTO_FETCH_SETTLE_MS`)
   até o TTL (`autoFetchTtl`), limitado por LRU (`DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`);
-- **prefetch de série**: ao pesquisar um episódio de série com debrid ativo,
-  dispara em background a busca do próximo episódio (`E+1`), dedupado por
-  `autofetch:v3:pf:` com TTL de 12h;
+- **prefetch de série** — **morto**: o Node disparava em background a busca do
+  `E+1` dedupada por `autofetch:v3:pf:` (TTL 12h); hoje a chave só tem formato
+  (`adom-autofetch/src/v3/mod.rs:132-134`, `prefetchKey` sem chamador);
 - nunca entra no caminho da resposta — erro só vira log.
 
 **`torrentStatus` é honesto por serviço, como o `cacheCheck`.** O recheck pede a
@@ -1357,9 +1358,10 @@ delete. A idade mínima é `DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`
 (default 30 min), configurada em `src/config/debrid-evict.ts` (bloco extraído
 do compositor pela catraca de linhas, como `debrid-reconcile.ts`).
 
-A política vive em `src/providers/autofetch-evict.ts` (chamada fire-and-forget
-no ramo `ready` do `runRecheck`, com coalescing por `adapter:account:obra`) e só
-remove quando TODAS as provas existem: o BR ready está no registro F2
+A política **viveu** em `src/providers/autofetch-evict.ts` (**sem chamador no Node
+desde a B4** — quem decide e apaga é o passo nativo `evict_job.rs`/`evict_step.rs`;
+o painel lê `hasBrReady`) e só removia quando TODAS as provas existiam: o BR
+ready está no registro F2
 (`autofetch-obra`) como pool `br`+`dubbed`; o candidato está no MESMO registro
 com pool `any`/`seeds`; o marker do Chupim está no formato NOVO (`markerValue`
 com `{pool, obra, acceptedAt, title, br, dubbed}`, `obra` = digest seguro da
@@ -1383,7 +1385,9 @@ para sempre. Sem prova BR ready, ready de fallback é no-op (`ready-not-br`).
 
 A última milha é o executor `src/debrid/alldebrid-fallback-evict.ts`
 (`adapter.evictFallbacks?`, método OPCIONAL do registry, irmão do `-evict.ts` do
-8.16): lê o `/magnet/status` autoritativo, exige `id`+`filename` REAIS, barra
+8.16) — **saiu na leva B4**; quem apaga hoje é o passo nativo `evict_job.rs`, e o
+método do `DebridAdapter` ficou sem implementação de propósito. O que aquele
+executor exigia continua valendo como régua:
 filename com `brOriginMark` (a mesma blindagem destrutiva do `sweepUndubbed`) e
 apaga pelo gate GLOBAL `deleteMagnets` (fila serializada por conta, retry de
 503) — **é proibido** `adapter.removeTorrent` nesse caminho. Só o que saiu de
@@ -1402,12 +1406,30 @@ Métricas `autofetch.evict.removed`, `autofetch.evict.brReady` e
 (`ready-not-br`, `no-hint`, `no-fallback`, `overflow`, `marker-missing`, `no-ownership`,
 `held`, `protected`, `too-young`, `coalesced`; do executor: `status-error`,
 `not-in-account`, `no-id`, `no-filename`, `br-name`, `no-upload-date`, `readded`,
-`delete-failed`). Limitação residual: o fallback que continua held até o TTL
+`delete-failed`). **Removidos na B4**: nenhum emissor de `autofetch.evict.*` existe
+em `rust/` (sobra só a citação de proveniência em
+`adom-autofetch/src/v3/evict.rs:63-64`) — o passo devolve o `PassReport`
+(`requested`/`removed`/`marked`/`skips`/`errors`, `autofetch/evict_job.rs:112-121`)
+com os motivos do crate
+(`no-br-proof`, `pool-br`, `overflow`, `other-work`, `no-ownership`, `held`,
+`br-retained`, `protected`, `no-accepted-at`, `too-young`, `veto`, `duplicate`,
+`over-limit`, `no-transfer-id`, `no-name`, `not-attempted` —
+`adom-autofetch/src/v3/evict.rs:66-116`) prefixados `evict-` (`evict_job.rs:129-134`)
+mais `evict-off`/`evict-ownership-off`/`evict-no-marker`/`evict-no-record`/
+`evict-no-br-proof`/`evict-budget` do próprio passo (`:148`, `:155`, `:165`, `:187`,
+`:205`, `:173`); os nomes acima são a taxonomia histórica do TS.
+Limitação residual: o fallback que continua held até o TTL
 (ou que nunca fica ready) não é reavaliado depois que a prova BR-ready expira
 com a janela — a próxima busca recomputa o registro e a evicção volta a valer.
-Coalescing é por `adapter:account:obra`: duas obras distintas rodam em paralelo
-(por desenho). Teste:
-`test/autofetch-evict.test.ts`; o executor já tinha prova em
+**Removidos na B4**: o coalescing por `adapter:account:obra` (`runCoalesced`) e o
+teste `test/autofetch-evict.test.ts` (com o harness) saíram de `src/`/`test/`.
+No nativo a passagem percorre as obras do lote em série e o teto da rodada é
+compartilhado (`autofetch/evict_job.rs:170`, `:171`, `:240`); repetição e teto
+saem rotulados (`duplicate`/`over-limit`, `evict_step.rs:263`, `:288`). A
+cobertura é nativa: `evict_job_tests.rs`, `evict_job_tests_owner.rs`,
+`evict_job_tests_rules.rs` (as regras lidas do KV no passo) e
+`evict_step_tests.rs`, mais o golden de 29 casos
+`rust/golden/autofetch-evict-step.jsonl`; o executor segue com prova em
 `test/alldebrid-evict.test.ts` + `test/alldebrid-delete-gate.test.ts`. F7 fará o
 painel completo.
 
@@ -1425,13 +1447,17 @@ o campo `chupim` do `/stream-trace.json`:
   Módulo: `src/providers/autofetch-obra-summary.ts`.
 - **`chupim` (ledger do trace).** Resumo de UMA linha do autofetch daquela
   build, gravado por `setTraceChupim` nos dois pontos de decisão (seleção em
-  `autofetch-candidates.ts`; despacho em `autoFetchBrDubbed`) e serializado no
-  MESMO payload do trace: `pool=br|any|seeds|none; seeds=allowed|blocked:<motivo>|n/a;
+  `autofetch-candidates.ts`; despacho em `autoFetchBrDubbed`) — **os dois saíram
+  na B4**: hoje não há escritor de `chupim` em `src/` nem no Rust, então o campo
+  não é produzido e o painel mostra lista vazia por falta de fonte. O formato
+  histórico, serializado no MESMO payload do trace, era:
+  `pool=br|any|seeds|none; seeds=allowed|blocked:<motivo>|n/a;
   probe=pending|found|empty|failed|capped|off` — nunca hash/imdb/conta. Estado
-  da sonda é leitura quiet (`probeState` em `br-probe.ts`; `pending` com lease
+  da sonda é leitura quiet (`probeState`, que vivia em `br-probe.ts` — o módulo
+  saiu na B4 e o estado passou a ser do laço nativo; `pending` com lease
   vencido sai como `failed`). Entrada antiga sem o campo segue servindo e
-  `STREAM_TRACE=false` não grava nem devolve. Módulo:
-  `src/providers/autofetch-chupim-trace.ts`.
+  `STREAM_TRACE=false` não grava nem devolve. O módulo que montava o resumo
+  (`src/providers/autofetch-chupim-trace.ts`) **saiu na B4**.
 
 **Painel e configuração ao vivo do chupim (`src/utils/autofetch-live.ts`).**
 Configuração em nível de **operador** (afeta a conta de debrid do operador,
@@ -1514,7 +1540,8 @@ warmer drena; sobe warmer só sem 429/quota e com conta abaixo do teto). A 3.3 *
 tuning sozinha** — nenhum knob dela ajusta nada automaticamente. Nunca subir a colheita além do que o
 warmer absorve — fila `rdq` crescendo é backlog, não valor.
 
-**Fase 4 revisada — sonda dirigida (`src/providers/br-probe.ts`).** Quando o pool BR do Chupim fica
+**Fase 4 revisada — sonda dirigida (`src/providers/br-probe.ts`, removido na B4;
+o porte vive em `autofetch/probe_job.rs` + `probe_step.rs`).** Quando o pool BR do Chupim fica
 vazio (não existe BR dublada, ou todas foram cortadas pelo piso de seeders/viabilidade), a cascata caía
 direto no pool de melhores sementes — enquanto o dublado podia existir nos index-only BR, que não entram
 pela busca viva. A sonda procura esse BR **antes** de liberar seeds, mas **não cria um segundo worker
@@ -1543,7 +1570,7 @@ publica por consulta `responded: true` para resposta VÁLIDA (HTTP + envelope do
 consultado). O modo dirigido conta `responded` e só finaliza `empty` com `responded > 0`; sem nenhuma
 resposta real, `failed` (retry curto) — nunca `empty` por falha engolida.
 
-Estado/orquestração vive em `br-probe.ts` (nenhuma rede): identidade GLOBAL por obra
+Estado/orquestração vivia em `br-probe.ts` (nenhuma rede; o módulo saiu na B4): identidade GLOBAL por obra
 `<type>:<imdbId>:<season>:<episode>` (filme sem S/E; série por episódio), chave
 `autofetch:v3:probe:<sha256>` — **sem config, conta ou segredo**. Estados `pending`/`found`/`empty`/
 `failed`/`capped` com timestamps. **Só `pending`** (lease curto de 10min, órfão por crash expira sozinho)
@@ -1597,10 +1624,10 @@ painel, aba `[Chupim]`); TTL estático `BR_PROBE_TTL_S` (default 43200). Exige
 `RELEASE_INDEX=true` e interseção não vazia — desligado não agenda nem bloqueia. Métricas
 `autofetch.brProbe.run/transition/found/empty/failed/capped/skipped.<motivo>`,
 `scheduled.<upgrade|evidence>`, `found.unviable`, `orphan`, `coalesced` e histogramas
-`autofetch.brProbe.ms` / `runWaitMs` (idade scheduled→run). Testes: `test/br-probe.test.ts`
-(estado/política), `test/br-probe-worker.test.ts` (observabilidade/partial/tick),
-`test/br-probe-viability.test.ts` (C4 encontro viável + C8 coalescing) e
-`test/br-probe-fallback.test.ts` (fallback persistido/packs/call sites).
+`autofetch.brProbe.ms` / `runWaitMs` (idade scheduled→run). O estado e a
+política da sonda são do laço nativo (`autofetch/probe_job.rs`,
+`probe_step.rs`); os testes TS do `br-probe.ts` (`test/br-probe*.test.ts`)
+saíram junto com o módulo na B4.
 
 **Teto por OBRA no dreno (Fase 2 / C10 / C11).** O candidato que o cap da obra fecha NESTA janela é
 **deferido** — permanece na fila (`autofetch.drain.obra-cap-deferred`) enquanto a seleção procura outro
@@ -1610,7 +1637,9 @@ apenas quando o candidato é faixa-alvo AUSENTE no registro F2 e superior ao pio
 `quality` por entrada; `overflow:true` marca a extra e limita a uma por janela). Não remove magnet antigo
 nem finge que foi removido; sem qualidade registrada o overflow degrada para conservador (não concede).
 
-**Fase 3 revisada — progresso real da AllDebrid (`src/providers/autofetch-progress.ts`).** A AllDebrid não
+**Fase 3 revisada — progresso real da AllDebrid (régua nativa em
+`rust/crates/adom-autofetch/src/v3/recheck.rs`; o `autofetch-progress.ts` do Node
+saiu na B4).** A AllDebrid não
 publica `stalled`/dead objetivo por item, então o lote ficava "downloading" até o TTL sem repor nada quando a
 parada não era detectável. A medição read-only do `/magnet/status` (2026-09-15) confirmou os campos reais:
 `downloaded` (bytes), `size` (total, sempre presente), `downloadSpeed`/`uploadSpeed` (bytes/s), `seeders` e
@@ -1780,14 +1809,13 @@ recheck, o laço, o painel do worker, o `dub_audit`, o `rd_warmer` (sonda com
 chave do cofre e ledger `rdc:v2`) e o **executor** das quatro varreduras da
 AllDebrid (decisão pura + `apply_plan` com `may_delete` fail-closed).
 
-Continua no Node (ver a subseção seguinte): os FATOS que o nativo não produz —
-marker com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/`adprot` e
-`pf:` —, o `harvester_enqueue` e o agendamento das varreduras da AllDebrid
+Continua no Node (ver a subseção seguinte): `adsub`/`adprot` (marcas de posse e
+retenção que o nativo só LÊ), o `harvester_enqueue` e o agendamento das
+varreduras da AllDebrid
 (`ReadOnly`). Sonda, Season Pack Fill, represa e evicção **saíram** dessa lista
 na leva C1 — e o despacho por `kind` (`serve_jobs.rs:57-65`) é o que as liga ao
-canal: `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`. O flip B4 (apagar o TS) não foi
-feito; o corte é decisão posterior e tem ordem própria em `DEPLOY.md` §8.4
-(prova do worker → busca real → remoção → rollback por imagem).
+canal: `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`. O corte do TS do Chupim foi
+**executado** na leva B4 (2026-10-28): ver "Corte do TS do Chupim" abaixo.
 
 #### Leva C1 — o que o worker nativo já consome (2026-10-28)
 
@@ -1809,15 +1837,16 @@ feito; o corte é decisão posterior e tem ordem própria em `DEPLOY.md` §8.4
   BR, marker de outra obra e `overflow`) + `evict_job.rs` (produção: lê os fatos
   do KV e grava o `adrm`). `mod evict_step;` está declarado
   (`autofetch/mod.rs:55-56`) e `serve.rs::timers` chama a passagem com teto por
-  RODADA (`evict_left = gates.max_per_run`, `:149-152`). A porta `evict` só
+  RODADA (`evict_left = gates.max_per_run`, `:175-176`). A porta `evict` só
   existe na AllDebrid (`adom-debrid/src/autofetch_ports_evict.rs`) e o
   kill-switch nasce OFF (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, com
   `DEBRID_AL_CLEANUP_KILL` por cima); `may_delete` vale nas DUAS camadas.
-- **Despacho por `kind`** — `serve_jobs.rs::Engine::batch` (`:57-64`) roteia
+- **Despacho por `kind`** — `serve_jobs.rs::Engine::batch` (`:57-65`) roteia
   `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`; `Job.kind` viaja no canal
   (`enqueue.rs:46-57`, `tail_effects.rs:63-70`) e kind desconhecido vira
   `Skip("unknown-kind")`. `br_probe` sem colhedor é recusado no `submit`
-  (`mod.rs:99-101`) e volta ao Node — não morre na fila.
+  (`mod.rs:99-101`) e segue ao Node — que, depois do corte do TS, não aceita mais
+  o kind: não fica na fila, mas também não é executado.
 - **Sonda `br_probe`** — `probe_job::run` → `probe_step::{plan,execute}`: alvo
   index-only ∩ pt-BR, KV `autofetch:v3:probe:<sha256>`, `pending` só depois de a
   fila do colhedor confirmar; `BR_PROBE_TTL_S` lido a cada job e lease com piso
@@ -1840,30 +1869,54 @@ feito; o corte é decisão posterior e tem ordem própria em `DEPLOY.md` §8.4
 | Divergência/risco | Efeito |
 |---|---|
 | **divergência conhecida** — `cache_check_honest` estático para RD (`season_fill.rs:114`) x `cacheCheck` dinâmico no Node (`src/debrid/registry.ts:66`) | lote de RD nunca preenche: falha fechada, cobertura menor que o TS |
-| **divergência conhecida** — `readded` só na porta (`autofetch_ports_evict.rs:332`) x `alldebrid-fallback-evict.ts:114`; ausente de `evict_step::plan` (`evict_step.rs:175`) e do veto `may_delete` (`:63-73`) | anti-re-add não aparece no contador do plano/painel |
+| **divergência conhecida** — `readded` só na porta (`autofetch_ports_evict.rs:332`); o lado TS que o contava (`alldebrid-fallback-evict.ts`) saiu na B4; segue ausente de `evict_step::plan` (`evict_step.rs:175`) e do veto `may_delete` (`:63-73`) | anti-re-add não aparece no contador do plano/painel |
 | **resolvida** — `DEBRID_AUTO_FETCH_SETTLE_MS`/`_STALL_STREAK` agora têm consumidor: `due_at` escolhe o intervalo pelo modo do lote (`recheck.rs:193-198`) e o passo recebe `stall_threshold` (`recheck.rs:277-279` → `adom-autofetch/src/v3/recheck.rs:66-88`) | os dois knobs voltam a mover o laço; `.env.example` não os lista mais como "não lidas" |
 | **divergência conhecida** — `env_flag` da sonda faz `trim()` (`probe_job.rs:104`) x régua sem `trim` do pool (`enqueue_gates.rs:109-117`) e do Node (`String(env \|\| 'true') === 'true'`) | `AUTOFETCH_BR_PROBE=" true "` liga a sonda e desliga os pools |
-| marker sem `obra` no `enqueue` nativo (`enqueue.rs:331`) e registro F2 escrito pelo Node | sem o Node a evicção é `evict-no-marker`/`evict-no-record` |
-| **divergência conhecida** — `is_pack` derivado do título (`season_fill.rs:119-122`) x booleano persistido no Node (`src/providers/autofetch-lot-state.ts:7`) | lote escrito pelo Node sem `title` cai em `not-pack` |
+| **resolvida** — o marker do aceite nativo passou a carregar `obra` (`enqueue.rs:299-316` via `obra::marker_meta`) e o registro F2 é gravado no próprio commit (`enqueue_obra.rs:294-295`) | a evicção não depende mais do Node para `evict-no-marker`/`evict-no-record` |
+| **resolvida pelo corte** — `is_pack` derivado do título (`season_fill.rs:119-122`) x booleano persistido no Node (`autofetch-lot-state.ts`, removido na B4) | não há mais escritor de lote no Node: o lote que o nativo lê é o dele |
 
 Nenhuma das divergências de paridade foi resolvida lendo o código: o nativo é
 fail-closed em todas (não preenche, não apaga, não aceita), então o custo é
 cobertura menor — nunca perda de acervo. A exceção é o `trim()` do
 `AUTOFETCH_BR_PROBE`, que LIGA a sonda onde os pools ficam desligados.
 
-Fatos que o nativo NÃO produz — o motivo de o flip B4 não ter acontecido: marker
-com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/`adprot`, `pf:` e o
-`harvester_enqueue`. O agendamento das varreduras da AllDebrid segue `ReadOnly`
-até as provas por linha.
+Fatos que o nativo NÃO produz — e que por isso continuam no Node depois do
+corte: `adsub`/`adprot` (marcas de posse e retenção que o nativo só LÊ) e o
+`harvester_enqueue`. O marker com `obra` e o registro F2
+`autofetch:v3:o:<digest>` saíram dessa lista: o aceite nativo grava os dois
+(`enqueue.rs:299-316`, `enqueue_obra.rs:294-295`) e a ponte napi grava o mesmo
+marker. O agendamento das varreduras da
+AllDebrid segue `ReadOnly` até as provas por linha.
 
-**Regra: não apague o TS do Chupim antes de fiar o substituto.** Passo escrito
-não é passo consumido: o efeito aceito pelo canal **não volta** ao Node
-(`Deferred` só existe antes do `submit`), então remover o TS com o ramo do laço
-faltando transforma trabalho em silêncio. A ordem é sempre (1) o ramo em
-`serve.rs` com teste, (2) o efeito deixando de chegar ao Node por medição, (3)
-só então apagar o TS. O checklist operacional está em `DEPLOY.md` §8.4; o
-degrau 1 do rollback (env) deixa de valer depois do corte, porque
-`AUTOFETCH_WORKER=off` fica sem quem execute o efeito — aí o rollback é imagem.
+#### Corte do TS do Chupim (leva B4, 2026-10-28)
+
+O corpo TS do Chupim **saiu**: os **19** arquivos da classe (a) — cascata e pools
+(`autofetch-candidates|seeds-pool|policy|fallback`), laço e fila
+(`autofetch-runner|batch|drain|recheck|settle|expired|terminal`), estado do lote
+(`autofetch-index|lot-state|progress|season-index`), os portões do lote
+(`autofetch-gates`), a sonda (`br-probe.ts`) e o resumo do trace
+(`autofetch-chupim-trace.ts`) — mais a evicção de fallback do
+AllDebrid (`alldebrid-fallback-evict.ts`) saíram de `src/`;
+`services.autofetchRunner` saiu do registro de serviços e `evictFallbacks` saiu
+de `alldebrid.ts`. O método opcional do `DebridAdapter` fica **sem
+implementação de propósito**: `autofetch-evict.ts` lê a ausência e não tenta
+outra via, então nada é apagado por omissão. A ponte
+`/internal/search/effects` ficou com dois kinds EXECUTADOS, `rd_warmer` e
+`harvester_enqueue`; os três de trabalho (`autofetch_batch`, `br_probe`,
+`season_key`) são aceitos na forma e somados em `nativeOnly`, sem executor do
+outro lado (`internal-search-effects.ts:50-52`, `:148-151`).
+
+Por que o corte pôde ser feito: o `docker-compose.yml` traz
+`AUTOFETCH_WORKER: "${AUTOFETCH_WORKER:-on}"` (o `.env` da VPS vence) e o laço nativo despacha os três
+kinds por `Job.kind` — lote, sonda e season —, de modo que o TS só recebia o
+efeito quando o canal recusava. Manter os dois era manter dois donos do mesmo
+lote.
+
+Rollback: **imagem/commit anterior**. `AUTOFETCH_WORKER=off` deixou de ser
+rollback — desliga o laço e o efeito de trabalho segue ao Node, onde a forma é
+aceita, o `kind` só soma em `nativeOnly` e nada executa (o lote morre; o 202
+volta com `nativeOnly` e sem `rejected`). O degrau de
+env do `DEPLOY.md` §8.3 saiu junto com o TS; o checklist de medição é o §8.4.
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou
@@ -3181,25 +3234,26 @@ fire-and-forget) continua.
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
 | `src/routes/public.ts` / `diagnostics.ts` / `stream-trace.ts` / `internal-resolve.ts` | `makePublicHandlers` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/painel` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`); `registerInternalResolve` (fatos e efeitos do play nativo) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
-| `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
+| `src/routes/origin.ts` / `async.ts` / `types.ts` / ~~`state.ts`~~ | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `AppServices`/`HandlerFactory`. ~~`state.ts`~~ (`prefetchInFlight`) **removido na B4**: era um `Set` registrado no ctx que nenhum handler populava nem lia, e saiu do contrato junto (`routes/types.ts:73`) |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |
 | `src/config.ts` | Padrões do operador: todo `process.env` vira config **aqui** |
 | `src/runtime.ts` | Config por usuário: schema, encode/decode/selo da URL, `opts()`, `capture()`/`run()` |
 | `src/br-resolvers.ts` | Carrega os oito profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
-| `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot do Chupim), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
+| `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot **parcial** do Chupim depois do corte — config ao vivo, pausa, obras do F2 e `lastSkips`, que fica VAZIO desde a B4 por falta de escritor; os lotes vêm do worker pela admin 8711), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
 | ~~`src/providers/crawl-identify.ts`~~ | **Removido na T3-L3** (`54209dc8`). A identificação é nativa: `TmdbCatalog` (`adom-crawl/src/ingest/native.rs`) liga `adom_sources::identify`/`get_titles` à costura `ObraCatalog`, e o sidecar grava a página no próprio processo |
 | ~~`src/providers/collect-orchestrator.ts`~~ | **Removido no R5.** A coleta é nativa (cinco fontes + conta); `POST /internal/search/collect` e `NodeCollector` saíram. `collection-budget`/`collection-window`/`source-selection` e `stream-file-evidence` foram junto |
 | ~~`src/providers/search-index-path.ts`~~ | **Removido no R4.** Índice/banco têm dono único no Rust; `POST /internal/search/index|index-write|fallback` saíram |
 | ~~`src/providers/magnet-bank-instant.ts`~~ | **Removido no R4.** Instantânea/reserva 📦 e a leitura do índice são nativas (`adom-search/orchestrator/fast_path.rs`, `index_source.rs`, `native_index.rs`) |
 | `src/providers/debrid-cache-steps.ts` / `episode-size.ts` | Etapas de debrid que sobreviveram ao corte (pré-checagem, anotação de tamanho) — consumidas pelo oráculo e pelo autofetch. O `dub-audit.ts` saiu na T3-L7a (nativo em `adom-server/src/dub_audit.rs`) |
 | ~~`search-cache`/`search-orchestrator`/`stream-builder*`/`debrid-pipeline*`~~ | **Removidos no F4.4.** `applyDebrid`/`play-guard` vivem em `test/helpers/pipeline-oracle/` como oráculo congelado; a decisão de produção é do núcleo Rust |
-| `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
+| ~~`src/providers/autofetch-{runner,candidates,batch,drain,recheck,settle,expired,terminal,index,lot-state,progress,season-index,seeds-pool,policy,gates,fallback}.ts`~~ | **Removidos na B4.** Cascata, fila, recheck, settle, pools, portões e sonda são do worker nativo (`adom-server/src/autofetch/`); a ponte `/internal/search/effects` ficou com `rd_warmer` e `harvester_enqueue`. Ver "Corte do TS do Chupim" |
+| ~~`src/providers/br-probe.ts`~~ / ~~`src/debrid/alldebrid-fallback-evict.ts`~~ | **Removidos na B4.** A sonda é `autofetch/probe_job.rs` (`Job.kind = br_probe`) e a evicção de fallback é o passo nativo `evict_job.rs` |
 | `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
-| `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |
+| `src/providers/autofetch-evict.ts` | **Só leitura da prova** BR-ready (`autofetch:v3:er:<digest>`), via `hasBrReady`, para o painel. A política e o executor saíram na B4 (passo nativo `evict_job.rs` + régua `evict_step.rs`, com os testes em `evict_job_tests*.rs`); o `adapter.evictFallbacks` ficou sem implementação de propósito, nada é apagado por omissão |
 | `src/providers/autofetch-obra-summary.ts` | Resumo por obra do teto F2 para o painel (Fase 7): `keysMatching`+`peek` quiet sobre `autofetch:v3:o:`, digest de 12 chars, pools `{br, any, seeds}`, prova BR-ready e idade; nunca expõe identidade |
-| `src/providers/autofetch-chupim-trace.ts` | Resumo do Chupim no trace (Fase 7): monta `pool=…; seeds=…; probe=…` e grava via `setTraceChupim` nos pontos de decisão; enums fechados, sem hash/imdb/conta |
+| ~~`src/providers/autofetch-chupim-trace.ts`~~ | **Removido na B4.** Montava `pool=…; seeds=…; probe=…` e gravava via `setTraceChupim` nos pontos de decisão que também saíram; hoje não há escritor do campo `chupim` do trace (o anel `utils/autofetch-trace.ts` fica vazio) |
 | `src/providers/search-plan.ts` | **APAGADO (Fase 5)**: o plano de queries mora no núcleo Rust (`adom-search::search_plan`) |
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | **APAGADO (Fase 5)**: fila, freio de atividade, teto horário e drain são do gateway (`adom-harvest` + `adom-server::harvest`); o Node tem só a ponte `src/utils/harvest-native.ts` |
@@ -3232,7 +3286,7 @@ fire-and-forget) continua.
 | `src/debrid/file-selector.ts` | Seleção de arquivo no play: `pickFile`/`pickWorkFile`, `workCoverage`, `baseName`, erros (`WorkPickError`/`EpisodePickError`/`NoVideoError`/`DubLieError`) — extraído em 5.2, `common.ts` reexporta |
 | `src/debrid/common.ts` | `magnetFor`/`magnetForPlay` (URI rica do banco via `magnet-bank.lookup`, com fallback ao magnet padrão), fetch JSON, lotes, `AuthError`/`QuotaError` — reexporta o file-selector |
 | `src/debrid/protected.ts` | Hashes protegidos da limpeza durante o autofetch |
-| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família: `alldebrid.ts` é fachada; `-api`, `-check`, `-inventory`, `-cleanup`, `-reupload`, `-evict`, `-fallback-evict`, `-reconcile`, `-suppressed-revalidate` (terminal autoritativo de BYO) e `-play` separam consulta, posse e caminhos destrutivos |
+| `src/debrid/alldebrid*.ts` | A AllDebrid não é um arquivo, é uma família: `alldebrid.ts` é fachada; `-api`, `-check`, `-inventory`, `-cleanup`, `-reupload`, `-evict`, `-reconcile`, `-suppressed-revalidate` (terminal autoritativo de BYO) e `-play` separam consulta, posse e caminhos destrutivos. O `-fallback-evict` saiu na B4 — a evicção F6 é o passo nativo `evict_job.rs` |
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/stream-display.ts` | Coluna estreita do `name` do Stremio (`streamDisplayName`), com o selo `📦`/`👤 ~N` do fallback do banco; extraído de `search-names.ts` pela catraca |

@@ -239,6 +239,15 @@ depois do save reconstrói a fila, não o número de falhas.
 isentos retirados do subset da sonda; é lida em `drain_shape.rs`, fora do
 `HarvestConfig`.
 
+Régua final dos dois knobs (o oráculo é `src/config/jackett.ts:146` +
+`src/config/helpers.ts:12-18`): `JACKETT_INDEX_ONLY_INDEXERS` é `env || default`
+— ausente/`""` → **default**, e `"   "` (só espaços) é TRUTHY no Node, logo
+**lista VAZIA** (nunca o default). `JACKETT_LIVE_EXEMPT_INDEXERS` é `??` —
+ausente → default, `""`/`"   "` → kill-switch (lista vazia). As três portas Rust
+são `drain_shape.rs:37-61`, `adom-search/src/orchestrator/jackett_collector_env.rs:25-40`
+e `stream_config.rs:192`; o teste de paridade entre as duas primeiras vive em
+`drain_shape.rs` (`regua_das_envs_igual_ao_adom_search`).
+
 `BR_PROBE_TTL_S` (default `43 200` s) é o TTL do registro da sonda, lido pelos
 dois lados: `probe_job.rs:49-50` no worker e `br_probe_ttl_seconds()` no
 colhedor. O `pending` nunca nasce com prazo menor que o lease de 10 min.

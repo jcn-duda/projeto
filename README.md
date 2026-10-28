@@ -349,7 +349,7 @@ stremio adom/
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
 │   │   ├── index.ts          # fachada: autofetchStatus + cobertura de pool
-│   │   ├── autofetch-runner.ts    # fila, holds, recheck
+│   │   ├── autofetch.ts      # Chupim: ponte e painel (o download é do worker nativo)
 │   │   ├── indexer-status.ts # status por indexer do card
 │   │   ├── jackett-catalog.ts # catálogo vivo do Jackett
 │   │   ├── mico.ts           # card virtual de indexer (fora do Jackett)

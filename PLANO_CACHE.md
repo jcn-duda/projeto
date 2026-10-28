@@ -33,8 +33,8 @@ são hit. Esse virou o argumento mais concreto do Fase 1.
 1. **A cota `raw1: 3000` estoura a memória do container.** Medido num resultado
    real do therarbg: **862 bytes por item**. Com o teto de 250 itens da v2, cada
    entrada chega a 210 KB e 3000 entradas cheias são **~616 MB** no L1 (que é um
-   `Map` em memória, [cache.js:6](src/utils/cache.js:6)). O container inteiro tem
-   `mem_limit: 3g` ([docker-compose.yml:63](docker-compose.yml:63)) e divide isso
+   `Map` em memória, [cache.ts:27](src/utils/cache.ts:27)). O container inteiro tem
+   `mem_limit: 3g` ([docker-compose.yml:123](docker-compose.yml:123)) e divide isso
    com Jackett e FlareSolverr. Correção: teto de **120 itens** e cota **800** →
    pior caso ~79 MB, caso realista (~40 itens/entrada) ~26 MB.
 2. **`MAX_ENTRIES: 21000` contradiz a própria justificativa.** O comentário do
