@@ -1,6 +1,7 @@
 import type express from 'express';
 import type { AppServices } from './types.js';
 import { maxFromBody } from './dashboard-actions-shared.js';
+import { autofetchEffectApplied, drainSuppressedAutofetch } from '../utils/autofetch-native.js';
 
 /**
  * Ações da fila de remoções represadas (autofetch-suppressed.ts) — a porta
@@ -15,6 +16,14 @@ import { maxFromBody } from './dashboard-actions-shared.js';
  * cobre também contas de instalações de usuário, e por isso a resposta
  * devolve `elegiveis`/`restantes` para a diferença ficar visível, não
  * escondida. Nada de credencial, hash de conta ou infoHash no payload.
+ *
+ * Fase B: o dreno tenta a admin do gateway primeiro (`POST
+ * /autofetch/suppressed-drain`). Enquanto o worker nativo estiver desligado ele
+ * responde `effect:'none'` e o caminho da conta do operador continua sendo o
+ * que age; quando o worker aplicar de fato, ele é o dono e a conta deixa de ser
+ * pré-requisito (o número por conta não existe lá, então `elegiveis`/
+ * `restantes` vão `null` em vez de um zero inventado). A LEITURA (`-get`) segue
+ * só no Node: a admin não publica a fila represada.
  */
 
 type ActionDeps = {
@@ -60,6 +69,13 @@ export const autofetchSuppressedGet: SuppressedAction = ({ services, res, action
 
 /** Dreno sob comando: DESTRUTIVA (confirm checado pelo despacho) e limitada. */
 export const autofetchSuppressedDrain: SuppressedAction = async ({ services, req, res, action }) => {
+  const native = await drainSuppressedAutofetch();
+  if (autofetchEffectApplied(native)) {
+    const removidas = native?.drained ?? 0;
+    services.metrics.count('dashboard.autofetch.suppressed.drain', removidas);
+    services.log.info(`[dashboard] fila represada drenada pelo worker nativo: ${removidas} transferência(s) apagada(s)`);
+    return res.json({ ok: true, action, elegiveis: null, removidas, restantes: null, source: 'gateway', gateway: native });
+  }
   const resolved = services.harvesterDebrid.resolveQuota();
   if (!resolved) return semContaOperador(res, action);
   const account = services.accountScope(resolved.apiKey);
@@ -75,5 +91,5 @@ export const autofetchSuppressedDrain: SuppressedAction = async ({ services, req
   services.log.info(
     `[dashboard] fila represada drenada (${resolved.adapter.id}): ${removidas} transferência(s) apagada(s), ${restantes} restante(s) na conta do operador`,
   );
-  return res.json({ ok: true, action, elegiveis, removidas, restantes });
+  return res.json({ ok: true, action, elegiveis, removidas, restantes, source: 'node', gateway: native ?? null });
 };

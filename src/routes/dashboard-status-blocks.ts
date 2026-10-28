@@ -6,6 +6,8 @@ import { crawlBlock } from './dashboard-crawl-block.js';
 // Bloco `harvest`: extraído pela catraca de 400 linhas e porque a fonte mudou
 // (snapshot do gateway nativo, leitura síncrona).
 import { harvestBlock } from './dashboard-harvest-block.js';
+// Bloco `autofetch`: ponte da admin do Chupim nativo, Node como fallback.
+import { autofetchBlock } from './dashboard-autofetch-block.js';
 import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
 
 export const ALL_BLOCKS = [
@@ -262,12 +264,9 @@ export async function computeStatusPayload(
     };
   }
 
-  // Bloco: autofetch
+  // Bloco: autofetch — a ponte da admin decide a fonte (`source`).
   if (isReq('autofetch')) {
-    out.autofetch = {
-      ...services.autofetch.snapshot(),
-      ...services.providers.autofetchStatus(),
-    };
+    out.autofetch = await autofetchBlock(services);
   }
 
   // Bloco: releaseIndex — valores nativos (`index.rust.*`) vencem quando medidos.
