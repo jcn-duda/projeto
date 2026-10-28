@@ -71,8 +71,7 @@ impl<'a> Engine<'a> {
             return;
         };
         let status = handle.status();
-        let config =
-            probe_step::ProbeStepConfig::from_env(paused, status.depth, handle.config().queue_max);
+        let config = self.probe_config(paused, status.depth, handle.config().queue_max);
         let run = probe_step::run(self.kv, handle, &job.payload, &config, now_ms).await;
         if let Some(reason) = run.skip {
             pass.skip(reason, 1);
@@ -87,7 +86,7 @@ impl<'a> Engine<'a> {
 
     /// Índice de temporada: grava a busca da temporada no KV (LRU + teto).
     fn season(&self, job: &Job, paused: bool, now_ms: i64, pass: &mut Pass) {
-        let config = season_step::SeasonStepConfig::from_env(paused, self.policy.lot_ttl_seconds);
+        let config = self.season_config(paused);
         let register = match season_step::plan(&job.payload, &config) {
             season_step::SeasonStep::Register(register) => register,
             season_step::SeasonStep::Skip(reason) => {
@@ -100,6 +99,35 @@ impl<'a> Engine<'a> {
             Ok(_) => pass.skip("season-not-registered", 1),
             Err(err) => pass.errors.push(format!("season: {err}")),
         }
+    }
+
+    /// Régua da SONDA neste instante: `paused` e a fila são da passagem, o resto
+    /// do processo — e o toggle vem do overlay (`live > `.env` > default`).
+    ///
+    /// Relido a cada job, nunca herdado do boot: o `Engine` carrega o boletim da
+    /// passagem em `self.live` (ver `serve::engine_for_pass`).
+    pub(super) fn probe_config(
+        &self,
+        paused: bool,
+        queue_len: usize,
+        queue_max: usize,
+    ) -> probe_step::ProbeStepConfig {
+        probe_step::ProbeStepConfig::from_env(
+            paused,
+            queue_len,
+            queue_max,
+            self.live.auto_fetch_br_probe(),
+        )
+    }
+
+    /// Régua do Season Pack Fill deste instante (registro E preenchimento), com o
+    /// toggle do painel na frente do `.env`.
+    pub(super) fn season_config(&self, paused: bool) -> season_step::SeasonStepConfig {
+        season_step::SeasonStepConfig::from_env(
+            paused,
+            self.policy.lot_ttl_seconds,
+            self.live.auto_fetch_season_fill(),
+        )
     }
 
     /// Lote do canal: enfileirar e, com aceite, armar o recheck.
@@ -168,7 +196,7 @@ impl<'a> Engine<'a> {
         if ready.is_empty() {
             return season_fill::FillReport::default();
         }
-        let config = season_step::SeasonStepConfig::from_env(paused, self.policy.lot_ttl_seconds);
+        let config = self.season_config(paused);
         let sink = season_fill::sink();
         season_fill::fill(
             self.kv,

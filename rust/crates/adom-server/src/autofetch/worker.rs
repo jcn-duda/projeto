@@ -123,11 +123,13 @@ impl AutofetchHandle {
         vault: Option<Arc<Vault>>,
         debrid: Option<DebridFactory>,
     ) -> Self {
-        let (config, overlay) = load_effective(&kv);
+        // O laço RELÊ o painel a cada passagem (`serve::engine_for_pass`), então a
+        // base que ele recebe é a env PURA. Passar a foto do boot aqui faria uma
+        // chave REMOVIDA do painel (`reset`) continuar valendo até o restart. O
+        // overlay ainda é lido agora porque ele soma a PAUSA ao `Control`.
+        let (config, _overlay) = load_effective(&kv);
         let hydrated = hydrate(&kv);
-        // Painel vence o `.env` TAMBÉM no nativo: o `Policy` que o laço recebe
-        // já sai com os overrides de `cfg:v1:autofetch`.
-        let policy = overlay.as_ref().map_or(*policy, |live| live.apply(policy));
+        let base = *policy;
         let wanted = worker_enabled() && debrid.is_some();
         let (tx, rx) = if wanted {
             let (tx, rx) = mpsc::channel(serve::CHANNEL_CAPACITY);
@@ -141,7 +143,7 @@ impl AutofetchHandle {
         if let (Some(rx), Some(control), Some(debrid)) = (rx, control.clone(), debrid) {
             if let Err(err) = serve::spawn(
                 Arc::clone(&kv),
-                policy,
+                base,
                 vault.clone(),
                 debrid,
                 rx,

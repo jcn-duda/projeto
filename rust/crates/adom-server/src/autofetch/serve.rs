@@ -31,6 +31,7 @@ use super::enqueue::{Holds, Job};
 use super::enqueue_drain;
 use super::recheck;
 use super::vault::Vault;
+use super::worker::live;
 use super::Policy;
 use crate::harvest::HarvestHandle;
 
@@ -84,6 +85,13 @@ impl Pass {
 pub(crate) struct Engine<'a> {
     kv: &'a NativeKv,
     policy: Policy,
+    /// Boletim `cfg:v1:autofetch` desta PASSAGEM: pausa e os toggles de passo.
+    /// O `policy` acima já sai com os overrides de tempo aplicados; o overlay
+    /// fica aqui para o que não é `Policy` (pausa, sonda, season fill).
+    live: live::LiveOverlay,
+    /// Falha ao reler o boletim. A base continua valendo e o motivo vira erro da
+    /// passagem — configuração ilegível não derruba o ciclo.
+    live_error: Option<String>,
     holds: Holds,
     vault: Option<&'a Vault>,
     debrid: &'a DebridFactory,
@@ -105,6 +113,8 @@ impl<'a> Engine<'a> {
         Self {
             kv,
             policy,
+            live: live::LiveOverlay::default(),
+            live_error: None,
             holds: Holds::default(),
             vault,
             debrid,
@@ -113,12 +123,26 @@ impl<'a> Engine<'a> {
         }
     }
 
+    /// Boletim ao vivo desta passagem (ver [`engine_for_pass`]). Sem esta fiação
+    /// o `Engine` roda só com o `.env` do processo.
+    fn with_live(mut self, live: live::LiveOverlay, error: Option<String>) -> Self {
+        self.live = live;
+        self.live_error = error;
+        self
+    }
+
     /// Uma passagem completa: canal, dreno pedido, timers dos lotes e poda do
     /// cofre. Devolve o que fez e atualiza os contadores.
     pub(crate) async fn run_once(&self, rx: &mut mpsc::Receiver<Message>, now_ms: i64) -> Pass {
-        let paused = self.control.paused();
+        // Pausa da passagem: a admin do gateway OU o painel. O `||` é a regra
+        // do boot (`load_effective`) levada ao ciclo — pausa do painel não
+        // espera restart, e retomar continua sendo da admin.
+        let paused = self.control.paused() || self.live.paused;
         self.control.enter();
         let mut pass = Pass::default();
+        if let Some(err) = self.live_error.clone() {
+            pass.errors.push(err);
+        }
         loop {
             match rx.try_recv() {
                 Ok(Message::Batch(job)) => self.batch(&job, paused, now_ms, &mut pass).await,
@@ -266,6 +290,25 @@ impl<'a> Engine<'a> {
     }
 }
 
+/// `Engine` de UMA passagem: relê `cfg:v1:autofetch` e aplica sobre a `Policy`
+/// base (**live > base**).
+///
+/// O laço chama isto a cada volta — nada de config herdada do boot: o painel
+/// vale na passagem seguinte ao clique. A falha de leitura mantém a base e vira
+/// erro da passagem, nunca um `return` que pararia o worker.
+fn engine_for_pass<'a>(
+    kv: &'a NativeKv,
+    base: &Policy,
+    vault: Option<&'a Vault>,
+    debrid: &'a DebridFactory,
+    control: &'a Control,
+    harvest: Option<&'a HarvestHandle>,
+    now_ms: i64,
+) -> Engine<'a> {
+    let (policy, live, error) = live::LiveOverlay::pass(kv, base, now_ms);
+    Engine::new(kv, policy, vault, debrid, control, harvest).with_live(live, error)
+}
+
 /// Sobe a thread do laço (`current_thread`) e devolve o controle ao chamador.
 pub(crate) fn spawn(
     kv: Arc<NativeKv>,
@@ -297,16 +340,19 @@ pub(crate) fn spawn(
                         _ = tokio::time::sleep(Duration::from_millis(wait)) => {},
                     }
                     // O colhedor nasce DEPOIS do laço (`proxy::run`): o slot é
-                    // lido a cada passagem, nunca fixado no boot.
-                    let engine = Engine::new(
+                    // lido a cada passagem, nunca fixado no boot. A config ao
+                    // vivo segue a mesma régua (`engine_for_pass`).
+                    let now_ms = adom_sources::now_ms();
+                    let engine = engine_for_pass(
                         &kv,
-                        policy,
+                        &policy,
                         vault.as_deref(),
                         &debrid,
                         &control,
                         harvest.get(),
+                        now_ms,
                     );
-                    let pass = engine.run_once(&mut rx, adom_sources::now_ms()).await;
+                    let pass = engine.run_once(&mut rx, now_ms).await;
                     if !pass.errors.is_empty() {
                         eprintln!(
                             "[autofetch] passagem com {} falha(s): {}",
@@ -330,3 +376,8 @@ mod evict_job;
 #[cfg(test)]
 #[path = "serve_tests.rs"]
 mod tests;
+
+// Boletim ao vivo de cada passagem (P1/P2/P3): arquivo próprio pela catraca.
+#[cfg(test)]
+#[path = "serve_live_tests.rs"]
+mod live_tests;

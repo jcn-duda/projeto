@@ -10,8 +10,13 @@
 //! O worker nasce antes do orquestrador (`proxy::run`), então não existe
 //! `OrchestratorConfig` para consultar. As listas de indexers vêm do MESMO
 //! `harvest` que alimenta o drain (`index_only_indexers`/`live_exempt_indexers`,
-//! env do processo) e o resto são toggles do `.env` que o painel também lê:
-//! ler a cada job evita config congelada no boot, como no Node.
+//! env do processo) e o resto são toggles do `.env` que o painel também lê: ler a
+//! cada job evita config congelada no boot, como no Node.
+//!
+//! O toggle da sonda (`autoFetchBrProbe`) tem precedência **live > `.env` >
+//! default**: o valor do painel chega pelo overlay (`live::LiveOverlay`) e o
+//! `.env` só vale quando não há override — o mesmo `effective()` do TS
+//! (`src/utils/autofetch-live.ts:149`).
 //!
 //! Nada aqui carrega credencial: a chave vive no cofre e o `HarvestRequest` só
 //! leva obra + temporada/episódio.
@@ -37,12 +42,19 @@ pub(crate) struct ProbeStepConfig {
 }
 
 impl ProbeStepConfig {
-    /// Réguas do processo. `paused` e a fila vêm da passagem (estado vivo).
-    pub(crate) fn from_env(paused: bool, queue_len: usize, queue_max: usize) -> Self {
+    /// Réguas do processo. `paused` e a fila vêm da passagem (estado vivo) e o
+    /// toggle da sonda vem do PAINEL quando ele existe: **live > `.env` >
+    /// default** (`true`, como o `String(env || 'true')` do TS).
+    pub(crate) fn from_env(
+        paused: bool,
+        queue_len: usize,
+        queue_max: usize,
+        br_probe: Option<bool>,
+    ) -> Self {
         Self {
             probe: ProbeConfig {
                 release_index_enabled: env_flag("RELEASE_INDEX"),
-                auto_fetch_br_probe: env_flag("AUTOFETCH_BR_PROBE"),
+                auto_fetch_br_probe: br_probe.unwrap_or_else(|| env_flag("AUTOFETCH_BR_PROBE")),
                 index_only_indexers: crate::harvest::index_only_indexers(),
                 pt_br_indexers: adom_sources::JackettConfig::from_env().pt_br_indexers,
                 live_exempt_indexers: crate::harvest::live_exempt_indexers(),

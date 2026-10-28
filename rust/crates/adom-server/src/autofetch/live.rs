@@ -16,12 +16,21 @@
 //! - os gates do ENFILEIRAMENTO (`autoFetchMax`, pools, fila, orçamento,
 //!   `pauseAt`) são lidos no ponto do uso por `enqueue_gates::LivePolicy`;
 //! - a pausa do worker tem chave própria (`autofetch-worker:v1:config`, escrita
-//!   pela admin); o `paused` daqui só SOMA no boot (ver [`LiveOverlay::paused`]);
-//! - a sonda dirigida e o Season Pack Fill leem o `.env` nos próprios passos
-//!   (`probe_job.rs`, `season_step.rs`).
+//!   pela admin); o `paused` daqui só SOMA (ver [`LiveOverlay::paused`]).
 //!
-//! Este módulo cobre as réguas de TEMPO do laço — exatamente as que o
-//! `Policy::from_env()` congelava no boot.
+//! Este módulo cobre as réguas de TEMPO do laço — as que o `Policy::from_env()`
+//! congelava no boot —, a pausa e os DOIS toggles de passo que liam só o `.env`:
+//! sonda dirigida (`probe_job.rs`) e Season Pack Fill (`season_step.rs`).
+//!
+//! # Quando o boletim é lido
+//!
+//! O laço relê a linha a CADA passagem ([`LiveOverlay::pass`]): o boot guarda uma
+//! foto (`worker::load_effective`) e foto de boot não é régua de passagem. O
+//! painel vale no ciclo seguinte, não no próximo restart.
+//!
+//! `paused` é a EXCEÇÃO de precedência: ele só SOMA
+//! (`control.paused() || overlay.paused`), porque o botão grava as duas chaves e
+//! no runtime quem manda é a admin do gateway.
 
 use adom_index::NativeKv;
 use serde_json::Value;
@@ -42,6 +51,11 @@ pub(crate) struct LiveOverlay {
     dead_ttl_seconds: Option<i64>,
     max_attempts: Option<i64>,
     queue_depth: Option<usize>,
+    /// `autoFetchBrProbe` — toggle da sonda dirigida (`probe_job.rs`).
+    auto_fetch_br_probe: Option<bool>,
+    /// `autoFetchSeasonFill` — toggle do índice E do preenchimento de temporada
+    /// (`season_step.rs`).
+    auto_fetch_season_fill: Option<bool>,
     /// `paused` do painel. FORÇA a pausa (`||`), nunca a retira: o botão grava
     /// as duas chaves, e no runtime quem manda é a admin do gateway (o
     /// `POST /autofetch/pause` precisa poder retomar sozinho).
@@ -64,6 +78,8 @@ impl LiveOverlay {
         };
         // `Math.max(0, n)` — os prazos não têm teto e `0` desliga.
         let span = |key: &str| num(key).map(|n| n.max(0));
+        // Fora de booleano é ausência: vale o `.env`, como no `clampValue`.
+        let flag = |key: &str| value.get(key).and_then(Value::as_bool);
         Self {
             ttl_seconds: span("autoFetchTtl"),
             recheck_interval_ms: span("autoFetchRecheckMs"),
@@ -75,6 +91,8 @@ impl LiveOverlay {
             max_attempts: num("autoFetchMax").map(|n| n.clamp(1, 12)),
             // `Math.min(12, Math.max(0, trunc(n)))`.
             queue_depth: num("autoFetchQueueDepth").map(|n| n.clamp(0, 12) as usize),
+            auto_fetch_br_probe: flag("autoFetchBrProbe"),
+            auto_fetch_season_fill: flag("autoFetchSeasonFill"),
             paused: value
                 .get("paused")
                 .and_then(Value::as_bool)
@@ -82,10 +100,54 @@ impl LiveOverlay {
         }
     }
 
+    /// `autoFetchBrProbe` do painel; `None` = vale o `.env` do passo.
+    pub(crate) fn auto_fetch_br_probe(&self) -> Option<bool> {
+        self.auto_fetch_br_probe
+    }
+
+    /// `autoFetchSeasonFill` do painel; `None` = vale o `.env` do passo.
+    pub(crate) fn auto_fetch_season_fill(&self) -> Option<bool> {
+        self.auto_fetch_season_fill
+    }
+
     /// Linha do `cache.db`; ausente, vencida ou ilegível = sem overlay.
+    ///
+    /// Leitura de BOOT (foto): quem relê a cada passagem usa [`Self::pass`].
     pub(crate) fn load(kv: &NativeKv, now_ms: i64) -> Option<Self> {
-        let value = kv.get_json(LIVE_KEY, now_ms).ok()??;
-        value.is_object().then(|| Self::from_value(&value))
+        Self::read(kv, now_ms).ok().flatten()
+    }
+
+    /// Como [`Self::load`], mas a falha de store sai como erro: o laço relê a
+    /// cada passagem e precisa distinguir "sem override" de "KV ilegível" —
+    /// um boletim podre não pode virar override silencioso nem derrubar o ciclo.
+    pub(crate) fn read(kv: &NativeKv, now_ms: i64) -> Result<Option<Self>, String> {
+        let value = kv.get_json(LIVE_KEY, now_ms)?;
+        Ok(value
+            .filter(Value::is_object)
+            .map(|value| Self::from_value(&value)))
+    }
+
+    /// Boletim + `Policy` de UMA passagem: **live > base**, com a falha de
+    /// leitura devolvida à parte (nunca no lugar do overlay).
+    ///
+    /// É o ÚNICO caminho de leitura do laço (chega ao `Engine` a cada volta):
+    /// o `Policy` do boot descreve o processo, não o instante. Falha de leitura
+    /// mantém a base e vira erro da passagem — o ciclo nunca para por causa de
+    /// configuração.
+    pub(crate) fn pass(
+        kv: &NativeKv,
+        base: &Policy,
+        now_ms: i64,
+    ) -> (Policy, Self, Option<String>) {
+        match Self::read(kv, now_ms) {
+            Ok(Some(overlay)) => (overlay.apply(base), overlay, None),
+            Ok(None) => (*base, Self::default(), None),
+            Err(err) => (
+                *base,
+                Self::default(),
+                Some(format!("config ao vivo: {err}")),
+            ),
+        }
     }
 
     /// `.env` (`Policy::from_env`) + overrides.

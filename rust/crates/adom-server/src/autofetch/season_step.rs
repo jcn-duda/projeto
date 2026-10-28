@@ -24,7 +24,8 @@
 //! # Kill-switch
 //!
 //! Worker pausado (`Control::paused`) ou toggle do fill desligado → `Skip`, sem
-//! tocar o KV. O teto de temporadas `0` desliga só o índice, como no TS
+//! tocar o KV. O toggle vem do painel quando houver override (`live >
+//! `.env` > default`). O teto de temporadas `0` desliga só o índice, como no TS
 //! (`maxSeasons <= 0`), sem derrubar o resto do ciclo.
 
 use adom_autofetch::v3::{
@@ -54,9 +55,14 @@ pub(crate) struct SeasonStepConfig {
 impl SeasonStepConfig {
     /// Réguas do processo — os MESMOS nomes/defaults de `src/config/debrid.ts`.
     /// `ttl_seconds` é a régua do lote do recheck (o índice dura o mesmo).
-    pub(crate) fn from_env(paused: bool, ttl_seconds: i64) -> Self {
+    ///
+    /// `fill` é o `autoFetchSeasonFill` do PAINEL: precedência **live > `.env` >
+    /// default** (`true`), como no `effective()` do TS
+    /// (`src/utils/autofetch-live.ts:149`) — o toggle desliga o registro E o
+    /// preenchimento no passo seguinte ao clique, sem restart.
+    pub(crate) fn from_env(paused: bool, ttl_seconds: i64, fill: Option<bool>) -> Self {
         Self {
-            enabled: env_flag("DEBRID_AUTO_FETCH_SEASON_FILL"),
+            enabled: fill.unwrap_or_else(|| env_flag("DEBRID_AUTO_FETCH_SEASON_FILL")),
             paused,
             // `Math.max(0, trunc(num(env, 200)))`; `0` desliga o índice.
             max_seasons: env_num("DEBRID_AUTO_FETCH_SEASON_INDEX_MAX")
