@@ -6,12 +6,22 @@
 //! módulo é filho de `serve` porque é ele quem enxerga os campos privados do
 //! [`Engine`](super::Engine).
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::super::enqueue::{self, Job};
 use super::super::{probe_step, recheck, season_fill, season_step, suppressed_step};
-use super::{Engine, Pass};
+use super::{evict_job, Engine, Pass};
 use crate::tail_effects::{AUTOFETCH_BATCH, BR_PROBE, SEASON_KEY};
+
+/// O que o laço entrega ao passo de evicção: o lote (snapshot PRÉ-step), o que
+/// ficou pronto e o orçamento da RODADA — o teto é da passagem, não da obra.
+pub(super) struct EvictCall<'a> {
+    pub(super) lot: &'a recheck::Lot,
+    pub(super) ready: &'a [season_fill::SeasonHint],
+    pub(super) paused: bool,
+    pub(super) left: &'a mut usize,
+}
 
 impl<'a> Engine<'a> {
     /// Represa (`autofetch:v3:sup:`): drena o que a remoção automática deixou
@@ -170,4 +180,71 @@ impl<'a> Engine<'a> {
             now_ms,
         )
     }
+
+    /// Evicção F6: o fallback da MESMA obra cai depois do ready BR.
+    ///
+    /// O hash ready NÃO viaja no `StepReport` (`recheck.rs` só devolve o
+    /// `SeasonHint`), então ele é recuperado casando o hint com o snapshot
+    /// PRÉ-step do lote — o que `recheck::due` entregou ao `timers`. Dois hashes
+    /// do mesmo pack casam o mesmo hint e apontam para a MESMA obra (mesmo
+    /// pedido): o efeito é idempotente.
+    ///
+    /// Destruição NÃO roda com o worker pausado, nem fora da AllDebrid (a porta
+    /// só prova delete por hash lá).
+    pub(super) async fn evict_ready(
+        &self,
+        call: &mut EvictCall<'_>,
+        debrid: &super::super::ports::DebridIo,
+        config: &evict_job::EvictConfig,
+        now_ms: i64,
+    ) -> evict_job::PassReport {
+        let mut report = evict_job::PassReport::default();
+        if call.paused {
+            report.skip("evict-paused");
+            return report;
+        }
+        if call.lot.adapter_id != "alldebrid" || call.lot.account.is_empty() {
+            report.skip("evict-adapter");
+            return report;
+        }
+        if !config.gates.armed() {
+            report.skip("evict-off");
+            return report;
+        }
+        if *call.left == 0 {
+            report.skip("evict-budget");
+            return report;
+        }
+        let ready_hashes = hashes_of_ready(&call.lot.season_hints, call.ready);
+        if ready_hashes.is_empty() {
+            report.skip("evict-no-hash");
+            return report;
+        }
+        let work = evict_job::ReadyWork {
+            adapter_id: &call.lot.adapter_id,
+            account: &call.lot.account,
+            ready_hashes: &ready_hashes,
+            br_ready_ttl_seconds: self.policy.lot_ttl_seconds,
+        };
+        let mut scoped = *config;
+        scoped.gates.max_per_run = config.gates.max_per_run.min(*call.left);
+        let report = evict_job::run(self.kv, &**debrid, &work, &scoped, now_ms).await;
+        *call.left = call.left.saturating_sub(report.requested);
+        report
+    }
+}
+
+/// Hashes do snapshot PRÉ-step cujo hint ficou `ready` nesta passagem.
+fn hashes_of_ready(
+    hints: &BTreeMap<String, season_fill::SeasonHint>,
+    ready: &[season_fill::SeasonHint],
+) -> Vec<String> {
+    if ready.is_empty() {
+        return Vec::new();
+    }
+    hints
+        .iter()
+        .filter(|(_, hint)| ready.contains(hint))
+        .map(|(hash, _)| hash.clone())
+        .collect()
 }

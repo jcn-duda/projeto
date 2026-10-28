@@ -12,7 +12,7 @@ use adom_autofetch::v3::{
     TorrentEvidence,
 };
 
-use super::{plan, run, EvictAction, EvictFacts, EvictGates, EvictItem, Occupancy};
+use super::{plan, plan_hashes, run, EvictAction, EvictFacts, EvictGates, EvictItem, Occupancy};
 
 const NOW: i64 = 1_700_000_000_000;
 const MIN_AGE: i64 = 1_800_000;
@@ -325,6 +325,57 @@ fn teto_piso_e_prova_de_br_limitam_a_passagem() {
     let actions = plan(&facts(vec![novo]), &gates());
     assert!(removes(&actions).is_empty());
     assert_eq!(reasons(&actions), vec![EvictSkip::TooYoung]);
+}
+
+/// (f) Via SEM âncora ([`plan_hashes`]): o worker nativo não tem `name` nem
+/// `transfer_id` — quem os prova é a porta `evict`. O que NÃO se relaxa é o
+/// veto: `may_delete` vale item a item, o dedupe segue de pé e o teto continua
+/// sendo da passagem.
+#[test]
+fn plano_sem_ancora_nao_relaxa_o_veto() {
+    // Sem âncora: autorizado por hash. Na via COM âncora, o MESMO item cai em
+    // `NoTransferId` — é a mesma régua, só muda quem prova o id.
+    let mut sem_ancora = item("a");
+    sem_ancora.transfer_id = None;
+    sem_ancora.name = None;
+    let mut preso = item("b");
+    preso.held = true;
+    let mut sem_posse = item("c");
+    sem_posse.owned = false;
+    let mut novo = item("d");
+    novo.accepted_at = NOW - 1_000;
+    let repetido = item("a");
+
+    let all = facts(vec![sem_ancora, preso, sem_posse, novo, repetido]);
+    let plano = plan_hashes(&all, &gates());
+    assert_eq!(plano.hashes, vec!["a"], "só o elegível, e uma vez só");
+    assert_eq!(plano.skips.get("held"), Some(&1));
+    assert_eq!(plano.skips.get("no-ownership"), Some(&1));
+    assert_eq!(plano.skips.get("too-young"), Some(&1));
+    assert_eq!(plano.skips.get("duplicate"), Some(&1));
+
+    assert_eq!(
+        reasons(&plan(&all, &gates())),
+        vec![
+            EvictSkip::NoTransferId,
+            EvictSkip::Held,
+            EvictSkip::NoOwnership,
+            EvictSkip::TooYoung,
+            EvictSkip::Duplicate,
+        ]
+    );
+
+    // Desligado devolve plano VAZIO — nem hashes, nem rótulos inventados.
+    let off = plan_hashes(&all, &EvictGates::off());
+    assert!(off.hashes.is_empty());
+    assert!(off.skips.is_empty());
+
+    // O teto da passagem vale também sem âncora.
+    let mut curto = gates();
+    curto.max_per_run = 1;
+    let dois = plan_hashes(&facts(vec![item("a"), item("b")]), &curto);
+    assert_eq!(dois.hashes, vec!["a"]);
+    assert_eq!(dois.skips.get("over-limit"), Some(&1));
 }
 
 // Golden de CONTRATO (fixture `.jsonl`) dos vetos e da ordem dos rótulos.

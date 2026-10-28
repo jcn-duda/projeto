@@ -64,6 +64,10 @@ pub(crate) struct Pass {
     pub(crate) filled: usize,
     /// Buscas da temporada invalidadas no cache de streams.
     pub(crate) invalidated: usize,
+    /// Evicção F6: hashes de fallback REMOVIDOS da conta nesta passagem.
+    pub(crate) evicted: usize,
+    /// `adrm` gravados (anti-reenchimento dos hashes removidos).
+    pub(crate) evict_marked: usize,
     pub(crate) skips: BTreeMap<String, usize>,
     pub(crate) errors: Vec<String>,
 }
@@ -142,6 +146,10 @@ impl<'a> Engine<'a> {
                 return;
             }
         };
+        // Evicção F6 (destrutiva): kill-switch e orçamento PRÓPRIOS, um por
+        // PASSAGEM — o teto é da rodada, não de cada obra nem de cada lote.
+        let evict = evict_job::EvictConfig::from_env();
+        let mut evict_left = evict.gates.max_per_run;
         for lot in lots {
             let scope = format!("{}:{}", lot.adapter_id, lot.account);
             let Some(debrid) = (self.debrid)(&scope) else {
@@ -180,6 +188,28 @@ impl<'a> Engine<'a> {
                     .into_iter()
                     .map(|err| format!("season-fill: {err}")),
             );
+            // Lado da EVICÇÃO: o fallback da mesma obra cai depois do ready BR.
+            // Mesma credencial do lote, e fora do caminho da resposta.
+            if !report.ready.is_empty() {
+                let mut call = jobs::EvictCall {
+                    lot: &lot,
+                    ready: &report.ready,
+                    paused,
+                    left: &mut evict_left,
+                };
+                let evict_pass = self.evict_ready(&mut call, &debrid, &evict, now_ms).await;
+                pass.evicted += evict_pass.removed;
+                pass.evict_marked += evict_pass.marked;
+                for (label, count) in &evict_pass.skips {
+                    pass.skip(label, *count);
+                }
+                pass.errors.extend(
+                    evict_pass
+                        .errors
+                        .into_iter()
+                        .map(|err| format!("evict: {err}")),
+                );
+            }
             if report.terminal {
                 pass.drained += self.drain_lot(&lot, paused, now_ms, pass).await;
             }
@@ -293,6 +323,9 @@ pub(crate) fn spawn(
 
 #[path = "serve_jobs.rs"]
 mod jobs;
+
+#[path = "evict_job.rs"]
+mod evict_job;
 
 #[cfg(test)]
 #[path = "serve_tests.rs"]

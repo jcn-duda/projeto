@@ -2,67 +2,38 @@
 //!
 //! Espelho de `src/providers/autofetch-evict.ts` (política) +
 //! `src/debrid/alldebrid-fallback-evict.ts` (executor), que hoje só rodam pelo
-//! recheck do Node (`src/providers/autofetch-recheck.ts:299`). O
-//! `eligible_evictions` do crate (`adom-autofetch/src/v3/evict.rs`) existe desde
-//! a T3-L5 e **não tinha chamador** — este módulo é a ponte.
+//! recheck do Node (`src/providers/autofetch-recheck.ts:299`).
 //!
-//! # As três metades
+//! # Uma régua, duas saídas
 //!
-//! - [`plan`] é PURA: fatos do lote/obra entram, [`EvictAction`] sai. Quem
-//!   decide QUE hash pode sair é o crate (`eligible_evictions`); este módulo
-//!   acrescenta os VETOS fail-closed que o crate não modela (âncora do delete,
-//!   nome autoritativo, retenção BR) e o teto da passagem;
-//! - `adom_autofetch::v3::execute` é a única que toca a rede: um
-//!   `remove(transfer_id)` por item, parando no primeiro erro;
-//! - [`gates_from_env`] traduz as envs nas réguas da passagem.
+//! [`walk`] é o único laço decisório; os planos diferem só em QUEM prova as
+//! âncoras do delete. [`plan`] as exige aqui: `transfer_id` + NOME autoritativo
+//! do acervo, porque a blindagem BR lê o filename
+//! (`alldebrid-fallback-evict.ts:97`). [`plan_hashes`] não as tem — o worker
+//! nativo não vê filename — e quem as prova é a porta `evict`
+//! (`adom-debrid/src/autofetch_ports_evict.rs`). `may_delete` vale nos dois.
 //!
-//! # Fail-closed (o que NUNCA vira remoção)
-//!
-//! - hash sem `transfer_id`: nenhum dos cinco serviços apaga **por hash** (a
-//!   porta responde `unsupported: evict`,
-//!   `adom-debrid/src/autofetch_ports_inner.rs:210`). Sem id não há como pedir
-//!   a remoção;
-//! - hash sem NOME autoritativo do acervo: sem o filename não há
-//!   `brOriginMark` — a blindagem de última milha que poupa release BR com
-//!   acento/`filmes` (`src/debrid/alldebrid-fallback-evict.ts:97`);
-//! - proteção durável (`adprot`), retenção BR, hold, posse ausente, marker de
-//!   OUTRA obra, `overflow` (reserva deliberada de upgrade) e pool `br`: o
-//!   crate já os recusa; aqui eles ganham o motivo do pulo (métrica/painel).
-//!
-//! # Kill-switches
-//!
-//! `DEBRID_AUTO_FETCH_EVICT_FALLBACK` (default **false**, o mesmo de
-//! `src/config/debrid-evict.ts:13`); `DEBRID_EVICT` é aceito como ALIAS porque o
-//! pedido de fiação usou esse nome e ele **não existe no TS**. O piso de
-//! ocupação (`HARVEST_EVICT_FLOOR`, `src/config/debrid.ts:164`) fica pronto em
-//! [`EvictGates::occupancy`], mas desligado por omissão: quem usa piso é a
-//! evicção POR BUSCA (item 8.16), não a por obra.
-//!
-//! # Fiação (fora deste arquivo)
-//!
-//! `serve.rs::timers`, depois de o recheck provar o ready BR. Nada aqui entra no
-//! caminho da resposta.
+//! Kill-switch `DEBRID_AUTO_FETCH_EVICT_FALLBACK` (default **false**,
+//! `src/config/debrid-evict.ts:13`) ou o alias `DEBRID_EVICT`; `max_per_run == 0`
+//! desliga. Piso (`HARVEST_EVICT_FLOOR`) pronto mas desligado. Fiação em
+//! `evict_job.rs`; nada aqui entra no caminho da resposta.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use adom_autofetch::v3::evict::{
     eligible_evictions, EvictAction, EvictCandidate, EvictInput, EvictReport, EvictSkip,
 };
 use adom_autofetch::v3::AutofetchDebrid;
 
-/// Teto de remoções por passagem quando ninguém configurou nada — o mesmo
-/// `HARVEST_EVICT_MAX_PER_SEARCH` (clamp 0..=25, `src/config/debrid.ts:161`).
+/// Teto de remoções por passagem (`HARVEST_EVICT_MAX_PER_SEARCH`, clamp 0..=25).
 const DEFAULT_MAX_PER_RUN: usize = 25;
-/// Idade mínima do fallback (`DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`,
-/// 30 min no TS — `src/config/debrid-evict.ts:16`).
+/// Idade mínima do fallback (`DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`).
 const DEFAULT_MIN_AGE_MS: i64 = 1_800_000;
 /// Piso de ocupação da conta (`HARVEST_EVICT_FLOOR`, 600 no TS).
 const DEFAULT_FLOOR: u64 = 600;
 
-/// Um item da obra: o registro F2 do Chupim + o que o lote e a conta provam.
-///
-/// Cada booleano é uma PROVA positiva; os `Option` marcam o DESCONHECIDO
-/// (`transfer_id`/`name` ausentes nunca autorizam remoção).
+/// Um item da obra: o registro F2 + o que o lote e a conta provam. Cada
+/// booleano é uma PROVA positiva; os `Option` marcam o DESCONHECIDO.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EvictItem {
     pub(crate) hash: String,
@@ -76,11 +47,9 @@ pub(crate) struct EvictItem {
     pub(crate) overflow: bool,
     /// O marker novo (`obra` = digest da identidade) é DESTA obra.
     pub(crate) marker_matches_work: bool,
-    /// Posse durável `adsub:v1` presente.
+    /// Posse durável `adsub:v1`; `held`/`protected` são `adhold`/`adprot`.
     pub(crate) owned: bool,
-    /// Hold volátil/`adhold:v1` vivo.
     pub(crate) held: bool,
-    /// Proteção durável `adprot:v1` (acervo BR do usuário).
     pub(crate) protected: bool,
     /// Retenção BR (nome com sinal PT/site BR): blindagem destrutiva.
     pub(crate) br_retained: bool,
@@ -89,9 +58,8 @@ pub(crate) struct EvictItem {
 }
 
 impl EvictItem {
-    /// `may_delete` fail-closed: a conjunção que autoriza a remoção. Serve de
-    /// VETO final no plano — pode só TIRAR, nunca acrescentar (se divergir da
-    /// régua do crate, o lado seguro vence).
+    /// `may_delete` fail-closed: a conjunção que autoriza a remoção. VETO final
+    /// do plano — só TIRA, nunca acrescenta (se divergir do crate, o seguro vence).
     pub(crate) fn may_delete(&self, now_ms: i64, min_age_ms: i64) -> bool {
         matches!(self.pool.as_str(), "any" | "seeds")
             && !self.overflow
@@ -121,14 +89,6 @@ pub(crate) struct EvictFacts {
 pub(crate) struct Occupancy {
     pub(crate) used: u64,
     pub(crate) floor: u64,
-}
-
-impl Occupancy {
-    /// Vagas acima do piso; `None` = nada a podar.
-    fn headroom(self) -> Option<usize> {
-        let headroom = self.used.saturating_sub(self.floor);
-        usize::try_from(headroom).ok().filter(|value| *value > 0)
-    }
 }
 
 /// Réguas e kill-switches da passagem.
@@ -171,8 +131,7 @@ impl EvictGates {
         }
     }
 
-    /// Liga o piso com a ocupação MEDIDA (`AutofetchDebrid::account`). `None`
-    /// mantém o gate desligado: sem medida, nada de piso inventado.
+    /// Liga o piso com a ocupação MEDIDA; `None` mantém o gate desligado.
     pub(crate) fn with_occupancy(mut self, used: Option<u64>) -> Self {
         self.occupancy = used.map(|used| Occupancy {
             used,
@@ -183,20 +142,96 @@ impl EvictGates {
         self
     }
 
+    /// A passagem está ARMADA? Sem isto [`plan`]/[`plan_hashes`] devolvem vazio
+    /// por construção, e quem chama distingue "desligado" de "nada elegível".
+    pub(crate) fn armed(&self) -> bool {
+        self.budget().is_some()
+    }
+
     /// Quantas remoções a passagem pode fazer; `None` = parar aqui.
     fn budget(&self) -> Option<usize> {
         if !self.enabled || self.max_per_run == 0 {
             return None;
         }
-        match self.occupancy {
-            Some(occupancy) => occupancy.headroom(),
-            None => Some(self.max_per_run),
+        let Some(occupancy) = self.occupancy else {
+            return Some(self.max_per_run);
+        };
+        // Vagas acima do piso; `None` = nada a podar.
+        let headroom = occupancy.used.saturating_sub(occupancy.floor);
+        usize::try_from(headroom).ok().filter(|value| *value > 0)
+    }
+}
+
+/// Plano SEM âncora: os hashes autorizados + a contagem por motivo de pulo.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct HashPlan {
+    /// Hashes na ordem do registro — teto da passagem já aplicado.
+    pub(crate) hashes: Vec<String>,
+    /// `EvictSkip::as_str()` → quantos itens.
+    pub(crate) skips: BTreeMap<&'static str, usize>,
+}
+
+/// Plano da passagem COM âncora. Puro: nenhuma leitura de KV, nenhuma rede.
+pub(crate) fn plan(facts: &EvictFacts, gates: &EvictGates) -> Vec<EvictAction> {
+    walk(facts, gates, true)
+        .into_iter()
+        .map(Walked::into_action)
+        .collect()
+}
+
+/// Plano SEM âncora: os hashes que o passo autoriza, para a porta de evicção
+/// resolver hash → id e RE-PROVAR tudo antes do delete.
+///
+/// A decisão é a MESMA de [`plan`]: um só laço, sem duas réguas para divergir.
+/// `transfer_id`/`name` não são exigidos aqui porque quem os obtém (e quem
+/// aplica a blindagem BR no filename REAL) é a porta; `may_delete` segue sendo
+/// o veto final.
+pub(crate) fn plan_hashes(facts: &EvictFacts, gates: &EvictGates) -> HashPlan {
+    let mut plan = HashPlan::default();
+    for step in walk(facts, gates, false) {
+        match step.reason {
+            Some(reason) => *plan.skips.entry(reason.as_str()).or_default() += 1,
+            None => plan.hashes.push(step.hash),
+        }
+    }
+    plan
+}
+
+/// Uma linha do laço decisório: `reason` vazio = hash AUTORIZADO.
+struct Walked {
+    hash: String,
+    reason: Option<EvictSkip>,
+    /// Âncoras do delete: só existem no laço COM âncora ([`plan`]).
+    transfer_id: Option<String>,
+    name: Option<String>,
+}
+
+impl Walked {
+    fn skip(hash: String, reason: EvictSkip) -> Self {
+        Self {
+            hash,
+            reason: Some(reason),
+            transfer_id: None,
+            name: None,
+        }
+    }
+
+    /// `Remove` exige as DUAS âncoras; qualquer ausência volta a ser pulo.
+    fn into_action(self) -> EvictAction {
+        match (self.reason, self.transfer_id, self.name) {
+            (None, Some(transfer_id), Some(name)) => EvictAction::Remove {
+                hash: self.hash,
+                transfer_id,
+                name,
+            },
+            (None, _, _) => skipped(self.hash, EvictSkip::NoTransferId),
+            (Some(reason), _, _) => skipped(self.hash, reason),
         }
     }
 }
 
-/// Plano da passagem. Puro: nenhuma leitura de KV, nenhuma rede.
-pub(crate) fn plan(facts: &EvictFacts, gates: &EvictGates) -> Vec<EvictAction> {
+/// O laço ÚNICO: [`plan`] e [`plan_hashes`] saem daqui (uma régua só).
+fn walk(facts: &EvictFacts, gates: &EvictGates, anchors: bool) -> Vec<Walked> {
     // Kill-switch/piso: desligado, o plano é VAZIO (zero leitura, zero delete).
     let Some(budget) = gates.budget() else {
         return Vec::new();
@@ -210,64 +245,65 @@ pub(crate) fn plan(facts: &EvictFacts, gates: &EvictGates) -> Vec<EvictAction> {
     };
     // Régua do crate: ela é a única que ACRESCENTA um hash à lista.
     let eligible: HashSet<String> = eligible_evictions(&input).into_iter().collect();
-    let mut actions = Vec::with_capacity(facts.items.len());
+    let mut steps = Vec::with_capacity(facts.items.len());
     let mut seen = HashSet::new();
     let mut used = 0usize;
     for item in &facts.items {
         let hash = item.hash.trim().to_ascii_lowercase();
         if hash.is_empty() {
-            actions.push(skipped(hash, EvictSkip::EmptyHash));
+            steps.push(Walked::skip(hash, EvictSkip::EmptyHash));
             continue;
         }
         if !eligible.contains(&hash) {
-            let reason = skip_reason(item, facts, gates);
-            actions.push(skipped(hash, reason));
+            steps.push(Walked::skip(hash, skip_reason(item, facts, gates)));
             continue;
         }
+        // Duas entradas do mesmo hash nunca viram dois deletes.
         if !seen.insert(hash.clone()) {
-            // Duas entradas do mesmo hash nunca viram dois deletes.
-            actions.push(skipped(hash, EvictSkip::Duplicate));
+            steps.push(Walked::skip(hash, EvictSkip::Duplicate));
             continue;
         }
         // Veto final: `may_delete` só pode tirar (retenção BR, idade, posse).
         if !item.may_delete(facts.now_ms, gates.min_age_ms) {
-            actions.push(skipped(hash, EvictSkip::Veto));
+            steps.push(Walked::skip(hash, EvictSkip::Veto));
             continue;
         }
-        let Some(transfer_id) = item
-            .transfer_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-        else {
-            actions.push(skipped(hash, EvictSkip::NoTransferId));
-            continue;
-        };
-        let Some(name) = item
-            .name
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-        else {
-            actions.push(skipped(hash, EvictSkip::NoName));
-            continue;
-        };
+        // Âncoras: só na via COM âncora; na via por hash quem prova é a porta.
+        let mut transfer_id = None;
+        let mut name = None;
+        if anchors {
+            let Some(id) = non_empty(item.transfer_id.as_deref()) else {
+                steps.push(Walked::skip(hash, EvictSkip::NoTransferId));
+                continue;
+            };
+            let Some(file) = non_empty(item.name.as_deref()) else {
+                steps.push(Walked::skip(hash, EvictSkip::NoName));
+                continue;
+            };
+            transfer_id = Some(id.to_string());
+            name = Some(file.to_string());
+        }
+        // Teto da passagem: o excedente sai ROTULADO, nunca em silêncio.
         if used >= budget {
-            actions.push(skipped(hash, EvictSkip::OverLimit));
+            steps.push(Walked::skip(hash, EvictSkip::OverLimit));
             continue;
         }
         used += 1;
-        actions.push(EvictAction::Remove {
+        steps.push(Walked {
             hash,
-            transfer_id: transfer_id.to_string(),
-            name: name.to_string(),
+            reason: None,
+            transfer_id,
+            name,
         });
     }
-    actions
+    steps
 }
 
-/// Executa o plano item a item (`remove(transfer_id)`), parando no primeiro
-/// erro. Delega ao executor do crate, que é quem conhece o trait do debrid.
+fn non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|text| !text.is_empty())
+}
+
+/// Executa o plano item a item (`remove(transfer_id)`), parando no primeiro erro.
 pub(crate) async fn execute(
     io: &dyn AutofetchDebrid<Error = String>,
     actions: &[EvictAction],
@@ -293,47 +329,39 @@ fn candidate(item: &EvictItem) -> EvictCandidate {
         marker_matches_work: item.marker_matches_work,
         owned: item.owned,
         held: item.held,
-        // A régua do crate não conhece `brOriginMark`: retenção BR entra como
-        // proteção (o crate recusa e o rótulo do pulo continua `br-retained`).
+        // O crate não conhece `brOriginMark`: retenção BR entra como proteção.
         protected: item.protected || item.br_retained,
         accepted_at: item.accepted_at,
     }
 }
 
 /// Motivo do pulo de um item que a régua do crate recusou. Espelho da
-/// conjunção de `eligible_evictions` — só para ROTULAR; quem decide é o crate.
+/// conjunção de `eligible_evictions` — só ROTULA; quem decide é o crate.
 fn skip_reason(item: &EvictItem, facts: &EvictFacts, gates: &EvictGates) -> EvictSkip {
+    let age = facts.now_ms.saturating_sub(item.accepted_at);
     if !facts.current_ready_is_br && !facts.work_has_prior_br_ready {
-        return EvictSkip::NoBrProof;
+        EvictSkip::NoBrProof
+    } else if !matches!(item.pool.as_str(), "any" | "seeds") {
+        EvictSkip::PoolBr
+    } else if item.overflow {
+        EvictSkip::Overflow
+    } else if !item.marker_matches_work {
+        EvictSkip::OtherWork
+    } else if !item.owned {
+        EvictSkip::NoOwnership
+    } else if item.held {
+        EvictSkip::Held
+    } else if item.br_retained {
+        EvictSkip::BrRetained
+    } else if item.protected {
+        EvictSkip::Protected
+    } else if item.accepted_at <= 0 {
+        EvictSkip::NoAcceptedAt
+    } else if age < gates.min_age_ms.max(0) {
+        EvictSkip::TooYoung
+    } else {
+        EvictSkip::Veto
     }
-    if !matches!(item.pool.as_str(), "any" | "seeds") {
-        return EvictSkip::PoolBr;
-    }
-    if item.overflow {
-        return EvictSkip::Overflow;
-    }
-    if !item.marker_matches_work {
-        return EvictSkip::OtherWork;
-    }
-    if !item.owned {
-        return EvictSkip::NoOwnership;
-    }
-    if item.held {
-        return EvictSkip::Held;
-    }
-    if item.br_retained {
-        return EvictSkip::BrRetained;
-    }
-    if item.protected {
-        return EvictSkip::Protected;
-    }
-    if item.accepted_at <= 0 {
-        return EvictSkip::NoAcceptedAt;
-    }
-    if facts.now_ms.saturating_sub(item.accepted_at) < gates.min_age_ms.max(0) {
-        return EvictSkip::TooYoung;
-    }
-    EvictSkip::Veto
 }
 
 fn skipped(hash: String, reason: EvictSkip) -> EvictAction {
