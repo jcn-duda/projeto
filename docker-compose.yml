@@ -38,16 +38,34 @@ services:
       # Worker NATIVO do Chupim (autofetch do gateway): `on` = o gateway é dono
       # do canal; `off`/vazio = o Node segue dono — este é o kill-switch.
       #
-      # Com o `on` o boot monta a fábrica dos cinco serviços
-      # (`autofetch/build.rs`); sem credencial no escopo o worker continua
-      # `enabled:false`/`phase:prepared` e todo efeito de trabalho segue ao Node
-      # (`tail_effects.rs`). O cofre em RAM da chave (`autofetch/vault.rs`) vale
-      # desde o boot: chave de usuário só em memória, nunca em KV, disco ou log.
+      # O default `on` mora AQUI (`${...:-on}`), não no código: `worker_enabled()`
+      # no Rust só liga com a env valendo EXATAMENTE `on` (qualquer outro valor,
+      # inclusive vazio, mantém o canal desligado). O `.env` da raiz alimenta a
+      # interpolação abaixo E o `env_file` — nos dois caminhos `off` vence este
+      # default, então `AUTOFETCH_WORKER=off` no `.env` desliga de verdade (vale
+      # também exportar a variável no shell do deploy). Exige `up -d` (recriação):
+      # `docker compose restart` NÃO relê o `.env`.
+      #
+      # Com `on` e `HttpClient` de pé o boot monta a fábrica dos cinco serviços
+      # (`autofetch/build.rs` + `boot.rs`); o worker sobe
+      # `enabled:true`/`phase:active` mesmo com ZERO contas no cofre
+      # (`vaultAccounts:0`). Chave NÃO é requisito de boot: cada passo sem chave
+      # é pulado com o motivo `no-credential` (o lote das outras contas segue) e
+      # nenhum cenário de chave ausente derruba o processo. `phase:prepared`
+      # significa outra coisa: o LAÇO não subiu (fábrica/`HttpClient` ausente).
+      #
+      # O cofre em RAM da chave (`autofetch/vault.rs`) vale desde o boot: chave
+      # de usuário só em memória, nunca em KV, disco ou log.
+      #
+      # `EFFECTS_RUST` NÃO é fixado aqui de propósito: o default do código é ON
+      # (`stream_config.rs`) e é ele que emite os kinds de trabalho. Desligá-lo
+      # não devolve nada ao Node — com o `/stream` nativo ninguém emite, e o
+      # Chupim para inteiro. Rollback do worker é a env acima.
       #
       # Confira o estado real com `scripts/check-autofetch.sh` (GET /autofetch
-      # na admin de loopback 8711) — log de boot não distingue `prepared` de
-      # `active`.
-      AUTOFETCH_WORKER: "on"
+      # na admin de loopback 8711): `phase` distingue `active` de `prepared`
+      # (laço não subiu) e de `paused` (botão do painel).
+      AUTOFETCH_WORKER: "${AUTOFETCH_WORKER:-on}"
       # R3: a checagem/cache da AllDebrid é NATIVA e incondicional. HOLDS e
       # CLEANUP são os kill-switches das varreduras DESTRUTIVAS:
       #   DEBRID_AL_HOLDS=on ...... feed in-process dos holds (`/internal/debrid/holds`):

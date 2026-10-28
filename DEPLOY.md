@@ -143,7 +143,107 @@ base64 — por isso ele só deve trafegar por HTTPS, e por isso o passo 3 prende
 
 ---
 
-## 8. Deploy automático (pull da VPS)
+## 8. Worker nativo do Chupim — flip, verificação e rollback
+
+O autofetch ("Chupim") roda no gateway Rust desde que `AUTOFETCH_WORKER=on`.
+O default vive no `docker-compose.yml` como `${AUTOFETCH_WORKER:-on}` — logo, o
+`.env` **manda**: `AUTOFETCH_WORKER=off` desliga sem rebuild de imagem.
+
+Com o worker **on**, o gateway consome três kinds de trabalho emitidos pelo
+orquestrador: `autofetch_batch`, `br_probe` e `season_key`. Sem worker (ou sem
+escopo de chave no cofre) o efeito volta ao Node por
+`/internal/search/effects` e o TS do Chupim executa. O resto (marker, hold,
+fila v3, painel) continua no Node/painel dos dois jeitos.
+
+### 8.1 Pré-requisitos
+
+| item | por quê |
+|---|---|
+| `GATEWAY=on` + `ROUTES_RUST=stream` (fixos no compose) | o emissor dos kinds é o `/stream` nativo; sem ele não há lote |
+| `EFFECTS_RUST` **não** desligado (default ON no código) | `off` corta a emissão: nem worker nem Node recebem lote |
+| `STREAM_STORE_ADMIN_TOKEN` — ou `DEBRID_INTERNAL_TOKEN`/`JACKETT_TEST_TOKEN` | sem token a admin 8711 responde **503** e não há como verificar o worker |
+| nenhuma chave de debrid | não é pré-requisito: sem chave o worker sobe `active` e cada passo é pulado com `no-credential` |
+
+### 8.2 Verificação pós-deploy (prova de que o worker subiu)
+
+A 8711 é **loopback e nunca publicada**. Sonda de dentro do container (não abra
+porta nova no firewall):
+
+```bash
+# caminho curto: o próprio script do repo (curl → node → docker exec)
+./scripts/check-autofetch.sh
+
+# equivalente à mão
+docker compose exec adom sh -lc \
+  'curl -s -H "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+   http://127.0.0.1:8711/autofetch' | jq .
+```
+
+| campo do `GET /autofetch` | esperado | o que significa se não estiver |
+|---|---|---|
+| `phase` | `active` | `prepared` = o **laço** não subiu (fábrica/`HttpClient` ausente ou `AUTOFETCH_WORKER` diferente de `on`); `paused` = botão do painel |
+| `enabled` | `true` | `false` com `phase=prepared` = flip não aplicado neste container |
+| `vaultAccounts` | `> 0` depois de tráfego com `dk` | `0` = nenhuma chave chegou ao cofre; worker vivo, todo lote em `no-credential` |
+| `processed` / `inflight` | cresce após uma busca | parado = nada foi emitido (ver `EFFECTS_RUST`) ou nenhum lote passou os portões |
+| `skips` | `no-credential`, `paused`, `budget`, `marker` aparecem | é o diagnóstico do que barrou o lote |
+| `lastError` | `null` ou erro pontual de debrid | erro repetido = credencial/adaptador, não deploy |
+| `lots` / `queueDepth` | acompanham a fila v3 | fila cheia com `processed` zero = dreno travado |
+| `suppressed` / `lastSuppressedDrain` | presença do campo | ausência = gateway antigo (imagem anterior à rota) |
+
+Prova de escrita pela admin (o painel usa as mesmas):
+
+```bash
+docker compose exec adom sh -lc 'T=$STREAM_STORE_ADMIN_TOKEN; B=http://127.0.0.1:8711
+curl -s -X POST -H "x-indexer-test-token: $T" -H "content-type: application/json" \
+  -d "{\"paused\":false}" $B/autofetch/pause
+curl -s -X POST -H "x-indexer-test-token: $T" -H "content-type: application/json" \
+  -d "{\"effect\":\"requested\"}" $B/autofetch/drain'
+```
+
+Sinais no log do container: `docker compose logs adom | grep -i autofetch` —
+um `[autofetch] passagem com N falha(s)` isolado é aceitável; a cada passagem,
+não.
+
+### 8.3 Rollback (na ordem que funciona)
+
+O rollback do Chupim **é env**, e sobrevive a rebuild porque o `.env` não é
+versionado (o cron de deploy não o toca):
+
+```bash
+# no .env da VPS
+AUTOFETCH_WORKER=off
+
+docker compose up -d          # recria o container e RELÊ o .env
+```
+
+`docker compose restart` **não** relê o `.env` — use `up -d` (sem `--build`).
+Com `off`, `worker_enabled()` fica falso, nenhuma thread `adom-autofetch` sobe
+e os três kinds voltam ao Node por `Forward`: o TS do Chupim (que segue na
+imagem) reassume em um intervalo. Isso vale inclusive se o laço estiver
+panicando — sem `on` o laço nem é criado.
+
+O que **não** é rollback:
+
+- `EFFECTS_RUST=off` — corta a emissão dos kinds; o Chupim para inteiro (nem
+  nativo, nem Node). Use só como diagnóstico.
+- apagar `docker-data/addon/cache.db` — leva junto fila v3, marker e blacklist
+  de mortas; o sintoma piora.
+- tirar a chave do `.env` — não desliga nada: o worker fica `active` com
+  `vaultAccounts:0` e só pula passos.
+
+Se a env não bastar (gateway não sobe, 8711 em conflito, `/stream` em 503),
+rollback é a **imagem/commit anterior** — em `esm`, é `git revert` do commit do
+flip e deixar o cron reconstruir, ou `docker compose up -d --build` sobre o
+commit anterior. O `/stream` nativo (fatia anterior) **não** tem rollback por
+env; o Chupim tem.
+
+Efeito colateral esperado do rollback: o cofre de chaves é RAM, então lotes em
+voo perdem a credencial e são re-injetados pela ponte do `/stream` na próxima
+busca — nenhuma fila é perdida (ela é no `cache.db`).
+
+---
+
+## 9. Deploy automático (pull da VPS)
 
 Todo push em `esm` entra no ar em até 5 minutos: um cron do
 usuário da VPS roda `~/adom-deploy.sh`, que faz `git fetch` e, havendo commit
