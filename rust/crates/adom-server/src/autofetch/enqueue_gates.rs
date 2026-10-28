@@ -1,13 +1,24 @@
 //! Leitura dos gates vivos usados ao enfileirar (espelho de `autofetch-live` e
 //! `autofetch-gates.ts`). O orçamento fica no prefixo já reservado ao worker.
+//!
+//! Duas leituras do KV moram aqui porque são FATO do enfileiramento, não
+//! decisão: o gate do pool global (`autoFetchAnyDubbed`) e o anti-reenchimento
+//! `adrm:v1` — este SÓ de leitura, a marca é do fluxo de evicção do Node.
+
+use std::collections::HashSet;
 
 use adom_autofetch::v3::sha256_hex;
+use adom_debrid::alldebrid_cleanup::{adrm_key, reupload_block_enabled};
 use adom_index::NativeKv;
 use serde_json::{json, Value};
 
 const LIVE_CONFIG_KEY: &str = "cfg:v1:autofetch";
 const BUDGET_PREFIX: &str = "autofetch-worker:v1:budget:";
 const HOUR_MS: i64 = 60 * 60 * 1000;
+/// Nome do pool global dublado no Node (`src/config/debrid.ts:210`).
+const ANY_ENV: &str = "DEBRID_AUTO_FETCH_ANY";
+/// Alias histórico deste laço: só decide quando `ANY_ENV` está ausente.
+const ANY_DUBBED_ENV: &str = "DEBRID_AUTO_FETCH_ANY_DUBBED";
 
 #[derive(Clone, Copy, Debug)]
 pub(in crate::autofetch) struct LivePolicy {
@@ -35,13 +46,29 @@ impl LivePolicy {
                 .or_else(|| std::env::var(env).ok()?.trim().parse::<i64>().ok())
                 .unwrap_or(fallback)
         };
+        // Boletim do painel (`cfg:v1:autofetch`) vence o `.env` nos DOIS lados;
+        // no `.env` a régua é a do Node (`env_js_true`), não `== "true"` seco:
+        // `KEY=` (vazia) cai no default ligado, como o `|| 'true'` do TS.
         let boolean = |key: &str, env: &str, fallback: bool| {
             live.as_ref()
                 .and_then(|value| value.get(key))
                 .and_then(Value::as_bool)
-                .or_else(|| std::env::var(env).ok().map(|value| value == "true"))
-                .unwrap_or(fallback)
+                .unwrap_or_else(|| {
+                    std::env::var(env)
+                        .ok()
+                        .map_or(fallback, |raw| env_js_true(Some(raw.as_str())))
+                })
         };
+        let any_dubbed = live
+            .as_ref()
+            .and_then(|value| value.get("autoFetchAnyDubbed"))
+            .and_then(Value::as_bool)
+            .unwrap_or_else(|| {
+                any_dubbed_from(
+                    std::env::var(ANY_ENV).ok().as_deref(),
+                    std::env::var(ANY_DUBBED_ENV).ok().as_deref(),
+                )
+            });
         let max_attempts = number("autoFetchMax", "DEBRID_AUTO_FETCH_MAX", 3).clamp(1, 12);
         let top_seeds_max =
             number("autoFetchTopSeedsMax", "DEBRID_AUTO_FETCH_TOP_SEEDS_MAX", 2).clamp(1, 4);
@@ -70,13 +97,93 @@ impl LivePolicy {
             max_attempts,
             top_seeds_max,
             top_seeds_enabled: boolean("autoFetchTopSeeds", "DEBRID_AUTO_FETCH_TOP_SEEDS", true),
-            any_dubbed_enabled: boolean("autoFetchAnyDubbed", "DEBRID_AUTO_FETCH_ANY_DUBBED", true),
+            any_dubbed_enabled: any_dubbed,
             queue_enabled: queue_depth > 0,
             queue_depth,
             hourly_limit,
             pause_at,
         })
     }
+}
+
+/// `String(process.env.X || 'true') === 'true'` do TS: ausente OU vazia cai no
+/// default LIGADO e só o literal `true` liga. O TS não faz `trim` nem
+/// `toLowerCase` — `" true "`, `TRUE`, `on`, `1` e `yes` DESLIGAM nos dois lados.
+fn env_js_true(raw: Option<&str>) -> bool {
+    match raw {
+        None | Some("") => true,
+        Some(text) => text == "true",
+    }
+}
+
+/// Pool global (dublado fora do BR) com as DUAS chaves. PRECEDÊNCIA:
+/// `DEBRID_AUTO_FETCH_ANY` (o nome do Node) vence sempre que EXISTE — inclusive
+/// vazia, que o `|| 'true'` do TS resolve como ligado; o alias
+/// `DEBRID_AUTO_FETCH_ANY_DUBBED` só decide quando `_ANY` está ausente, então um
+/// `.env` antigo com `_ANY_DUBBED=false` continua desligando o pool.
+fn any_dubbed_from(any: Option<&str>, alias: Option<&str>) -> bool {
+    match any {
+        Some(raw) => env_js_true(Some(raw)),
+        None => env_js_true(alias),
+    }
+}
+
+/// O anti-reenchimento está ligado? `enabled()` do Node
+/// (`alldebrid-reupload.ts:52`): `DEBRID_REUPLOAD_BLOCK` **e**
+/// `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS > 0`. A régua mora no `adom-debrid` (a
+/// mesma que a checagem nativa usa) para os dois lados de um `.env` só.
+fn adrm_enabled() -> bool {
+    reupload_block_enabled()
+}
+
+/// Hashes do lote com `adrm:v1` VIVO nesta conta — o `reuploadBlocked` do Node
+/// (`alldebrid-reupload.ts:61`): hash que a evicção apagou DE PROPÓSITO e que
+/// não pode voltar ao `/magnet/upload`. Sai dos candidatos ANTES dos pools ou o
+/// Chupim para nele a cada busca (Lanterns S01E08, 2026-10-24).
+///
+/// Rótulo do skip: `adrm` (o `CascadeDrop::Adrm` da cascata), par do contador
+/// `autofetch.reupload-blocked-skipped` do Node — que também não tem `noteSkip`
+/// nesse caminho (`autofetch-candidates.ts:112`).
+///
+/// O `kv` do worker É o `cache.db` (`boot.rs`), o mesmo arquivo onde o Node
+/// grava: `account` é o sufixo do escopo do cofre (`adapter:account`), a mesma
+/// conta que `suppressed_step` usa para ler `adrm:v1` — não há KV paralelo.
+///
+/// Porta SÓ DE LEITURA: quem MARCA é a evicção (`markReuploadBlocked`); este
+/// worker nunca grava, renova nem apaga a marca. Kill-switch/TTL desligados
+/// devolvem vazio sem tocar no KV.
+///
+/// Erro de leitura NÃO vira "não bloqueado": o lote inteiro sai com `Err` (como
+/// as outras leituras do `run`), senão um banco ilegível autorizaria justamente
+/// o re-upload que a marca existe para barrar.
+pub(in crate::autofetch) fn adrm_blocked(
+    kv: &NativeKv,
+    account: &str,
+    hashes: &[String],
+    now_ms: i64,
+) -> Result<HashSet<String>, String> {
+    adrm_blocked_when(kv, account, hashes, now_ms, adrm_enabled())
+}
+
+/// Miolo com a flag explícita — testes sem env global.
+fn adrm_blocked_when(
+    kv: &NativeKv,
+    account: &str,
+    hashes: &[String],
+    now_ms: i64,
+    enabled: bool,
+) -> Result<HashSet<String>, String> {
+    if !enabled || account.trim().is_empty() {
+        return Ok(HashSet::new());
+    }
+    let mut blocked = HashSet::new();
+    for hash in hashes {
+        // O `get_json` só apaga o que JÁ venceu (faxina do KV, não marcação).
+        if !hash.trim().is_empty() && kv.get_json(&adrm_key(account, hash), now_ms)?.is_some() {
+            blocked.insert(hash.to_ascii_lowercase());
+        }
+    }
+    Ok(blocked)
 }
 
 pub(in crate::autofetch) fn account_is_blocked(used: Option<u64>, pause_at: u64) -> bool {

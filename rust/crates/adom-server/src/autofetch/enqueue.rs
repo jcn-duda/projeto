@@ -220,14 +220,30 @@ pub(crate) async fn run(
         .filter_map(|item| item.quality.clone())
         .collect();
 
+    // Invariante 6: hash que a evicção apagou DE PROPÓSITO (`adrm:v1`) sai dos
+    // candidatos ANTES dos pools — só LEITURA aqui: quem marca é a evicção. A
+    // checagem consulta o mesmo `adrm` (`blocked_for_check`, fail-closed): a
+    // marca fecha as DUAS portas que reenviam hash ao serviço.
+    let adrm_blocked = match gates::adrm_blocked(kv, account, &hashes, now_ms) {
+        Ok(blocked) => blocked,
+        Err(err) => {
+            release_all(holds, account, &hashes);
+            return Err(err);
+        }
+    };
+
     let mut by_hash: HashMap<&str, &super::enqueue_items::Item> = HashMap::new();
     let mut candidates = Vec::with_capacity(items.len());
     for item in &items {
         if !eligible.contains(item.info_hash.as_str()) {
             continue;
         }
-        if (item.pool() == adom_autofetch::v3::CascadePool::Any && !live.any_dubbed_enabled)
-            || (item.pool() == adom_autofetch::v3::CascadePool::Seeds && !live.top_seeds_enabled)
+        // `adrm` vence o filtro de pool: o hash sai ROTULADO, não sumido.
+        let adrm = adrm_blocked.contains(&item.info_hash);
+        if !adrm
+            && ((item.pool() == adom_autofetch::v3::CascadePool::Any && !live.any_dubbed_enabled)
+                || (item.pool() == adom_autofetch::v3::CascadePool::Seeds
+                    && !live.top_seeds_enabled))
         {
             continue;
         }
@@ -246,7 +262,7 @@ pub(crate) async fn run(
                     return Err(err);
                 }
             },
-            adrm: false,
+            adrm,
             // O piso de seeders já foi aplicado na lista; o waiver é a exceção.
             viable: !item.waived,
         });

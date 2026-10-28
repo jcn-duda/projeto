@@ -273,6 +273,83 @@ async fn falha_da_checagem_solta_o_hold_e_devolve_erro() {
     assert_eq!(holds.len(), 0, "hold não pode vazar na falha");
 }
 
+/// Invariante 6: `adrm:v1` VIVO sai dos candidatos ANTES dos pools, com o rótulo
+/// `adrm` — e esta porta só LÊ: a marca sai intacta.
+#[tokio::test]
+async fn hash_com_marca_adrm_sai_antes_dos_pools() {
+    let kv = kv();
+    let now = now_ms();
+    let blocked = hash_of(1);
+    let free = hash_of(2);
+    let key = adom_debrid::alldebrid_cleanup::adrm_key(ACCOUNT, &blocked);
+    kv.put_json(&key, &json!({ "at": now }), 3_600, now)
+        .unwrap();
+    let debrid = FakeDebrid::accepting();
+    let report = run(
+        &kv,
+        Policy::fixture(),
+        &Holds::default(),
+        false,
+        &debrid,
+        &job(
+            SCOPE,
+            batch_payload(SEARCH, &[(&blocked, true), (&free, true)]),
+        ),
+        now,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(report.skips.get("adrm"), Some(&1));
+    assert_eq!(
+        debrid.accepted(),
+        vec![free.clone()],
+        "adrm não vai ao upload"
+    );
+    assert_eq!(queued(&kv, now), vec![free]);
+    assert!(!marker(&kv, &blocked, now));
+    // Nem reescrita nem renovada: a marca de 1h caiu exatos 10 min.
+    assert_eq!(
+        kv.remaining_seconds(&key, now + 600_000).unwrap(),
+        Some(3_000)
+    );
+}
+
+/// Pool global desligado (pelo overlay do painel, sem mexer em env global) não
+/// encosta no BR.
+#[tokio::test]
+async fn pool_global_desligado_nao_para_o_br() {
+    let kv = kv();
+    let now = now_ms();
+    let holds = Holds::default();
+    let br = hash_of(1);
+    let any = hash_of(2);
+    kv.put_json(
+        "cfg:v1:autofetch",
+        &json!({ "autoFetchAnyDubbed": false }),
+        600,
+        now,
+    )
+    .unwrap();
+    let debrid = FakeDebrid::accepting();
+    let report = run(
+        &kv,
+        Policy::fixture(),
+        &holds,
+        false,
+        &debrid,
+        &job(SCOPE, batch_payload(SEARCH, &[(&br, true), (&any, false)])),
+        now,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(report.attempts, 1);
+    assert_eq!(debrid.accepted(), vec![br.clone()], "só o BR é tentado");
+    assert_eq!(queued(&kv, now), vec![br]);
+    assert_eq!(holds.len(), 0, "o pool desligado não vaza hold");
+}
+
 #[test]
 fn parser_usa_prova_de_audio_br_e_veto_de_mentira() {
     let payload = json!({"items": [
