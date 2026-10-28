@@ -281,32 +281,65 @@ async fn prova_completa_apaga_e_marca() {
     );
 }
 
-/// (e) Sem registro F2 da obra (fato do Node) não há `pool`/`acceptedAt`.
-#[tokio::test]
-async fn sem_registro_da_obra_nao_apaga() {
-    let kv = kv();
-    marker(&kv, READY, Some(DIGEST));
-    let io = StubIo::new(Vec::new());
-
-    let report = run(&kv, &io, &work(&[READY.to_string()]), &config(), NOW).await;
-
-    assert_eq!(report.requested, 0);
-    assert_eq!(report.skips.get("evict-no-record"), Some(&1));
-    assert!(io.calls().is_empty());
+/// Tira (`present:false`) ou repõe (`true`) UM dos fatos do Node na cena.
+fn fact(kv: &NativeKv, name: &str, present: bool) {
+    match (name, present) {
+        ("ready-marker", true) => marker(kv, READY, Some(DIGEST)),
+        ("ready-marker", false) => marker(kv, READY, None),
+        ("obra-marker", true) => marker(kv, FALLBACK, Some(DIGEST)),
+        ("obra-marker", false) => marker(kv, FALLBACK, None),
+        ("registro-f2", true) => record(kv),
+        ("registro-f2", false) => forget_key(kv, &format!("{}{DIGEST}", obra_prefix())),
+        (_, true) => adsub(kv, FALLBACK),
+        (_, false) => forget_key(kv, &adsub_key(ACCOUNT, FALLBACK)),
+    }
 }
 
-/// (f) Marker sem `obra` (o que o `enqueue` nativo grava hoje) não prova obra.
+fn forget_key(kv: &NativeKv, key: &str) {
+    kv.forget(key).expect("forget no KV");
+}
+
+/// (e) Um FATO do Node por vez: sem ele NADA é apagado e o motivo é o daquele
+/// fato; reposto, o gate abre. Os três juntos já são o caso (d).
 #[tokio::test]
-async fn sem_marker_de_obra_nao_apaga() {
+async fn cada_fato_e_necessario_e_suficiente() {
+    for (fato, motivo) in [
+        ("ready-marker", "evict-no-marker"),
+        ("obra-marker", "evict-other-work"),
+        ("registro-f2", "evict-no-record"),
+        ("posse-adsub", "evict-no-ownership"),
+    ] {
+        let kv = kv();
+        let ready = completo(&kv);
+        fact(&kv, fato, false);
+        let io = StubIo::new(Vec::new());
+        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+        assert_eq!((report.requested, report.removed), (0, 0), "{fato} ausente");
+        assert_eq!(report.skips.get(motivo), Some(&1), "{fato}: motivo");
+        assert!(report.errors.is_empty(), "{fato}: ausência não é erro");
+        assert!(io.calls().is_empty(), "{fato}: nenhuma ida à conta");
+
+        fact(&kv, fato, true);
+        let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+        assert_eq!(report.requested, 1, "{fato} reposto: o gate abre");
+    }
+}
+
+/// (f) Guarda ILEGÍVEL não é guarda vazia: valor fora do contrato não vira
+/// permissão — o registro cai no MESMO motivo da ausência.
+#[tokio::test]
+async fn registro_com_forma_estranha_nao_autoriza() {
     let kv = kv();
     let ready = completo(&kv);
-    marker(&kv, READY, None);
+    let key = format!("{}{DIGEST}", obra_prefix());
+    kv.put_json(&key, &json!("quebrado"), 21_600, NOW)
+        .expect("lixo");
     let io = StubIo::new(Vec::new());
-
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
 
     assert_eq!(report.requested, 0);
-    assert_eq!(report.skips.get("evict-no-marker"), Some(&1));
+    assert_eq!(report.skips.get("evict-no-record"), Some(&1));
     assert!(io.calls().is_empty());
 }
 
