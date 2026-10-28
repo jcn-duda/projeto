@@ -15,7 +15,10 @@
 //!   `createdAt`), passo de recheck, terminal → `dead:` + dreno do próximo,
 //!   settle LRU e expiração com prova de posse;
 //! - [`serve`] — laço da thread (`current_thread`) sobre canal `mpsc` + timers
-//!   lidos dos lotes; o adaptador de debrid entra como `Arc<dyn ...>`;
+//!   lidos dos lotes; o adaptador de debrid entra pela fábrica por conta;
+//! - [`ports`] — adaptador do trait do crate sobre as portas do `adom-debrid` e
+//!   a FÁBRICA (`scope` → adaptador, chave lida do cofre no momento do uso);
+//! - [`control`] — pausa/intervalo/contadores que o painel lê;
 //! - [`worker`] — config/painel (`autofetch-worker:v1:config`) e o handler.
 //!
 //! # Credencial de usuário
@@ -31,9 +34,15 @@
 //! Rotas (montadas na admin do store, `127.0.0.1:8711`, loopback + token):
 //! `GET /autofetch`, `POST /autofetch/config|pause|drain|suppressed-drain`.
 
+mod control;
 mod enqueue;
 mod enqueue_drain;
 mod enqueue_items;
+// A cola de flip: `DebridIo`/`DebridFactory` já são usados pelo laço, mas o
+// adaptador e a fábrica só ganham chamador real no boot do `main.rs`. Até lá o
+// alvo de bin os vê como mortos — o `allow` evita ruído de `dead_code`.
+#[allow(dead_code)]
+mod ports;
 mod recheck;
 mod recheck_expire;
 mod routes;

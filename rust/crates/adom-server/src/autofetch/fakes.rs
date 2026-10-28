@@ -5,7 +5,7 @@
 //! ciclo e não o dublê.
 
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use adom_autofetch::v3::{
     AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, QueueCandidate,
@@ -14,6 +14,7 @@ use adom_autofetch::v3::{
 use serde_json::{Map, Value};
 
 use super::enqueue::Job;
+use super::ports::{DebridFactory, DebridIo};
 
 /// Evidência de status de um hash.
 pub(crate) fn evidence(hash: &str, state: &str) -> TorrentEvidence {
@@ -175,3 +176,15 @@ pub(crate) fn job(scope: &str, payload: Map<String, Value>) -> Job {
 
 /// Escopo de teste (`adapter:sha256`).
 pub(crate) const SCOPE: &str = "alldebrid:conta-de-teste";
+
+/// Fábrica de teste: UM adaptador para o escopo dado, `None` para o resto — é a
+/// resolução por conta que o laço faz a cada passo.
+pub(crate) fn factory_for(scope: &str, debrid: DebridIo) -> DebridFactory {
+    let scope = scope.to_string();
+    Arc::new(move |asked: &str| (asked == scope).then(|| Arc::clone(&debrid)))
+}
+
+/// Fábrica que não resolve escopo nenhum.
+pub(crate) fn no_factory() -> DebridFactory {
+    Arc::new(|_: &str| None)
+}

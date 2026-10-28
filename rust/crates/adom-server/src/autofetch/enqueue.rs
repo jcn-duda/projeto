@@ -20,8 +20,9 @@
 //! toca, a fila anterior é o único backup que existe. Ela fica intacta e o lote
 //! é contado como `unknown-cache`.
 //!
-//! O `AutofetchDebrid` é injetado (contrato de I/O do crate) e vinculado à conta
-//! pelo chamador; este módulo nunca vê a chave — quem a tem é o cofre.
+//! O `AutofetchDebrid` entra como `&dyn` já resolvido pela fábrica por conta
+//! (o laço resolve `scope` → adaptador a cada passo); este módulo nunca vê a
+//! chave — quem a tem é o cofre.
 //!
 //! Peças vizinhas: itens/candidato em [`super::enqueue_items`], dreno do próximo
 //! em [`super::enqueue_drain`].
@@ -113,12 +114,12 @@ impl Report {
 
 /// Executa um lote inteiro. Devolve `Err` só em falha de store/rede que impede
 /// decidir; payload fora da forma vira `Report::refused` (sem escrita).
-pub(crate) async fn run<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+pub(crate) async fn run(
     kv: &NativeKv,
     policy: Policy,
     holds: &Holds,
     paused: bool,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     job: &Job,
     now_ms: i64,
 ) -> Result<Report, String> {

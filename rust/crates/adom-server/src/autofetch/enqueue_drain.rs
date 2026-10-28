@@ -36,12 +36,12 @@ pub(crate) struct DrainReport {
 /// medidos (entram desbloqueados); o que barra de verdade é a pausa, a fila
 /// vazia e o obsoleto.
 #[allow(clippy::too_many_arguments)] // um dono por eixo: KV, réguas, hold, pausa, adaptador, escopo, busca, relógio
-pub(crate) async fn drain_one<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+pub(crate) async fn drain_one(
     kv: &NativeKv,
     policy: Policy,
     holds: &Holds,
     paused: bool,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     scope: &str,
     search_key: &str,
     now_ms: i64,
@@ -158,11 +158,11 @@ pub(crate) async fn drain_one<D: adom_autofetch::v3::AutofetchDebrid<Error = Str
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn start<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+async fn start(
     queue: &QueueV3<'_>,
     policy: Policy,
     holds: &Holds,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     scope: (&str, &str),
     search_key: &str,
     candidate: &QueueCandidate,

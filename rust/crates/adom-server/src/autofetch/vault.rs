@@ -170,8 +170,8 @@ impl Vault {
         self.put(&config.service, &config.api_key, now_ms)
     }
 
-    /// A chave do escopo, se viva. Uso conta como toque no LRU.
-    #[allow(dead_code)]
+    /// A chave do escopo, se viva. Uso conta como toque no LRU. Leitora ÚNICA é
+    /// a fábrica por conta (`ports::factory`): o laço nunca guarda a chave.
     pub(crate) fn key(&self, scope: &str, now_ms: i64) -> Option<String> {
         let mut inner = self.lock();
         let expired = inner

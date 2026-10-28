@@ -10,19 +10,22 @@
 //! vencido roda [`recheck::step`] e terminal com fila viva chama
 //! [`enqueue_drain::drain_one`] — nunca dreno cego; (4) poda o cofre.
 //!
-//! O `AutofetchDebrid` entra como `Arc<dyn ...>` pelo chamador (teste ou a
-//! fábrica por conta da leva do flip). Sem ele o worker fica `prepared` e nada
-//! consome o canal: `enabled` é `AUTOFETCH_WORKER=on` **e** adaptador presente.
+//! # Adaptador por CONTA
+//!
+//! O worker serve MUITAS contas: quem resolve `adapter:conta` → adaptador é a
+//! [`DebridFactory`], chamada a CADA passo (a chave é lida do cofre no momento
+//! do uso; o laço nunca guarda chave nem adaptador entre lotes). Passo sem chave
+//! viva é PULADO com o motivo `no-credential` — nunca erro fatal: um escopo sem
+//! cofre não pode derrubar o lote dos outros.
+//!
 //! Nenhuma passagem entra no caminho da resposta: o canal é do laço.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 use std::time::Duration;
 
-use adom_autofetch::v3::AutofetchDebrid;
 use adom_index::NativeKv;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::mpsc;
 
 use super::enqueue::{self, Holds, Job};
 use super::enqueue_drain;
@@ -30,9 +33,8 @@ use super::recheck;
 use super::vault::Vault;
 use super::Policy;
 
-/// Adaptador de debrid já vinculado à conta por quem o construiu. O laço nunca
-/// vê a chave: quem a guarda é o cofre.
-pub(crate) type DebridIo = Arc<dyn AutofetchDebrid<Error = String>>;
+pub(crate) use super::control::{Control, Snapshot};
+pub(crate) use super::ports::DebridFactory;
 
 /// Capacidade do canal: um lote por busca em voo, sem bloquear quem publica.
 pub(crate) const CHANNEL_CAPACITY: usize = 64;
@@ -42,111 +44,6 @@ pub(crate) const CHANNEL_CAPACITY: usize = 64;
 pub(crate) enum Message {
     Batch(Job),
     Drain,
-}
-
-/// Retrato dos contadores para o painel (`GET /autofetch`).
-#[derive(Debug, Default, Clone)]
-pub(crate) struct Snapshot {
-    pub(crate) inflight: bool,
-    pub(crate) processed: u64,
-    pub(crate) skips: BTreeMap<String, usize>,
-    pub(crate) last_error: Option<String>,
-}
-
-/// Regras vivas em RAM: pausa/intervalo que o laço lê a cada volta, mais os
-/// contadores. O `POST /autofetch/config` persiste no KV e espelha aqui — o
-/// laço nunca toca SQLite para saber se está pausado.
-pub(crate) struct Control {
-    paused: AtomicBool,
-    interval_ms: AtomicU64,
-    inflight: AtomicUsize,
-    processed: AtomicU64,
-    last_error: Mutex<Option<String>>,
-    skips: Mutex<BTreeMap<String, usize>>,
-    notify: Notify,
-}
-
-impl Control {
-    pub(crate) fn new(paused: bool, interval_ms: u64) -> Self {
-        Self {
-            paused: AtomicBool::new(paused),
-            interval_ms: AtomicU64::new(interval_ms.max(1)),
-            inflight: AtomicUsize::new(0),
-            processed: AtomicU64::new(0),
-            last_error: Mutex::new(None),
-            skips: Mutex::new(BTreeMap::new()),
-            notify: Notify::new(),
-        }
-    }
-
-    pub(crate) fn paused(&self) -> bool {
-        self.paused.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn set_paused(&self, paused: bool) {
-        self.paused.store(paused, Ordering::Relaxed);
-    }
-
-    pub(crate) fn interval_ms(&self) -> u64 {
-        self.interval_ms.load(Ordering::Relaxed).max(1)
-    }
-
-    pub(crate) fn set_interval_ms(&self, interval_ms: u64) {
-        self.interval_ms
-            .store(interval_ms.max(1), Ordering::Relaxed);
-    }
-
-    /// Acorda o laço (chegou trabalho ou o painel mexeu na config).
-    pub(crate) fn wake(&self) {
-        self.notify.notify_one();
-    }
-
-    pub(crate) async fn wait(&self) {
-        self.notify.notified().await;
-    }
-
-    fn enter(&self) {
-        self.inflight.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn leave(&self) {
-        self.inflight.fetch_sub(1, Ordering::Relaxed);
-    }
-    pub(crate) fn inflight(&self) -> bool {
-        self.inflight.load(Ordering::Relaxed) > 0
-    }
-
-    fn record(&self, pass: &Pass) {
-        self.processed
-            .fetch_add(pass.jobs as u64, Ordering::Relaxed);
-        let mut skips = self.skips.lock().unwrap_or_else(PoisonError::into_inner);
-        for (label, count) in &pass.skips {
-            *skips.entry(label.clone()).or_default() += count;
-        }
-        if let Some(first) = pass.errors.first() {
-            *self
-                .last_error
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = Some(first.clone());
-        }
-    }
-
-    pub(crate) fn snapshot(&self) -> Snapshot {
-        Snapshot {
-            inflight: self.inflight(),
-            processed: self.processed.load(Ordering::Relaxed),
-            skips: self
-                .skips
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clone(),
-            last_error: self
-                .last_error
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clone(),
-        }
-    }
 }
 
 /// O que UMA passagem fez: log e contadores (o painel lê `Control::snapshot`).
@@ -169,23 +66,23 @@ impl Pass {
 }
 
 /// Uma passagem com os donos do ciclo: KV, réguas, holds (memória), cofre,
-/// adaptador e contadores. O `Holds` vive aqui: preso durante a passagem, solto
-/// no fim por cada módulo que o adquiriu.
-pub(crate) struct Engine<'a, D: AutofetchDebrid<Error = String> + ?Sized> {
+/// fábrica de adaptadores e contadores. O `Holds` vive aqui: preso durante a
+/// passagem, solto no fim por cada módulo que o adquiriu.
+pub(crate) struct Engine<'a> {
     kv: &'a NativeKv,
     policy: Policy,
     holds: Holds,
     vault: Option<&'a Vault>,
-    debrid: &'a D,
+    debrid: &'a DebridFactory,
     control: &'a Control,
 }
 
-impl<'a, D: AutofetchDebrid<Error = String> + ?Sized> Engine<'a, D> {
+impl<'a> Engine<'a> {
     pub(crate) fn new(
         kv: &'a NativeKv,
         policy: Policy,
         vault: Option<&'a Vault>,
-        debrid: &'a D,
+        debrid: &'a DebridFactory,
         control: &'a Control,
     ) -> Self {
         Self {
@@ -217,19 +114,23 @@ impl<'a, D: AutofetchDebrid<Error = String> + ?Sized> Engine<'a, D> {
             pass.forgotten_keys = vault.sweep(now_ms);
         }
         self.control.leave();
-        self.control.record(&pass);
+        self.control.record(pass.jobs, &pass.skips, &pass.errors);
         pass
     }
 
     /// Um lote do canal: enfileirar e, com aceite, armar o recheck.
     async fn batch(&self, job: &Job, paused: bool, now_ms: i64, pass: &mut Pass) {
         pass.jobs += 1;
+        let Some(debrid) = (self.debrid)(&job.scope) else {
+            pass.skip("no-credential", 1);
+            return;
+        };
         let report = match enqueue::run(
             self.kv,
             self.policy,
             &self.holds,
             paused,
-            self.debrid,
+            &*debrid,
             job,
             now_ms,
         )
@@ -278,11 +179,16 @@ impl<'a, D: AutofetchDebrid<Error = String> + ?Sized> Engine<'a, D> {
             }
         };
         for lot in lots {
+            let scope = format!("{}:{}", lot.adapter_id, lot.account);
+            let Some(debrid) = (self.debrid)(&scope) else {
+                pass.skip("no-credential", 1);
+                continue;
+            };
             let alldebrid = lot.adapter_id == "alldebrid";
             let report = match recheck::step(
                 self.kv,
                 self.policy,
-                self.debrid,
+                &*debrid,
                 alldebrid,
                 &lot.search_key,
                 now_ms,
@@ -328,12 +234,16 @@ impl<'a, D: AutofetchDebrid<Error = String> + ?Sized> Engine<'a, D> {
             return 0;
         }
         let scope = format!("{}:{}", lot.adapter_id, lot.account);
+        let Some(debrid) = (self.debrid)(&scope) else {
+            pass.skip("no-credential", 1);
+            return 0;
+        };
         match enqueue_drain::drain_one(
             self.kv,
             self.policy,
             &self.holds,
             paused,
-            self.debrid,
+            &*debrid,
             &scope,
             &lot.search_key,
             now_ms,
@@ -354,7 +264,7 @@ pub(crate) fn spawn(
     kv: Arc<NativeKv>,
     policy: Policy,
     vault: Option<Arc<Vault>>,
-    debrid: DebridIo,
+    debrid: DebridFactory,
     mut rx: mpsc::Receiver<Message>,
     control: Arc<Control>,
 ) -> Result<(), String> {
@@ -372,7 +282,7 @@ pub(crate) fn spawn(
                 }
             };
             runtime.block_on(async move {
-                let engine = Engine::new(&kv, policy, vault.as_deref(), &*debrid, &control);
+                let engine = Engine::new(&kv, policy, vault.as_deref(), &debrid, &control);
                 loop {
                     let wait = control.interval_ms();
                     tokio::select! {

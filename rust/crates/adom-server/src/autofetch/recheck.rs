@@ -187,10 +187,10 @@ fn facts_of(lot: &Lot, policy: Policy, now_ms: i64) -> LotFacts {
 
 /// Uma passagem do lote. `adapter_is_alldebrid` entra como FATO (o serviço é do
 /// adaptador injetado, não deste módulo).
-pub(crate) async fn step<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+pub(crate) async fn step(
     kv: &NativeKv,
     policy: Policy,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     adapter_is_alldebrid: bool,
     search_key: &str,
     now_ms: i64,
@@ -222,10 +222,10 @@ pub(crate) async fn step<D: adom_autofetch::v3::AutofetchDebrid<Error = String> 
 
 /// Passagem de status: `ready`/terminal resolvem; morte comprovada vira `dead:`
 /// da conta; ausência de resposta não é prova de nada.
-async fn poll<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+async fn poll(
     kv: &NativeKv,
     policy: Policy,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     lot: &Lot,
     now_ms: i64,
 ) -> Result<StepReport, String> {

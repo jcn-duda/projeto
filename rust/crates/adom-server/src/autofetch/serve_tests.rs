@@ -1,7 +1,6 @@
 //! Testes do laço: canal, timers dos lotes, dreno após terminal, poda do cofre e
 //! o contrato do status (`enabled`, `inflight`, `lastError`, skips).
 
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use adom_autofetch::v3::QueueV3;
@@ -9,12 +8,13 @@ use adom_index::NativeKv;
 use adom_sources::now_ms;
 use tokio::sync::mpsc;
 
-use super::super::fakes::{batch_payload, job, FakeDebrid, SCOPE};
+use super::super::fakes::{batch_payload, factory_for, job, no_factory, FakeDebrid, SCOPE};
+use super::super::ports::DebridIo;
 use super::super::recheck::{self, Lot};
 use super::super::vault::Vault;
 use super::super::worker::AutofetchHandle;
 use super::super::Policy;
-use super::{Control, DebridIo, Engine, Message};
+use super::{Control, Engine, Message};
 
 const SEARCH: &str = "tt1234567:1:2";
 const ADAPTER: &str = "alldebrid";
@@ -61,12 +61,13 @@ async fn passagem_enfileira_arma_o_lote_e_conta_os_skips() {
     let kv = kv();
     let now = now_ms();
     let control = Control::new(false, 60_000);
-    let debrid = FakeDebrid::accepting();
+    let debrid = Arc::new(FakeDebrid::accepting());
+    let factory = factory_for(SCOPE, debrid.clone());
     let (tx, mut rx) = mpsc::channel(4);
     let payload = batch_payload(SEARCH, &[(&hash_of(1), true), (&hash_of(2), true)]);
     tx.try_send(Message::Batch(job(SCOPE, payload))).unwrap();
 
-    let engine = Engine::new(&kv, Policy::fixture(), None, &debrid, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
     let pass = engine.run_once(&mut rx, now).await;
 
     assert_eq!(pass.jobs, 1);
@@ -90,9 +91,9 @@ async fn passagem_enfileira_arma_o_lote_e_conta_os_skips() {
 async fn passagem_vazia_nao_inventa_trabalho() {
     let kv = kv();
     let control = Control::new(false, 60_000);
-    let debrid = FakeDebrid::accepting();
+    let factory = no_factory();
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, Policy::fixture(), None, &debrid, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
 
     let pass = engine.run_once(&mut rx, now_ms()).await;
     assert_eq!(pass.jobs, 0);
@@ -111,10 +112,11 @@ async fn timer_processa_lote_vencido_e_limpa_quando_resolve() {
     let hash = hash_of(1);
     let policy = Policy::fixture();
     recheck::write(&kv, &due_lot(SEARCH, &hash, now), policy, now).unwrap();
-    let debrid = FakeDebrid::accepting().state(&hash, "ready");
+    let debrid = Arc::new(FakeDebrid::accepting().state(&hash, "ready"));
+    let factory = factory_for(SCOPE, debrid);
     let control = Control::new(false, 60_000);
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &debrid, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 1);
@@ -146,10 +148,11 @@ async fn terminal_com_fila_viva_drena_o_proximo_com_hold() {
             now,
         )
         .unwrap();
-    let debrid = FakeDebrid::accepting().state(&dead, "dead");
+    let debrid = Arc::new(FakeDebrid::accepting().state(&dead, "dead"));
     let control = Control::new(false, 60_000);
+    let factory = factory_for(SCOPE, debrid.clone());
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &debrid, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 1);
@@ -186,26 +189,29 @@ async fn pedido_de_dreno_da_admin_consome_o_canal() {
             now,
         )
         .unwrap();
-    let debrid = FakeDebrid::accepting();
+    let debrid = Arc::new(FakeDebrid::accepting());
     let control = Control::new(false, 60_000);
+    let factory = factory_for(SCOPE, debrid.clone());
     let (tx, mut rx) = mpsc::channel(4);
     tx.try_send(Message::Drain).unwrap();
-    let engine = Engine::new(&kv, policy, None, &debrid, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.drained, 1);
     assert_eq!(debrid.accepted(), vec![next]);
 }
 
-/// O adaptador entra como `Arc<dyn AutofetchDebrid>`: é o caminho de injeção que
-/// a leva do flip usa, e precisa compilar fora dos genéricos concretos.
+/// O adaptador entra como `Arc<dyn AutofetchDebrid>` pela fábrica por conta: é o
+/// caminho de injeção que a leva do flip usa, e precisa compilar fora dos
+/// genéricos concretos.
 #[tokio::test]
 async fn adaptador_injetado_como_trait_object() {
     let kv = kv();
     let now = now_ms();
     let debrid: DebridIo = Arc::new(FakeDebrid::accepting());
+    let factory = factory_for(SCOPE, debrid);
     let control = Control::new(true, 60_000);
-    let engine = Engine::new(&kv, Policy::fixture(), None, &*debrid, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
     let payload = batch_payload(SEARCH, &[(&hash_of(1), true)]);
     let (tx, mut rx) = mpsc::channel(4);
     tx.try_send(Message::Batch(job(SCOPE, payload))).unwrap();
@@ -221,13 +227,14 @@ async fn adaptador_injetado_como_trait_object() {
 async fn falha_do_adaptador_vira_last_error_no_painel() {
     let kv = kv();
     let now = now_ms();
-    let mut debrid = FakeDebrid::accepting();
-    debrid.fail_status = true;
+    let mut fake = FakeDebrid::accepting();
+    fake.fail_status = true;
     let policy = Policy::fixture();
     recheck::write(&kv, &due_lot(SEARCH, &hash_of(1), now), policy, now).unwrap();
     let control = Control::new(false, 60_000);
+    let factory = factory_for(SCOPE, Arc::new(fake));
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &debrid, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 0);
@@ -246,14 +253,14 @@ async fn passagem_poda_o_cofre_e_o_status_conta_sem_vazar_chave() {
     let vault = Arc::new(Vault::new(1_000, 4, ""));
     let scope = vault.put("alldebrid", "chave-secreta-42", now).unwrap();
     let control = Arc::new(Control::new(false, 60_000));
-    let debrid = FakeDebrid::accepting();
+    let factory = no_factory();
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &debrid, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &factory, &control);
 
     let pass = engine.run_once(&mut rx, now + 5_000).await;
     assert_eq!(pass.forgotten_keys, 1);
     assert!(vault.key(&scope, now + 5_000).is_none());
-    assert_eq!(control.inflight.load(Ordering::Relaxed), 0);
+    assert!(!control.inflight(), "passagem não pode ficar em voo");
 
     // Status de um handle ligado: contadores + contagem redigida do cofre.
     let handle = AutofetchHandle::stub_enabled(kv, Some(vault.clone()), control.clone());

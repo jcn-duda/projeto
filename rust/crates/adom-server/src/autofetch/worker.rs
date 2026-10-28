@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use super::enqueue::Job;
-use super::serve::{self, Control, DebridIo, Message, Snapshot};
+use super::serve::{self, Control, DebridFactory, Message, Snapshot};
 use super::vault::Vault;
 use super::{worker_enabled, Policy, LOT_PREFIX, QUEUE_PREFIX};
 
@@ -96,20 +96,20 @@ pub(crate) struct AutofetchHandle {
 }
 
 impl AutofetchHandle {
-    /// Handle de admin sem ciclo: `prepared`, sem canal e sem adaptador. É o caso
-    /// normal do boot (trava desligada) e o do teste das rotas. O cofre só nasce
-    /// com a trava ligada (sem consumidor, guardar chave seria exposição sem uso).
+    /// Handle de admin sem ciclo: `prepared`, sem canal e sem fábrica. Só os
+    /// testes usam (o boot sem laço passa por [`spawn_with`] com `None`).
+    #[cfg(test)]
     pub(super) fn with_store(kv: Arc<NativeKv>) -> Self {
         Self::build(kv, &Policy::from_env(), super::vault::shared(), None)
     }
 
-    /// Handle completo. `enabled` exige a trava E o adaptador: sem os dois o
-    /// canal nem é criado (`submit` devolve `false`).
+    /// Handle completo. `enabled` exige a trava E a fábrica por conta: sem os
+    /// dois o canal nem é criado (`submit` devolve `false`).
     pub(crate) fn build(
         kv: Arc<NativeKv>,
         policy: &Policy,
         vault: Option<Arc<Vault>>,
-        debrid: Option<DebridIo>,
+        debrid: Option<DebridFactory>,
     ) -> Self {
         let config = load_config(&kv);
         let hydrated = hydrate(&kv);
@@ -265,6 +265,17 @@ fn phase_of(enabled: bool, paused: bool) -> &'static str {
 }
 
 pub(crate) fn spawn() -> Option<AutofetchHandle> {
+    // TODO(flip): montar a fábrica de verdade exige o `Vault` do processo E o
+    // `RdGateExecutor`/`RdUncertainStore` COMPARTILHADOS com o play nativo (gate
+    // próprio faria o AIMD mentir sobre gap/cooldown). Nenhum dos dois existe
+    // hoje no `adom-server`: o boot deles é do `main.rs`, fora desta área — até
+    // lá o worker fica `prepared`, mesmo com `AUTOFETCH_WORKER=on`.
+    spawn_with(None)
+}
+
+/// Variante de boot que recebe a fábrica por conta (é o ponto do flip):
+/// `spawn_with(Some(factory))` liga o ciclo, `None` mantém `prepared`.
+pub(crate) fn spawn_with(debrid: Option<DebridFactory>) -> Option<AutofetchHandle> {
     let path = adom_store::default_cache_db_path();
     let kv = match NativeKv::open(&path) {
         Ok(kv) => Arc::new(kv),
@@ -276,9 +287,14 @@ pub(crate) fn spawn() -> Option<AutofetchHandle> {
             return None;
         }
     };
-    // Sem fábrica de `AutofetchDebrid` não há laço: a injeção por conta entra na
-    // leva do flip. Com a trava desligada isto é `prepared`, como antes.
-    Some(AutofetchHandle::with_store(kv))
+    // Sem fábrica de `AutofetchDebrid` não há laço: com a trava desligada (ou
+    // sem cofre) isto é `prepared`, como antes.
+    Some(AutofetchHandle::build(
+        kv,
+        &Policy::from_env(),
+        super::vault::shared(),
+        debrid,
+    ))
 }
 
 /// Leitura única (boot): profundidade da fila e lotes de recheck persistidos.

@@ -34,10 +34,10 @@ pub(super) fn expired_facts(alldebrid: bool, has_marker: bool, has_adsub: bool) 
 
 /// Expira o lote inteiro. `finished` quando não sobrou hash (o caso normal);
 /// hash cuja remoção falhou volta para o lote, para a próxima passagem.
-pub(super) async fn expire<D: adom_autofetch::v3::AutofetchDebrid<Error = String> + ?Sized>(
+pub(super) async fn expire(
     kv: &NativeKv,
     policy: Policy,
-    debrid: &D,
+    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
     adapter_is_alldebrid: bool,
     lot: &super::recheck::Lot,
     now_ms: i64,
