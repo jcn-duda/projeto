@@ -33,27 +33,55 @@ pub struct RecheckInput {
     pub id_present: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecheckStreaks {
+    pub dead: i64,
+    pub stalled: i64,
+}
+
+/// Atualiza contadores como a passagem do Node: morte e stall nativo têm
+/// contadores independentes; falta de resposta mantém ambos. Um estado
+/// observado sem sinal de morte/parada zera ambos, inclusive `unknown`
+/// explícito do adaptador. Progresso derivado terminal limpa o lote fora daqui.
+pub fn recheck_streaks(input: &RecheckInput) -> RecheckStreaks {
+    let mut streaks = RecheckStreaks {
+        dead: input.dead_streak,
+        stalled: input.stall_streak,
+    };
+    if input.cached || input.state.as_deref() == Some("ready") {
+        return RecheckStreaks {
+            dead: 0,
+            stalled: 0,
+        };
+    }
+    if input.state.as_deref() == Some("dead") {
+        streaks.dead = streaks.dead.saturating_add(1);
+    } else if input.stalled && input.stall_threshold > 0 {
+        streaks.stalled = streaks.stalled.saturating_add(1);
+    } else if !input.derived_stalled && input.status_ok && input.state.is_some() {
+        streaks = RecheckStreaks {
+            dead: 0,
+            stalled: 0,
+        };
+    }
+    streaks
+}
+
 /// Aplica a precedência do recheck: cache/pronto, morte/parada e, por fim,
 /// expiração com prova de posse. Um status desconhecido nunca é prova de morte.
 pub fn recheck_step(input: &RecheckInput) -> RecheckAction {
     if input.cached || input.state.as_deref() == Some("ready") {
         return RecheckAction::Ready;
     }
-    if input.state.as_deref() == Some("dead") {
-        return if input.dead_streak.saturating_add(1) >= input.dead_threshold.max(1) {
-            RecheckAction::TerminalDead
-        } else {
-            RecheckAction::Pending
-        };
+    let dead = input.state.as_deref() == Some("dead");
+    let native_stalled = !dead && input.stalled && input.stall_threshold > 0;
+    if dead && input.dead_streak.saturating_add(1) >= input.dead_threshold.max(1) {
+        return RecheckAction::TerminalDead;
     }
-    if input.stalled && input.stall_threshold > 0 {
-        return if input.stall_streak.saturating_add(1) >= input.stall_threshold.max(1) {
-            RecheckAction::TerminalStalled
-        } else {
-            RecheckAction::Pending
-        };
+    if native_stalled && input.stall_streak.saturating_add(1) >= input.stall_threshold {
+        return RecheckAction::TerminalStalled;
     }
-    if input.derived_stalled {
+    if !dead && !native_stalled && input.derived_stalled {
         return RecheckAction::TerminalProgress;
     }
     if input.expired {

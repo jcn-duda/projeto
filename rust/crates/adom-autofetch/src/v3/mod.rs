@@ -25,6 +25,7 @@
 //!   não tem LRU, toda leitura é "quiet".
 
 mod candidate;
+mod debrid;
 mod dispatch;
 mod drain;
 mod evict;
@@ -40,14 +41,21 @@ mod suppressed;
 use sha2::{Digest, Sha256};
 
 pub use candidate::{Number, QueueCandidate};
+pub use debrid::{
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence,
+    TorrentEvidence, TorrentProgress,
+};
 pub use dispatch::{dispatch, DispatchDecision, DispatchInput};
-pub use drain::{select_drain_candidate, DrainSelection};
+pub use drain::{
+    drain_next, finish_drain_selection, select_drain_candidate, DrainBlock, DrainDecision,
+    DrainGates, DrainNext, DrainSelection,
+};
 pub use evict::{eligible_evictions, EvictCandidate, EvictInput};
 pub use obra::ObraStoreV3;
 pub use obra_reservation::{ObraLeaseV3, ObraReservationInput, ObraReservations};
 pub use probe::{probe_blocks_seeds, probe_state, ProbeState};
 pub use queue::{marker_value, QueueV3, WriteReport};
-pub use recheck::{recheck_step, RecheckAction, RecheckInput};
+pub use recheck::{recheck_step, recheck_streaks, RecheckAction, RecheckInput, RecheckStreaks};
 pub use season::season_fill_eligible;
 pub use seeds::seeds_stop;
 pub use suppressed::{suppressed_key, Suppressed, SuppressedRetry, SuppressedV3};

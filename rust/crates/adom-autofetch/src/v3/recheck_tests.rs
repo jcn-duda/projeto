@@ -1,6 +1,6 @@
 use adom_core::ExpiredFacts;
 
-use super::{recheck_step, RecheckAction, RecheckInput};
+use super::{recheck_step, recheck_streaks, RecheckAction, RecheckInput, RecheckStreaks};
 
 fn input() -> RecheckInput {
     RecheckInput {
@@ -171,5 +171,100 @@ fn progresso_derivado_nao_vira_remocao_direta() {
             ..input()
         }),
         RecheckAction::TerminalProgress
+    );
+}
+
+#[test]
+fn expira_mesmo_se_morte_ou_stall_ainda_nao_atingiu_limiar() {
+    assert_eq!(
+        recheck_step(&RecheckInput {
+            state: Some("dead".into()),
+            expired: true,
+            ..input()
+        }),
+        RecheckAction::RemoveExpired
+    );
+    assert_eq!(
+        recheck_step(&RecheckInput {
+            stalled: true,
+            expired: true,
+            ..input()
+        }),
+        RecheckAction::RemoveExpired
+    );
+    assert_eq!(
+        recheck_step(&RecheckInput {
+            state: Some("dead".into()),
+            derived_stalled: true,
+            ..input()
+        }),
+        RecheckAction::Pending
+    );
+}
+
+#[test]
+fn streaks_independentes_e_sem_resposta_nao_apaga_evidencia() {
+    let sample = RecheckInput {
+        dead_streak: 1,
+        stall_streak: 2,
+        ..input()
+    };
+    assert_eq!(
+        recheck_streaks(&RecheckInput {
+            state: Some("dead".into()),
+            ..sample.clone()
+        }),
+        RecheckStreaks {
+            dead: 2,
+            stalled: 2
+        }
+    );
+    assert_eq!(
+        recheck_streaks(&RecheckInput {
+            stalled: true,
+            ..sample.clone()
+        }),
+        RecheckStreaks {
+            dead: 1,
+            stalled: 3
+        }
+    );
+    let no_response = RecheckInput {
+        status_ok: false,
+        state: None,
+        ..sample.clone()
+    };
+    assert_eq!(recheck_step(&no_response), RecheckAction::Unknown);
+    assert_eq!(
+        recheck_streaks(&no_response),
+        RecheckStreaks {
+            dead: 1,
+            stalled: 2
+        }
+    );
+    assert_eq!(
+        recheck_streaks(&sample),
+        RecheckStreaks {
+            dead: 0,
+            stalled: 0
+        }
+    );
+}
+
+#[test]
+fn unknown_explicito_nao_condena_e_estado_observado_reinicia_streaks() {
+    let unknown = RecheckInput {
+        state: Some("unknown".into()),
+        dead_streak: 1,
+        stall_streak: 2,
+        ..input()
+    };
+    assert_eq!(recheck_step(&unknown), RecheckAction::Pending);
+    assert_eq!(
+        recheck_streaks(&unknown),
+        RecheckStreaks {
+            dead: 0,
+            stalled: 0
+        }
     );
 }
