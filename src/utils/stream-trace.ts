@@ -157,10 +157,14 @@ function setTraceStage(t: StreamTraceState | null | undefined, stage: string, co
 }
 
 /** Higiene do resumo do Chupim: o texto é curto e de enum fechado, mas passa
- * pela MESMA defesa do rótulo (magnet/hash fora) antes de tocar o payload. */
+ * pela MESMA defesa do rótulo (magnet/hash fora) antes de tocar o payload.
+ * O resumo é delimitado por `;` (`pool=…; seeds=…; probe=…`), e a URI do magnet
+ * não usa `;`: o casamento para no delimitador para o `<magnet>` não engolir a
+ * fronteira do campo seguinte (o rótulo livre segue no `\S*` do
+ * `sanitizeTraceLabel`, onde não há estrutura a preservar). */
 function sanitizeChupimNote(note: unknown): string {
   const clean = String(note || '')
-    .replace(/magnet:\?\S*/gi, '<magnet>')
+    .replace(/magnet:\?[^\s;]*/gi, '<magnet>')
     .replace(/[a-fA-F0-9]{40}/g, '<hash>');
   return clean.length > STREAM_TRACE_CHUPIM_MAX
     ? `${clean.slice(0, STREAM_TRACE_CHUPIM_MAX - 1)}…`

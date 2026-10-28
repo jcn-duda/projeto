@@ -9,6 +9,11 @@ import { kvForget } from '../../src/utils/native-kv.js';
 import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import { applyDebrid } from './pipeline-oracle/index.js';
+import { assertSafeTestDb } from './db-guard.js';
+
+// `cache.set`/`kvForget` abaixo escrevem no KV: sem setup-env isso é o
+// `data/cache.db` do repositório, não um banco de teste.
+assertSafeTestDb('autofetch-fixtures');
 
 /** Hashes fixos compartilhados pelos testes de fila/dreno. */
 export const H1 = '1111111111111111111111111111111111111111';

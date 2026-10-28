@@ -144,9 +144,9 @@ export async function enqueue(apiKey: string, infoHash: string) {
  * `seeders`. Eles só existem em download ATIVO; magnet pronto ou terminal não
  * os traz, e aí `progress` fica ausente de propósito — ausência é "sem sinal",
  * não "parado". NÃO derivamos `stalled` aqui: a parada por progresso é
- * conservadora e mora no recheck (`autofetch-progress`), que exige N
- * observações consecutivas; o `stalled` nativo dos outros serviços continua
- * saindo do próprio adaptador.
+ * conservadora e mora no passo nativo do recheck (`recheck.rs`, que exige N
+ * observações consecutivas) — o corpo TS `autofetch-progress` saiu na B4; o
+ * `stalled` nativo dos outros serviços continua saindo do próprio adaptador.
  */
 export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/magnet/status');

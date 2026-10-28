@@ -2,12 +2,16 @@
 //
 // Cópia fiel de `src/providers/debrid-pipeline-core.ts` no commit c11cb720
 // (branch rust), congelada em `test/helpers/pipeline-oracle/` para os testes
-// continuarem exercitando o applyDebrid depois que o F4.4 remover o pipeline
-// TS. Só entram aqui as dependências que SOBREVIVEM ao corte (autofetch,
-// debrid, cache, runtime, format, episode-size, dub-audit, trace); o resto do
-// pipeline (`search-orchestrator`, `search-cache`, `stream-builder*`, …) fica
-// de fora. Não edite para "acompanhar" produção: o comportamento novo precisa
-// ser validado no núcleo Rust; este arquivo preserva o oráculo dos testes.
+// continuarem exercitando o applyDebrid depois do corte do pipeline TS.
+// Só entram aqui as dependências que SOBREVIVEM ao corte (debrid, cache,
+// runtime, format, episode-size, dub-audit, trace); o resto do pipeline
+// (`search-orchestrator`, `search-cache`, `stream-builder*`, …) fica de fora.
+// O Chupim também saiu do `src/` na leva B4: as três funções que este arquivo
+// chama vêm do adaptador local `./autofetch-bridge.js` (seleção de
+// `decideAutofetch` + holds de `protected.ts` + `debrid.enqueue`) — o que ele
+// deixou de medir está listado no cabeçalho daquele módulo.
+// Não edite para "acompanhar" produção: o comportamento novo precisa ser
+// validado no núcleo Rust; este arquivo preserva o oráculo dos testes.
 import config from '../../../src/config.js';
 import type { Stream } from '../../../types/domain.js';
 import {
@@ -27,7 +31,13 @@ import * as autofetch from '../../../src/providers/autofetch.js';
 import * as rdLedger from '../../../src/debrid/rd-ledger.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
-import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from '../../../src/providers/autofetch-runner.js';
+// Chupim pós-B4: seleção (`decideAutofetch`), holds (`protected.ts`) e disparo
+// (`debrid.enqueue`) no adaptador local — o runner TS não existe mais.
+import {
+  oracleAutoFetchCandidates as autoFetchCandidates,
+  oracleReleaseAllHolds as releaseAllHolds,
+  oracleAutoFetchBrDubbed as autoFetchBrDubbed,
+} from './autofetch-bridge.js';
 import rdWarmer from '../../../src/providers/rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { enrichInstantWithoutCacheCheck } from '../../../src/providers/debrid-cache-steps.js';
@@ -43,6 +53,11 @@ import { checkCachedFrozen } from './debrid-check-frozen.js';
  * link de play que passa pela nossa rota /resolve.
  */
 import type { ApplyDebridOptions } from './types.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+// O oráculo chama `cache.set`/KV/marker: sem setup-env o destino seria o banco
+// real da máquina. Guarda de bancada — o comportamento congelado não muda.
+assertSafeTestDb('pipeline-oracle/debrid-pipeline');
 // O tipo vive em `types.ts` do oráculo (cópia congelada do antigo
 // `debrid-pipeline-types.ts`), para o helper não depender do módulo removido.
 export type { ApplyDebridOptions };

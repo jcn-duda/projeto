@@ -1,11 +1,14 @@
 // Ponte do Node com o worker NATIVO do Chupim (`adom-server::autofetch`), que
-// vive na API administrativa do gateway em loopback (`127.0.0.1:8711`).
+// vive na API administrativa do gateway em loopback (`127.0.0.1:8711`, a mesma
+// URL/token do `stream-store.ts`).
 //
 // A admin publica `GET /autofetch` e `POST /autofetch/{config,pause,drain,
-// suppressed-drain}`. O worker do gateway nasce DESLIGADO (`enabled:false`,
-// `phase:"prepared"`, dreno respondendo `effect:"none"`): nesta fase a ponte é
-// o caminho do painel, mas o Chupim que EXECUTA continua sendo o do Node. Quem
-// decide o fallback é quem chama — daqui só sai estado.
+// suppressed-drain}`. O worker nasce DESLIGADO (`enabled:false`,
+// `phase:"prepared"`, dreno respondendo `effect:"none"`) e só passa a consumir
+// com `AUTOFETCH_WORKER=on`: ligado, quem EXECUTA o Chupim é ele (o corpo TS do
+// runner saiu na leva B4) e esta ponte serve ao painel. O único caminho de
+// execução que ainda mora no Node é o dreno da fila represada (`sup:`) com o
+// worker desligado — quem decide o fallback é quem chama: daqui só sai estado.
 //
 // Contrato (igual ao `harvest-native`): o token vai SEMPRE no header
 // (`x-indexer-test-token`, o mesmo da admin) e nunca na URL; prazo curto; e
@@ -218,9 +221,13 @@ export function drainAutofetch(): Promise<AutofetchResult | null> {
   return command('/autofetch/drain', {}, 'drain');
 }
 
-/** Dreno da fila de remoções represadas do worker (idem `effect`). */
+/**
+ * Dreno da fila de remoções represadas do worker. DESTRUTIVA: o gateway só
+ * executa com `{"confirm": true}` (a rota do painel já chega aqui sob
+ * confirmação) ou com o knob `DEBRID_REMOVE_BY_ID` ligado.
+ */
 export function drainSuppressedAutofetch(): Promise<AutofetchResult | null> {
-  return command('/autofetch/suppressed-drain', {}, 'suppressed-drain');
+  return command('/autofetch/suppressed-drain', { confirm: true }, 'suppressed-drain');
 }
 
 /**

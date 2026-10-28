@@ -26,7 +26,7 @@ function clearDead(adapterId: string, account: string, hashes: string[]) {
   for (const h of hashes) kvForget(autofetch.deadKey(adapterId, account, h));
 }
 
-test('autofetch de série enfileira o pack em vez do episódio avulso', async () => {
+test('autofetch de série: o seletor põe o pack à frente do episódio avulso', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
@@ -52,11 +52,12 @@ test('autofetch de série enfileira o pack em vez do episódio avulso', async ()
       ),
     );
     await sleep(20);
-    // Fase 2: o pool `any` tem teto de 1 por OBRA/janela, então o pack (que o
-    // seletor ordena primeiro) consome a vaga e o episódio avulso fica de fora —
-    // exatamente o "pack em vez do episódio" do título. Sem o teto os dois eram
-    // baixados, desperdiçando uma vaga da conta no mesmo conteúdo.
-    assert.deepEqual(enqueued, [pack], 'série: o pack é enfileirado e o episódio avulso não');
+    // Fase 2: o pool `any` tem teto de 1 por OBRA/janela e é essa vaga única que
+    // descarta o avulso em produção — mas ela é do WORKER (`reserveObra` /
+    // `pool_cap`), fora do oráculo desde a B4. O que o oráculo mede é a ordem do
+    // seletor: o pack vem primeiro, então é ele que consome a vaga no worker;
+    // aqui os dois disparam.
+    assert.deepEqual(enqueued, [pack, ep], 'série: pack primeiro; a vaga única da obra é do worker');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;

@@ -59,7 +59,7 @@ export function schema(): AutofetchSchemaField[] {
       type: 'boolean',
       group: 'sources',
       envDefault: defaults.autoFetchBrProbe,
-      description: 'Antes de liberar o pool de melhores sementes, procura dublado nos index-only BR. Enquanto procura, o pool de sementes fica deferido (não purgado). Exige RELEASE_INDEX ativo e interseção index-only × pt-BR.',
+      description: 'Lida pelo worker NATIVO do Chupim (este painel vence o AUTOFETCH_BR_PROBE do .env). Com o pool BR vazio, agenda a sonda que consulta os index-only BR antes de liberar o pool de sementes. Exige RELEASE_INDEX ativo e interseção index-only × pt-BR. O deferimento do pool de sementes durante a sonda ainda NÃO é aplicado pelo nativo — hoje o efeito é só o agendamento.',
     },
     {
       key: 'autoFetchAnyDubbed',

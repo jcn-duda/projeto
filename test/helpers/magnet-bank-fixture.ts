@@ -6,6 +6,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import config from '../../src/config.js';
 import * as bank from '../../src/utils/magnet-bank.js';
+import { assertSafeTestDb } from './db-guard.js';
+
+// O `magnets.db` vivo tem default no VOLUME real: sem setup-env, `bank.open()`
+// abriria o acervo da máquina. Recusa antes de qualquer abertura.
+assertSafeTestDb('magnet-bank-fixture');
 
 export let hasNodeSqlite = true;
 try {

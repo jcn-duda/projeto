@@ -22,6 +22,11 @@ import * as protectedApi from '../../../src/debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../../../src/debrid/common.js';
 import { invalidateStreamsForObra } from '../../../src/utils/br-gap.js';
 import type { ApplyDebridOptions } from '../../../src/providers/debrid-apply-types.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+// O oráculo grava no KV/cache: sem setup-env o destino seria o banco real.
+// (Guarda de bancada, não mudança de comportamento — o congelado segue igual.)
+assertSafeTestDb('pipeline-oracle/dub-audit');
 
 type DubAuditCandidate = {
   hash: string;

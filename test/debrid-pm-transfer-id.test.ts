@@ -7,25 +7,23 @@
 // o autofetch submetia voltava a ser observável. O id que o `/transfer/create`
 // devolve é a única âncora; estes testes cobrem guardá-lo, usá-lo, e o gate
 // que impede a visão nova de virar remoção automática no mesmo deploy.
-import { test, mock } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
 import * as premiumize from '../src/debrid/premiumize.js';
 import * as autofetch from '../src/providers/autofetch.js';
-import * as held from '../src/debrid/protected.js';
 import debrid from '../src/debrid/index.js';
-import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { applyDebrid } from './helpers/pipeline-oracle/index.js';
+import { pruneKnownBroken } from './helpers/pipeline-oracle/debrid-cache-steps.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import type { DebridAdapter } from '../types/domain.js';
-import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';
+import { brDubCandidate } from './helpers/autofetch-fixtures.js';
 
 /** Dublê de fetch com corpo fixo; o AbortSignal.timeout vira no-op. */
 function stubFetch(body: unknown) {
@@ -171,105 +169,131 @@ test('markerValue guarda o id e markerTransferId o devolve', () => {
 });
 
 /**
- * Gate da remoção. Roda o colapso de "parado" duas vezes com a MESMA montagem,
- * mudando só o knob: é a diferença entre as duas execuções que prova que o
- * knob governa a destruição, e não outra coisa do caminho.
+ * Gate da remoção. O COLAPSO em si (parado → blacklist → apagar/represar) saiu
+ * do Node na leva B4: hoje é do worker nativo
+ * (`adom-server::autofetch::recheck` → `recheck_expire`), e a matriz via×knob
+ * está em `adom-autofetch::v3::recheck_tests.rs`. O que continua sendo do Node
+ * — e o que estes testes medem — é o EFEITO observável: a blacklist que tira o
+ * hash do lote antes da checagem e a fila de represados que o knob governa
+ * (`drainSuppressed` é o único leitor de `removeById` que sobrou no TS).
+ *
+ * porque: a montagem abaixo reproduz o ESTADO que o colapso nativo deixa
+ * (blacklist + represado), não o colapso — rodar o pipeline aqui mediria um
+ * contador que, depois do corte, não tem mais escritor. Pela mesma razão o
+ * `hold` não é mais observado: quem chama `protected.release` no colapso é o
+ * worker nativo, no mesmo passo.
  */
 let rodada = 0;
-async function colapsaParado({ removeById, via }: { removeById: boolean; via: 'hash' | 'id' }) {
-  // Montagem NOVA a cada chamada: o colapso deixa o hash na blacklist, e o
-  // finally nao a limpa. Reaproveitar hash/conta faria a proxima chamada nem
-  // chegar ao enqueue (o candidato entra ja filtrado como morto) e o teste
-  // passaria a medir silencio em vez do gate.
+async function colapsaParado({ removeById, via, keepSuppressed = false }: {
+  removeById: boolean;
+  via: 'hash' | 'id';
+  keepSuppressed?: boolean;
+}) {
+  // Montagem NOVA a cada chamada: o hash blacklistado não é limpo no finally.
+  // Reaproveitar hash/conta faria a chamada seguinte já entrar filtrada como
+  // morta — e o teste mediria silêncio em vez do gate.
   rodada += 1;
-  const testMock = mock;
-  const originalCheck = debrid.checkCached;
-  const originalPublicUrl = config.debrid.publicUrl;
-  const originalStall = config.debrid.autoFetchStallStreak;
   const originalRemoveById = config.debrid.removeById;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  const originalTorrentStatus = pmAdapter.torrentStatus;
   const originalRemoveTorrent = pmAdapter.removeTorrent;
   const chave = `chave-gate-${rodada}`;
   const account = accountScope(chave);
   const h = String(rodada).padStart(40, '0');
-  const searchKey = `busca-gate-${rodada}`;
-  const supKey = 'autofetch.stalled.suppressed';
-  const supBefore = metrics.snapshot().counters[supKey] || 0;
   let removals = 0;
+  let removedId = '';
 
   try {
-    config.debrid.publicUrl = 'http://addon.test';
-    config.debrid.autoFetchStallStreak = 1;
     config.debrid.removeById = removeById;
-    pmAdapter.enqueue = async () => 'id-da-transferencia';
-    pmAdapter.torrentStatus = async () => ({
-      [h]: { state: 'downloading', stalled: true, id: 99, via },
-    });
-    pmAdapter.removeTorrent = async () => { removals += 1; return true; };
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    cache.set(searchKey, { streams: [], partial: false }, 900);
+    pmAdapter.removeTorrent = async (_chave: string, id: string | number) => {
+      removals += 1;
+      removedId = String(id);
+      return true;
+    };
+    // O colapso blacklista SEMPRE, qualquer que seja a via: é o que impede o
+    // hash de voltar ao lote. A represa só existe para `via === 'id'`.
+    autofetch.blacklist('premiumize', account, h);
+    if (via === 'id') suppressed.noteSuppressed('premiumize', account, h, 99);
 
-    testMock.timers.enable({ apis: ['setTimeout'] });
-    await runtime.run({ opts: autofetchUserOpts(chave), encoded: `cfg-${searchKey}` }, () =>
-      applyDebrid([brDubCandidate(h)], { searchKey } as any),
-    );
-    await flush();
-    testMock.timers.tick(120_000);
-    await flush();
+    // Porta AUTOMÁTICA do drain (sem `force`): é ela que respeita o knob.
+    const removed = via === 'id' ? await suppressed.drainSuppressed(pmAdapter, chave, account) : 0;
 
+    // Prova de integração do efeito: o hash blacklistado sai do lote ANTES da
+    // checagem, pelo MESMO filtro que o oráculo do pipeline chama.
+    const deadBefore = metrics.snapshot().counters['magnetdb.dropped.dead'] || 0;
+    const pruned = pruneKnownBroken([brDubCandidate(h)], 'premiumize', { apiKey: chave, trustScope: account });
     return {
       removals,
+      removed,
+      removedId,
+      kept: pruned.streams.length,
+      droppedDead: (metrics.snapshot().counters['magnetdb.dropped.dead'] || 0) - deadBefore,
       blacklisted: autofetch.isDead('premiumize', account, h),
-      soltou: !held.isHeld(h, account),
-      suppressed: (metrics.snapshot().counters[supKey] || 0) - supBefore,
       represados: suppressed.listSuppressed('premiumize', account),
       account,
       hash: h,
     };
   } finally {
-    testMock.timers.reset();
-    config.debrid.autoFetchStallStreak = originalStall;
     config.debrid.removeById = originalRemoveById;
-    config.debrid.publicUrl = originalPublicUrl;
-    debrid.checkCached = originalCheck;
-    pmAdapter.enqueue = originalEnqueue;
-    pmAdapter.torrentStatus = originalTorrentStatus;
     pmAdapter.removeTorrent = originalRemoveTorrent;
-    autofetch.releaseSearch(searchKey);
-    cache.forget(searchKey);
+    kvForget(autofetch.deadKey('premiumize', account, h));
     kvForget(autofetch.markerKey('premiumize', account, h));
-    held.release(h, account);
-    suppressed.forgetSuppressed('premiumize', account, h);
+    // O teste 12 cobra a virada do knob DEPOIS, então precisa do registro vivo.
+    if (!keepSuppressed) suppressed.forgetSuppressed('premiumize', account, h);
   }
 }
 
 test('via=id com removeById desligado: blacklista e drena, mas NÃO apaga na conta', async () => {
   const r = await colapsaParado({ removeById: false, via: 'id' });
   assert.equal(r.removals, 0, 'nada é removido da conta do usuário');
-  assert.equal(r.suppressed, 1, 'o que teria sido apagado vira contador');
+  assert.equal(r.removed, 0, 'a porta automática do drain não fura o knob');
+  assert.equal(r.represados.length, 1, 'o que teria sido apagado fica na fila');
   assert.equal(r.blacklisted, true, 'a fila para de reenfileirar o mesmo hash');
-  assert.equal(r.soltou, true, 'o hold é liberado do mesmo jeito');
+  assert.equal(r.droppedDead, 1, 'o hash sai do lote como dead antes da checagem');
+  assert.equal(r.kept, 0, 'e não volta ao play como stream vivo');
 });
 
 test('via=id com removeById ligado: o knob devolve a remoção', async () => {
   const r = await colapsaParado({ removeById: true, via: 'id' });
   assert.equal(r.removals, 1, 'ligado, remove');
-  assert.equal(r.suppressed, 0);
+  assert.equal(r.removed, 1);
+  assert.equal(r.removedId, '99', 'pelo id registrado, nunca pelo hash');
+  assert.equal(r.represados.length, 0, 'não sobrou nada represado');
 });
 
 test('via=hash não é afetada pelo knob: a remoção histórica segue igual', async () => {
   const r = await colapsaParado({ removeById: false, via: 'hash' });
-  assert.equal(r.removals, 1, 'quem o serviço identifica por hash nunca dependeu do knob');
-  assert.equal(r.suppressed, 0);
+  // porque: o gate só barra `via === 'id'` (recheck.rs:99). Achado por hash tem
+  // posse no próprio serviço, então nunca entra nesta fila — com o knob ligado
+  // ou desligado, não há o que drenar.
+  assert.equal(r.represados.length, 0, 'via=hash não entra na fila do gate');
+  assert.equal(r.removed, 0, 'sem registro, o knob não tem o que barrar nem soltar');
+  assert.equal(r.blacklisted, true, 'a blacklist vale para as duas vias');
 });
 
 test('suprimir REGISTRA a transferência, para a virada do knob ser retroativa', async () => {
-  const r = await colapsaParado({ removeById: false, via: 'id' });
+  const r = await colapsaParado({ removeById: false, via: 'id', keepSuppressed: true });
   assert.equal(r.represados.length, 1, 'o que nao foi apagado fica registrado');
   assert.equal(r.represados[0].hash, r.hash);
   assert.equal(r.represados[0].id, '99', 'guarda o id da transferencia, que e o que apaga depois');
+  // O ponto do item 3: sem o registro, ligar o knob depois não alcançava nada
+  // do que se acumulou enquanto ele estava desligado.
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalRemoveTorrent = pmAdapter.removeTorrent;
+  const originalRemoveById = config.debrid.removeById;
+  const removidos: Array<string | number> = [];
+  try {
+    pmAdapter.removeTorrent = async (_chave: string, id: string | number) => {
+      removidos.push(id);
+      return true;
+    };
+    config.debrid.removeById = true;
+    assert.equal(await suppressed.drainSuppressed(pmAdapter, r.account, r.account), 1);
+    assert.deepEqual(removidos, ['99'], 'a virada do knob cobra o id guardado');
+  } finally {
+    config.debrid.removeById = originalRemoveById;
+    pmAdapter.removeTorrent = originalRemoveTorrent;
+    suppressed.forgetSuppressed('premiumize', r.account, r.hash);
+  }
 });
 
 test('remover de verdade NÃO deixa registro represado', async () => {

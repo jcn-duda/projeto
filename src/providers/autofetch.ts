@@ -39,6 +39,7 @@ function queueKey(searchKey: string) {
 }
 
 function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
+  // Sem escritor em produção: só `test/autofetch-queue.test.ts` chama (E+1 aposentado na B4).
   return `${prefix('autofetch')}pf:${account}:${id}:${s}:${e}`;
 }
 

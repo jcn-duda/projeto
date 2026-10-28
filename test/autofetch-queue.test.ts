@@ -1,26 +1,20 @@
+// Contrato do Node com a fila v3 do Chupim: as PORTAS que o worker nativo do
+// gateway consome (chave, escrita, leitura, drop, takeNext) mais a blacklist, o
+// orçamento e o gate de ocupação. O dreno (`drainNext`), a derivação de parada e
+// o índice da obra saíram do TS na leva B4 — quem os prova é o `cargo test` de
+// `adom-autofetch` e do worker (`adom-server/src/autofetch`), não este arquivo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
 import * as autofetch from '../src/providers/autofetch.js';
-import { drainNext } from '../src/providers/autofetch-runner.js';
 import * as cache from '../src/utils/cache.js';
-import { kvForget, kvPeek } from '../src/utils/native-kv.js';
+import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
-import debrid from '../src/debrid/index.js';
-import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
-import autofetchLive from '../src/utils/autofetch-live.js';
 import { canAutoFetchBr } from '../src/utils/format.js';
-import { accountScope } from '../src/utils/request-key.js';
-import { kvSet } from '../src/utils/native-kv.js';
-import type { DebridAdapter } from '../types/domain.js';
-import { recordAutofetchRelease } from '../src/providers/autofetch-index.js';
-import * as releaseIndex from '../src/utils/release-index.js';
-import {
-  H1, H2, H3, H4, sleep, mkAdapter, premiumizeRunCtx, dinvKeyFor,
-} from './helpers/autofetch-fixtures.js';
+import { H1, H2, H3, H4, sleep, mkAdapter, dinvKeyFor } from './helpers/autofetch-fixtures.js';
 
 test('reindexQueues reconstrói knownQueues a partir do KV nativo (bypass writeQueue)', () => {
   const searchKey = 'streams:v7:movie:ttReindexBoot';
@@ -63,17 +57,6 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   assert.equal(read.length, 2, 'deduplica hashes na gravacao da fila');
   assert.equal(read[0].infoHash, H1);
   assert.equal(read[0].lied, true, 'a fila preserva a condenação de áudio até o dreno');
-  recordAutofetchRelease('tt9000046', { ...read[0], br: true, dubbed: true });
-  assert.equal(releaseIndex.lookupQuiet('tt9000046')[0]?.lied, true, 'o dreno não limpa a condenação');
-  // O stream chega sem `_size` (o sortAndLimit o apaga): o índice grava o total
-  // do download pelo título — o "📦 pack", não o 💾 que já é do episódio.
-  recordAutofetchRelease('tt9000047', {
-    infoHash: H3,
-    title: 'Serie S01 1080p WEB-DL DUBLADO\n👤 9 💾 750.51 MB 📦 pack 70.36 GB (média) ⚙️ bludv',
-    br: true,
-    dubbed: true,
-  });
-  assert.equal(releaseIndex.lookupQuiet('tt9000047')[0]?.size, Math.round(70.36 * 1024 ** 3), 'tamanho do download no índice');
   assert.equal(read[1].infoHash, H2);
 
   const { next, remaining } = autofetch.takeNext(read);
@@ -230,165 +213,5 @@ test('gate de ocupação usa o inventário memoizado (sem rede) quando existe', 
     cache.forget(invKey);
     config.debrid.autoFetchPauseAt = originalPauseAt;
     autofetch.resetAccountGate();
-  }
-});
-
-test('gate de ocupação bloqueia o drainNext: cabeça permanece na fila intacta', async () => {
-  const originalPauseAt = config.debrid.autoFetchPauseAt;
-  const apiKey = 'chave-gate-drain';
-  const searchKey = 'streams:v6:movie:ttGateDrain';
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  const originalStatus = pmAdapter.accountStatus;
-  let enqueues = 0;
-
-  try {
-    config.debrid.autoFetchPauseAt = 2;
-    autofetch.resetAccountGate();
-    autofetch.dropQueue(searchKey);
-    cache.forget(dinvKeyFor('premiumize', apiKey));
-
-    pmAdapter.accountStatus = async () => ({ magnets: 900 });
-    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, apiKey), false, 'memo frio é fail-open');
-    await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, apiKey), true, 'memo quente bloqueia');
-
-    autofetch.writeQueue(searchKey, [
-      { infoHash: H1, title: 'Cabeça da fila', quality: '1080p' },
-      { infoHash: H2, title: 'Segundo da fila', quality: '720p' },
-    ], 3600);
-    const antes = autofetch.readQueue(searchKey);
-    assert.equal(antes.length, 2);
-
-    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-gate-drain'), async () => {
-      drainNext(searchKey, { refusals: 0 });
-    });
-    await sleep(10);
-
-    assert.deepEqual(autofetch.readQueue(searchKey), antes, 'a fila permanece intacta (readQueue inalterada)');
-    assert.equal(enqueues, 0, 'nenhum debrid.enqueue ocorre');
-  } finally {
-    pmAdapter.enqueue = originalEnqueue;
-    pmAdapter.accountStatus = originalStatus;
-    config.debrid.autoFetchPauseAt = originalPauseAt;
-    autofetch.resetAccountGate();
-    autofetch.dropQueue(searchKey);
-  }
-});
-
-test('drainNext no teto de recusas: não toma a cabeça nem chama enqueue', async () => {
-  const apiKey = 'chave-drain-refusals';
-  const searchKey = 'streams:v6:movie:ttDrainRefusals';
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  let enqueues = 0;
-
-  try {
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', accountScope(apiKey));
-    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
-    autofetch.writeQueue(searchKey, [
-      { infoHash: H1, title: 'A' },
-      { infoHash: H2, title: 'B' },
-    ], 3600);
-    const antes = autofetch.readQueue(searchKey);
-
-    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-refusals'), async () => {
-      drainNext(searchKey, { refusals: config.debrid.autoFetchDrainMaxRefusals });
-    });
-
-    assert.deepEqual(autofetch.readQueue(searchKey), antes, 'A e B permanecem na fila');
-    assert.equal(enqueues, 0, 'enqueue não é chamado no teto de recusas');
-  } finally {
-    pmAdapter.enqueue = originalEnqueue;
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', accountScope(apiKey));
-  }
-});
-
-test('drainNext devolve a cabeça quando o lock do marker já está adquirido', async () => {
-  const apiKey = 'chave-drain-lock';
-  const account = accountScope(apiKey);
-  const searchKey = 'streams:v6:movie:ttDrainLock';
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  const mKey = autofetch.markerKey('premiumize', account, H1);
-  let enqueues = 0;
-
-  try {
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', account);
-    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
-    assert.equal(autofetch.acquire(mKey), true, 'lock de A pré-adquirido');
-    autofetch.writeQueue(searchKey, [
-      { infoHash: H1, title: 'A' },
-      { infoHash: H2, title: 'B' },
-    ], 3600);
-
-    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-lock'), async () => {
-      drainNext(searchKey, { refusals: 0 });
-    });
-
-    const fila = autofetch.readQueue(searchKey);
-    assert.equal(fila[0]?.infoHash, H1, 'A volta à CABEÇA');
-    assert.equal(fila[1]?.infoHash, H2);
-    assert.equal(enqueues, 0, 'sem enqueue enquanto o lock impede');
-  } finally {
-    autofetch.release(mKey);
-    pmAdapter.enqueue = originalEnqueue;
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', account);
-  }
-});
-
-test('drainNext com orçamento estourado: A na frente, backoff e segunda passagem inerte', async () => {
-  const apiKey = 'chave-drain-budget';
-  const account = accountScope(apiKey);
-  const searchKey = 'streams:v6:movie:ttDrainBudget';
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter & { enqueueHourlyLimit?: number };
-  const originalEnqueue = pmAdapter.enqueue;
-  const originalLimit = pmAdapter.enqueueHourlyLimit;
-  let enqueues = 0;
-
-  try {
-    autofetchLive.set({ autoFetchQueueDepth: 2 });
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', account);
-    pmAdapter.enqueueHourlyLimit = 0;
-    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
-    autofetch.writeQueue(searchKey, [
-      { infoHash: H1, title: 'A' },
-      { infoHash: H2, title: 'B' },
-    ], 3600, 'premiumize', account);
-    assert.equal(autofetch.readQueue(searchKey).length, 2, 'fila na profundidade máxima');
-
-    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-budget'), async () => {
-      drainNext(searchKey, { refusals: 0 });
-    });
-
-    const depois = autofetch.readQueue(searchKey);
-    assert.equal(depois[0]?.infoHash, H1, 'A sobrevive na cabeça');
-    assert.equal(depois[1]?.infoHash, H2);
-    assert.ok(autofetch.budgetBlockedUntil('premiumize', account) > Date.now(), 'backoff no futuro');
-    assert.equal(enqueues, 0);
-
-    const snapshot = depois.map((c) => c.infoHash);
-    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-budget'), async () => {
-      drainNext(searchKey, { refusals: 0 });
-    });
-    assert.deepEqual(
-      autofetch.readQueue(searchKey).map((c) => c.infoHash),
-      snapshot,
-      'segunda drainNext não toca a fila enquanto o backoff vale',
-    );
-    assert.equal(enqueues, 0);
-  } finally {
-    pmAdapter.enqueue = originalEnqueue;
-    if (originalLimit == null) delete pmAdapter.enqueueHourlyLimit;
-    else pmAdapter.enqueueHourlyLimit = originalLimit;
-    autofetchLive.reset();
-    autofetch.dropQueue(searchKey);
-    autofetch.resetBudget('premiumize', account);
   }
 });

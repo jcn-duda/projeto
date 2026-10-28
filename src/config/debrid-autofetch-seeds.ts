@@ -39,8 +39,9 @@ export const autofetchSeeds = () => ({
   autoFetchSeedsMaxGb: Math.max(0, num(process.env.DEBRID_AUTO_FETCH_SEEDS_MAX_GB, 8)),
   // Teto de qualidade do pool seeds. 4K/2160p e REMUX/BDREMUX ficam de fora, e
   // qualidade DESCONHECIDA é recusada (não dá para provar que está no teto). A
-  // normalização vive em autofetch-policy.ts; valor fora do vocabulário cai em
-  // 1080p. Estático (sem tuning ao vivo nesta fase): mudar exige restart.
+  // normalização vive no núcleo (`adom-core::autofetch_policy::
+  // normalize_seeds_max_quality`); valor fora do vocabulário cai em 1080p.
+  // Estático (sem tuning ao vivo nesta fase): mudar exige restart.
   autoFetchSeedsMaxQuality: String(process.env.DEBRID_AUTO_FETCH_SEEDS_MAX_QUALITY || '1080p').trim() || '1080p',
   // Exceção raro-sobre-cache (caso real Mortuary, tt0087746): com o regime raro
   // REAL e cacheCheck efetivo, aquece as alternativas frias mesmo com um global

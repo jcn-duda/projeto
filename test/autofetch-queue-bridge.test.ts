@@ -4,10 +4,10 @@
 // `autofetch:v3:q:<sha256(searchKey)>`, sem L1. O que se prova aqui, contra o
 // código REAL dos dois lados:
 //   1. a chave é o MESMO sha256 hex minúsculo (`queueKey` TS === napi);
-//   2. o JSON que o `writeQueue`/`toQueueCandidate` reais gravam é legível pelo
-//      Rust (`QueueCandidate`) sem perda (deepEqual exato);
-//   3. o que o Rust grava é o que o dreno TS lê (mesma semântica de campo,
-//      inclusive `null` da sonda e `addedAt` preenchido);
+//   2. o JSON que o `writeQueue` do Node grava é legível pelo Rust
+//      (`QueueCandidate`) sem perda (deepEqual exato);
+//   3. o que o Rust grava é o que o leitor do Node lê (mesma semântica de
+//      campo, inclusive `null` da sonda e `addedAt` preenchido);
 //   4. dead/marker têm o MESMO escopo e as MESMAS formas (`1`, `{id}`, meta).
 //
 // Ponte de storage do teste: fila, dead e marker nascem no handle nativo e são
@@ -19,11 +19,9 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import * as autofetch from '../src/providers/autofetch.js';
-import { toQueueCandidate, type AutoFetchStream } from '../src/providers/autofetch-fallback.js';
 import { markerValue } from '../src/providers/autofetch-marker.js';
 import { nativeKv, kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { requireCore } from '../src/utils/rust-core.js';
-import type { Stream } from '../types/domain.js';
 import type { QueueCandidate } from '../src/providers/autofetch.js';
 
 // Superfície do núcleo para o formato v3. Tipada LOCALMENTE: o wiring de
@@ -62,32 +60,35 @@ const ACCOUNT = 'acc-bridge';
 const H1 = 'a'.repeat(40);
 const H2 = 'b'.repeat(40);
 
-/** Stream no formato que o runner entrega (campos `_` que o candidato lê). */
-function stream(hash: string, over: Partial<Stream> = {}): AutoFetchStream {
+/**
+ * Candidato no formato EXATO que o `toQueueCandidate` do Chupim gravava: com o
+ * corpo TS fora (leva B4), o produtor não existe mais no Node e o formato é do
+ * núcleo (`adom-autofetch::v3::candidate`). A fixture fica aqui — congelada no
+ * mesmo contrato — porque o que se prova é o JSON atravessando a fronteira.
+ */
+function packCandidate(hash: string): QueueCandidate {
   return {
+    probeSeason: 1,
+    probeEpisode: 8,
     infoHash: hash,
     name: 'Lanterns S01 1080p WEB-DL DUAL',
     title: 'Lanterns S01 1080p WEB-DL DUBLADO\n👤 9 💾 750.51 MB 📦 pack 70.36 GB (média) ⚙️ bludv',
-    _quality: '1080p',
-    _seeders: 9,
-    _size: 75591424471,
-    _br: true,
-    _dubbed: true,
-    _bankDub: true,
-    _lied: false,
-    ...over,
-  } as unknown as AutoFetchStream;
-}
-
-function packCandidate(hash: string): QueueCandidate {
-  return toQueueCandidate(stream(hash), 'seeds', {
+    quality: '1080p',
+    size: 75591424471,
+    seeders: 9,
+    br: true,
+    dubbed: true,
+    bankDub: true,
+    lied: false,
+    pool: 'seeds',
     imdbId: 'tt1234567',
     season: 1,
-    episode: 8,
-    seasonFill: true,
+    // Pack: o teto por obra é a TEMPORADA, então o episódio persistido é nulo.
+    episode: null,
+    isPack: true,
     rare: true,
     slotLimit: 2,
-  });
+  };
 }
 
 test('a chave da fila é o MESMO sha256 no Node e no Rust', () => {
@@ -105,7 +106,7 @@ test('writeQueue REAL do Node → QueueCandidate do Rust, sem perda', () => {
     // (addedAt incluído): a fila não passa mais pelo L1 do Node.
     const nodeValue = kvPeek(autofetch.queueKey(searchKey)) as QueueCandidate[];
     assert.ok(Array.isArray(nodeValue), 'writeQueue gravou na chave nativa');
-    // O dreno TS lê o MESMO valor que o Rust vai ler.
+    // O leitor do Node lê o MESMO valor que o Rust vai ler.
     assert.deepEqual(autofetch.readQueue(searchKey), nodeValue);
 
     const rustJson = core.autofetchV3ReadQueue(kv, searchKey, NOW + 1);
@@ -122,7 +123,7 @@ test('writeQueue REAL do Node → QueueCandidate do Rust, sem perda', () => {
   }
 });
 
-test('fila gravada pelo Rust → leitura do dreno TS com a mesma semântica', () => {
+test('fila gravada pelo Rust → leitura do Node com a mesma semântica', () => {
   const searchKey = 'streams:v6:movie:ttBridgeRustToTs';
   try {
     const cand = packCandidate(H1);
@@ -139,7 +140,7 @@ test('fila gravada pelo Rust → leitura do dreno TS com a mesma semântica', ()
     // O leitor de produção do Node enxerga o que o Rust gravou.
     assert.deepEqual(autofetch.readQueue(searchKey), raw);
 
-    // As cadeias do dreno (`autofetch-drain.ts`) sobre o que o Rust gravou:
+    // As cadeias do consumidor (o worker nativo) sobre o que o Rust gravou:
     const c = raw[0];
     assert.equal(c.probeSeason ?? c.season ?? null, 1, 'identidade da sonda sobrevive');
     assert.equal(
@@ -158,7 +159,7 @@ test('fila gravada pelo Rust → leitura do dreno TS com a mesma semântica', ()
     assert.deepEqual(report2, { kept: 1, dropped: 2 }, 'morto sai e duplicado fica o primeiro');
     const after = kvPeek(autofetch.queueKey(searchKey)) as QueueCandidate[];
     assert.deepEqual(after.map((x) => x.infoHash), [H1]);
-    assert.deepEqual(autofetch.readQueue(searchKey), after, 'o dreno TS lê o mesmo recorte');
+    assert.deepEqual(autofetch.readQueue(searchKey), after, 'o Node lê o mesmo recorte');
   } finally {
     core.autofetchV3DropQueue(kv, searchKey);
   }

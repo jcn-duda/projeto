@@ -24,8 +24,11 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
   const teto = autoFetchTeto(af);
 
   const paused = Boolean(af.paused);
-  const recheckLots = Number(af.recheckLots || 0);
-  const settleLots = Number(af.settleLots || 0);
+  // Corte do Chupim TS: `recheckLots`/`settleLots` só existem quando quem responde
+  // é o worker nativo (o snapshot do Node vem `partial:true`, sem os lotes).
+  // Ausente ≠ zero: o card mostra "—" e o dreno não trava por falta de número.
+  const recheckLots = typeof af.recheckLots === 'number' ? af.recheckLots : null;
+  const settleLots = typeof af.settleLots === 'number' ? af.settleLots : null;
   const deadBlacklist = Number(af.deadBlacklistCount || 0);
   const suppressed = Number(af.suppressed || 0);
 
@@ -92,10 +95,15 @@ export function ViewChupim({ autofetch, metrics }: ViewChupimProps) {
         </${Card}>
 
         <${Card} title="Lotes e Ocupação">
-          <${StatNumber} value=${recheckLots} label="lotes em voo" />
+          <${StatNumber} value=${recheckLots ?? '—'} label="lotes em voo" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Settle (espera): ${settleLots} · Mortos (blacklist): ${deadBlacklist}
+            Settle (espera): ${settleLots ?? '—'} · Mortos (blacklist): ${deadBlacklist}
           </p>
+          ${af.partial ? html`
+            <p style="color: var(--muted); font-size: var(--font-floor);">
+              Foto parcial: lotes e settle são do worker nativo (gateway não respondeu agora).
+            </p>
+          ` : null}
         </${Card}>
 
         <${Card} title="Orçamento Horário">

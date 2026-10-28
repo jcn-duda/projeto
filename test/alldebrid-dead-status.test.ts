@@ -1,23 +1,22 @@
 // Terminal medido da AllDebrid (frase exata, statusCode 10) reconhecido por
 // torrentStatus E sweepDead sem condenar por código isolado; a listagem
-// autoritativa volta a `via:'hash'` (dead nativo/expired-unready sem
-// DEBRID_REMOVE_BY_ID) e o progress-stalled segue represado. Sem rede real.
+// autoritativa volta a `via:'hash'`. Sem rede real.
+//
+// Os blocos que mediam o RECHECK do Chupim (`runRecheck`/`collapseTerminal`)
+// saíram com o corpo TS (leva B4): remoção terminal e represamento do stalled
+// são do worker nativo (cargo test de `adom-autofetch`). Fica aqui a régua do
+// adaptador/limpeza e a revalidação de fundo dos represados, que são do Node.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { kvForget, kvSet } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import debrid from '../src/debrid/index.js';
-import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
-import * as held from '../src/debrid/protected.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
-import { collapseTerminal } from '../src/providers/autofetch-terminal.js';
-import { runRecheck, recheckLots } from '../src/providers/autofetch-recheck.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { isDeadMagnet, DEAD } from '../src/debrid/alldebrid-api.js';
@@ -27,7 +26,6 @@ import { submittedAt } from '../src/debrid/alldebrid-inventory.js';
 import { mockAd, withDebrid, assenta, counter, gate, mag, runSuppressed1b, BYO_1B_PATCH } from './helpers/alldebrid-mock.js';
 import type { DebridAdapter } from '../types/domain.js';
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const hx = (seed: string) => seed.repeat(20);
 
 function stubFetchJson(payload: unknown) {
@@ -111,80 +109,10 @@ test('AllDebrid sweepDead remove o terminal (frase) e poupa Ready/Downloading me
   }
 });
 
-test('recheck dead nativo remove pelo hash com removeById=false (conta da instalação)', async () => {
-  const ad = debrid.BY_ID.get('alldebrid') as DebridAdapter;
-  const originalCheck = debrid.checkCached;
-  const originalStatus = ad.torrentStatus;
-  const originalRemove = ad.removeTorrent;
-  const originalRemoveById = config.debrid.removeById;
-  const chave = 'chave-byo-dead';
-  const account = accountScope(chave);
-  const searchKey = 'busca-byo-dead';
-  const h = hx('f1');
-  let removals = 0;
-  try {
-    config.debrid.removeById = false;
-    // A listagem já vem `via:'hash'` do adaptador (correção A1).
-    ad.torrentStatus = async () => ({ [h]: { state: 'dead', id: 42, via: 'hash' } });
-    ad.removeTorrent = async () => { removals += 1; return true; };
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    recheckLots.set(searchKey, {
-      hashes: new Set([h]), attempts: 1, timer: null, inFlight: false,
-      ctx: { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: chave }, encoded: 'cfg-byo-dead' },
-      deadStreak: new Map([[h, 1]]), stallStreak: new Map(), seasonHints: new Map(),
-      createdAt: Date.now() - 1000, isSettle: false, refusals: 0, adapterId: 'alldebrid',
-    });
-    runRecheck(searchKey);
-    await sleep(40);
-    assert.equal(removals, 1, 'dead nativo via hash remove direto sem DEBRID_REMOVE_BY_ID');
-    assert.equal(suppressed.listSuppressed('alldebrid', account).length, 0, 'nada represado quando a remoção acontece');
-    assert.equal(recheckLots.has(searchKey), false, 'lote colapsado é descartado');
-  } finally {
-    config.debrid.removeById = originalRemoveById;
-    debrid.checkCached = originalCheck;
-    ad.torrentStatus = originalStatus;
-    ad.removeTorrent = originalRemove;
-    const lote = recheckLots.get(searchKey);
-    if (lote?.timer) clearTimeout(lote.timer);
-    recheckLots.delete(searchKey);
-    autofetch.releaseSearch(searchKey);
-    autofetch.dropQueue(searchKey);
-    kvForget(autofetch.markerKey('alldebrid', account, h));
-    kvForget(autofetch.deadKey('alldebrid', account, h));
-    held.release(h, account);
-    suppressed.forgetSuppressed('alldebrid', account, h);
-  }
-});
-
 // Item 1b — revalidação de fundo dos represados da AllDebrid (conta BYO): a
 // próxima busca da MESMA conta reavalia em fundo, sem persistir credencial, e
 // só remove pelo TEXTO terminal; ready cura, downloading/unknown mantêm, erro
 // preserva. Sem `sweepDead` (só a conta do operador) o represado ficava no TTL.
-
-test('1b: colapso progress-stalled registra o represado SEM deletar na hora', () => {
-  const account = 'conta-1b-progress';
-  const h = hx('a1');
-  const removidos: string[] = [];
-  const adapter = {
-    id: 'alldebrid', label: 'AD', short: 'AD', cacheCheck: true,
-    removeTorrent: async () => { removidos.push('x'); return true; },
-  } as unknown as DebridAdapter;
-  const lot = { hashes: new Set([h]), deadStreak: new Map(), stallStreak: new Map(), seasonHints: new Map() };
-  try {
-    const removido = collapseTerminal(lot, {
-      adapter, account, apiKey: 'k', hash: h, searchKey: 'sk-1b',
-      statusInfo: { state: 'downloading', id: 600, via: 'hash' },
-      streak: 3, mode: 'progress', reason: 'progress',
-    });
-    assert.equal(removido, false, 'a heurística não autoriza delete direto');
-    assert.deepEqual(removidos, [], 'nenhum removeTorrent disparado');
-    assert.equal(suppressed.countSuppressed('alldebrid', account), 1, 'o represado fica para revalidar');
-  } finally {
-    suppressed.forgetSuppressed('alldebrid', account, h);
-    kvForget(autofetch.deadKey('alldebrid', account, h));
-    metrics.reset();
-  }
-});
 
 test('1b BYO: status Downloading mantém o represado e não remove', async () => {
   const r = await runSuppressed1b({ key: 'byo-1b-downloading', seed: 'a2', id: 501, filename: 'Baixando.2024.1080p' });

@@ -1,11 +1,13 @@
 // Rotas internas de ESCRITA E EFEITOS da busca (Fase A, passo 2 da migração
 // strangler Node→Rust): POST /internal/search/effects. É o que o orquestrador
 // Rust (`adom-search`) pede ao Node DEPOIS do `collect`: disparar os efeitos de
-// fundo que ainda moram aqui (autofetch, warmer, sonda, colhedor, chave de
-// temporada). A captura do banco VIVO e o índice são NATIVOS desde o R4 — a
-// rota `index-write` e o efeito `magnet_capture` foram removidos junto com os
-// ramos Node. O interrogatório de áudio (`dub_audit`) saiu na T3-L7a: fila,
-// `resolve` e veredito são do gateway, e o kind nem chega mais aqui.
+// fundo que AINDA moram aqui — o warmer do RD e o pedido ao colhedor. A captura
+// do banco VIVO e o índice são NATIVOS desde o R4 (a rota `index-write` e o
+// efeito `magnet_capture` foram removidos junto com os ramos Node); o
+// interrogatório de áudio (`dub_audit`) saiu na T3-L7a; e o trabalho do Chupim
+// (`autofetch` legado, `autofetch_batch`, `br_probe`, `season_key`) passou ao
+// worker nativo na leva B4 — aqui ele é só CONTADO, nunca executado, e o lote
+// com esse trabalho sai com UM `warn` (aceite mudo seria trabalho perdido).
 //
 // Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
 // vem no CORPO (`encoded`), e o contexto é restaurado com `runtime.run` (o
@@ -15,43 +17,50 @@ import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import { rejectedByGuard, decodeTarget } from './internal-search-shared.js';
-import { enqueueAutofetch } from '../providers/autofetch-runner.js';
 import { queueRdWarmForRelevant } from '../providers/harvest-warmer.js';
-import { requestBrProbe } from '../providers/br-probe.js';
 import { enqueueNativeHarvest } from '../utils/harvest-native.js';
 import type { NativeHarvestEnqueue } from '../utils/harvest-native.js';
-import { registerSeasonSearchKey } from '../providers/autofetch-season-index.js';
-import { runAutofetchBatch } from '../providers/autofetch-batch.js';
-import type { AutofetchBatchPayload } from '../providers/autofetch-batch.js';
 import * as runtime from '../runtime.js';
 import * as log from '../utils/logger.js';
 
 // Teto de entrada: a rota recebe um lote de efeitos, nunca acervo inteiro.
 const MAX_EFFECTS = 100;
-/** Lote do Chupim: o pool pós-debrid é `maxResults × candidatePoolFactor`
- *  (100 × 4 no teto do SCHEMA), com folga. */
+/** Teto de cada lista do lote do Chupim: o pool pós-debrid é
+ *  `maxResults × candidatePoolFactor` (100 × 4 no teto do SCHEMA), com folga. */
 const MAX_AUTOFETCH_ITEMS = 400;
 
 const IMDB_RE = /^tt\d+$/;
 
+/**
+ * Kinds cujo dono é o gateway. O `NativeTailEffects`
+ * (`rust/crates/adom-server/src/tail_effects.rs`) entrega o payload ao
+ * `NativeWorkQueue` do worker nativo do Chupim, que despacha por `kind`
+ * (`autofetch_batch` → enqueue/recheck/dreno, `br_probe` → `probe_job`,
+ * `season_key` → `season_step`); o `autofetch` legado é o mesmo lote em outro
+ * formato.
+ *
+ * A leva B4 já apagou os donos no TS (`autofetch-runner`/`autofetch-batch`/
+ * `br-probe`/`autofetch-season-index`): não há mais para onde executar aqui.
+ * Eles continuam ACEITOS na validação de forma — recusar faria o 202 mentir
+ * sobre o lote que o gateway já classificou —, engordam `nativeOnly` e não
+ * chamam nada. Como `Deferred` (`tail_effects.rs`) e o `Forward` de worker
+ * desligado desembocam ambos neste aceite, o lote com `nativeOnly > 0` sai com
+ * UM `warn`: aceite silencioso é trabalho perdido sem rastro.
+ */
+const NATIVE_ONLY_KINDS: ReadonlySet<string> = new Set([
+  'autofetch', 'autofetch_batch', 'br_probe', 'season_key',
+]);
+
 /** Colaboradores trocáveis em teste (mesmo padrão do internal-search.ts). */
 export interface InternalSearchEffectsCollaborators {
-  /** Enfileira candidato do Chupim (fila persistente; worker próprio drena). */
-  enqueueAutofetch: typeof enqueueAutofetch;
   /** Alimenta o warmer do RD com as releases relevantes do lote. */
   queueRdWarmForRelevant: typeof queueRdWarmForRelevant;
-  /** Sonda dirigida BR (colheita com `brProbe: true`). */
-  requestBrProbe: typeof requestBrProbe;
   /** Enfileira obra no colhedor NATIVO (`POST /harvest/enqueue` do gateway). */
   harvestEnqueue: (req: NativeHarvestEnqueue) => void;
-  /** LRU de temporadas com pack pronto (Season Pack Fill). */
-  registerSeasonSearchKey: typeof registerSeasonSearchKey;
-  /** Lote pós-debrid do Chupim: reconstrói os streams e roda a cascata do Node. */
-  runAutofetchBatch: typeof runAutofetchBatch;
 }
 
-/** Efeito conhecido: `kind` discriminado + payload já validado por tipo. */
-type Effect = { kind: string; payload: Record<string, unknown> };
+/** Efeito que este processo executa: `kind` discriminado + payload validado. */
+type Effect = { kind: 'rd_warmer' | 'harvester_enqueue'; payload: Record<string, unknown> };
 
 /**
  * Payload do efeito → pedido do colhedor NATIVO. O contrato do gateway não
@@ -78,11 +87,25 @@ function nativeHarvestRequest(
  * Valida o lote de efeitos. Cada `kind` tem forma própria de payload — validar
  * aqui (400 no rejeitado como um todo, `rejected` no parcial) evita que um
  * payload malformado vire exceção assíncrona num timer, longe do chamador.
+ *
+ * `accepted` conta TODO efeito com forma válida (o mesmo número que o lote
+ * declara); `nativeOnly` diz quantos deles são do gateway e `effects` carrega
+ * só os que este processo executa. `nativeKinds` é a lista desses kinds (só os
+ * nomes, nunca o payload) para o aviso do aceite sem execução.
  */
-function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
-  const accepted: Effect[] = [];
+function parseEffects(raw: unknown): {
+  effects: Effect[];
+  accepted: number;
+  nativeOnly: number;
+  nativeKinds: string[];
+  rejected: number;
+} {
+  const effects: Effect[] = [];
+  const nativeKinds: string[] = [];
+  let accepted = 0;
+  let nativeOnly = 0;
   let rejected = 0;
-  if (!Array.isArray(raw)) return { accepted, rejected: 0 };
+  if (!Array.isArray(raw)) return { effects, accepted, nativeOnly, nativeKinds, rejected };
   for (let i = 0; i < raw.length; i++) {
     const item = raw[i] as Record<string, unknown>;
     const kind = typeof item?.kind === 'string' ? item.kind : '';
@@ -95,8 +118,7 @@ function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
           return Boolean(payload.candidate && payload.request
             && typeof payload.candidate === 'object' && typeof payload.request === 'object');
         case 'autofetch_batch':
-          // O lote em si é sanitizado no handler (`streamOfItem`); aqui só a
-          // forma grosseira, para um payload sem lista não virar varredura.
+          // Forma grosseira: um payload sem lista não vira varredura no dono.
           return Array.isArray(payload.items)
             && payload.items.length <= MAX_AUTOFETCH_ITEMS
             && Array.isArray(payload.cached)
@@ -118,39 +140,36 @@ function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
           return false; // kind desconhecido: rejeitado, nunca lança
       }
     })();
-    if (okShape && payload) accepted.push({ kind, payload });
-    else rejected += 1;
+    if (!okShape || !payload) {
+      rejected += 1;
+      continue;
+    }
+    accepted += 1;
+    if (NATIVE_ONLY_KINDS.has(kind)) {
+      nativeOnly += 1;
+      nativeKinds.push(kind);
+    } else {
+      effects.push({ kind: kind as Effect['kind'], payload });
+    }
   }
-  return { accepted, rejected };
+  return { effects, accepted, nativeOnly, nativeKinds, rejected };
+}
+
+/** `autofetch×1, br_probe×2` — resumo por kind, sem tocar no payload. */
+function kindSummary(kinds: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const kind of kinds) counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  return [...counts].map(([kind, n]) => `${kind}×${n}`).join(', ');
 }
 
 /** Executa UM efeito aceito. Cada função enfileira e volta — nada bloqueia. */
 function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): void {
   const p = effect.payload;
   switch (effect.kind) {
-    case 'autofetch':
-      deps.enqueueAutofetch(p.candidate as any, p.request as any);
-      return;
-    case 'autofetch_batch':
-      deps.runAutofetchBatch(p as AutofetchBatchPayload);
-      return;
     case 'rd_warmer':
+      // O Node segue como fallback do sink nativo do warmer.
       deps.queueRdWarmForRelevant(p.releases as any[]);
       return;
-    case 'br_probe': {
-      const result = deps.requestBrProbe(p as any, p.mode === 'upgrade' ? { mode: 'upgrade' } : {});
-      // Sonda INELEGÍVEL (kill-switch/retry/estado) devolve `fallbackBrGap`:
-      // o follow-up do índice (agora nativo, no Rust) manda a obra ao colhedor
-      // (`br-gap`), preservando a rede de segurança. Sonda agendada já
-      // enfileirou por dentro do `requestBrProbe` (com `brProbe: true`) — aqui
-      // não duplica, e o fallback NÃO leva a flag: sonda inelegível não vira
-      // sonda dirigida no gateway.
-      if (result?.fallbackBrGap) {
-        const req = nativeHarvestRequest(p, 'br-gap');
-        if (req) deps.harvestEnqueue(req);
-      }
-      return;
-    }
     case 'harvester_enqueue': {
       // `next-episode`/`miss`/`gap`/`br-gap` do Rust: o enfileiramento é do
       // gateway (fila, dedupe de 12h e prioridade são dele). A flag `brProbe`
@@ -160,20 +179,15 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
       if (req) deps.harvestEnqueue(p.brProbe === true ? { ...req, brProbe: true } : req);
       return;
     }
-    case 'season_key':
-      deps.registerSeasonSearchKey(
-        String(p.adapter_id), String(p.account), String(p.imdb),
-        Number(p.season), String(p.cache_key),
-      );
-      return;
   }
 }
 
 /**
- * POST /internal/search/effects — fire-and-forget. `{ encoded, effects: [...] }`
- * → **202** `{ ok, accepted, rejected }` na HORA: o prazo da resposta nunca
- * depende do efeito (só enfileiramento, os workers próprios drenam). Falha de
- * um efeito não afeta os outros — log por efeito, sem exceção cruzando o timer.
+ * POST /internal/search/effects — fire-and-forget.
+ * `{ encoded, effects: [...] }` → **202** `{ ok, accepted, rejected, nativeOnly }`
+ * na HORA: o prazo da resposta nunca depende do efeito (só enfileiramento, os
+ * workers próprios drenam). Falha de um efeito não afeta os outros — log por
+ * efeito, sem exceção cruzando o timer.
  */
 function handleEffects(
   services: AppServices,
@@ -188,14 +202,28 @@ function handleEffects(
   if (body.effects.length > MAX_EFFECTS) {
     return res.status(400).json({ ok: false, error: `effects acima do teto de ${MAX_EFFECTS}` });
   }
-  const { accepted, rejected } = parseEffects(body.effects);
+  const { effects, accepted, nativeOnly, nativeKinds, rejected } = parseEffects(body.effects);
+  if (nativeOnly > 0) {
+    // Um warn por request, só com kind e contagem — payload não entra em log.
+    // O motivo de existir: o `Deferred` do Rust (`tail_effects.rs:140-154`: sem
+    // escopo de conta ou `submit` recusado) e o `Forward` do worker desligado
+    // (`tail_effects.rs:179`) chegam os dois a este 202. Quem enfileira é o
+    // worker nativo do Chupim; se o lote veio por um desses dois caminhos, o
+    // aceite aqui NÃO significa trabalho enfileirado.
+    log.warn(
+      `[internal] effects: nativeOnly=${nativeOnly} (${kindSummary(nativeKinds)}) aceitos sem execução local —`
+      + ' o dono destes kinds é o worker nativo do Chupim; o Node só confirma o 202.'
+      + ' Se chegaram aqui por `Deferred`/`Forward` do gateway (AUTOFETCH_WORKER off,'
+      + ' sem escopo de conta ou canal cheio), nada foi enfileirado: religue o worker nativo.',
+    );
+  }
   // Contexto do usuário para os timers: `capture()` cumpre o invariante do
   // AGENTS.md (timer pós-request precisa de capture + run); nas rotas internas
   // a store vem VAZIA, então o patch carrega o `encoded` do corpo — a origem
   // certa da preferência do usuário, nunca o `.env`.
   const captured = runtime.capture();
   const ctx = { ...(captured || {}), opts: target.opts, encoded: target.encoded };
-  for (const effect of accepted) {
+  for (const effect of effects) {
     // setImmediate: a resposta sai primeiro; o `run` restaura a conta mesmo
     // longe da requisição (a drenagem da auditoria, por exemplo, agenda outra
     // drenagem dentro dela e herda o ALS daqui).
@@ -208,8 +236,8 @@ function handleEffects(
       }
     });
   }
-  log.debug(`[internal] effects: accepted=${accepted.length} rejected=${rejected}`);
-  return res.status(202).json({ ok: true, accepted: accepted.length, rejected });
+  log.debug(`[internal] effects: accepted=${accepted} nativeOnly=${nativeOnly} rejected=${rejected}`);
+  return res.status(202).json({ ok: true, accepted, rejected, nativeOnly });
 }
 
 /**
@@ -222,12 +250,8 @@ export function registerInternalSearchEffects(
   overrides: Partial<InternalSearchEffectsCollaborators> = {},
 ): void {
   const deps: InternalSearchEffectsCollaborators = {
-    enqueueAutofetch: overrides.enqueueAutofetch ?? enqueueAutofetch,
     queueRdWarmForRelevant: overrides.queueRdWarmForRelevant ?? queueRdWarmForRelevant,
-    requestBrProbe: overrides.requestBrProbe ?? requestBrProbe,
     harvestEnqueue: overrides.harvestEnqueue ?? enqueueNativeHarvest,
-    registerSeasonSearchKey: overrides.registerSeasonSearchKey ?? registerSeasonSearchKey,
-    runAutofetchBatch: overrides.runAutofetchBatch ?? runAutofetchBatch,
   };
   const json = express.json({ limit: '1mb' });
 

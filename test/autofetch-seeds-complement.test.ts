@@ -1,11 +1,28 @@
 // --- Complemento relaxado do pool seeds (caso real The Rejuvenator, 1988) ---
 //
-// O pool estrito (minSeeders=3) pode sobreviver PARCIAL e ainda sobrar vaga
-// imediata: Lime/1337x com 4 seeders preenchem 1 das 2 vagas de
-// autoFetchTopSeedsMax e o VHSRip de 1 seeder ficava de fora porque o
-// relaxamento antigo só rodava com o pool VAZIO. Agora: estritos primeiro, e
-// as vagas que faltam até autoFetchTopSeedsMax são completadas com
-// minSeeders=1 distintos — nunca abaixo de 1, sem duplicar hash.
+// A régua TS (`pickSeedsPool`, de `autofetch-seeds-pool.ts`) e a métrica
+// `autofetch.top-seeded-relaxed` saíram na leva B4 (2026-10-28). Quem decide é
+// `adom-core::autofetch_seeds_pick`, consumido pelo MESMO lote napi que o
+// runner usava (`decideAutofetch`) — o oráculo do `applyDebrid` continua
+// medindo a decisão do NÚCLEO, nunca uma cópia dela.
+//
+// Regra (dois regimes):
+// - estrito VAZIO   ⇒ o relaxado preenche a capacidade TOTAL (imediatos + fila);
+// - estrito PARCIAL ⇒ o relaxado completa só as vagas IMEDIATAS que faltam.
+// O estrito vem primeiro (swarm decrescente) e o relaxado nunca repete hash.
+//
+// O QUE ESTE ARQUIVO NÃO MEDE MAIS, e quem assume:
+// - a FILA persistente e o excedente relaxado (`autofetch.readQueue`): o
+//   escritor único de `autofetch:v3:q:` é o nativo — o oráculo devolve a lista
+//   escolhida e a contagem de disparos, nunca a fila
+//   (`helpers/pipeline-oracle/autofetch-bridge.ts`);
+// - a capacidade (`slotLimit`)/escolha dentro do lote: `cargo test -p adom-core
+//   autofetch_seeds_pick` (`complemento_relaxado_preenche_vagas`) e o lote
+//   unitário em `autofetch-seeds-rare-viable.test.ts` (`pick.queue` incluído).
+//
+// Sobra a superfície viva do disparo congelado: QUAIS hashes saem, em que ordem,
+// a contagem `autofetchCount` desta busca e o hold tomado ANTES da checagem de
+// cache (invariante 6 — autofetch × dropUncached).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -17,7 +34,6 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
 import { kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
@@ -42,6 +58,7 @@ function seedsHarness(key: string) {
   const originalEnqueue = pmAdapter.enqueue;
   const account = accountScope(key);
   const enqueued: string[] = [];
+  const counts: number[] = [];
   pmAdapter.enqueue = async (_apiKey: any, infoHash: any) => { enqueued.push(infoHash); return true; };
   const userOpts = {
     ...runtime.defaults(),
@@ -56,6 +73,11 @@ function seedsHarness(key: string) {
     account, enqueued,
     searchKey: `busca-${key}`,
     run: (fn: () => unknown) => runtime.run({ opts: userOpts, encoded: `cfg-${key}` }, fn),
+    /** `autofetchCount` do último `onCacheResult`: disparos desta busca. */
+    dispatchCount: () => (counts.length ? counts[counts.length - 1] : 0),
+    onCacheResult: (r: { autofetchCount?: number }) => {
+      if (typeof r.autofetchCount === 'number') counts.push(r.autofetchCount);
+    },
     cleanup() {
       debrid.checkCached = originalCheck;
       config.debrid.publicUrl = originalPublicUrl;
@@ -86,7 +108,7 @@ test('seeds: pool estrito cheio nao complementa com relaxado', async () => {
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
+    const dEnqueued = deltaOf('autofetch.enqueued');
     await harness.run(() =>
       applyDebrid(
         [
@@ -94,12 +116,14 @@ test('seeds: pool estrito cheio nao complementa com relaxado', async () => {
           { infoHash: h5, name: 'Strict Full 1988 720p WEBRip', title: 'Strict Full 1988 720p WEBRip', _seeders: 5 },
           { infoHash: h1seed, name: 'Strict Full 1988 VHSRip', title: 'Strict Full 1988 VHSRip', _seeders: 1 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
-    assert.deepEqual(harness.enqueued, [h5, h4], 'os dois estritos enchem o max=2');
-    assert.equal(dRelaxed(), 0, 'estrito cheio nao incrementa o relaxo');
+    assert.deepEqual(harness.enqueued, [h5, h4], 'os dois estritos enchem o max=2 (swarm decrescente)');
+    assert.equal(harness.dispatchCount(), 2, 'autofetchCount = disparos desta busca');
+    assert.equal(dEnqueued(), 2, 'autofetch.enqueued conta cada aceite');
+    assert.equal(held.isHeld(h1seed, harness.account), false, 'o 1-seeder nem chega a receber hold');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
@@ -116,14 +140,13 @@ test('seeds: pool estrito parcial completa com relaxado distinto (estritos prime
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     await harness.run(() =>
       applyDebrid(
         [
           { infoHash: h4, name: 'The Rejuvenator 1988 Rejuvenatrix DVDrip', title: 'The Rejuvenator 1988 Rejuvenatrix DVDrip', _seeders: 4 },
           { infoHash: h1seed, name: 'The Rejuvenator 1988 VHSRip', title: 'The Rejuvenator 1988 VHSRip', _seeders: 1 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
@@ -132,8 +155,11 @@ test('seeds: pool estrito parcial completa com relaxado distinto (estritos prime
       [h4, h1seed],
       'vaga restante ate max=2 e completada com o 1-seeder, estrito primeiro',
     );
-    assert.equal(dRelaxed(), 1, 'complemento relaxado fica mensurado');
-    assert.equal(counter('autofetch.top-seeded-relaxed.added') >= 1, true, 'total de adicionados mensurado');
+    assert.equal(harness.dispatchCount(), 2, 'dois disparos nesta busca');
+    // Invariante 6: o hold é tomado ANTES da checagem de cache e só sai no
+    // colapso — os dois hashes em voo ficam protegidos do dropUncached.
+    assert.equal(held.isHeld(h4, harness.account), true, 'hold do estrito retido (download em voo)');
+    assert.equal(held.isHeld(h1seed, harness.account), true, 'hold do complemento retido também');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
@@ -148,7 +174,6 @@ test('seeds: complemento relaxado nao duplica hash do pool estrito', async () =>
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     await harness.run(() =>
       applyDebrid(
         [
@@ -156,12 +181,12 @@ test('seeds: complemento relaxado nao duplica hash do pool estrito', async () =>
           // NAO pode ocupar duas vagas nem ser enfileirado duas vezes.
           { infoHash: h4, name: 'Dedupe Case 1988 DVDrip', title: 'Dedupe Case 1988 DVDrip', _seeders: 4 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual(harness.enqueued, [h4], 'hash do estrito nao reaparece como complemento');
-    assert.equal(dRelaxed(), 0, 'sem candidato novo nao ha relaxo');
+    assert.equal(harness.dispatchCount(), 1, 'um unico disparo');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
@@ -177,19 +202,18 @@ test('seeds: autoFetchTopSeedsMax=1 preserva o comportamento antigo', async () =
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     await harness.run(() =>
       applyDebrid(
         [
           { infoHash: h4, name: 'Max One 1988 DVDrip', title: 'Max One 1988 DVDrip', _seeders: 4 },
           { infoHash: h1seed, name: 'Max One 1988 VHSRip', title: 'Max One 1988 VHSRip', _seeders: 1 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual(harness.enqueued, [h4], 'com max=1 o estrito esgota as vagas: sem complemento');
-    assert.equal(dRelaxed(), 0, 'max=1 nao dispara o relaxo');
+    assert.equal(held.isHeld(h1seed, harness.account), false, 'relaxado descartado nem recebe hold');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
@@ -197,12 +221,10 @@ test('seeds: autoFetchTopSeedsMax=1 preserva o comportamento antigo', async () =
   }
 });
 
-// Regressao de integracao: o fallback antigo, com o pool estrito VAZIO,
-// preenchia seedsLimit = autoFetchTopSeedsMax + queueDepth e preservava os
-// excedentes na fila persistente. O complemento novo limitava aos imediatos
-// e apagava silenciosamente a fila relaxada com queueDepth > 0. A capacidade
-// do complemento e a TOTAL (imediatos + fila), estritos primeiro.
-test('seeds: complemento relaxado ocupa imediatos E a fila ate seedsLimit', async () => {
+// Estrito VAZIO: o relaxado preenche a capacidade TOTAL (imediatos + fila). O
+// que o oráculo vê são os imediatos — o excedente que desce para a fila é do
+// escritor nativo (ver cabeçalho).
+test('seeds: estrito vazio preenche as vagas imediatas com o relaxado', async () => {
   autofetchLive.set({
     ...LIVE_KNOBS,
     autoFetchQueue: true,
@@ -215,39 +237,34 @@ test('seeds: complemento relaxado ocupa imediatos E a fila ate seedsLimit', asyn
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     await harness.run(() =>
       applyDebrid(
         [
-          // Pool estrito VAZIO (todos abaixo do piso 3): o fallback relaxado
-          // antigo enfileirava ate seedsLimit=4 e a fila guardava o resto.
+          // Pool estrito VAZIO (todos abaixo do piso 3): o relaxado preenche.
           { infoHash: s1, name: 'Queue Fill 1988 VHSRip A', title: 'Queue Fill 1988 VHSRip A', _seeders: 1 },
           { infoHash: s2, name: 'Queue Fill 1988 VHSRip B', title: 'Queue Fill 1988 VHSRip B', _seeders: 2 },
           { infoHash: s3, name: 'Queue Fill 1988 VHSRip C', title: 'Queue Fill 1988 VHSRip C', _seeders: 1 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
-    // max=2 imediatos + fila: TODOS os 3 relaxados cabem em seedsLimit=4.
+    // max=2 imediatos: só os dois melhores swarms saem NESTA busca.
     assert.equal(harness.enqueued.length, 2, 'dois imediatos conforme autoFetchTopSeedsMax');
-    assert.equal(dRelaxed(), 1, 'fallback relaxado fica mensurado');
-    const queue = autofetch.readQueue(harness.searchKey);
-    assert.equal(queue.length, 1, 'o excedente vai para a fila, nao e descartado');
-    const all = [...harness.enqueued, ...queue.map((q: any) => String(q.infoHash).toLowerCase())];
-    assert.equal(new Set(all).size, all.length, 'nenhum hash duplicado entre imediatos e fila');
-    assert.ok(all.length <= 4, 'nao ultrapassa seedsLimit (max 2 + queueDepth 2)');
+    assert.equal(new Set(harness.enqueued).size, 2, 'nenhum hash duplicado entre os imediatos');
+    assert.ok(harness.enqueued.includes(s2), 'o maior swarm do pool relaxado entra');
+    assert.ok(harness.enqueued.length <= 4, 'nao ultrapassa o seedsLimit (max 2 + queueDepth 2)');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
-    autofetch.dropQueue(harness.searchKey);
     releaseAll(harness, [s1, s2, s3]);
   }
 });
-// Regime strict PARCIAL: o complemento preenche SOMENTE as vagas imediatas
-// que faltam ate autoFetchTopSeedsMax — a fila persistente nao recebe lote de
-// candidatos fracos num caso comum (fila relaxada so existe no strict vazio).
-test('seeds: strict parcial completa so vagas imediatas, nao enche a fila fraca', async () => {
+
+// Regime strict PARCIAL: o complemento preenche SOMENTE as vagas imediatas que
+// faltam até autoFetchTopSeedsMax — a profundidade da fila não entra (fila
+// relaxada só existe no strict vazio).
+test('seeds: strict parcial completa so vagas imediatas, nao usa a profundidade da fila', async () => {
   autofetchLive.set({
     ...LIVE_KNOBS,
     autoFetchQueue: true,
@@ -260,7 +277,6 @@ test('seeds: strict parcial completa so vagas imediatas, nao enche a fila fraca'
   try {
     config.debrid.publicUrl = 'http://addon.test';
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
     await harness.run(() =>
       applyDebrid(
         [
@@ -268,58 +284,17 @@ test('seeds: strict parcial completa so vagas imediatas, nao enche a fila fraca'
           { infoHash: w1, name: 'Partial Case 1988 VHSRip A', title: 'Partial Case 1988 VHSRip A', _seeders: 1 },
           { infoHash: w2, name: 'Partial Case 1988 VHSRip B', title: 'Partial Case 1988 VHSRip B', _seeders: 2 },
         ].map(withSize),
-        { searchKey: harness.searchKey } as any,
+        { searchKey: harness.searchKey, onCacheResult: harness.onCacheResult } as any,
       ),
     );
     await new Promise((r) => setTimeout(r, 20));
-    // max=2: strict (4 seeds) + UM relaxado. O segundo fraco NAO vai para a
-    // fila — queueDepth=2 so cria capacidade no strict VAZIO.
-    // O relaxado escolhido e o de MAIOR swarm entre os fracos (w2, 2 seeders).
-    assert.deepEqual(harness.enqueued, [h4, w2]);
-    assert.equal(dRelaxed(), 1, 'complemento imediato fica mensurado');
-    assert.equal(autofetch.readQueue(harness.searchKey).length, 0, 'fila fraca nao e criada no strict parcial');
+    // max=2: strict (4 seeds) + UM relaxado, o de MAIOR swarm (w2). O segundo
+    // fraco não vira imediato nem ocupa vaga de fila aqui.
+    assert.deepEqual(harness.enqueued, [h4, w2], 'estrito + o relaxado de maior swarm');
+    assert.equal(harness.dispatchCount(), 2, 'queueDepth=2 nao infla os imediatos');
   } finally {
     harness.cleanup();
     autofetchLive.reset();
-    autofetch.dropQueue(harness.searchKey);
     releaseAll(harness, [h4, w1, w2]);
-  }
-});
-
-// O runner passa o queueDepth EFETIVO (0 com a fila desligada): com
-// autoFetchQueue=false, autoFetchQueueDepth=NAO cria capacidade nenhuma — o
-// fallback relaxado fica limitado ao autoFetchTopSeedsMax.
-test('seeds: queue off nao cria capacidade de fallback relaxado', async () => {
-  autofetchLive.set({
-    ...LIVE_KNOBS,
-    autoFetchQueue: false,
-    autoFetchQueueDepth: 2,
-  });
-  const harness = seedsHarness('seeds-queue-off');
-  const s1 = 'f'.repeat(40);
-  const s2h = '1'.repeat(40);
-  const s3 = '2'.repeat(40);
-  try {
-    config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
-    await harness.run(() =>
-      applyDebrid(
-        [
-          // Strict vazio (todos 1-2 seeders): sem fila, seedsLimit = max = 2.
-          { infoHash: s1, name: 'Queue Off 1988 VHSRip A', title: 'Queue Off 1988 VHSRip A', _seeders: 1 },
-          { infoHash: s2h, name: 'Queue Off 1988 VHSRip B', title: 'Queue Off 1988 VHSRip B', _seeders: 2 },
-          { infoHash: s3, name: 'Queue Off 1988 VHSRip C', title: 'Queue Off 1988 VHSRip C', _seeders: 1 },
-        ].map(withSize),
-        { searchKey: harness.searchKey } as any,
-      ),
-    );
-    await new Promise((r) => setTimeout(r, 20));
-    assert.equal(harness.enqueued.length, 2, 'queueDepth ignorado com a fila desligada');
-    assert.equal(autofetch.readQueue(harness.searchKey).length, 0, 'fila desligada nao guarda candidato');
-  } finally {
-    harness.cleanup();
-    autofetchLive.reset();
-    autofetch.dropQueue(harness.searchKey);
-    releaseAll(harness, [s1, s2h, s3]);
   }
 });

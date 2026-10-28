@@ -13,6 +13,11 @@
 //   - `recheckLots` ← `status.lots`   (lotes de recheck persistidos)
 //   - `queues.count`← `status.queueDepth` (chaves `autofetch:v3:q:`)
 //
+// Corte do Chupim TS: o snapshot do Node ficou PARCIAL — `recheckLots`,
+// `settleLots`, `lots`, `seasonSearchKeys` e `skips` vinham do runner em
+// memória e não têm mais fonte aqui. Quando a admin não responde o bloco vai com
+// `partial:true` e SEM esses nomes (ausente ≠ zero); o painel mostra "—".
+//
 // Quem SUBSTITUI os números do Node é só o worker que executa (`enabled:true`).
 // Enquanto ele nasce desligado (fase A/B, `phase:"prepared"`), o Chupim de pé é
 // o do Node: trocar `recheckLots`/`paused` pela foto nativa apagaria o número
@@ -28,7 +33,10 @@ export async function autofetchBlock(services: AppServices): Promise<Record<stri
   };
 
   const native = await fetchAutofetchStatus();
-  if (!native) return { ...base, source: 'node' };
+  // `partial:true` = a foto veio do Node e NÃO tem os números que só o runner
+  // em memória conhecia (`recheckLots`/`settleLots`/`lots`/`seasonSearchKeys`).
+  // O painel precisa disso para exibir "sem fonte" em vez de zero inventado.
+  if (!native) return { ...base, source: 'node', partial: true };
 
   const block: Record<string, unknown> = {
     ...base,

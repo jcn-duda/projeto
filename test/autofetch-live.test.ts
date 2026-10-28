@@ -178,6 +178,26 @@ test('autofetchLive: override dos knobs raros persiste no cfg e reset restaura o
   assert.equal(autofetchLive.snapshot().overriddenKeys.length, 0);
 });
 
+test('autofetchLive: o toggle da sonda nasce do .env e chega ao KV do worker nativo', () => {
+  // `autoFetchBrProbe` não tem mais consumidor de DECISÃO no Node (o passo é
+  // `adom-server/src/autofetch/probe_step.rs`). O lado Node do knob é este:
+  // `envDefaults()` alimenta o painel e o override é gravado em
+  // `cfg:v1:autofetch` — a linha que o worker relê a cada passagem
+  // (`autofetch/live.rs` → `probe_job::from_env(..., Some(bool))`).
+  assert.equal(autofetchLive.effective().autoFetchBrProbe, config.debrid.autoFetchBrProbe);
+  const toggled = !config.debrid.autoFetchBrProbe;
+  const result = autofetchLive.set({ autoFetchBrProbe: toggled });
+  assert.equal(result.ok, true);
+  const stored = cache.peek(`${prefix('cfg')}autofetch`) as any;
+  assert.equal(
+    stored.autoFetchBrProbe,
+    toggled,
+    'override da sonda persistido sob cfg:v1:autofetch (chave lida pelo nativo)',
+  );
+  assert.equal(autofetchLive.effective().autoFetchBrProbe, toggled);
+  assert.equal(autofetchLive.reset().autoFetchBrProbe, config.debrid.autoFetchBrProbe);
+});
+
 test('autofetchLive: a config ao vivo do painel é dirigida pelo schema (sem ids hardcoded)', () => {
   // O cliente legado de /dashboard mantinha IDs `af_<key>`/`env_<key>`/
   // `badge_<key>`; o card do /painel nasce do schema que o backend devolve.

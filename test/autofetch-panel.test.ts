@@ -230,10 +230,13 @@ test('rotas escopadas /:userConfig/autofetch, status e action suportam Chupim', 
     assert.equal(resStatus.status, 200);
     assert.ok(resStatus.json.autofetch);
     assert.ok(resStatus.json.autofetch.config);
-    // Instrumentação da desistência: motivos por portão + últimos registros do
-    // trace + estado do gate de ocupação — tudo atrás do mesmo token.
-    assert.ok(resStatus.json.autofetch.skips, 'autofetch.skips presente');
-    assert.ok(Array.isArray(resStatus.json.autofetch.lastSkips), 'autofetch.lastSkips é array');
+    // Instrumentação da desistência: `lastSkips` + gate de ocupação, atrás do
+    // mesmo token. O mapa `skips` por portão era do runner TS (cortado na B4):
+    // sem fonte no Node, a foto se declara `partial` (ausente ≠ zero).
+    const af = resStatus.json.autofetch;
+    assert.equal('skips' in af, false, 'skips por portão saiu com o runner TS');
+    assert.ok(Array.isArray(af.lastSkips), 'autofetch.lastSkips é array');
+    assert.equal(af.partial, af.source === 'node' ? true : undefined, 'foto do Node é parcial');
     assert.ok(resStatus.json.autofetch.accountGate, 'autofetch.accountGate presente');
     assert.equal(typeof resStatus.json.autofetch.accountGate.pauseAt, 'number');
 

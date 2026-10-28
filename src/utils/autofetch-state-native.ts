@@ -44,26 +44,6 @@ function parse<T>(raw: string | null | undefined): T | null {
   try { return JSON.parse(raw) as T; } catch { return null; }
 }
 
-export function brProbeNativeKey(work: { type: string; imdbId: string; season?: number | null; episode?: number | null }): string | undefined {
-  const c = core();
-  if (!c?.autofetchV3ProbeKey) return undefined;
-  try { return c.autofetchV3ProbeKey(work.type, work.imdbId, work.season, work.episode); } catch { return undefined; }
-}
-
-export function readBrProbeNative(work: { type: string; imdbId: string; season?: number | null; episode?: number | null }, now = Date.now()) {
-  const c = core(); const handle = kv();
-  if (!c?.autofetchV3ProbeRead || !handle) return undefined;
-  try { return parse<{ state?: string; at?: number; leaseUntil?: number }>(c.autofetchV3ProbeRead(handle, work.type, work.imdbId, work.season, work.episode, now)); }
-  catch { return undefined; }
-}
-
-export function writeBrProbeNative(work: { type: string; imdbId: string; season?: number | null; episode?: number | null }, record: unknown, ttl: number, now = Date.now()): boolean {
-  const c = core(); const handle = kv();
-  if (!c?.autofetchV3ProbeWrite || !handle) return false;
-  try { c.autofetchV3ProbeWrite(handle, work.type, work.imdbId, work.season, work.episode, JSON.stringify(record), ttl, now); return true; }
-  catch { return false; }
-}
-
 export function readObraNative(key: string, now = Date.now()): unknown[] | null | undefined {
   const c = core(); const handle = kv();
   if (!c?.autofetchV3ObraRead || !handle) return undefined;

@@ -11,13 +11,10 @@ import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
-import { kvForget } from '../src/utils/native-kv.js';
+import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
-import * as releaseIndex from '../src/utils/release-index.js';
-import * as metrics from '../src/utils/metrics.js';
 import { createApp } from '../src/app.js';
-import { idxPoolCovered } from '../src/providers/search-pool-coverage.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,10 +61,11 @@ test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+
     assert.deepEqual(enqueued, [h2, h3, h4], '1×1080 + 1×720 + 1×4K');
     assert.equal(out.length, 4, 'dc=false mantém os 4 BR na lista');
     assert.ok(out.every((s) => s.infoHash), 'lista sai como torrent puro, sem selo ⚡');
-    // Surplus: 2º 1080 (h1) vai pra fila — reposição se o primário não carregar.
-    const queued = autofetch.readQueue(searchKey);
-    assert.equal(queued.length, 1, 'fila BR não vazia com 2º magnet na mesma faixa');
-    assert.equal(String(queued[0].infoHash).toLowerCase(), h1);
+    // Surplus: o 2º 1080 (h1) sai no `pick.queue` do `decideAutofetch` — mesmo
+    // contrato do excedente provado em `autofetch-seeds-rare.test.ts:141` —, mas o
+    // escritor único de `autofetch:v3:q:` é o worker nativo: o oráculo devolve a
+    // escolha e NÃO grava o KV (leva B4).
+    assert.deepEqual(autofetch.readQueue(searchKey), [], 'oráculo não escreve a fila');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
@@ -113,7 +111,7 @@ test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira
   }
 });
 
-test('autofetch aceito registra a release na obra e a busca repetida reconhece o cache', async () => {
+test('autofetch aceito grava o marker e a busca repetida reconhece o cache', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
@@ -125,7 +123,6 @@ test('autofetch aceito registra a release na obra e a busca repetida reconhece o
   const searchKey = 'busca-ciclo-indice';
   const enqueued: string[] = [];
   pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
-  metrics.reset();
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
@@ -133,20 +130,18 @@ test('autofetch aceito registra a release na obra e a busca repetida reconhece o
     await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
       applyDebrid([brDub(hash)], { searchKey, imdbId } as any));
     await sleep(20);
-
-    const indexed = releaseIndex.lookupQuiet(imdbId);
-    assert.equal(indexed.length, 1);
-    assert.equal(indexed[0].hash, hash);
-    assert.equal(indexed[0].source, 'autofetch');
-    assert.equal(indexed[0].isBr, true);
-    assert.equal(indexed[0].dubbed, true);
+    assert.deepEqual(enqueued, [hash], 'o BR frio sai para a conta uma vez');
+    // O registro durável do aceite pós-B4 é o MARKER (o nativo grava a mesma
+    // forma). `recordAutofetchRelease` morreu com o runner e o worker não o
+    // substituiu: o índice da obra não recebe mais a release do autofetch — a
+    // cobertura segue sem declarar nada (a régua é `idxPoolCovered`/`br_gap`).
+    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, hash)), 1, 'o aceite grava o marker');
 
     debrid.checkCached = async () => ({ cached: new Set([hash]), known: true });
     await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
       applyDebrid([brDub(hash)], { searchKey: `${searchKey}-2`, imdbId } as any));
     await sleep(20);
     assert.deepEqual(enqueued, [hash], 'o hash pronto não volta para a conta');
-    assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
@@ -158,7 +153,7 @@ test('autofetch aceito registra a release na obra e a busca repetida reconhece o
   }
 });
 
-test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobertura falsa', async () => {
+test('F4: a abertura seguinte oferece a release do autofetch já pronta e não repete o download', async () => {
   const adapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = adapter.enqueue;
   const originalCheck = debrid.checkCached;
@@ -211,10 +206,9 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
     assert.equal(first.length, 0, 'cachedOnly oculta a BR ainda fria na primeira abertura');
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(enqueueCount, 1);
-    const indexed = releaseIndex.lookupQuiet(imdbId);
-    assert.equal(indexed[0]?.hash, hash);
-    assert.equal(indexed[0]?.source, 'autofetch');
-    assert.equal(idxPoolCovered(indexed), false, 'o enqueue não dispensa a coleta');
+    // Sem `recordAutofetchRelease` (saiu com o runner, sem dono nativo) o aceite
+    // não escreve no índice da obra: a abertura seguinte é servida pelo cache do
+    // serviço, não pelo índice — por isso aqui não se mede `idxPoolCovered`.
 
     // "Próxima abertura": o mesmo par (obra, faixa) já pronto e outro release
     // 1080p dublado da obra — o primeiro sai, o segundo NÃO volta para a conta.
@@ -222,7 +216,6 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
       applyDebrid([candidate, alternate], { imdbId, searchKey } as any)) as Stream[];
     assert.ok(JSON.stringify(second).toLowerCase().includes(hash));
     assert.equal(enqueueCount, 1, 'outro hash da mesma obra/faixa não volta para a conta');
-    assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
   } finally {
     adapter.enqueue = originalEnqueue;
     adapter.inventory = originalInventory;
@@ -304,7 +297,11 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
       applyDebrid([globalDub(h3, '720p', 100), globalDub(h2, '1080p', 9), globalDub(h1, '1080p', 1)], { searchKey } as any),
     );
     await sleep(20);
-    assert.deepEqual(enqueued, [h2], 'sem BR na busca, só a melhor dublada global é enfileirada (teto any=1/obra)');
+    // O seletor ordena as dubladas globais (melhor primeiro) e o oráculo dispara
+    // as três; o teto `any`=1 por OBRA é do worker (`adom-core::pool_cap` via
+    // `reserveObra`), fora do alcance do oráculo desde a B4 — provado em
+    // `autofetch-obra-terminal.test.ts` (vaga any cap=1).
+    assert.deepEqual(enqueued, [h2, h1, h3], 'ordem do seletor: a melhor dublada global primeiro');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;

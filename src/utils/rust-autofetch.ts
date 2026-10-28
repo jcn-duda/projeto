@@ -1,10 +1,12 @@
 /**
- * Seleção do autofetch (Chupim) em Rust (`evaluateAutofetchCandidates`,
+ * Portas napi do autofetch (Chupim) em Rust (`evaluateAutofetchCandidates`,
  * composição dos módulos `autofetch_*`): a cascata `br → any → seeds` decide
- * os imediatos e a fila numa chamada SÍNCRONA, antes das travas e da escrita
- * da fila. O runner (`autofetch-candidates.ts`) segue dono dos portões, das
- * travas (holds), da sonda BR, da fila persistida e do waiver do piso; a
- * seleção TS de imediatos/fila saiu do branch (oráculo no `esm`).
+ * os imediatos e a fila numa chamada SÍNCRONA. Não há mais runner TS: o
+ * `autofetch-candidates.ts` foi apagado na leva B4 junto com o corpo do Chupim,
+ * e quem executa é o worker nativo (`adom-autofetch` + `adom-server::autofetch`,
+ * chamado pelo tail de efeitos). Daqui sobra o contrato do lote mais as portas
+ * da fila/marker/estado v3 que o Node ainda lê, e o `decideAutofetch` segue vivo
+ * como oráculo dos testes do núcleo.
  */
 import { requireCore } from './rust-core.js';
 import type { NativeKvNapi } from './native-kv.js';
@@ -188,7 +190,7 @@ export type AutofetchCore = AutofetchQueueCore & AutofetchMarkerCore & Autofetch
 };
 
 // ---------------------------------------------------------------------------
-// Captura vinda do runner (fatos já medidos; nada aqui consulta rede/estado)
+// Captura da decisão (fatos já medidos; nada aqui consulta rede/estado)
 // ---------------------------------------------------------------------------
 
 /** Stream cru do pipeline: só os campos que o lote lê (prefixo `_`). */
@@ -313,7 +315,7 @@ function buildInput(c: AutofetchCapture): AutofetchInputNapi {
   };
 }
 
-/** Escolha do Rust já casada com os streams vivos do runner. */
+/** Escolha do Rust já casada com a lista de streams viva da busca. */
 export type AutofetchPick<S> = {
   immediate: Array<{ stream: S; pool: string; rare: boolean; slotLimit?: number }>;
   queue: Array<{ stream: S; pool: string; rare?: boolean; slotLimit?: number }>;
@@ -321,8 +323,8 @@ export type AutofetchPick<S> = {
 
 /**
  * O Rust decide imediatos e fila. Lança se o napi lançar ou citar um hash que
- * não está na lista viva — nunca dispara um stream que o runner não conhece;
- * quem chama decide o que fazer com o erro (o runner fecha sem candidato).
+ * não está na lista viva — nunca dispara um stream que a busca não conhece;
+ * quem chama decide o que fazer com o erro (a busca segue sem candidato).
  */
 export function decideAutofetch<S extends AutofetchRawStream>(
   capture: AutofetchCapture & { streams: S[] },

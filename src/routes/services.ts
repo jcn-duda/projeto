@@ -9,7 +9,6 @@ import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
 import * as log from '../utils/logger.js';
 import * as autofetch from '../providers/autofetch.js';
-import * as autofetchRunner from '../providers/autofetch-runner.js';
 import * as autofetchLive from '../utils/autofetch-live.js';
 import * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
@@ -28,7 +27,6 @@ import { rdGate } from '../debrid/rd-gate.js';
 import rdWarmer from '../providers/rd-warmer.js';
 import crawler from '../providers/crawler.js';
 import * as crawlerLive from '../utils/crawler-live.js';
-import { prefetchInFlight } from './state.js';
 import type { AppServices } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,7 +42,7 @@ function buildServices(): AppServices {
     cache,
     log,
     autofetch,
-    autofetchRunner,
+    // O runner do Chupim não entra mais no registro: é nativo (corte do TS).
     autofetchLive,
     autofetchSuppressed,
     releaseIndex,
@@ -66,7 +64,6 @@ function buildServices(): AppServices {
       rateMessage: 'muitos pedidos de selo; tente de novo em instantes',
       busyMessage: 'selo ocupado; tente de novo em instantes',
     }),
-    prefetchInFlight,
     publicPath: (file) => path.join(__dirname, '..', 'public', file),
     rdLedger,
     rdGate,

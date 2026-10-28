@@ -196,9 +196,11 @@ export const debrid = () => ({
   // Sonda dirigida (Fase 4 do Chupim 2.0): quando o pool BR fica vazio, procura
   // dublado nos index-only BR (interseção JACKETT_INDEX_ONLY_INDEXERS ×
   // JACKETT_PT_BR_INDEXERS) ANTES de liberar o pool de melhores sementes.
-  // Enquanto a sonda está pending o pool seeds fica DEFERIDO (não purgado).
-  // Default ligado e ajustável ao vivo pelo painel; false não agenda nem
-  // bloqueia seeds. Exige RELEASE_INDEX ativo e interseção não vazia.
+  // Quem LÊ é o worker NATIVO (`autofetch/probe_step.rs`), e o painel vence o
+  // `.env` pelo overlay `cfg:v1:autofetch`, relido a cada passagem.
+  // O deferimento do pool seeds enquanto a sonda está `pending` NÃO está
+  // ligado no nativo (`enqueue_facts.rs` nunca mede `probe_pending`): aqui o
+  // toggle só decide se a sonda é agendada. Exige RELEASE_INDEX e interseção.
   autoFetchBrProbe: String(process.env.AUTOFETCH_BR_PROBE || 'true') === 'true',
   // TTL dos estados da sonda (`autofetch:v3:probe:<sha256>`). O `pending` tem
   // lease curto próprio: órfão por crash deixa de bloquear seeds sozinho.
@@ -346,9 +348,9 @@ export const debrid = () => ({
     idleWindowMs: Math.max(0, num(process.env.DEBRID_RD_WARM_IDLE_WINDOW_MS, 120_000)),
     queueMax: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_QUEUE_MAX, 5000))),
   },
-  // Prefetch do próximo episódio de séries
-  prefetchNextEp: String(process.env.DEBRID_PREFETCH_NEXT_EP || 'true') === 'true',
-  prefetchTtl: num(process.env.DEBRID_PREFETCH_TTL, 43200),
+  // Prefetch do próximo episódio (E+1) APOSENTADO na B4: o knob não tinha leitor
+  // algum (nem TS, nem Rust) e `prefetchKey` só tem chamador de teste. Não
+  // reintroduzir `DEBRID_PREFETCH_NEXT_EP`/`DEBRID_PREFETCH_TTL` sem escritor.
   // A conta como fonte de busca: o que já está pronto no debrid entra com ⚡
   // sem depender de indexer — inclusive pack de franquia que o casamento
   // estrito dos trackers rejeita (medido: "FILMOGRAFIA COMPLETA JORNADA NAS

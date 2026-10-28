@@ -1,286 +1,105 @@
-import { test, mock } from 'node:test';
+// Gate de OCUPAÇÃO da conta — o único pedaço do Chupim que continua em TS.
+// `src/providers/autofetch-gate.ts` FICA (leva B4): memo local + refresh em
+// background, rede proibida no caminho síncrono. O efeito de disparo é medido
+// pelo oráculo congelado (`applyDebrid`), que já é o produtor pós-corte.
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import * as held from '../src/debrid/protected.js';
-import * as autofetch from '../src/providers/autofetch.js';
+import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
-import config from '../src/config.js';
-import * as metrics from '../src/utils/metrics.js';
-import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
-import * as cache from '../src/utils/cache.js';
+import * as autofetch from '../src/providers/autofetch.js';
+import * as held from '../src/debrid/protected.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
-import { davailState } from '../src/utils/debrid-state-native.js';
+import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
-import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
 
-// O F4.4 removeu `findStreams` (o /stream é do gateway nativo). O único efeito
-// que estes testes usavam da busca era o registro da chave de temporada no
-// início dela — que agora é chamado pelo efeito `season_key` da rota interna.
-function registerSeasons(ids: string[], keys: string[], adapterId: string, apiKey: string) {
-  ids.forEach((id, i) => {
-    const { imdbId, season } = parseStremioId(id);
-    if (season != null) registerSeasonSearchKey(adapterId, accountScope(apiKey), imdbId, season, keys[i]);
-  });
-}
-
-test('hash NÃO-pack pronto no recheck semeia davail', async () => {
-  const testMock = mock;
-  const originalCheck = debrid.checkCached;
-  const originalPublicUrl = config.debrid.publicUrl;
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  const originalTorrentStatus = pmAdapter.torrentStatus;
-  const apiKey = 'chave-davail-nao-pack';
-  const account = accountScope(apiKey);
-  const userOpts = {
-    ...runtime.defaults(),
-    debridService: 'premiumize',
-    debridApiKey: apiKey,
-    debridCachedOnly: true,
-    autoFetchBr: true,
-  };
-  const searchKey = streamsCacheKey('movie', 'tt5555555', { ...userOpts, resolveUncached: config.debrid.resolveUncached });
-  const h = 'f'.repeat(40);
-  const filme = {
-    infoHash: h,
-    name: 'Filme Qualquer Dublado',
-    title: 'Filme Qualquer Dublado',
-    _br: true,
-    _dubbed: true,
-    _quality: '1080p',
-    _seeders: 1,
-  };
-  const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const readyNoteBefore = metrics.snapshot().counters['autofetch.ready-note'] || 0;
-  let checks = 0;
-
-  try {
-    config.debrid.publicUrl = 'http://addon.test';
-    pmAdapter.enqueue = async () => true;
-    pmAdapter.torrentStatus = async () => ({});
-    debrid.checkCached = async () => {
-      checks += 1;
-      return checks === 1 ? { cached: new Set(), known: true } : { cached: new Set([h]), known: true };
-    };
-
-    testMock.timers.enable({ apis: ['setTimeout'] });
-    await runtime.run({ opts: userOpts, encoded: 'cfg-davail-nao-pack' }, () =>
-      applyDebrid([filme], { searchKey } as any),
-    );
-    await flush();
-    testMock.timers.tick(120_000);
-    await flush();
-
-    assert.equal(checks >= 2, true, 'o recheck consultou o debrid depois do aceite');
-    assert.equal(cache.get(searchKey), null, 'a busca que enfileirou é invalidada quando o download fica pronto');
-    assert.equal(
-      davailState().get('premiumize', apiKey, h, Date.now()),
-      true,
-      'hash NÃO-pack pronto é semeado no cache de disponibilidade',
-    );
-    assert.equal(
-      (metrics.snapshot().counters['autofetch.ready-note'] || 0) - readyNoteBefore,
-      1,
-      'o ready que semeia o davail conta em autofetch.ready-note',
-    );
-  } finally {
-    testMock.timers.reset();
-    debrid.checkCached = originalCheck;
-    config.debrid.publicUrl = originalPublicUrl;
-    pmAdapter.enqueue = originalEnqueue;
-    pmAdapter.torrentStatus = originalTorrentStatus;
-    cache.forget(searchKey);
-    kvForget(autofetch.markerKey('premiumize', account, h));
-    held.release(h, account);
-  }
+const PM = 'premiumize';
+const API_KEY = 'chave-gate-cheia';
+const pmAdapter = debrid.BY_ID.get(PM) as DebridAdapter;
+const account = accountScope(API_KEY);
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const hx = (seed: string) => seed.repeat(40).slice(0, 40);
+const brDub = (hash: string) => ({
+  infoHash: hash,
+  name: 'Filme Conta Cheia Dublado',
+  title: 'Filme Conta Cheia Dublado',
+  _br: true,
+  _dubbed: true,
+  _quality: '1080p',
+  _seeders: 1,
 });
 
-test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail nem conta season-fill', async () => {
-  const testMock = mock;
-  const originalCheck = debrid.checkCached;
-  const originalPublicUrl = config.debrid.publicUrl;
-  const originalSeasonFill = config.debrid.autoFetchSeasonFill;
-  const originalSeasonIndexMax = config.debrid.autoFetchSeasonIndexMax;
-  const rdAdapter = debrid.BY_ID.get('realdebrid') as DebridAdapter;
-  const originalLedger = config.debrid.rdLedger.enabled;
-  const originalOracle = config.debrid.rdOracle.enabled;
-  const originalEnqueue = rdAdapter.enqueue;
-  const originalTorrentStatus = rdAdapter.torrentStatus;
-  const apiKey = 'chave-season-fill-rd';
-  const account = accountScope(apiKey);
-  const imdbId = 'tt8888888';
-  const ids = [`${imdbId}:1:1`, `${imdbId}:1:2`];
-  const userOpts = {
-    ...runtime.defaults(),
-    debridService: 'realdebrid',
-    debridApiKey: apiKey,
-    debridCachedOnly: false,
-    autoFetchBr: true,
-  };
-  const keys = ids.map((id) => streamsCacheKey('series', id, { ...userOpts, resolveUncached: config.debrid.resolveUncached }));
-  const h = '8'.repeat(40);
-  const pack = {
-    infoHash: h,
-    name: 'Show RD S01 Dublado',
-    title: 'Show RD S01 Dublado',
-    _br: true,
-    _dubbed: true,
-    _quality: '1080p',
-    _seeders: 1,
-  };
-  const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const fillBefore = metrics.snapshot().counters['autofetch.season-fill'] || 0;
-
-  try {
-    config.debrid.publicUrl = 'http://addon.test';
-    config.debrid.autoFetchSeasonFill = true;
-    config.debrid.autoFetchSeasonIndexMax = 10;
-    config.debrid.rdLedger.enabled = false;
-    config.debrid.rdOracle.enabled = false;
-    rdAdapter.enqueue = async () => true;
-    rdAdapter.torrentStatus = async () => ({ [h]: { state: 'ready', id: 'rd-1' } });
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
-
-    // Sem seed no L1: `streams:v21` é Rust-owned (F4.2(c)) e esta suíte cobra o
-    // gate de CAPACIDADE do adaptador (davail/season-fill), não a lista pronta.
-    await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, async () => {
-      registerSeasons(ids, keys, rdAdapter.id, apiKey);
-    });
-
-    testMock.timers.enable({ apis: ['setTimeout'] });
-    await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, () =>
-      applyDebrid([pack], { searchKey: keys[0], imdbId, season: 1 } as any),
-    );
-    await flush();
-    testMock.timers.tick(120_000);
-    await flush();
-
-    assert.notEqual(
-      davailState().get(rdAdapter.id, apiKey, h, Date.now()),
-      true,
-      'adaptador com cacheCheck: false não semeia davail',
-    );
-    assert.equal(
-      (metrics.snapshot().counters['autofetch.season-fill'] || 0) - fillBefore,
-      0,
-      'adaptador com cacheCheck: false não incrementa autofetch.season-fill',
-    );
-  } finally {
-    testMock.timers.reset();
-    debrid.checkCached = originalCheck;
-    config.debrid.publicUrl = originalPublicUrl;
-    config.debrid.autoFetchSeasonFill = originalSeasonFill;
-    config.debrid.autoFetchSeasonIndexMax = originalSeasonIndexMax;
-    config.debrid.rdLedger.enabled = originalLedger;
-    config.debrid.rdOracle.enabled = originalOracle;
-    rdAdapter.enqueue = originalEnqueue;
-    rdAdapter.torrentStatus = originalTorrentStatus;
-    kvForget(autofetch.markerKey('realdebrid', account, h));
-    held.release(h, account);
-  }
-});
-
-test('T4b: autoFetchStallStreak = 0 não colapsa nem remove torrent stalled (parado nunca derruba)', async () => {
-  const testMock = mock;
-  const originalCheck = debrid.checkCached;
-  const originalPublicUrl = config.debrid.publicUrl;
-  const originalStall = config.debrid.autoFetchStallStreak;
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-  const originalEnqueue = pmAdapter.enqueue;
-  const originalTorrentStatus = pmAdapter.torrentStatus;
-  const originalRemoveTorrent = pmAdapter.removeTorrent;
-  const account = accountScope('chave-stall-zero');
-  const h = '9'.repeat(40);
-  const searchKey = 'busca-stall-zero';
-  const brDub = { infoHash: h, name: 'Filme Stall Zero Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 };
-  const userOpts = {
-    ...runtime.defaults(),
-    debridService: 'premiumize',
-    debridApiKey: 'chave-stall-zero',
-    debridCachedOnly: false,
-    autoFetchBr: true,
-  };
-  let removals = 0;
-  const flush = () => new Promise((resolve) => setImmediate(resolve));
-  const stalledBefore = metrics.snapshot().counters['autofetch.stalled'] || 0;
-
-  try {
-    config.debrid.autoFetchStallStreak = 0;
-    config.debrid.publicUrl = 'http://addon.test';
-    pmAdapter.enqueue = async () => true;
-    pmAdapter.torrentStatus = async () => ({ [h]: { state: 'downloading', stalled: true, id: 99 } });
-    pmAdapter.removeTorrent = async () => { removals += 1; return true; };
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
-
-    testMock.timers.enable({ apis: ['setTimeout'] });
-    await runtime.run({ opts: userOpts, encoded: 'cfg-stall-zero' }, () =>
-      applyDebrid([brDub], { searchKey } as any),
-    );
-    await flush();
-
-    for (let i = 0; i < 5; i++) {
-      testMock.timers.tick(120_000);
-      await flush();
-    }
-
-    assert.equal(removals, 0, 'com autoFetchStallStreak=0 removeTorrent nunca é chamado');
-    assert.equal(
-      autofetch.isDead('premiumize', account, h),
-      false,
-      'torrent stalled não entra em blacklist quando stallStreak é 0',
-    );
-    assert.equal(
-      (metrics.snapshot().counters['autofetch.stalled'] || 0) - stalledBefore,
-      0,
-      'métrica autofetch.stalled não é incrementada',
-    );
-  } finally {
-    testMock.timers.reset();
-    config.debrid.autoFetchStallStreak = originalStall;
-    debrid.checkCached = originalCheck;
-    config.debrid.publicUrl = originalPublicUrl;
-    pmAdapter.enqueue = originalEnqueue;
-    pmAdapter.torrentStatus = originalTorrentStatus;
-    pmAdapter.removeTorrent = originalRemoveTorrent;
-    autofetch.releaseSearch(searchKey);
-    cache.forget(searchKey);
-    kvForget(autofetch.markerKey('premiumize', account, h));
-    held.release(h, account);
-  }
-});
-
-test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar bloqueia o enqueue', async () => {
+test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async () => {
   const originalCheck = debrid.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalPauseAt = config.debrid.autoFetchPauseAt;
-  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalStatus = pmAdapter.accountStatus;
+  try {
+    config.debrid.publicUrl = 'http://addon.test';
+    config.debrid.autoFetchPauseAt = 5;
+    pmAdapter.accountStatus = async () => ({ magnets: 900 });
+    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    autofetch.resetAccountGate();
+
+    // Frio: nenhuma medição local, então a busca não pode ser barrada.
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'memo frio não bloqueia');
+    assert.equal(autofetch.accountGateSnapshot()._origem.accounts, 'naomedido', 'frio é declarado, não pintado como saudável');
+    await sleep(20);
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), true, 'memo quente acima do limiar bloqueia');
+
+    // Painel: digest de 12 hex, contagem/limiar e origem da medição — sem a
+    // chave crua nem hash de 40.
+    const snap = autofetch.accountGateSnapshot();
+    assert.equal(snap.pauseAt, 5);
+    assert.equal(snap.blocked, true);
+    assert.equal(snap._origem.accounts, 'amostra');
+    const alvo = snap.accounts.find((item) => item.count === 900);
+    assert.ok(alvo, 'a conta medida aparece no painel');
+    assert.equal(alvo.max, 5);
+    assert.equal(alvo.source, 'accountStatus');
+    assert.equal(alvo.blocked, true);
+    assert.match(alvo.id, /^[a-f0-9]{12}$/, 'id do painel é digest de 12 hex');
+    const body = JSON.stringify(snap);
+    assert.equal(body.includes(API_KEY), false, 'nenhuma apiKey no painel');
+    assert.doesNotMatch(body, /[a-f0-9]{40}/i, 'nenhum hash cru no painel');
+
+    config.debrid.autoFetchPauseAt = 0;
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'flag 0 desliga o gate');
+    const desligado = autofetch.accountGateSnapshot();
+    assert.equal(desligado.blocked, false, 'pauseAt 0 não pinta bloqueio');
+    assert.equal(desligado.accounts.find((item) => item.count === 900)?.blocked, false);
+  } finally {
+    debrid.checkCached = originalCheck;
+    config.debrid.publicUrl = originalPublicUrl;
+    config.debrid.autoFetchPauseAt = originalPauseAt;
+    pmAdapter.accountStatus = originalStatus;
+    autofetch.resetAccountGate();
+  }
+});
+
+test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio libera', async () => {
+  const originalCheck = debrid.checkCached;
+  const originalPublicUrl = config.debrid.publicUrl;
+  const originalPauseAt = config.debrid.autoFetchPauseAt;
   const originalEnqueue = pmAdapter.enqueue;
   const originalStatus = pmAdapter.accountStatus;
-  const account = accountScope('chave-gate-cheia');
-  const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
-  const brDub = (hash: any) => ({
-    infoHash: hash, name: 'Filme Conta Cheia Dublado', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1,
-  });
   const userOpts = {
     ...runtime.defaults(),
-    debridService: 'premiumize',
-    debridApiKey: 'chave-gate-cheia',
+    debridService: PM,
+    debridApiKey: API_KEY,
     debridCachedOnly: true,
     autoFetchBr: true,
   };
-  const run = (h: any, searchKey: any) => runtime.run({ opts: userOpts, encoded: 'cfg-gate' }, () =>
-    applyDebrid([brDub(h)], { searchKey } as any),
+  const run = (h: string, searchKey: string) => runtime.run({ opts: userOpts, encoded: 'cfg-gate' }, () =>
+    applyDebrid([brDub(h)] as never, { searchKey } as never),
   );
-  const hCold = 'e'.repeat(40);
-  const hHot = 'f'.repeat(40);
+  const hCold = hx('e');
+  const hHot = hx('f');
   let enqueues = 0;
-  const gatedBefore = metrics.snapshot().counters['autofetch.account-gated'] || 0;
-
   try {
     config.debrid.publicUrl = 'http://addon.test';
     config.debrid.autoFetchPauseAt = 5;
@@ -289,30 +108,23 @@ test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar b
     debrid.checkCached = async () => ({ cached: new Set(), known: true });
     autofetch.resetAccountGate();
 
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), false, 'memo frio não bloqueia');
+    // Aquece o memo sem passar pela busca.
+    autofetch.accountGateBlocked(pmAdapter, API_KEY);
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), true, 'memo quente acima do limiar bloqueia');
 
     await run(hHot, 'gate-cheio');
     await sleep(20);
     assert.equal(enqueues, 0, 'conta cheia impede o debrid.enqueue');
     assert.equal(held.isHeld(hHot, account), false, 'bloqueio libera o hold do candidato');
-    assert.equal(kvPeek(autofetch.markerKey('premiumize', account, hHot)), null, 'bloqueio não grava marker');
-    assert.equal(
-      (metrics.snapshot().counters['autofetch.account-gated'] || 0) - gatedBefore,
-      1,
-      'bloqueio contado uma vez em autofetch.account-gated',
-    );
+    assert.equal(kvPeek(autofetch.markerKey(PM, account, hHot)), null, 'bloqueio não grava marker');
 
+    // Memo frio: fail-open — o mesmo candidato sai e o aceite RETÉM o hold.
     autofetch.resetAccountGate();
     await run(hCold, 'gate-frio');
     await sleep(20);
     assert.equal(enqueues, 1, 'primeira chamada com memo frio enfileira normalmente');
     assert.equal(held.isHeld(hCold, account), true, 'aceite mantém o hold');
-
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), true, 'refresh da busca fria reaqueceu o memo');
-    config.debrid.autoFetchPauseAt = 0;
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, 'chave-gate-cheia'), false, 'flag 0 desliga o gate');
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), true, 'refresh da busca fria reaqueceu o memo');
   } finally {
     debrid.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
@@ -323,8 +135,26 @@ test('gate de ocupação: memo frio é fail-open e memo quente acima do limiar b
     autofetch.releaseSearch('gate-frio');
     autofetch.releaseSearch('gate-cheio');
     for (const h of [hCold, hHot]) {
-      kvForget(autofetch.markerKey('premiumize', account, h));
+      kvForget(autofetch.markerKey(PM, account, h));
       held.release(h, account);
     }
+  }
+});
+
+test('contagem não numérica não vira memo: o gate segue fail-open', async () => {
+  const originalPauseAt = config.debrid.autoFetchPauseAt;
+  const originalStatus = pmAdapter.accountStatus;
+  try {
+    config.debrid.autoFetchPauseAt = 5;
+    pmAdapter.accountStatus = async () => ({}) as never;
+    autofetch.resetAccountGate();
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'primeira chamada é fail-open');
+    await sleep(20);
+    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'sem contagem nada é gravado no memo');
+    assert.equal(autofetch.accountGateSnapshot()._origem.accounts, 'naomedido');
+  } finally {
+    config.debrid.autoFetchPauseAt = originalPauseAt;
+    pmAdapter.accountStatus = originalStatus;
+    autofetch.resetAccountGate();
   }
 });

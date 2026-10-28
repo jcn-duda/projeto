@@ -1,11 +1,12 @@
 // Item 1b — revalidação de fundo dos represados da AllDebrid (conta BYO).
 //
-// A parada por progresso da AllDebrid (Fase 3, `autofetch-progress`) é uma
-// derivação HEURÍSTICA: bytes parados por N rechecks. Por isso o
-// `collapseTerminal` do ramo `progress` NUNCA apaga direto — ele blacklista,
-// libera holds e registra o id na fila de represados (`autofetch-suppressed`).
-// O que destrava a remoção depois é o `drainSuppressed`, que só roda com o
-// knob `DEBRID_REMOVE_BY_ID` (default OFF) e é acionado pelo recheck do lote.
+// A parada por progresso da AllDebrid (Fase 3) é uma derivação HEURÍSTICA:
+// bytes parados por N rechecks. Herdado do TS, o colapso do ramo `progress`
+// NUNCA apagava direto — blacklistava, liberava holds e registrava o id na fila
+// de represados (`autofetch-suppressed`). Esse bloco hoje é do passo nativo do
+// recheck (`recheck_poll.rs`); o que destrava a remoção depois é o dreno da
+// represa, que só roda com o knob `DEBRID_REMOVE_BY_ID` (default OFF) ou por
+// `force` confirmado no painel.
 //
 // Sobra o canto da conta BYO: a varredura periódica (`sweepDead`) só existe
 // para a conta do OPERADOR (`env-ops`), então um represado de instalação pode

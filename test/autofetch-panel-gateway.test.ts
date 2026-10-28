@@ -84,8 +84,12 @@ test('bloco autofetch: sem a admin, source node e o snapshot do Node intacto', a
     assert.equal(af.source, 'node');
     assert.equal(af.gateway, undefined, 'sem admin não há foto nativa para exibir');
     assert.ok(af.config?.effective, 'config ao vivo continua no payload');
-    assert.equal(typeof af.recheckLots, 'number');
-    assert.equal(typeof af.budget?.used, 'number');
+    // Corte do Chupim TS: o snapshot do Node é PARCIAL. Lotes/settle eram do
+    // runner em memória; sem fonte no Node eles NÃO aparecem (nada de zero
+    // inventado) — quem mede é o worker nativo, publicado em `gateway`.
+    assert.equal(af.partial, true, 'a foto do Node se declara parcial');
+    assert.equal('recheckLots' in af, false, 'sem runner, sem contagem de lotes');
+    assert.equal(typeof af.budget?.used, 'number', 'orçamento continua no snapshot de autofetch');
     assert.ok(Array.isArray(af.lastSkips));
   } finally {
     config.jackett.testToken = '';
@@ -111,7 +115,8 @@ test('bloco autofetch: admin preparada marca source gateway sem apagar os númer
       assert.equal(af.paused, false);
       assert.ok(af.config?.effective, 'shape preservado');
       assert.ok(Array.isArray(af.obras));
-      assert.equal(typeof af.settleLots, 'number');
+      assert.equal(af.partial, undefined, 'foto do gateway não é parcial');
+      assert.equal('settleLots' in af, false, 'settle não é do Node');
     });
   } finally {
     config.jackett.testToken = '';

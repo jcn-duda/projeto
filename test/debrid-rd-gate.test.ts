@@ -5,9 +5,6 @@ import { parseRetryAfter, RateLimitError, retryAfterMsOf } from '../src/debrid/c
 import { createRdGate, rdGate } from '../src/debrid/rd-gate.js';
 import * as realdebrid from '../src/debrid/realdebrid.js';
 import { accountScope } from '../src/utils/request-key.js';
-import * as autofetch from '../src/providers/autofetch.js';
-import { drainNext } from '../src/providers/autofetch-runner.js';
-import * as runtime from '../src/runtime.js';
 import * as memo from '../src/debrid/inventory-memo.js';
 
 function fakeClock() {
@@ -253,80 +250,6 @@ test('integração RD: removeTorrent executa DELETE durante cooldown', async () 
   }
 });
 
-test('autofetch RD preserva a cabeça da fila enquanto a conta está em cooldown', async () => {
-  const oldEnabled = config.debrid.rdGate.enabled;
-  const oldCooldown = config.debrid.rdGate.cooldownMs;
-  const apiKey = 'conta-rd-drain';
-  const account = accountScope(apiKey);
-  const searchKey = 'streams:v6:movie:ttRdGateDrain';
-  const items = [
-    { infoHash: 'b'.repeat(40), title: 'Cabeça RD', quality: '1080p' },
-    { infoHash: 'c'.repeat(40), title: 'Segundo RD', quality: '720p' },
-  ];
-  try {
-    config.debrid.rdGate.enabled = true;
-    config.debrid.rdGate.cooldownMs = 90_000;
-    rdGate.reset();
-    await assert.rejects(
-      rdGate.run(account, 'probe', async () => { throw new RateLimitError('429'); }),
-      RateLimitError,
-    );
-    autofetch.writeQueue(searchKey, items, 3600, 'realdebrid', account);
-    const before = autofetch.readQueue(searchKey);
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'realdebrid', debridApiKey: apiKey }, encoded: 'cfg-rd-gate' },
-      async () => { drainNext(searchKey, { refusals: 0 }); },
-    );
-    assert.deepEqual(autofetch.readQueue(searchKey), before);
-  } finally {
-    config.debrid.rdGate.enabled = oldEnabled;
-    config.debrid.rdGate.cooldownMs = oldCooldown;
-    rdGate.reset();
-    autofetch.dropQueue(searchKey);
-  }
-});
-
-test('autofetch RD repõe na frente se cooldown abrir depois de takeNext', async () => {
-  const oldEnabled = config.debrid.rdGate.enabled;
-  const adapter = (await import('../src/debrid/index.js')).default.BY_ID.get('realdebrid')!;
-  const oldEnqueue = adapter.enqueue;
-  const apiKey = 'conta-rd-toctou';
-  const account = accountScope(apiKey);
-  const searchKey = 'streams:v6:movie:ttRdGateToctou';
-  const first = { infoHash: 'd'.repeat(40), title: 'Primeiro', quality: '1080p' };
-  const second = { infoHash: 'e'.repeat(40), title: 'Segundo', quality: '720p' };
-  const lot = { refusals: 1 };
-  let calls = 0;
-  try {
-    config.debrid.rdGate.enabled = true;
-    rdGate.reset();
-    adapter.enqueue = async () => {
-      calls += 1;
-      return rdGate.run(account, 'probe', async () => { throw new RateLimitError('429', 30_000); });
-    };
-    autofetch.writeQueue(searchKey, [first, second], 3600, 'realdebrid', account);
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'realdebrid', debridApiKey: apiKey }, encoded: 'cfg-rd-toctou' },
-      async () => { drainNext(searchKey, lot); },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const queue = autofetch.readQueue(searchKey);
-    assert.equal(queue[0].infoHash, first.infoHash);
-    assert.equal(queue[1].infoHash, second.infoHash);
-    assert.equal(lot.refusals, 1, 'rate limit não é recusa do torrent');
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'realdebrid', debridApiKey: apiKey }, encoded: 'cfg-rd-toctou' },
-      async () => { drainNext(searchKey, lot); },
-    );
-    assert.equal(calls, 1, 'cooldown impede nova drenagem');
-  } finally {
-    adapter.enqueue = oldEnqueue;
-    config.debrid.rdGate.enabled = oldEnabled;
-    rdGate.reset();
-    autofetch.dropQueue(searchKey);
-  }
-});
-
 test('resolveLink pronto evita addMagnet e play fura cooldown uma vez, sem retry', async () => {
   const old = { ...config.debrid.rdGate };
   const realFetch = globalThis.fetch;
@@ -357,8 +280,14 @@ test('resolveLink pronto evita addMagnet e play fura cooldown uma vez, sem retry
       }
       throw new Error(`URL inesperada: ${url.pathname}`);
     }) as typeof globalThis.fetch;
+    // porque: o `sleep` do gate é `unref()` de propósito — em produção o
+    // servidor segura o loop. Num teste não há quem segure, então o timer de
+    // 20 ms do play não mantém o processo vivo: o `node --test` encerraria com
+    // a promise pendente. Este handle só empresta o loop; as asserções de
+    // espera continuam as mesmas.
+    const keepAlive = setTimeout(() => {}, 500);
     const started = Date.now();
-    const link = await realdebrid.resolveLink(apiKey, hash);
+    const link = await realdebrid.resolveLink(apiKey, hash).finally(() => clearTimeout(keepAlive));
     const elapsed = Date.now() - started;
     assert.equal(link, 'https://cdn.real-debrid.com/X');
     assert.equal(paths.some((path) => path.endsWith('/torrents/addMagnet')), false);

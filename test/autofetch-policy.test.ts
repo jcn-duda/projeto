@@ -1,338 +1,168 @@
-// Fase 1 do Chupim 2.0 — política do pool `seeds`: decisões intrínsecas do
-// candidato e de despacho/dreno. Unidades puras + integração com stub de
-// enqueue/checkCached (nenhuma rede real).
+// Política do pool `seeds` do Chupim — a régua TS (`autofetch-policy.ts`) saiu
+// na leva B4 e quem decide agora é `adom-core::autofetch_policy`, chamado pelo
+// lote napi (`evaluateAutofetchCandidates`) através do `decideAutofetch`.
+// O que este arquivo prova é a POLÍTICA INTRÍNSECA vista pela decisão real:
+// faixa máxima, REMUX, qualidade desconhecida, tamanho desconhecido e o teto de
+// tamanho (`min(seedsMaxGb, maxSizeGb)`). O oráculo Rust da mesma régua é o
+// `cargo test -p adom-core --test autofetch_policy_golden` (caso a caso, função
+// por função); aqui se prova que a decisão da busca respeita a mesma régua.
+//
+// Captura sintética: os streams NÃO são BR nem dublados, `any` está desligado e
+// o pt-first também — assim quem responde é sempre o pool seeds, e qualquer
+// ausência na lista de imediatos é a política recusando, não outro pool
+// vencendo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.CACHE_PERSIST = 'false';
-
-import * as runtime from '../src/runtime.js';
-import config from '../src/config.js';
-import debrid from '../src/debrid/index.js';
-import * as autofetch from '../src/providers/autofetch.js';
-import * as cache from '../src/utils/cache.js';
-import { kvForget } from '../src/utils/native-kv.js';
-import * as held from '../src/debrid/protected.js';
-import * as metrics from '../src/utils/metrics.js';
-import autofetchLive from '../src/utils/autofetch-live.js';
-import { accountScope } from '../src/utils/request-key.js';
-import { autoFetchCandidates, autoFetchBrDubbed } from '../src/providers/autofetch-runner.js';
-import { drainNext } from '../src/providers/autofetch-recheck.js';
-import { purgeSeedsQueue } from '../src/providers/autofetch-seeds-pool.js';
-import {
-  decideSeedsStop, effectiveSeedsMaxBytes, filterSeedsUniverse, hasPlayableStream,
-  normalizeSeedsMaxQuality, seedsDrainRejection, seedsIntrinsicRejection, seedsSelectionBlock,
-} from '../src/providers/autofetch-policy.js';
-import type { DebridAdapter } from '../types/domain.js';
+import { decideAutofetch } from '../src/utils/rust-autofetch.js';
+import type { AutofetchCapture, AutofetchRawStream } from '../src/utils/rust-autofetch.js';
 
 const GB = 1024 ** 3;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const counter = (k: string) => metrics.snapshot().counters[k] || 0;
-const deltaOf = (k: string) => { const b = counter(k); return () => counter(k) - b; };
-const CFG = { dubbedOnly: false, cachedOnly: true, maxSizeGb: 0, seedsMaxGb: 8, seedsMaxQuality: '1080p' };
-const s = (extra: Record<string, unknown> = {}) => ({
-  infoHash: 'a'.repeat(40), title: 'Movie 2010 1080p WEB-DL', name: 'Movie 2010 1080p WEB-DL',
-  _quality: '1080p', _size: 2 * GB, ...extra,
-});
-const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
-const originalAccountStatus = pmAdapter.accountStatus;
+const hx = (seed: string) => seed.repeat(40).slice(0, 40);
 
-test('seleção: dubbedOnly e lista P2P tocável bloqueiam seeds; aviso não conta', () => {
-  assert.equal(seedsSelectionBlock({ dubbedOnly: true, cachedOnly: true }, [s()]), 'dubbed-only');
-  assert.equal(seedsSelectionBlock({ dubbedOnly: false, cachedOnly: false }, [s()]), 'seeds-playable');
-  assert.equal(seedsSelectionBlock({ dubbedOnly: false, cachedOnly: true }, [s()]), null);
-  assert.equal(hasPlayableStream([{ notice: true, externalUrl: 'http://x' }]), false, 'aviso não é play');
-  assert.equal(hasPlayableStream([{ url: 'http://play' }]), true);
-  assert.equal(hasPlayableStream([{ externalUrl: 'http://external' }]), true);
-});
+type Opts = {
+  live?: Partial<AutofetchCapture['live']>;
+  policy?: Partial<AutofetchCapture['policy']>;
+  queueDepth?: number;
+  seedsBlocked?: boolean;
+};
 
-test('parada por cache: knob off para; knob on preserva a exceção Mortuary', () => {
-  const base = { hasCachedDubbed: false, cachedCount: 1, rare: true, rareThreshold: 6, adapterCacheCheck: true };
-  assert.deepEqual(decideSeedsStop({ ...base, hasCachedDubbed: true, rareOverCached: true }), { stop: 'stop-has-br', rareOverCached: false });
-  assert.equal(decideSeedsStop({ hasCachedDubbed: false, cachedCount: 0, rare: true, rareThreshold: 6, adapterCacheCheck: true, rareOverCached: true }).stop, null);
-  assert.equal(decideSeedsStop({ ...base, rareOverCached: false }).stop, 'stop-has-cached');
-  assert.deepEqual(decideSeedsStop({ ...base, rareOverCached: true }), { stop: null, rareOverCached: true });
-  assert.equal(decideSeedsStop({ ...base, rareOverCached: true, adapterCacheCheck: false }).stop, 'stop-has-cached');
-  assert.equal(decideSeedsStop({ ...base, rareOverCached: true, rareThreshold: 0 }).stop, 'stop-has-cached');
-});
-
-test('intrínseco: 4K/REMUX/BDREMUX/desconhecidos recusados; teto é o menor limite', () => {
-  assert.equal(normalizeSeedsMaxQuality('bogus'), '1080p');
-  assert.equal(effectiveSeedsMaxBytes({ seedsMaxGb: 8, maxSizeGb: 4 }), 4 * GB);
-  assert.equal(effectiveSeedsMaxBytes({ seedsMaxGb: 0, maxSizeGb: 0 }), 0);
-  assert.equal(seedsIntrinsicRejection(s({ _quality: '2160p', _size: 60 * GB }), CFG), 'seeds-quality');
-  assert.equal(seedsIntrinsicRejection(s({ title: 'Movie 1080p REMUX', _size: 19.8 * GB }), CFG), 'seeds-quality');
-  assert.equal(seedsIntrinsicRejection(s({ title: 'Movie 1080p BDREMUX' }), CFG), 'seeds-quality');
-  assert.equal(seedsIntrinsicRejection(s({ _quality: undefined, title: 'Rare 1988 Rip' }), CFG), 'seeds-quality');
-  assert.equal(seedsIntrinsicRejection(s({ _size: 10 * GB }), CFG), 'seeds-too-big');
-  assert.equal(seedsIntrinsicRejection(s({ _size: 6 * GB }), { ...CFG, maxSizeGb: 4 }), 'seeds-too-big');
-  assert.equal(seedsIntrinsicRejection(s({ _size: undefined }), CFG), 'seeds-size-unknown');
-  assert.equal(seedsIntrinsicRejection(s({ _size: undefined, _packBytes: 3 * GB }), CFG), null);
-  assert.equal(seedsIntrinsicRejection(s({ _size: undefined, title: 'Movie 1080p\n💾 3.00 GB' }), CFG), null);
-});
-
-test('filtro do universo e revalidação permanente do dreno', () => {
-  const { eligible, rejected } = filterSeedsUniverse([
-    s(), s({ infoHash: 'b'.repeat(40), _quality: '2160p', _size: 60 * GB }),
-    s({ infoHash: 'c'.repeat(40), _size: 20 * GB }),
-    s({ infoHash: 'd'.repeat(40), _size: undefined, title: 'No Size 1080p' }),
-  ], CFG);
-  assert.equal(eligible.length, 1);
-  assert.deepEqual([rejected.get('seeds-quality'), rejected.get('seeds-too-big'), rejected.get('seeds-size-unknown')], [1, 1, 1]);
-  const bad = { infoHash: 'a'.repeat(40), pool: 'seeds', quality: '1080p', size: 20 * GB };
-  assert.equal(seedsDrainRejection(bad, CFG), 'seeds-too-big');
-  assert.equal(seedsDrainRejection(bad, { ...CFG, dubbedOnly: true }), 'dubbed-only');
-  const semQualidade = { infoHash: 'b'.repeat(40), pool: 'seeds', quality: 'sem resolução', size: 2 * GB };
-  const ok = { infoHash: 'c'.repeat(40), pool: 'seeds', quality: '1080p', size: 2 * GB };
-  assert.equal(seedsDrainRejection(semQualidade, CFG), 'seeds-quality');
-  assert.equal(seedsDrainRejection(ok, CFG), null);
-});
-
-// --- Integração: seleção ---
-
-const KEY = 'chave-policy-selecao';
-const account = accountScope(KEY);
-const selOpts = (extra: Record<string, unknown> = {}) => ({
-  ...runtime.defaults(), debridService: 'premiumize', debridApiKey: KEY,
-  debridCachedOnly: true, dubbedOnly: false, autoFetchBr: true, ...extra,
-});
-const selRun = <T>(opts: Record<string, unknown>, fn: () => T): T => runtime.run({ opts, encoded: 'cfg' }, fn);
-const LIVE = { autoFetchTopSeeds: true, autoFetchMinSeeders: 1, autoFetchTopSeedsMax: 2, autoFetchRareThreshold: 0, autoFetchQueueDepth: 6 };
-const poolOf = (out: any[]) => out.map((c) => String(c.stream.infoHash).toLowerCase());
-
-test.beforeEach(() => {
-  autofetchLive.set({ ...LIVE });
-  config.debrid.autoFetchRareOverCached = false;
-  pmAdapter.accountStatus = async () => ({ magnets: 0 });
-});
-test.afterEach(() => {
-  autofetchLive.reset();
-  config.debrid.autoFetchRareOverCached = false;
-  pmAdapter.accountStatus = originalAccountStatus;
-});
-
-test('tt0107953: 4K 60GB e REMUX 19.8GB recusados; 1080p dentro do teto passa', async () => {
-  const [h4k, hRemux, hOk] = ['4'.repeat(40), '5'.repeat(40), '6'.repeat(40)];
-  try {
-    const dQuality = deltaOf('autofetch.seeds.rejected.seeds-quality');
-    const dSkip = deltaOf('autofetch.skip.seeds-quality');
-    const out = await selRun(selOpts(), () => autoFetchCandidates([
-      { infoHash: h4k, name: 'Mortuary 1983 2160p BluRay', title: 'Mortuary 1983 2160p BluRay', _quality: '2160p', _size: 60 * GB, _seeders: 90 },
-      { infoHash: hRemux, name: 'Mortuary 1983 1080p REMUX', title: 'Mortuary 1983 1080p REMUX', _quality: '1080p', _size: 19.8 * GB, _seeders: 80 },
-      { infoHash: hOk, name: 'Mortuary 1983 1080p WEB-DL', title: 'Mortuary 1983 1080p WEB-DL', _quality: '1080p', _size: 2 * GB, _seeders: 40 },
-    ] as any));
-    assert.deepEqual(poolOf(out), [hOk]);
-    assert.equal(dQuality(), 2, 'volume do motivo conta os dois recusados');
-    assert.equal(dSkip(), 1, 'skip por motivo NÃO é inflado por candidato');
-    assert.equal(held.isHeld(h4k, account), false);
-    assert.equal(held.isHeld(hRemux, account), false);
-  } finally {
-    held.release(hOk, account);
-  }
-});
-
-test('maxSizeGb menor que o teto do pool também recusa', async () => {
-  const [hBig, hOk] = ['7'.repeat(40), '8'.repeat(40)];
-  try {
-    const out = await selRun(selOpts({ maxSizeGb: 4 }), () => autoFetchCandidates([
-      { infoHash: hBig, name: 'Movie 1080p', title: 'Movie 1080p', _quality: '1080p', _size: 6 * GB, _seeders: 50 },
-      { infoHash: hOk, name: 'Movie 1080p', title: 'Movie 1080p', _quality: '1080p', _size: 3 * GB, _seeders: 40 },
-    ] as any));
-    assert.deepEqual(poolOf(out), [hOk]);
-  } finally {
-    held.release(hOk, account);
-  }
-});
-
-test('d=1 com BR waived não enfileira inglês e conta dubbed-only UMA vez', async () => {
-  const hs = ['b'.repeat(40), 'c'.repeat(40), 'd'.repeat(40)];
-  const hBrWaived = 'e'.repeat(40);
-  const dDubbed = deltaOf('autofetch.skip.dubbed-only');
-  const dNoCandidate = deltaOf('autofetch.skip.no-candidate');
-  const out = await selRun(selOpts({ dubbedOnly: true }), () => autoFetchCandidates([
-    { infoHash: hBrWaived, name: 'Coringa Dublado 1080p', title: 'Coringa (2019) Dublado 1080p', _br: true, _dubbed: true, _quality: '1080p', _seedFloorWaived: true },
-    ...hs.map((h, i) => ({ infoHash: h, name: `Movie 2010 1080p ${i}`, title: `Movie 2010 1080p ${i}`, _quality: '1080p', _size: 2 * GB, _seeders: 90 - i })),
-  ] as any));
-  assert.deepEqual(out, [], 'instalação dublada não baixa o swarm inglês');
-  assert.equal(dDubbed(), 1);
-  assert.equal(dNoCandidate(), 0, 'bloqueio explícito não vira no-candidate também');
-  for (const h of hs) assert.equal(held.isHeld(h, account), false);
-});
-
-// --- Integração: despacho pós-cache e purga da fila ---
-
-const DKEY = 'chave-policy-dispatch';
-const dAccount = accountScope(DKEY);
-const dOpts = (extra: Record<string, unknown> = {}) => ({
-  ...runtime.defaults(), debridService: 'premiumize', debridApiKey: DKEY,
-  debridCachedOnly: true, dubbedOnly: false, autoFetchBr: true, ...extra,
-});
-const marker = (h: string) => autofetch.markerKey('premiumize', dAccount, h);
-
-function stubEnqueue(searchKey: string, hashes: string[]) {
-  const original = pmAdapter.enqueue;
-  const enqueued: string[] = [];
-  for (const h of hashes) {
-    kvForget(marker(h)); // L2 pode ter sobrevivido a execução anterior
-    kvForget(autofetch.deadKey('premiumize', dAccount, h));
-    held.release(h, dAccount);
-  }
-  pmAdapter.enqueue = async (_k, h) => { enqueued.push(h); return true; };
+function capture(streams: AutofetchRawStream[], o: Opts = {}): AutofetchCapture & { streams: AutofetchRawStream[] } {
   return {
-    enqueued,
-    restore() {
-      pmAdapter.enqueue = original;
-      autofetch.releaseSearch(searchKey);
-      autofetch.dropQueue(searchKey);
-      for (const h of hashes) { kvForget(marker(h)); held.release(h, dAccount); }
+    streams,
+    season: null,
+    queueDepth: o.queueDepth ?? 0,
+    live: {
+      autoFetchMinSeeders: 1,
+      autoFetchSeedsPtFirst: false,
+      autoFetchMax: 3,
+      autoFetchTopSeedsMax: 3,
+      autoFetchRareMax: 0,
+      autoFetchRareThreshold: 0,
+      autoFetchRareMaxSeeders: 0,
+      autoFetchAnyDubbed: false,
+      autoFetchTopSeeds: true,
+      ...o.live,
     },
+    policy: {
+      dubbedOnly: false,
+      cachedOnly: false,
+      maxSizeGb: 0,
+      seedsMaxGb: 0,
+      seedsMaxQuality: '1080p',
+      ...o.policy,
+    },
+    // `canAutoFetchBr` exige toggle + uma trava confiável (cacheCheck).
+    autoFetchBr: true,
+    adapter: { cacheCheck: true },
+    seedsBlocked: o.seedsBlocked ?? false,
   };
 }
 
-test('despacho: cache conhecido não-dublado para o seeds (knob off) e a fila perde só seeds', async () => {
-  autofetchLive.set({ ...LIVE, autoFetchQueue: true, autoFetchRareThreshold: 6 });
-  const searchKey = 'busca-policy-stop';
-  const [cachedGlobal, seedHash, brHash] = ['c1'.repeat(20), 'c2'.repeat(20), 'c3'.repeat(20)];
-  const h = stubEnqueue(searchKey, [cachedGlobal, seedHash, brHash]);
-  try {
-    autofetch.writeQueue(searchKey, [
-      { infoHash: seedHash, pool: 'seeds', title: 'Cold 1080p' },
-      { infoHash: brHash, pool: 'br', title: 'BR Dub 1080p' },
-    ], 3600, 'premiumize', dAccount);
-    const dStop = deltaOf('autofetch.skip.stop-has-cached');
-    const streams = [
-      { infoHash: cachedGlobal, name: 'Global 1080p', title: 'Global 1080p', _quality: '1080p' },
-      { infoHash: seedHash, name: 'Cold 1080p', title: 'Cold 1080p', _quality: '1080p', _size: 2 * GB },
-    ];
-    const n = await runtime.run({ opts: dOpts(), encoded: 'cfg' }, () => autoFetchBrDubbed(
-      streams as any, [{ stream: streams[1] as any, account: dAccount, pool: 'seeds', rare: false }],
-      { cached: new Set([cachedGlobal]), known: true, searchKey },
-    ));
-    assert.equal(n, 0);
-    assert.equal(dStop(), 1);
-    assert.deepEqual(autofetch.readQueue(searchKey).map((q) => String(q.infoHash).toLowerCase()), [brHash]);
-  } finally {
-    h.restore();
+/** Stream global (não-BR) cru, do jeito que o pipeline entrega ao Chupim. */
+function seeds(
+  seed: string,
+  title: string,
+  o: { quality?: string; seeders?: number; size?: number; pack?: number; name?: string } = {},
+): AutofetchRawStream {
+  return {
+    infoHash: hx(seed),
+    title,
+    name: o.name ?? title,
+    ...(o.quality != null ? { _quality: o.quality } : {}),
+    ...(o.seeders != null ? { _seeders: o.seeders } : {}),
+    ...(o.size != null ? { _size: o.size } : {}),
+    ...(o.pack != null ? { _packBytes: o.pack } : {}),
+  };
+}
+
+function picked(streams: AutofetchRawStream[], o: Opts = {}): string[] {
+  return decideAutofetch(capture(streams, o)).immediate.map((item) => String(item.stream.infoHash));
+}
+
+// O controle (720p, 1 GB, 5 seeders) é o que SEMPRE sobra: os concorrentes
+// abaixo têm MAIS seeders, então se algum deles entrasse na lista ele viria
+// antes — a ausência prova a recusa sem depender de "lista vazia".
+const CONTROL = 'f';
+
+test('faixa acima do teto (2160p) não entra no pool seeds', () => {
+  const streams = [
+    seeds('a', 'Filme 2020 2160p', { quality: '2160p', seeders: 40, size: 5 * GB }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 1 * GB }),
+  ];
+  assert.deepEqual(picked(streams), [hx(CONTROL)]);
+});
+
+test('REMUX/BDREMUX é recusado mesmo dentro da faixa permitida', () => {
+  const streams = [
+    seeds('a', 'Filme 2020 1080p REMUX', { quality: '1080p', seeders: 40, size: 5 * GB }),
+    seeds('b', 'Filme 2020 1080p BDREMUX', { quality: '1080p', seeders: 30, size: 5 * GB }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 1 * GB }),
+  ];
+  assert.deepEqual(picked(streams), [hx(CONTROL)]);
+});
+
+test('qualidade desconhecida (nem `_quality` nem título) é recusada', () => {
+  const streams = [
+    seeds('a', 'Filme 2020', { seeders: 40, size: 5 * GB }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 1 * GB }),
+  ];
+  assert.deepEqual(picked(streams), [hx(CONTROL)]);
+});
+
+test('tamanho desconhecido (sem `_size`/`_packBytes`/💾) é recusado', () => {
+  const streams = [
+    seeds('a', 'Filme 2020 720p', { quality: '720p', seeders: 40 }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 1 * GB }),
+  ];
+  assert.deepEqual(picked(streams), [hx(CONTROL)]);
+});
+
+test('teto de tamanho é o MENOR entre seedsMaxGb e maxSizeGb (0 = sem teto)', () => {
+  const grande = 'a';
+  const streams = [
+    seeds(grande, 'Filme 2020 1080p', { quality: '1080p', seeders: 40, size: 6 * GB }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 4 * GB }),
+  ];
+  const casos: Array<{ policy: Opts['policy']; entra: boolean; porque: string }> = [
+    { policy: { seedsMaxGb: 5, maxSizeGb: 0 }, entra: false, porque: 'teto do pool (5 GB) corta 6 GB' },
+    { policy: { seedsMaxGb: 0, maxSizeGb: 5 }, entra: false, porque: 'teto do usuário corta quando o pool não tem' },
+    { policy: { seedsMaxGb: 8, maxSizeGb: 5 }, entra: false, porque: 'vale o MENOR: pool 8 GB vs usuário 5 GB' },
+    { policy: { seedsMaxGb: 8, maxSizeGb: 0 }, entra: true, porque: 'só o pool limita, 6 GB cabe em 8 GB' },
+    { policy: { seedsMaxGb: 0, maxSizeGb: 0 }, entra: true, porque: 'sem teto nenhum' },
+  ];
+  for (const caso of casos) {
+    const hashes = picked(streams, { policy: caso.policy });
+    assert.equal(hashes.includes(hx(grande)), caso.entra, caso.porque);
+    assert.equal(hashes.includes(hx(CONTROL)), true, `o controle sobrevive sempre — ${caso.porque}`);
   }
 });
 
-test('despacho: knob rareOverCached ligado preserva a exceção Mortuary', async () => {
-  autofetchLive.set({ ...LIVE, autoFetchQueue: false, autoFetchRareThreshold: 6 });
-  config.debrid.autoFetchRareOverCached = true;
-  const searchKey = 'busca-policy-rare';
-  const [cachedGlobal, seedHash] = ['d1'.repeat(20), 'd2'.repeat(20)];
-  const h = stubEnqueue(searchKey, [cachedGlobal, seedHash]);
-  try {
-    const dOver = deltaOf('autofetch.seeds.rareOverCached');
-    const streams = [
-      { infoHash: cachedGlobal, name: 'Global 1080p', title: 'Global 1080p', _quality: '1080p' },
-      { infoHash: seedHash, name: 'Cold 720p', title: 'Cold 720p', _quality: '720p', _size: 2 * GB },
-    ];
-    const n = await runtime.run({ opts: dOpts(), encoded: 'cfg' }, () => autoFetchBrDubbed(
-      streams as any, [{ stream: streams[1] as any, account: dAccount, pool: 'seeds', rare: true }],
-      { cached: new Set([cachedGlobal]), known: true, searchKey },
-    ));
-    await sleep(10);
-    assert.equal(n, 1);
-    assert.equal(dOver(), 1);
-    assert.deepEqual(h.enqueued, [seedHash]);
-  } finally {
-    h.restore();
-  }
+test('`_packBytes` e o 💾 do título suprem o `_size` ausente', () => {
+  const streams = [
+    seeds('a', 'Filme 2020 720p', { quality: '720p', seeders: 9, pack: 2 * GB }),
+    seeds('b', 'Filme 2020 720p 💾 3.5 GB', { quality: '720p', seeders: 8 }),
+    seeds('c', 'Filme 2020 720p', { quality: '720p', seeders: 7 }),
+  ];
+  const hashes = picked(streams, { live: { autoFetchTopSeedsMax: 3 }, policy: { seedsMaxGb: 5 } });
+  assert.deepEqual(hashes, [hx('a'), hx('b')], 'pack e 💾 entram; o sem tamanho nenhum fica fora');
 });
 
-test('despacho: dubbedOnly purga seeds e preserva br', async () => {
-  autofetchLive.set({ ...LIVE, autoFetchQueue: true });
-  const searchKey = 'busca-policy-dubbed';
-  const [seedHash, brHash] = ['e1'.repeat(20), 'e2'.repeat(20)];
-  const h = stubEnqueue(searchKey, [seedHash, brHash]);
-  try {
-    autofetch.writeQueue(searchKey, [
-      { infoHash: seedHash, pool: 'seeds', title: 'Cold 1080p' },
-      { infoHash: brHash, pool: 'br', title: 'BR Dub 1080p' },
-    ], 3600, 'premiumize', dAccount);
-    const dDubbed = deltaOf('autofetch.skip.dubbed-only');
-    const streams = [{ infoHash: seedHash, name: 'Cold 1080p', title: 'Cold 1080p', _quality: '1080p' }];
-    const n = await runtime.run({ opts: dOpts({ dubbedOnly: true }), encoded: 'cfg' }, () => autoFetchBrDubbed(
-      streams as any, [{ stream: streams[0] as any, account: dAccount, pool: 'seeds', rare: false }],
-      { cached: new Set(), known: true, searchKey },
-    ));
-    assert.equal(n, 0);
-    assert.equal(dDubbed(), 1);
-    assert.deepEqual(autofetch.readQueue(searchKey).map((q) => String(q.infoHash).toLowerCase()), [brHash]);
-  } finally {
-    h.restore();
-  }
+test('`seedsBlocked` (fato do oráculo) fecha o pool seeds inteiro', () => {
+  const streams = [seeds('a', 'Filme 2020 1080p', { quality: '1080p', seeders: 40, size: 5 * GB })];
+  assert.deepEqual(picked(streams), [hx('a')], 'sem bloqueio o pool responde');
+  // O bloqueio é o `seedsSelectionBlock` pré-computado no Node (dubbed-only,
+  // lista tocável, sonda BR pendente): o lote não vê a lista tocável.
+  assert.deepEqual(picked(streams, { seedsBlocked: true }), []);
 });
 
-test('purgeSeedsQueue: remove só seeds; modo cached remove só as cacheadas', () => {
-  const searchKey = 'busca-policy-purge';
-  const [s1, s2, b1] = ['f1'.repeat(20), 'f2'.repeat(20), 'f3'.repeat(20)];
-  try {
-    autofetch.writeQueue(searchKey, [
-      { infoHash: s1, pool: 'seeds' }, { infoHash: s2, pool: 'seeds' }, { infoHash: b1, pool: 'br' },
-    ], 3600, 'premiumize', dAccount);
-    assert.equal(purgeSeedsQueue(searchKey, { ttl: 3600, adapterId: 'premiumize', account: dAccount, cached: new Set([s1]) }), 1);
-    assert.deepEqual(autofetch.readQueue(searchKey).map((q) => String(q.infoHash).toLowerCase()), [s2, b1]);
-    assert.equal(purgeSeedsQueue(searchKey, { ttl: 3600, adapterId: 'premiumize', account: dAccount }), 1);
-    assert.deepEqual(autofetch.readQueue(searchKey).map((q) => String(q.infoHash).toLowerCase()), [b1]);
-  } finally {
-    autofetch.dropQueue(searchKey);
-  }
-});
-
-// --- Integração: dreno revalida regras permanentes ---
-
-test('dreno: seeds fora do teto é descartado; o br seguinte drena', async () => {
-  autofetchLive.set({ ...LIVE, autoFetchQueue: true, autoFetchQueueDepth: 6 });
-  const original = pmAdapter.enqueue;
-  const enqueued: string[] = [];
-  const searchKey = 'busca-policy-drain-x';
-  const [bigSeed, brHash] = ['a1'.repeat(20), 'a2'.repeat(20)];
-  try {
-    pmAdapter.enqueue = async (_k, h) => { enqueued.push(h); return true; };
-    autofetch.writeQueue(searchKey, [
-      { infoHash: bigSeed, pool: 'seeds', quality: '1080p', size: 20 * GB, title: 'Big 1080p' },
-      { infoHash: brHash, pool: 'br', quality: '1080p', title: 'BR Dub 1080p' },
-    ], 3600, 'premiumize', dAccount);
-    autofetch.resetBudget('premiumize', dAccount);
-    const dTooBig = deltaOf('autofetch.skip.seeds-too-big');
-    await runtime.run({ opts: dOpts(), encoded: 'cfg' }, async () => {
-      drainNext(searchKey, { refusals: 0, hashes: new Set(), seasonHints: new Map() });
-    });
-    await sleep(10);
-    assert.deepEqual(enqueued, [brHash]);
-    assert.equal(dTooBig(), 1);
-    assert.equal(autofetch.readQueue(searchKey).length, 0);
-  } finally {
-    pmAdapter.enqueue = original;
-    autofetch.dropQueue(searchKey);
-    for (const h of [bigSeed, brHash]) { kvForget(marker(h)); held.release(h, dAccount); }
-  }
-});
-
-test('dreno: dubbedOnly descarta a entrada seeds (regra permanente)', async () => {
-  autofetchLive.set({ ...LIVE, autoFetchQueue: true, autoFetchQueueDepth: 6 });
-  const original = pmAdapter.enqueue;
-  const enqueued: string[] = [];
-  const searchKey = 'busca-policy-drain-d';
-  const seedHash = 'b1'.repeat(20);
-  try {
-    pmAdapter.enqueue = async (_k, h) => { enqueued.push(h); return true; };
-    autofetch.writeQueue(searchKey, [{ infoHash: seedHash, pool: 'seeds', quality: '1080p', size: 2 * GB }], 3600, 'premiumize', dAccount);
-    autofetch.resetBudget('premiumize', dAccount);
-    const dDubbed = deltaOf('autofetch.skip.dubbed-only');
-    await runtime.run({ opts: dOpts({ dubbedOnly: true }), encoded: 'cfg' }, async () => {
-      drainNext(searchKey, { refusals: 0, hashes: new Set(), seasonHints: new Map() });
-    });
-    await sleep(10);
-    assert.deepEqual(enqueued, []);
-    assert.equal(dDubbed(), 1);
-    assert.equal(autofetch.readQueue(searchKey).length, 0);
-  } finally {
-    pmAdapter.enqueue = original;
-    autofetch.dropQueue(searchKey);
-    kvForget(marker(seedHash));
-    held.release(seedHash, dAccount);
-  }
+test('faixa máxima inválida cai no default `1080p`', () => {
+  const streams = [
+    seeds('a', 'Filme 2020 2160p', { quality: '2160p', seeders: 40, size: 5 * GB }),
+    seeds('b', 'Filme 2020 1080p', { quality: '1080p', seeders: 20, size: 5 * GB }),
+    seeds(CONTROL, 'Filme 2020 720p', { quality: '720p', seeders: 5, size: 1 * GB }),
+  ];
+  const hashes = picked(streams, { policy: { seedsMaxQuality: 'qualquer-coisa' } });
+  assert.equal(hashes.includes(hx('a')), false, '2160p continua acima do default');
+  assert.deepEqual(hashes, [hx('b'), hx(CONTROL)]);
 });

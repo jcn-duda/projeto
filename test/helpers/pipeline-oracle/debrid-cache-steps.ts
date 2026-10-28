@@ -13,6 +13,10 @@ import * as metrics from '../../../src/utils/metrics.js';
 import type { FirstObserverState } from './first-observer.js';
 import { dropTrace } from '../../../src/utils/stream-trace.js';
 import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+// O oráculo chama `cache.set`/KV: sem setup-env o destino seria o banco real.
+assertSafeTestDb('pipeline-oracle/debrid-cache-steps');
 
 // I0 — observabilidade do funil da primeira resposta BR no corte do debrid.
 // O brFound agora é contado no buildStreams (funil pré-debrid); aqui ficam

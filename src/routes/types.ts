@@ -8,7 +8,6 @@ import type * as metrics from '../utils/metrics.js';
 import type * as cache from '../utils/cache.js';
 import type * as log from '../utils/logger.js';
 import type * as autofetch from '../providers/autofetch.js';
-import type * as autofetchRunner from '../providers/autofetch-runner.js';
 import type * as autofetchLive from '../utils/autofetch-live.js';
 import type * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
 import type * as releaseIndex from '../utils/release-index.js';
@@ -48,7 +47,10 @@ export interface AppServices {
   cache: typeof cache;
   log: typeof log;
   autofetch: typeof autofetch;
-  autofetchRunner: typeof autofetchRunner;
+  // `autofetchRunner` SAIU do contrato (corte do Chupim TS): o runner é nativo.
+  // O que o painel ainda lê do Node vem de `providers.autofetchStatus()`
+  // (snapshot parcial) e de `autofetchLive` (config ao vivo). Não reintroduza
+  // um serviço do runner aqui: o arquivo não existe mais do lado TS.
   autofetchLive: typeof autofetchLive;
   autofetchSuppressed: typeof autofetchSuppressed;
   releaseIndex: typeof releaseIndex;
@@ -68,8 +70,8 @@ export interface AppServices {
   authorized: typeof authorized;
   diagnosticGate: DiagnosticGate;
   sealGate: DiagnosticGate;
-  /** Estado do processo, compartilhado entre instâncias de createApp. */
-  prefetchInFlight: Set<string>;
+  // `prefetchInFlight` SAIU do contrato: era um `Set` registrado no ctx que
+  // nenhum handler populava nem lia. Dedupe de prefetch não mora no Node.
   publicPath(file: string): string;
   rdLedger: typeof rdLedger;
   rdGate: typeof rdGate;

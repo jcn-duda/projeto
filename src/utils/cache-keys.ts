@@ -255,12 +255,23 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // que moravam no L1 migraram para `kvSet`.
 //
 // AINDA FORA, cada um por um motivo concreto:
-//   `probe:` — a produção já é 100% ponte, mas `test/br-probe.test.ts` semeia a
-//      sonda direto no L1; marcar o prefixo transformaria o seed em no-op e
-//      apagaria a prova do caso legado. Entra quando o seed migrar para `kvSet`.
-//   `pf:` (prefetch) e `sup:` — o Node ainda grava e enumera no L1
-//      (`cache.set` + `cache.keysMatching`): marcar o prefixo faria a escrita
-//      virar no-op silencioso.
+//   `probe:` — a sonda é 100% nativa: `probe_step.rs` grava
+//      `autofetch:v3:probe:<sha256>` e o `br-probe.ts` do Node saiu na B4. O Node
+//      não tem leitor NEM escritor do sub-namespace (confirmado por grep em
+//      `src/`): as pontes `brProbeNativeKey`/`readBrProbeNative`/
+//      `writeBrProbeNative` também saíram na B4 (superfície morta, sem
+//      chamador) — o que existe é a porta napi `autofetchV3Probe*` de
+//      `rust-autofetch.ts`, que é do worker e passa longe do `cache.get`/`peek`.
+//      Marcar o prefixo não conserta leitura velha nenhuma (não há leitura) e
+//      muda dois comportamentos: o `loadFromDisk` deixa de subir as linhas
+//      `probe:` legadas para o balde `autofetch`, e o `clearAutofetchNative`
+//      passa a apagar o estado nativo da sonda por `kvClearPrefix`. Resíduo real
+//      de deixar fora: cota — linha legada de sonda no disco ocupa o balde sem
+//      nunca ser servida.
+//   `sup:` — o Node ainda grava e enumera no L1 (`cache.set` + `cache.keysMatching`
+//      em `autofetch-suppressed.ts`): marcar o prefixo faria a escrita virar
+//      no-op silencioso. `pf:` (prefetch) segue fora pelo mesmo desenho, e hoje
+//      só tem o construtor de chave (`prefetchKey`), sem escritor em produção.
 // `autofetch-worker:v1:` é namespace separado do `cfg:v1:autofetch` do painel:
 // o gateway persiste aqui apenas pausa/intervalo, sem qualquer credencial.
 const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([

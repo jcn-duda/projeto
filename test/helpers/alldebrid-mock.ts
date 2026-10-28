@@ -16,6 +16,11 @@ import * as suppressed from '../../src/providers/autofetch-suppressed.js';
 import { scheduleSuppressedRevalidate } from '../../src/debrid/alldebrid-suppressed-revalidate.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import { preexisting } from '../../src/debrid/alldebrid-inventory.js';
+import { assertSafeTestDb } from './db-guard.js';
+
+// O dublê grava marker/`adrm` no KV nativo: sem setup-env o destino é o
+// `data/cache.db` do repositório.
+assertSafeTestDb('alldebrid-mock');
 
 // Chave do anti-reenchimento (T2-L7: dona do KV nativo). Quem lê/semeia usa
 // `kvPeek`/`kvSet`/`kvForget` — `cache.peek` devolve `null` para chave de outro

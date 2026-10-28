@@ -17,7 +17,11 @@
 # ela — `HttpClient` do debrid que não abriu, `Build::new` falhando, KV do
 # `cache.db` inacessível, trava fora do literal `on` — o worker fica
 # `phase:"prepared"` e TODO efeito de trabalho segue ao Node
-# (`rust/crates/adom-server/src/tail_effects.rs:136-156`). No log de boot os dois
+# (`rust/crates/adom-server/src/tail_effects.rs:136-156`). Depois do corte do TS
+# do Chupim (leva B4) o Node NÃO executa mais esses kinds: a rota
+# `/internal/search/effects` só aceita `rd_warmer` e `harvester_enqueue`, então o
+# lote é rejeitado e morre — `prepared` deixou de significar "segundo dono" e
+# virou trabalho perdido. No log de boot os dois
 # estados são indistinguíveis (nenhum canal é criado em `prepared`), então
 # "subiu" passaria por "ligado". Esta sonda separa os casos.
 #
@@ -174,7 +178,7 @@ report() {
       if [ "$phase" = "prepared" ]; then
         echo "[autofetch] 'prepared' = o LAÇO não subiu: fábrica ausente (HttpClient do debrid" >&2
         echo "[autofetch] não abriu, Build::new falhou, KV inacessível) ou trava fora do literal 'on'." >&2
-        echo "[autofetch] Sem a fábrica o efeito volta ao Node; ver '[autofetch]' no log do boot." >&2
+        echo "[autofetch] Sem a fábrica o lote é REJEITADO no Node (corte do TS) — rollback é imagem anterior." >&2
       elif [ "$phase" = "unavailable" ]; then
         echo "[autofetch] store/KV indisponível no gateway: o handle do worker nem existe." >&2
       fi
@@ -186,6 +190,7 @@ report() {
         return 1
       fi
       echo "[autofetch] OK: worker desligado como esperado (phase=${phase:-?})."
+      echo "[autofetch] Com o TS fora da imagem, 'off' significa Chupim PARADO — não é rollback." >&2
       return 0
       ;;
     *)

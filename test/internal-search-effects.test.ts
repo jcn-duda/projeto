@@ -6,10 +6,13 @@
 // `remoteAddress`, que não existe em produção — a guarda real lê o socket.
 // A antiga rota `index-write` saiu no R4 (índice/banco são nativos); os testes
 // dela foram removidos junto com os stubs `record`/`markBankFilterOutcome`.
-// A captura do banco VIVO (`magnet_capture`) saiu na T2-L1: ela acontece no
-// próprio processo Rust, no fim do tail — aqui só sobra a recusa do kind.
-// A auditoria de áudio (`dub_audit`) saiu na T3-L7a (fila e veredito do
-// gateway): o kind também só aparece para provar a recusa.
+// A captura do banco VIVO (`magnet_capture`) saiu na T2-L1 e a auditoria de
+// áudio (`dub_audit`) na T3-L7a — os dois kinds só aparecem aqui para provar a
+// recusa. O trabalho do Chupim (`autofetch`, `autofetch_batch`, `br_probe`,
+// `season_key`) passou ao worker nativo na leva B4: forma válida continua
+// aceita, mas ele só conta em `nativeOnly` e nada é executado no Node — e o
+// aceite sem execução sai com UM `warn` por request (o `Deferred`/`Forward` do
+// gateway desemboca nos dois neste 202; sem o aviso o trabalho sumiria mudo).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -20,28 +23,23 @@ import { buildServices } from '../src/routes/services.js';
 import { registerInternalSearch } from '../src/routes/internal-search.js';
 import type { InternalSearchEffectsCollaborators } from '../src/routes/internal-search-effects.js';
 import * as runtime from '../src/runtime.js';
+import * as log from '../src/utils/logger.js';
 
 const TOKEN = 'tok-internal-effects';
 const encoded = encodeConfig({ ds: 'torbox' });
 
 /** Stubs determinísticos que registram as chamadas recebidas. */
 function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: Record<string, any[]> } {
-  const seen: Record<string, any[]> = {
-    autofetch: [], warmer: [], probe: [], harvest: [], seasonKey: [],
-  };
+  const seen: Record<string, any[]> = { warmer: [], harvest: [] };
   const deps: Partial<InternalSearchEffectsCollaborators> = {
-    enqueueAutofetch: (candidate: any, request: any) => {
-      seen.autofetch.push({ candidate, request, opts: runtime.opts().debridService });
-      return true;
+    // O `opts` ao lado prova o `runtime.run`: o timer roda com a config do
+    // `encoded` do corpo, não com a do `.env`.
+    queueRdWarmForRelevant: (relevant: any[]) => {
+      seen.warmer.push({ relevant, opts: runtime.opts().debridService });
     },
-    queueRdWarmForRelevant: (relevant: any[]) => { seen.warmer.push(relevant); },
-    requestBrProbe: (work: any) => { seen.probe.push(work); return { probe: true, pending: true, fallbackBrGap: false }; },
     harvestEnqueue: (entry: any) => {
       seen.harvest.push(entry);
       return { reason: 'enqueued', entry: { ...entry, enqueuedAt: Date.now() } } as any;
-    },
-    registerSeasonSearchKey: (adapterId: string, account: string, imdb: string, season: number, cacheKey: string) => {
-      seen.seasonKey.push({ adapterId, account, imdb, season, cacheKey });
     },
   };
   return { deps, seen };
@@ -56,6 +54,10 @@ const saved: Record<string, any> = {};
 before(async () => {
   saved.testToken = config.jackett.testToken;
   config.jackett.testToken = TOKEN;
+  // O aviso do aceite nativo sai por `log.warn`; o nível do ambiente poderia
+  // ser `silent`/`error`, então o teste fixa o dele e devolve no `after`.
+  saved.logLevel = log.level();
+  log.setLevel('warn');
   const app = express();
   app.use((req, res, next) => {
     const spoof = req.get('x-test-remote-addr');
@@ -75,11 +77,27 @@ before(async () => {
 after(async () => {
   await server.close();
   config.jackett.testToken = saved.testToken;
+  log.setLevel(saved.logLevel);
 });
 
 /** Drena os setImmediate dos efeitos (e o ALS restaurado dentro deles). */
 async function flushTimers() {
   for (let i = 0; i < 3; i++) await new Promise((resolve) => setImmediate(resolve));
+}
+
+/**
+ * Captura o `console.warn` do trecho (é para onde o `log.warn` escreve) — o
+ * aviso do aceite nativo tem de sair UMA vez e sem payload.
+ */
+async function captureWarns<T>(fn: () => Promise<T>): Promise<{ result: T; warns: string[] }> {
+  const warns: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.map((a) => String(a)).join(' ')); };
+  try {
+    return { result: await fn(), warns };
+  } finally {
+    console.warn = original;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -116,26 +134,84 @@ test('effects: 202 imediato e dispara cada efeito com o contexto do usuário', a
       body: {
         encoded,
         effects: [
-          { kind: 'autofetch', payload: { candidate: { stream: { infoHash: HASH_A } }, request: { cached: false, imdbId: 'tt0000001' } } },
           { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
-          { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null } },
           { kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'miss' } },
-          { kind: 'season_key', payload: { adapter_id: 'rd', account: 'acc', imdb: 'tt0000001', season: 2, cache_key: 'ck' } },
         ],
       },
     });
     // A resposta sai ANTES de qualquer efeito: 202 com as contagens.
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 5, rejected: 0 });
+    assert.deepEqual(res.json, { ok: true, accepted: 2, rejected: 0, nativeOnly: 0 });
     await flushTimers();
-    // Cada ponto de entrada real foi acionado uma vez.
-    assert.equal(seen.autofetch.length, 1);
-    assert.equal(seen.autofetch[0].candidate.stream.infoHash, HASH_A);
-    assert.equal(seen.autofetch[0].opts, 'torbox', 'runtime.run restaurou a config do encoded');
-    assert.deepEqual(seen.warmer, [[itemOf(HASH_A)]]);
-    assert.equal(seen.probe[0].imdbId, 'tt0000001');
+    assert.deepEqual(seen.warmer[0].relevant, [itemOf(HASH_A)]);
+    assert.equal(seen.warmer[0].opts, 'torbox', 'runtime.run restaurou a config do encoded');
     assert.equal(seen.harvest[0].reason, 'miss');
-    assert.deepEqual(seen.seasonKey, [{ adapterId: 'rd', account: 'acc', imdb: 'tt0000001', season: 2, cacheKey: 'ck' }]);
+  } finally {
+    await server2.close();
+  }
+});
+
+test('effects: kinds do Chupim são aceitos e contados em nativeOnly, sem executar', async () => {
+  const { deps, seen } = stubEffects();
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const { result: res, warns } = await captureWarns(() => server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: {
+        encoded,
+        effects: [
+          { kind: 'autofetch', payload: { candidate: { stream: { infoHash: HASH_A } }, request: { cached: false, imdbId: 'tt0000001' } } },
+          { kind: 'autofetch_batch', payload: { items: [itemOf(HASH_A)], cached: [], known: true, imdbId: 'tt0000001' } },
+          { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null } },
+          { kind: 'season_key', payload: { adapter_id: 'rd', account: 'acc', imdb: 'tt0000001', season: 2, cache_key: 'ck' } },
+          { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
+        ],
+      },
+    }));
+    // O 202 não mente sobre o lote: os cinco têm forma válida, quatro deles
+    // viajam no `nativeOnly` porque o dono é o worker nativo do Chupim.
+    assert.equal(res.status, 202);
+    assert.deepEqual(res.json, { ok: true, accepted: 5, rejected: 0, nativeOnly: 4 });
+    await flushTimers();
+    // Nenhum dos quatro virou colheita no Node — só o warmer rodou.
+    assert.equal(seen.warmer.length, 1);
+    assert.deepEqual(seen.harvest, [], 'autofetch/autofetch_batch/br_probe/season_key não executam aqui');
+    // …mas o aceite sem execução NÃO pode ser mudo: UM aviso por request, com
+    // a contagem e os kinds — e sem uma gota do payload.
+    const avisos = warns.filter((linha) => linha.includes('[internal]'));
+    assert.equal(avisos.length, 1, 'um único warn por request');
+    assert.match(avisos[0], /nativeOnly=4/);
+    for (const kind of ['autofetch', 'autofetch_batch', 'br_probe', 'season_key']) {
+      assert.ok(avisos[0].includes(kind), `o warn cita o kind ${kind}`);
+    }
+    assert.ok(!avisos[0].includes(HASH_A), 'o warn não carrega payload (hash)');
+    assert.ok(!avisos[0].includes('Filme 2024'), 'o warn não carrega payload (título)');
+    assert.ok(!avisos[0].includes('acc'), 'o warn não carrega a conta/credencial');
+  } finally {
+    await server2.close();
+  }
+});
+
+test('effects: lote sem trabalho nativo não avisa e o rd_warmer executa', async () => {
+  const { deps, seen } = stubEffects();
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const { result: res, warns } = await captureWarns(() => server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { encoded, effects: [{ kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } }] },
+    }));
+    assert.equal(res.status, 202);
+    assert.equal(res.json.nativeOnly, 0);
+    await flushTimers();
+    // O caminho que ESTE processo executa continua de pé…
+    assert.equal(seen.warmer.length, 1);
+    assert.deepEqual(seen.warmer[0].relevant, [itemOf(HASH_A)]);
+    // … e sem trabalho nativo no lote, nenhum aviso.
+    assert.deepEqual(warns.filter((linha) => linha.includes('[internal]')), []);
   } finally {
     await server2.close();
   }
@@ -162,6 +238,7 @@ test('effects: efeito desconhecido/malformado é rejeitado, o lote segue', async
     assert.equal(res.status, 202);
     assert.equal(res.json.accepted, 1);
     assert.equal(res.json.rejected, 3);
+    assert.equal(res.json.nativeOnly, 0);
     await flushTimers();
     assert.equal(seen.warmer.length, 1);
   } finally {
@@ -169,15 +246,11 @@ test('effects: efeito desconhecido/malformado é rejeitado, o lote segue', async
   }
 });
 
-test('effects: br_probe inelegível manda a obra ao colhedor (br-gap)', async () => {
-  // A sonda pode recusar por kill-switch/retry/estado: o follow-up do índice
-  // não perde a obra — ela vai ao colhedor com motivo br-gap, como o follow-up
-  // nativo do Rust preserva.
+test('effects: o lote do Chupim malformado é rejeitado na forma, sem chamar o colhedor', async () => {
+  // A sonda era quem mandava a obra inelegível ao colhedor (`br-gap`); com o
+  // dono no gateway, o Node só valida a forma — payload sem `imdbId`/`type`
+  // continua rejeitado e nada é enfileirado por aqui.
   const { deps, seen } = stubEffects();
-  deps.requestBrProbe = (work: any) => {
-    seen.probe.push(work);
-    return { probe: false, pending: false, skipped: 'disabled', fallbackBrGap: true } as any;
-  };
   const app2 = express();
   registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
   const server2 = await createTestServer(app2);
@@ -187,48 +260,17 @@ test('effects: br_probe inelegível manda a obra ao colhedor (br-gap)', async ()
       body: {
         encoded,
         effects: [
-          {
-            kind: 'br_probe',
-            payload: { imdbId: 'tt0000001', type: 'series', season: 2, episode: 5, mode: 'upgrade' },
-          },
+          { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'series', season: 2, episode: 5, mode: 'upgrade' } },
+          { kind: 'autofetch_batch', payload: { items: [], cached: [], known: 'true' } },
+          // `tt1` NÃO serve de inválido: `IMDB_RE` é /^tt\d+$/ e o aceitaria.
+          { kind: 'season_key', payload: { adapter_id: 'rd', account: 'acc', imdb: 'tt-sem-numero', season: 2, cache_key: 'ck' } },
         ],
       },
     });
     assert.equal(res.status, 202);
+    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2, nativeOnly: 1 });
     await flushTimers();
-    assert.equal(seen.probe.length, 1);
-    assert.equal(seen.harvest.length, 1, 'sonda inelegível vira colheita br-gap');
-    assert.equal(seen.harvest[0].reason, 'br-gap');
-    assert.equal(seen.harvest[0].season, 2);
-    assert.equal(seen.harvest[0].episode, 5);
-  } finally {
-    await server2.close();
-  }
-});
-
-test('effects: br_probe agendado NÃO duplica a colheita', async () => {
-  const { deps, seen } = stubEffects();
-  deps.requestBrProbe = (work: any) => {
-    seen.probe.push(work);
-    return { probe: true, pending: true, fallbackBrGap: false } as any;
-  };
-  const app2 = express();
-  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
-  const server2 = await createTestServer(app2);
-  try {
-    const res = await server2.request('POST', '/internal/search/effects', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: {
-        encoded,
-        effects: [
-          { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null } },
-        ],
-      },
-    });
-    assert.equal(res.status, 202);
-    await flushTimers();
-    assert.equal(seen.probe.length, 1);
-    assert.equal(seen.harvest.length, 0, 'quem enfileira é o próprio requestBrProbe');
+    assert.deepEqual(seen.harvest, []);
   } finally {
     await server2.close();
   }
@@ -261,7 +303,7 @@ test('effects: kinds com dono nativo (magnet_capture, dub_audit) são rejeitados
       },
     });
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2 });
+    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2, nativeOnly: 0 });
     await flushTimers();
   } finally {
     await server2.close();
@@ -281,14 +323,15 @@ test('effects: falha de um efeito não afeta os outros (rota de pé)', async () 
         encoded,
         effects: [
           { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
-          { kind: 'season_key', payload: { adapter_id: 'rd', account: 'acc', imdb: 'tt0000001', season: 1, cache_key: 'ck' } },
+          { kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'gap' } },
         ],
       },
     });
     assert.equal(res.status, 202);
     await flushTimers();
     // O vizinho do efeito que lançou rodou do mesmo jeito.
-    assert.deepEqual(seen.seasonKey, [{ adapterId: 'rd', account: 'acc', imdb: 'tt0000001', season: 1, cacheKey: 'ck' }]);
+    assert.equal(seen.harvest.length, 1);
+    assert.equal(seen.harvest[0].reason, 'gap');
     // E a rota continua viva.
     const deNovo = await server2.request('POST', '/internal/search/effects', {
       headers: { 'X-Indexer-Test-Token': TOKEN },

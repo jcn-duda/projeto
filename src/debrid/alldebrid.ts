@@ -12,6 +12,13 @@
  *   - `alldebrid-check.ts`      checagem de cache (upload) + dropReady/dropUncached;
  *   - `alldebrid-play.ts`       resolveLink, enqueue, torrentStatus, removeTorrent.
  *
+ * A evicção de fallback SAIU daqui: quem apaga hoje é o passo nativo
+ * `evict_job.rs`, que só remove com os quatro fatos provados. O método opcional
+ * `evictFallbacks` do `DebridAdapter` fica sem implementação de propósito —
+ * `autofetch-evict.ts` lê a ausência e não tenta evictar (nada é apagado por
+ * omissão). Não reintroduza o re-export: o corpo TS do evict morre na leva de
+ * remoção.
+ *
  * O grafo é sem ciclo: todos os irmãos importam só da base e do inventário;
  * a identidade (`id`) mora na base porque a limpeza fala com `protected.ts`.
  */
@@ -25,8 +32,6 @@ export {
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
 export { warmInventory, preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
 export { deleteMagnets, sweepDead, sweepUndubbed } from './alldebrid-cleanup.js';
-export { evictFallbacks } from './alldebrid-fallback-evict.js';
-export type { EvictFallbackResult } from './alldebrid-fallback-evict.js';
 export { checkCached } from './alldebrid-check.js';
 export { resolveLink, enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 

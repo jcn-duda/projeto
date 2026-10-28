@@ -8,20 +8,24 @@
 // Contrato fixado aqui (o menor seguro): comprovadamente BR dublada sobrevive
 // ao piso PARA ALCANÇAR debrid/reserva; o waiver não vale para Dual ambíguo,
 // estrangeiro explícito, `_lied` nem global comum. E ele não cruza a fronteira
-// do download: o enqueue do autofetch continua exigindo o piso, porque cache
-// dispensa swarm e download não.
+// do download: o waiver existe para chegar à CHECAGEM (cache dispensa swarm) e
+// à reserva BR — baixar torrent sem enxame não termina, então o lote que
+// escolhe imediato/fila recebe o waiver como FATO (`viable`) e o corta.
+//
+// Reescrito na leva de remoção do TS do Chupim (2026-10-28): `autofetch-runner`,
+// `autofetch-candidates` e `autofetch-seeds-pool` saíram do disco. Sobrou a
+// superfície local da MESMA régua — o oráculo do ranking (waiver + reserva BR,
+// que chama o núcleo pelo napi) e `decideAutofetch` (`rust-autofetch.ts`), o
+// único lugar do Node que ainda converte `_seedFloorWaived` em decisão.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
 import { sortAndLimit, toStremioStream, limitReservingBr } from './helpers/pipeline-oracle/format.js';
-import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as held from '../src/debrid/protected.js';
-import * as autofetchLive from '../src/utils/autofetch-live.js';
-import { accountScope } from '../src/utils/request-key.js';
-import { autoFetchCandidates } from '../src/providers/autofetch-runner.js';
+import { decideAutofetch } from '../src/utils/rust-autofetch.js';
+import type { AutofetchCapture, AutofetchLiveSubset, AutofetchRawStream } from '../src/utils/rust-autofetch.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
 // Título real medido em produção (tracker global, 0 seeders, cacheado no TorBox).
@@ -165,180 +169,125 @@ test('a rara comprovada ocupa a reserva BR do corte final pós-debrid', () => {
   assert.ok(out.every((s) => !('_br' in s) && !('_seedFloorWaived' in s)), 'internos (inclusive a marca do waiver) saem antes do Stremio');
 });
 
-test('enqueue mantém o piso: sobrevivente do waiver não vira download; quem passou, vira', async () => {
-  const API_KEY = 'chave-piso-seeders';
-  const account = accountScope(API_KEY);
-  const run = (fn: () => unknown) => runtime.run(
-    {
-      opts: {
-        ...runtime.defaults(),
-        debridService: 'premiumize',
-        debridApiKey: API_KEY,
-        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
-        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
-        dubbedOnly: false,
-        debridCachedOnly: true,
-        autoFetchBr: true,
-      },
-      encoded: 'cfg',
-    },
-    fn,
-  );
-  // Mesma fábrica do pós-pipeline: `_seeders` já saiu no sortAndLimit e o
-  // waiver chega MARCADO (`_seedFloorWaived`) — é a marca que o enqueue lê.
-  const brDub = (h: string, waived: boolean) => ({
-    infoHash: h,
+// ═══════════════════════════════════════════════════════════════════════════════
+// O waiver NÃO cruza a fronteira do download — agora no lote nativo
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Stream de download como o pós-pipeline o entrega: `_seeders` já saiu. */
+function brDub(hash: string, waived: boolean): AutofetchRawStream {
+  return {
+    infoHash: hash,
     name: '1080p DUB BR · ThePirateBay',
     title: TITULO_REAL,
     _br: true,
     _dubbed: true,
     _quality: '1080p',
+    _size: 2 * 1024 ** 3,
     ...(waived ? { _seedFloorWaived: true } : {}),
-  });
+  };
+}
 
-  const dSkipped = deltaOf('autofetch.seed-floor-skipped');
-  const morta = await run(() => autoFetchCandidates([brDub('5'.repeat(40), true) as any], {}));
-  assert.deepEqual(morta, [], 'sobrevivente do waiver não pode virar candidato de download');
-  assert.ok(dSkipped() >= 1, 'o corte do enqueue fica mensurado (cai no br e/ou any)');
-  assert.equal(held.isHeld('5'.repeat(40), account), false, 'nenhum hold adquirido para download inútil');
+/**
+ * Fato medido pelo Node e entregue ao núcleo: o lote não vê a lista tocável nem
+ * o estado da sonda, então o que ele decide é só a cascata br → any → seeds
+ * sobre os fatos (`viable` = passou pelo piso, `seedsBlocked`).
+ */
+function capture(
+  streams: AutofetchRawStream[],
+  { live, ...over }: Omit<Partial<AutofetchCapture>, 'live'> & { live?: Partial<AutofetchLiveSubset> } = {},
+): AutofetchCapture {
+  return {
+    streams,
+    season: null,
+    queueDepth: 2,
+    live: {
+      autoFetchMinSeeders: 1,
+      autoFetchSeedsPtFirst: true,
+      autoFetchMax: 2,
+      autoFetchTopSeedsMax: 2,
+      autoFetchRareMax: 0,
+      autoFetchRareThreshold: 0,
+      autoFetchRareMaxSeeders: 0,
+      autoFetchAnyDubbed: false,
+      autoFetchTopSeeds: true,
+      ...(live || {}),
+    },
+    policy: { dubbedOnly: false, cachedOnly: true, maxSizeGb: 0, seedsMaxGb: 8, seedsMaxQuality: '1080p' },
+    autoFetchBr: true,
+    adapter: { cacheCheck: true },
+    seedsBlocked: false,
+    ...over,
+  };
+}
 
-  // Controle positivo: quem PASSOU pelo piso na listagem (sentinela 👤 1 de
-  // fonte BR/inventário, sem marca de waiver) segue elegível para baixar.
-  const viavel = '6'.repeat(40);
-  const ok = (await run(() => autoFetchCandidates([brDub(viavel, false) as any], {}))) as Array<
-    { stream: { infoHash?: string }; pool: string }
-  >;
-  assert.equal(ok.length, 1);
-  assert.equal(ok[0].pool, 'br');
-  assert.equal(String(ok[0].stream.infoHash).toLowerCase(), viavel);
-  held.release(viavel, account);
+const hashes = (rows: Array<{ stream: AutofetchRawStream }>) =>
+  rows.map((row) => String(row.stream.infoHash).toLowerCase());
+
+test('o waiver não vira download: sobrevivente do piso não é imediato nem fila', () => {
+  const WAIVED = '5'.repeat(40);
+  const dCalls = deltaOf('rust.autofetch.calls');
+  const waived = decideAutofetch(capture([brDub(WAIVED, true)]));
+  assert.deepEqual(hashes(waived.immediate), [], 'waived não pode virar candidato de download');
+  assert.deepEqual(hashes(waived.queue), [], 'nem entrar na fila persistente');
+  assert.equal(dCalls(), 1, 'a decisão passou pelo lote nativo (não é asserção vazia)');
+
+  // Prova NÃO-VÁCUA: o MESMO stream sem a marca passa e é escolhido no pool br.
+  const elegivel = decideAutofetch(capture([brDub(WAIVED, false)]));
+  assert.deepEqual(hashes(elegivel.immediate), [WAIVED], 'quem passou pelo piso segue elegível');
+  assert.equal(elegivel.immediate[0].pool, 'br');
 });
 
-test('último recurso: seeds abaixo do piso ainda aquecem quando BR/any vazios', async () => {
+test('o waiver corta também o pool seeds quando o piso próprio é 0', () => {
+  const WAIVED = '7'.repeat(40);
+  // piso do pool seeds em 0: sem o corte por `viable`, o waived seria
+  // RE-selecionado aqui (br e any o descartam, o seeds o pegaria).
+  const waived = decideAutofetch(capture([brDub(WAIVED, true)], {
+    live: { autoFetchMinSeeders: 0, autoFetchTopSeeds: true },
+  }));
+  assert.deepEqual(hashes(waived.immediate), [], 'waived não vira candidato nem pelo pool seeds');
+  assert.deepEqual(hashes(waived.queue), []);
+
+  // Controle positivo: o saudável (sem marca) sai pelo br mesmo com piso 0.
+  const HEALTHY = '8'.repeat(40);
+  const ok = decideAutofetch(capture([brDub(HEALTHY, false)], {
+    live: { autoFetchMinSeeders: 0, autoFetchTopSeeds: true },
+  }));
+  assert.deepEqual(hashes(ok.immediate), [HEALTHY]);
+  assert.equal(ok.immediate[0].pool, 'br');
+});
+
+test('último recurso: seeds abaixo do piso ainda aquecem quando br/any estão vazios', () => {
   // Caso The Locals (tt0387357): Jackett acha torrents com 👤 1, piso efetivo
   // do Chupim é 3 → pool seeds vazio → no-candidate → cachedOnly deixa a UI
   // vazia para sempre. O relaxo para 1 só dispara quando o piso normal falhou.
-  const API_KEY = 'chave-seeds-relaxed';
-  const account = accountScope(API_KEY);
-  const run = (fn: () => unknown) => runtime.run(
-    {
-      opts: {
-        ...runtime.defaults(),
-        debridService: 'premiumize',
-        debridApiKey: API_KEY,
-        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
-        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
-        dubbedOnly: false,
-        debridCachedOnly: true,
-        autoFetchBr: true,
-      },
-      encoded: 'cfg',
-    },
-    fn,
-  );
-  autofetchLive.set({ autoFetchTopSeeds: true, autoFetchMinSeeders: 3 });
-  try {
-    const obscure = {
-      infoHash: '9'.repeat(40),
-      name: 'The Locals 2003 720p WEB-DL 👤 1',
-      title: 'The Locals 2003 720p WEB-DL',
-      _quality: '720p',
-      _seeders: 1,
-      _size: 2 * 1024 ** 3,
-    };
-    const dRelaxed = deltaOf('autofetch.top-seeded-relaxed');
-    const dNoCand = deltaOf('autofetch.no-candidate');
-    const out = (await run(() => autoFetchCandidates([obscure as any], {}))) as Array<
-      { stream: { infoHash?: string }; pool: string }
-    >;
-    assert.equal(out.length, 1, 'com 1 seeder e piso 3, o último recurso ainda enfileira');
-    assert.equal(out[0].pool, 'seeds');
-    assert.equal(String(out[0].stream.infoHash).toLowerCase(), '9'.repeat(40));
-    assert.equal(dRelaxed(), 1, 'métrica do relaxo fica visível');
-    assert.equal(dNoCand(), 0, 'não conta no-candidate quando o relaxo salvou');
-    held.release('9'.repeat(40), account);
+  // (O contador `autofetch.top-seeded-relaxed` morava no picker TS, que saiu
+  // com a leva; o núcleo decide o mesmo relaxo e não conta métrica.)
+  const obscure = {
+    infoHash: '9'.repeat(40),
+    name: 'The Locals 2003 720p WEB-DL 👤 1',
+    title: 'The Locals 2003 720p WEB-DL',
+    _quality: '720p',
+    _seeders: 1,
+    _size: 2 * 1024 ** 3,
+  } as AutofetchRawStream;
+  const relaxed = decideAutofetch(capture([obscure], {
+    live: { autoFetchMinSeeders: 3, autoFetchTopSeeds: true },
+  }));
+  assert.deepEqual(hashes(relaxed.immediate), ['9'.repeat(40)], 'com 1 seeder e piso 3, o último recurso ainda escolhe');
+  assert.equal(relaxed.immediate[0].pool, 'seeds');
 
-    // Controle: título saudável (≥ piso) NÃO passa pelo relaxo — o piso normal basta.
-    const healthy = {
-      infoHash: 'a'.repeat(40),
-      name: 'Popular Title 1080p WEB-DL 👤 12',
-      title: 'Popular Title 1080p WEB-DL',
-      _quality: '1080p',
-      _seeders: 12,
-      _size: 2 * 1024 ** 3,
-    };
-    const dRelaxed2 = deltaOf('autofetch.top-seeded-relaxed');
-    const ok = (await run(() => autoFetchCandidates([healthy as any], {}))) as Array<
-      { stream: { infoHash?: string }; pool: string }
-    >;
-    assert.equal(ok.length, 1);
-    assert.equal(ok[0].pool, 'seeds');
-    assert.equal(dRelaxed2(), 0, 'saudável com seeders ≥ piso não incrementa o relaxo');
-    held.release('a'.repeat(40), account);
-  } finally {
-    autofetchLive.reset();
-  }
-});
-
-test('enqueue corta o waiver TAMBÉM no pool seeds (autoFetchMinSeeders=0)', async () => {
-  const API_KEY = 'chave-piso-seeds-2';
-  const account = accountScope(API_KEY);
-  const run = (fn: () => unknown) => runtime.run(
-    {
-      opts: {
-        ...runtime.defaults(),
-        debridService: 'premiumize',
-        debridApiKey: API_KEY,
-        // Seeds exige instalação que aceite não-dublado (`d` desligado); e a
-        // lista precisa ser cachedOnly, senão o P2P tocável bloqueia o pool.
-        dubbedOnly: false,
-        debridCachedOnly: true,
-        autoFetchBr: true,
-      },
-      encoded: 'cfg',
-    },
-    fn,
-  );
-  autofetchLive.set({ autoFetchTopSeeds: true, autoFetchMinSeeders: 0 });
-  try {
-    const brDub = (h: string, waived: boolean) => ({
-      infoHash: h,
-      name: '1080p DUB BR · ThePirateBay',
-      title: TITULO_REAL,
-      _br: true,
-      _dubbed: true,
-      _quality: '1080p',
-      // Tamanho dentro do teto: a política seeds filtra o universo ANTES do
-      // `viable`, então sem `_size` o waiver nem chegaria a ser avaliado no seeds.
-      _size: 2 * 1024 ** 3,
-      ...(waived ? { _seedFloorWaived: true } : {}),
-    });
-
-    // Só a rara waived na busca: br e any a descartam (cada um conta o corte)
-    // e o pool seeds a RE-seleciona porque o piso próprio está em 0 — sem o
-    // filtro `isViableForEnqueue` no seeds, seria download; com ele, nada.
-    const dSkipped = deltaOf('autofetch.seed-floor-skipped');
-    const morta = await run(() => autoFetchCandidates([brDub('7'.repeat(40), true) as any], {}));
-    assert.deepEqual(morta, [], 'waived não vira candidato nem pelo pool seeds com piso 0');
-    assert.ok(dSkipped() >= 3, 'o corte conta em br, any E seeds (cada pool que o re-seleciona)');
-    assert.equal(held.isHeld('7'.repeat(40), account), false, 'nenhum hold para download inútil');
-
-    // Controle positivo: global saudável (sem waiver) sai pelo seeds com piso 0.
-    const healthy = {
-      infoHash: '8'.repeat(40),
-      name: 'Event Horizon 1997 1080p WEB-DL 👤 12',
-      title: 'Event Horizon 1997 1080p WEB-DL',
-      _quality: '1080p',
-      _size: 2 * 1024 ** 3,
-    };
-    const ok = (await run(() => autoFetchCandidates([healthy as any], {}))) as Array<
-      { stream: { infoHash?: string }; pool: string }
-    >;
-    assert.equal(ok.length, 1, 'quem passou pelo piso segue elegível no seeds');
-    assert.equal(ok[0].pool, 'seeds');
-    assert.equal(String(ok[0].stream.infoHash).toLowerCase(), '8'.repeat(40));
-    held.release('8'.repeat(40), account);
-  } finally {
-    autofetchLive.reset();
-  }
+  // Controle: título saudável (≥ piso) NÃO passa pelo relaxo — o piso normal basta.
+  const healthy = {
+    infoHash: 'a'.repeat(40),
+    name: 'Popular Title 1080p WEB-DL 👤 12',
+    title: 'Popular Title 1080p WEB-DL',
+    _quality: '1080p',
+    _seeders: 12,
+    _size: 2 * 1024 ** 3,
+  } as AutofetchRawStream;
+  const ok = decideAutofetch(capture([healthy], {
+    live: { autoFetchMinSeeders: 3, autoFetchTopSeeds: true },
+  }));
+  assert.deepEqual(hashes(ok.immediate), ['a'.repeat(40)]);
+  assert.equal(ok.immediate[0].pool, 'seeds');
 });

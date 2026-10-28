@@ -5,7 +5,8 @@
 //
 // Ao contrário do stream-trace (P5), NADA é gravado no cache: a entrada
 // `streams` já existe e o trace viaja nela; aqui o anel é estado vivo do
-// processo, exposto só pelo /dashboard-status.json via autofetchRunnerStatus.
+// processo, exposto só pelo /dashboard-status.json via `autofetchStatus`
+// (`providers/index.ts`), que publica `lastSkips` na foto parcial do Node.
 //
 // Regra de ouro (mesma do dropTrace): kill-switch desligado => return imediato,
 // nenhum call site checa nada. O custo desligado é o de uma chamada de função.
@@ -33,7 +34,7 @@ function traceEnabled(): boolean {
   return config.debrid.autoFetchTrace !== false;
 }
 
-/** hash12 = sha256(infoHash).slice(0,12) — mesmo padrão de autofetch-runner:689. */
+/** hash12 = sha256(infoHash).slice(0,12) — mesmo padrão de `autofetch-gate.ts:123`. */
 function hash12(infoHash: string): string {
   return crypto.createHash('sha256').update(String(infoHash || '')).digest('hex').slice(0, 12);
 }

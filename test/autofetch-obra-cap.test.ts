@@ -1,48 +1,37 @@
-// Fase 2 do Chupim 2.0 — teto por OBRA (autofetch-obra): dispatch imediato +
-// dreno. Sem rede: enqueue/accountStatus do Premiumize são stubs. Cada teste
-// usa conta/chave própria (o registro persiste por identidade).
+// Teto por OBRA (F2) — `src/providers/autofetch-obra.ts` FICA. A reserva é
+// síncrona e o registro durável é do KV nativo, então o teste mede o TETO sem
+// o corpo do runner: nada aqui dispara enqueue nem caminho de rede.
+//
+// A ORDEM dos portões subiu para o núcleo (`adom-core::autofetch_gates`), que é
+// quem decide no worker; a prova local é pelo napi (`classifyEnqueue` /
+// `rollbackFor`) — ver `cargo test -p adom-core autofetch_gates`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import config from '../src/config.js';
-import debrid from '../src/debrid/index.js';
-import * as runtime from '../src/runtime.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as held from '../src/debrid/protected.js';
-import * as cache from '../src/utils/cache.js';
-import { kvForget, kvSet } from '../src/utils/native-kv.js';
-import * as metrics from '../src/utils/metrics.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { enqueueAutofetch, drainNext } from '../src/providers/autofetch-runner.js';
-import { classifyEnqueue, ENQUEUE_ROLLBACK } from '../src/providers/autofetch-gates.js';
+import { nativeCore } from '../src/utils/native-core.js';
 import {
   reserveObra, commitObra, releaseObra, obraRecord, obraKey, obraStatus, resetObraForTest,
 } from '../src/providers/autofetch-obra.js';
-import { obraSummaries } from '../src/providers/autofetch-obra-summary.js';
-import type { DebridAdapter } from '../types/domain.js';
 
 const PM = 'premiumize';
-const pmAdapter = debrid.BY_ID.get(PM) as DebridAdapter;
-const originalEnqueue = pmAdapter.enqueue;
-const originalStatus = pmAdapter.accountStatus;
-const originalPauseAt = config.debrid.autoFetchPauseAt;
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const hx = (seed: string) => seed.repeat(40).slice(0, 40);
 const trash: string[] = [];
 
-// `o:` é RUST_OWNED (dono ÚNICO = KV nativo): a fonte de leitura do registro e
-// do painel é a ponte, não o L1 — o teste vive em `autofetch-obra-terminal`.
-function identity(apiKey: string, o: { imdbId?: string | null; season?: number | null; episode?: number | null; searchKey?: string | null } = {}) {
+type IdentityOpts = { imdbId?: string | null; season?: number | null; episode?: number | null; searchKey?: string | null };
+function identity(apiKey: string, o: IdentityOpts = {}) {
   return {
     adapterId: PM, account: accountScope(apiKey),
     imdbId: o.imdbId ?? null, season: o.season ?? null, episode: o.episode ?? null, searchKey: o.searchKey ?? null,
   };
 }
-function trackKey(apiKey: string, o: Parameters<typeof identity>[1] = {}) {
+function trackKey(apiKey: string, o: IdentityOpts = {}) {
   const key = obraKey(identity(apiKey, o));
   trash.push(key);
   return key;
@@ -55,226 +44,172 @@ function forgetHashes(apiKey: string, hashes: string[]) {
   }
   autofetch.resetBudget(PM, account);
 }
-function skipDelta(reason: string) {
-  const field = `autofetch.skip.${reason}`;
-  const before = metrics.snapshot().counters[field] || 0;
-  return () => (metrics.snapshot().counters[field] || 0) - before;
-}
-const brStream = (h: string) => ({ infoHash: h, name: 'Coringa Dublado 1080p', title: 'Coringa (2019) Dublado 1080p', _br: true, _dubbed: true, _quality: '1080p', _seeders: 1 });
-const anyStream = (h: string) => ({ infoHash: h, name: 'Movie Dual 1080p', title: 'Movie (2019) Dual 1080p', _br: false, _dubbed: true, _quality: '1080p', _seeders: 3 });
-const seedsStream = (h: string) => ({ infoHash: h, name: 'Movie 1080p BluRay', title: 'Movie 1080p BluRay', _br: false, _dubbed: false, _quality: '1080p', _seeders: 20 });
-
-type EnqOpts = {
-  apiKey: string; stream: { infoHash: string }; pool?: string; imdbId?: string | null;
-  season?: number | null; episode?: number | null; searchKey?: string;
-  rare?: boolean; slotLimit?: number; cached?: string[];
-};
-/** Dispara um candidato pelo caminho do runner (fire-and-forget). */
-function enq(o: EnqOpts): boolean {
-  const h = String(o.stream.infoHash);
-  return runtime.run(
-    {
-      opts: { ...runtime.defaults(), debridService: PM, debridApiKey: o.apiKey, debridCachedOnly: true, dubbedOnly: false, autoFetchBr: true },
-      encoded: `cfg-${o.apiKey}`,
-    },
-    () => enqueueAutofetch(
-      {
-        stream: o.stream as never, account: accountScope(o.apiKey), pool: o.pool ?? 'br',
-        ...(o.rare ? { rare: true } : {}), ...(o.slotLimit != null ? { slotLimit: o.slotLimit } : {}),
-      },
-      {
-        cached: new Set(o.cached || []), season: o.season ?? null, episode: o.episode ?? null,
-        imdbId: o.imdbId ?? null, searchKey: o.searchKey ?? `sk-${h.slice(0, 6)}`,
-      },
-    ),
-  ) === true;
-}
 
 before(() => {
   autofetchLive.reset();
-  pmAdapter.enqueue = async () => true;
-  pmAdapter.accountStatus = async () => ({ magnets: 0 }); // sem isto o gate buscaria a conta real
-  autofetch.resetAccountGate();
+  resetObraForTest();
 });
 after(() => {
-  pmAdapter.enqueue = originalEnqueue;
-  pmAdapter.accountStatus = originalStatus;
-  config.debrid.autoFetchPauseAt = originalPauseAt;
-  autofetch.resetAccountGate();
-  autofetch.resetBudget();
   autofetchLive.reset();
   resetObraForTest();
-  // `cache.forget` de `o:` é no-op (RUST_OWNED): a limpeza do registro é da ponte.
-  for (const key of trash) { kvForget(key); cache.forget(key); }
+  autofetch.resetBudget();
+  // `o:` é RUST_OWNED: a limpeza do registro é da ponte.
+  for (const key of trash) kvForget(key);
 });
+
+// --- Portões (núcleo) -------------------------------------------------------
+
+type EnqueueGatesIn = {
+  isPaused: boolean; isDead: boolean; isCached: boolean; markerActive: boolean;
+  lockAcquired: boolean; slotAcquired: boolean; obraCapGranted: boolean;
+  accountBlocked: boolean; budgetGranted: boolean;
+};
+type GateCore = {
+  classifyEnqueue(gates: EnqueueGatesIn): string | null;
+  rollbackFor(reason: string): string[] | null;
+};
+
+const HAPPY: EnqueueGatesIn = {
+  isPaused: false, isDead: false, isCached: false, markerActive: false,
+  lockAcquired: true, slotAcquired: true, obraCapGranted: true,
+  accountBlocked: false, budgetGranted: true,
+};
 
 test('ordem dos portões: obra-cap entre slot e account-gate; rollback devolve a reserva', () => {
-  const calls: string[] = [];
-  const reason = classifyEnqueue({
-    isPaused: () => { calls.push('paused'); return false; },
-    isDead: () => { calls.push('dead'); return false; },
-    isCached: () => { calls.push('cached'); return false; },
-    markerActive: () => { calls.push('marker'); return false; },
-    tryLock: () => { calls.push('lock'); return true; },
-    trySlot: () => { calls.push('slot'); return true; },
-    tryObraCap: () => { calls.push('obra'); return true; },
-    accountBlocked: () => { calls.push('account'); return false; },
-    tryBudget: () => { calls.push('budget'); return true; },
-  });
-  assert.equal(reason, null);
-  assert.deepEqual(calls, ['paused', 'dead', 'cached', 'marker', 'lock', 'slot', 'obra', 'account', 'budget']);
-  assert.deepEqual(ENQUEUE_ROLLBACK['obra-cap'], ['lock', 'slot', 'hold']);
-  assert.ok(ENQUEUE_ROLLBACK['account-gate'].includes('obra'), 'reserva devolvida no account-gate');
-  assert.ok(ENQUEUE_ROLLBACK.budget.includes('obra'), 'reserva devolvida no budget');
+  const core = nativeCore<GateCore>();
+  assert.equal(core.classifyEnqueue(HAPPY), null, 'caminho feliz não fecha portão');
+
+  // O PRIMEIRO que fecha vence — a ordem é o contrato, não só o conjunto.
+  assert.equal(core.classifyEnqueue({ ...HAPPY, isPaused: true, isDead: true }), 'paused');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, isDead: true, isCached: true }), 'dead');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, isCached: true, markerActive: true }), 'already-cached');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, markerActive: true, lockAcquired: false }), 'marker');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, lockAcquired: false, slotAcquired: false }), 'in-flight');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, slotAcquired: false, obraCapGranted: false }), 'search-slot-busy');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, obraCapGranted: false, accountBlocked: true }), 'obra-cap',
+    'o teto da obra é avaliado DEPOIS de lock/slot e ANTES da conta');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, accountBlocked: true, budgetGranted: false }), 'account-gate');
+  assert.equal(core.classifyEnqueue({ ...HAPPY, budgetGranted: false }), 'budget');
+
+  assert.deepEqual(core.rollbackFor('obra-cap'), ['lock', 'slot', 'hold'], 'cap negado: nada da obra a devolver');
+  assert.deepEqual(core.rollbackFor('account-gate'), ['obra', 'lock', 'slot', 'hold'], 'gate posterior devolve a reserva');
+  assert.deepEqual(core.rollbackFor('budget'), ['obra', 'lock', 'slot', 'hold']);
+  assert.deepEqual(core.rollbackFor('in-flight'), [], 'hash em voo não solta o hold');
+  assert.equal(core.rollbackFor('unknown'), null, 'motivo fora da tabela não tem rollback');
 });
 
-test('4 searchKeys da MESMA obra aceitam no máximo 2 seeds', async () => {
+// --- Teto por obra ----------------------------------------------------------
+
+test('4 searchKeys da MESMA obra aceitam no máximo 2 seeds', () => {
   const apiKey = 'chave-obra-seeds';
   const imdbId = 'tt7000001';
-  autofetchLive.set({ autoFetchTopSeedsMax: 2, autoFetchRareMax: 4 });
-  trackKey(apiKey, { imdbId, season: 1, episode: 1 });
+  const o = { imdbId, season: 1, episode: 1 };
+  autofetchLive.set({ autoFetchTopSeedsMax: 2, autoFetchRareMax: 4, autoFetchTtl: 3600 });
+  trackKey(apiKey, o);
   const hashes = ['a1', 'b2', 'c3', 'd4'].map(hx);
-  const d = skipDelta('obra-cap');
   try {
-    const oks: boolean[] = [];
-    for (let i = 0; i < hashes.length; i += 1) {
-      oks.push(enq({ apiKey, stream: seedsStream(hashes[i]), pool: 'seeds', imdbId, season: 1, episode: 1, searchKey: `seeds-busca-${i}` }));
-      await sleep(10);
-    }
-    assert.deepEqual(oks, [true, true, false, false], 'o teto da obra vale para os 4 searchKeys');
-    assert.equal(d(), 2, 'dois candidatos contabilizados como obra-cap');
-    assert.equal(obraRecord(identity(apiKey, { imdbId, season: 1, episode: 1 })).filter((e) => e.pool === 'seeds').length, 2);
+    const id = identity(apiKey, o);
+    const leases = hashes.map((hash) => reserveObra({ ...id, pool: 'seeds', hash }));
+    assert.equal(leases[0] !== null, true, '1ª busca cabe');
+    assert.equal(leases[1] !== null, true, '2ª busca cabe');
+    assert.equal(leases[2], null, '3ª busca estoura o teto');
+    assert.equal(leases[3], null, '4ª busca estoura o teto');
+    commitObra(leases[0], { hash: hashes[0], pool: 'seeds' });
+    commitObra(leases[1], { hash: hashes[1], pool: 'seeds' });
+    assert.equal(obraRecord(id).filter((e) => e.pool === 'seeds').length, 2);
+    assert.equal(reserveObra({ ...id, pool: 'seeds', hash: hx('e5') }), null, 'teto segue fechado após o aceite');
   } finally {
     forgetHashes(apiKey, hashes);
   }
 });
 
-test('reserva síncrona barra a segunda busca antes do aceite resolver', async () => {
+test('reserva síncrona barra a segunda busca antes do aceite resolver', () => {
   const apiKey = 'chave-obra-conc';
   const imdbId = 'tt7000002';
+  autofetchLive.set({ autoFetchTtl: 3600 });
+  trackKey(apiKey, { imdbId });
   const h1 = hx('e5'); const h2 = hx('f6'); const h3 = hx('a7');
-  trackKey(apiKey, { imdbId });
-  let resolveEnqueue: ((v: boolean) => void) | null = null;
-  let calls = 0;
-  pmAdapter.enqueue = () => { calls += 1; return new Promise<boolean>((resolve) => { resolveEnqueue = resolve; }); };
-  const d = skipDelta('obra-cap');
   try {
-    assert.equal(enq({ apiKey, stream: anyStream(h1), pool: 'any', imdbId, searchKey: 'conc-1' }), true);
-    assert.equal(enq({ apiKey, stream: anyStream(h2), pool: 'any', imdbId, searchKey: 'conc-2' }), false, 'enxerga a reserva em voo');
-    assert.equal(calls, 1, 'só uma chamada chega ao adapter');
-    assert.equal(d(), 1);
-    resolveEnqueue!(true);
-    await flush();
-    assert.equal(enq({ apiKey, stream: anyStream(h3), pool: 'any', imdbId, searchKey: 'conc-3' }), false, 'após o aceite a vaga segue ocupada');
+    const id = identity(apiKey, { imdbId });
+    const lease = reserveObra({ ...id, pool: 'any', hash: h1 });
+    assert.ok(lease, 'primeira reserva em voo');
+    assert.equal(reserveObra({ ...id, pool: 'any', hash: h2 }), null, 'a reserva em voo já ocupa a vaga any');
+    assert.equal(obraRecord(id).length, 0, 'reserva não é registro: nada foi aceito ainda');
+
+    releaseObra(lease);
+    const segunda = reserveObra({ ...id, pool: 'any', hash: h2 });
+    assert.ok(segunda, 'devolver a reserva reabre a vaga');
+    commitObra(segunda, { hash: h2, pool: 'any' });
+    assert.equal(reserveObra({ ...id, pool: 'any', hash: h3 }), null, 'após o aceite a vaga segue ocupada');
   } finally {
-    pmAdapter.enqueue = async () => true;
     forgetHashes(apiKey, [h1, h2, h3]);
   }
 });
 
-test('enqueue false e throw liberam a reserva da obra', async () => {
-  const apiKey = 'chave-obra-rollback';
-  const imdbId = 'tt7000003';
-  autofetchLive.set({ autoFetchMax: 1 });
-  trackKey(apiKey, { imdbId });
-  const h1 = hx('11'); const h2 = hx('22'); const h3 = hx('33');
-  try {
-    pmAdapter.enqueue = async () => false;
-    assert.equal(enq({ apiKey, stream: brStream(h1), imdbId, searchKey: 'rb-false-1' }), true);
-    await sleep(10);
-    assert.equal(enq({ apiKey, stream: brStream(h2), imdbId, searchKey: 'rb-false-2' }), true, 'recusa devolve a vaga');
-    await sleep(10);
-    pmAdapter.enqueue = async () => { throw new Error('boom'); };
-    assert.equal(enq({ apiKey, stream: brStream(h3), imdbId, searchKey: 'rb-throw-1' }), true);
-    await sleep(10);
-    const lease = reserveObra({ ...identity(apiKey, { imdbId }), pool: 'br', hash: hx('44') });
-    assert.ok(lease, 'erro no enqueue também devolve a reserva');
-    releaseObra(lease);
-  } finally {
-    pmAdapter.enqueue = async () => true;
-    forgetHashes(apiKey, [h1, h2, h3]);
-  }
-});
-
-test('account-gate posterior ao teto devolve a reserva', async () => {
-  const apiKey = 'chave-obra-gate';
-  const imdbId = 'tt7000004';
-  autofetchLive.set({ autoFetchMax: 1 });
-  trackKey(apiKey, { imdbId });
-  const h1 = hx('55');
-  try {
-    config.debrid.autoFetchPauseAt = 2;
-    autofetch.resetAccountGate();
-    pmAdapter.accountStatus = async () => ({ magnets: 900 });
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, apiKey), false, 'memo frio é fail-open');
-    await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, apiKey), true, 'memo quente bloqueia');
-    const before = obraStatus().reserved;
-    assert.equal(enq({ apiKey, stream: brStream(h1), imdbId, searchKey: 'gate-1' }), false);
-    assert.equal(obraStatus().reserved, before, 'a reserva não pode ficar presa');
-    const lease = reserveObra({ ...identity(apiKey, { imdbId }), pool: 'br', hash: hx('66') });
-    assert.ok(lease, 'vaga devolvida permite reservar de novo');
-    releaseObra(lease);
-  } finally {
-    config.debrid.autoFetchPauseAt = originalPauseAt;
-    pmAdapter.accountStatus = async () => ({ magnets: 0 });
-    autofetch.resetAccountGate();
-    forgetHashes(apiKey, [h1]);
-  }
-});
-
-test('registro persistido sobrevive ao reset volátil do módulo', async () => {
+test('registro persistido sobrevive ao reset volátil do módulo', () => {
   const apiKey = 'chave-obra-persist';
   const imdbId = 'tt7000005';
-  autofetchLive.set({ autoFetchMax: 1 });
+  autofetchLive.set({ autoFetchMax: 1, autoFetchTtl: 3600 });
   trackKey(apiKey, { imdbId });
+  const id = identity(apiKey, { imdbId });
   const h1 = hx('77');
   try {
-    assert.equal(enq({ apiKey, stream: brStream(h1), imdbId, searchKey: 'persist-1' }), true);
-    await sleep(10);
-    assert.equal(obraRecord(identity(apiKey, { imdbId })).length, 1, 'aceite grave o registro');
+    const lease = reserveObra({ ...id, pool: 'br', hash: h1 });
+    assert.ok(lease);
+    commitObra(lease, { hash: h1, pool: 'br' });
+    assert.equal(obraRecord(id).length, 1, 'aceite grava o registro');
     resetObraForTest();
     assert.equal(obraStatus().reserved, 0, 'reset limpa SÓ o volátil');
-    assert.equal(obraRecord(identity(apiKey, { imdbId })).length, 1, 'registro persistido sobrevive');
-    assert.equal(reserveObra({ ...identity(apiKey, { imdbId }), pool: 'br', hash: hx('88') }), null, 'o registro que sobreviveu ainda conta contra o teto');
+    assert.equal(obraRecord(id).length, 1, 'registro persistido sobrevive');
+    assert.equal(reserveObra({ ...id, pool: 'br', hash: hx('88') }), null, 'o registro que sobreviveu ainda conta contra o teto');
   } finally {
     forgetHashes(apiKey, [h1]);
   }
 });
 
-test('episódios diferentes têm teto independente', async () => {
+test('episódios diferentes têm teto independente', () => {
   const apiKey = 'chave-obra-ep';
   const imdbId = 'tt7000006';
-  autofetchLive.set({ autoFetchMax: 1 });
+  autofetchLive.set({ autoFetchMax: 1, autoFetchTtl: 3600 });
   trackKey(apiKey, { imdbId, season: 1, episode: 1 });
   trackKey(apiKey, { imdbId, season: 1, episode: 2 });
   const h1 = hx('99'); const h2 = hx('aa'); const h3 = hx('bb');
   try {
-    assert.equal(enq({ apiKey, stream: brStream(h1), imdbId, season: 1, episode: 1, searchKey: 'ep1-a' }), true);
-    assert.equal(enq({ apiKey, stream: brStream(h2), imdbId, season: 1, episode: 2, searchKey: 'ep2-a' }), true);
-    assert.equal(enq({ apiKey, stream: brStream(h3), imdbId, season: 1, episode: 1, searchKey: 'ep1-b' }), false, 'S1E1 saturado; S1E2 intacto');
+    const e1 = identity(apiKey, { imdbId, season: 1, episode: 1 });
+    const e2 = identity(apiKey, { imdbId, season: 1, episode: 2 });
+    const l1 = reserveObra({ ...e1, pool: 'br', hash: h1 });
+    const l2 = reserveObra({ ...e2, pool: 'br', hash: h2 });
+    assert.ok(l1, 'S1E1 tem vaga própria');
+    assert.ok(l2, 'S1E2 tem vaga própria');
+    commitObra(l1, { hash: h1, pool: 'br' });
+    commitObra(l2, { hash: h2, pool: 'br' });
+    assert.equal(reserveObra({ ...e1, pool: 'br', hash: h3 }), null, 'S1E1 saturado; S1E2 intacto');
   } finally {
     forgetHashes(apiKey, [h1, h2, h3]);
   }
 });
 
-test('pools br/any/seeds têm contadores separados', async () => {
+test('pools br/any/seeds têm contadores separados', () => {
   const apiKey = 'chave-obra-pools';
   const imdbId = 'tt7000007';
-  autofetchLive.set({ autoFetchMax: 1, autoFetchTopSeedsMax: 1 });
-  trackKey(apiKey, { imdbId, season: 1, episode: 1 });
+  const o = { imdbId, season: 1, episode: 1 };
+  autofetchLive.set({ autoFetchMax: 1, autoFetchTopSeedsMax: 1, autoFetchTtl: 3600 });
+  trackKey(apiKey, o);
   const hashes = ['cc', 'dd', 'ee', 'ff', 'a0', 'b0'].map(hx);
+  const [br1, any1, seeds1, br2, any2, seeds2] = hashes;
   try {
-    const [br1, any1, seeds1, br2, any2, seeds2] = hashes;
-    const o = { imdbId, season: 1, episode: 1 };
-    assert.equal(enq({ apiKey, stream: brStream(br1), pool: 'br', ...o, searchKey: 'p-br-1' }), true);
-    assert.equal(enq({ apiKey, stream: anyStream(any1), pool: 'any', ...o, searchKey: 'p-any-1' }), true);
-    assert.equal(enq({ apiKey, stream: seedsStream(seeds1), pool: 'seeds', ...o, searchKey: 'p-seed-1' }), true);
-    assert.equal(enq({ apiKey, stream: brStream(br2), pool: 'br', ...o, searchKey: 'p-br-2' }), false);
-    assert.equal(enq({ apiKey, stream: anyStream(any2), pool: 'any', ...o, searchKey: 'p-any-2' }), false);
-    assert.equal(enq({ apiKey, stream: seedsStream(seeds2), pool: 'seeds', ...o, searchKey: 'p-seed-2' }), false);
-    await sleep(10);
-    const rec = obraRecord(identity(apiKey, o));
+    const id = identity(apiKey, o);
+    const pool = (hash: string, name: string) => {
+      const lease = reserveObra({ ...id, pool: name, hash });
+      assert.ok(lease, `${name} tinha vaga para ${hash.slice(0, 2)}`);
+      commitObra(lease, { hash, pool: name });
+    };
+    pool(br1, 'br'); pool(any1, 'any'); pool(seeds1, 'seeds');
+    assert.equal(reserveObra({ ...id, pool: 'br', hash: br2 }), null, 'br cheio');
+    assert.equal(reserveObra({ ...id, pool: 'any', hash: any2 }), null, 'any cheio');
+    assert.equal(reserveObra({ ...id, pool: 'seeds', hash: seeds2 }), null, 'seeds cheio');
+
+    const rec = obraRecord(id);
     assert.equal(rec.filter((e) => e.pool === 'br').length, 1);
     assert.equal(rec.filter((e) => e.pool === 'any').length, 1);
     assert.equal(rec.filter((e) => e.pool === 'seeds').length, 1);
@@ -283,66 +218,33 @@ test('pools br/any/seeds têm contadores separados', async () => {
   }
 });
 
-test('seeds raro usa autoFetchRareMax como teto explícito', async () => {
+test('seeds raro usa autoFetchRareMax como teto explícito', () => {
   const apiKey = 'chave-obra-rare';
   const imdbId = 'tt7000008';
-  autofetchLive.set({ autoFetchTopSeedsMax: 2, autoFetchRareMax: 4 });
-  trackKey(apiKey, { imdbId, season: 1, episode: 1 });
+  const o = { imdbId, season: 1, episode: 1 };
+  autofetchLive.set({ autoFetchTopSeedsMax: 2, autoFetchRareMax: 4, autoFetchTtl: 3600 });
+  trackKey(apiKey, o);
   const hashes = ['c0', 'd0', 'e0', 'f0', 'a1'].map(hx);
-  const d = skipDelta('obra-cap');
   try {
-    const oks: boolean[] = [];
-    for (let i = 0; i < hashes.length; i += 1) {
-      oks.push(enq({ apiKey, stream: seedsStream(hashes[i]), pool: 'seeds', rare: true, slotLimit: 4, imdbId, season: 1, episode: 1, searchKey: `rare-${i}` }));
-      await sleep(10);
-    }
-    assert.deepEqual(oks, [true, true, true, true, false], 'raro sobe o teto para 4');
-    assert.equal(d(), 1);
+    const id = identity(apiKey, o);
+    const oks = hashes.map((hash) => reserveObra({ ...id, pool: 'seeds', hash, rare: true }) !== null);
+    assert.deepEqual(oks, [true, true, true, true, false], 'raro sobe o teto para rareMax (4)');
+
+    // O slotLimit correspondente abre o mesmo teto no caminho do dreno, que
+    // não carrega o booleano `rare` — e só o valor CHEIO de rareMax escala.
+    const estreita = identity('chave-obra-rare-slot', o);
+    trackKey('chave-obra-rare-slot', o);
+    const baixos = ['b1', 'b2', 'b3'].map(hx);
+    const comSlotBaixo = baixos.map((hash) => reserveObra({ ...estreita, pool: 'seeds', hash, slotLimit: 2 }) !== null);
+    assert.deepEqual(comSlotBaixo, [true, true, false], 'slotLimit abaixo de rareMax NÃO é raro: o teto segue topSeedsMax');
+
+    const alta = identity('chave-obra-rare-slot-alto', o);
+    trackKey('chave-obra-rare-slot-alto', o);
+    const altos = ['b4', 'b5', 'b6', 'b7', 'b8'].map(hx);
+    const comSlotAlto = altos.map((hash) => reserveObra({ ...alta, pool: 'seeds', hash, slotLimit: 4 }) !== null);
+    assert.deepEqual(comSlotAlto, [true, true, true, true, false], 'slotLimit >= rareMax vale como raro (teto 4)');
   } finally {
     forgetHashes(apiKey, hashes);
-  }
-});
-
-test('drainNext DEFERE o candidato bloqueado pelo teto (não descarta) e sobe o próximo elegível', async () => {
-  const apiKey = 'chave-obra-drain';
-  const imdbId = 'tt7000009';
-  const searchKey = 'obra-drain-search';
-  autofetchLive.set({ autoFetchMax: 1, autoFetchQueueDepth: 4 });
-  const account = accountScope(apiKey);
-  const hCapped = hx('0a');
-  const hSeed = hx('0b');
-  trackKey(apiKey, { imdbId, season: 1, episode: 1 });
-  const enqueued: string[] = [];
-  const d = skipDelta('obra-cap');
-  const beforeDeferred = metrics.snapshot().counters['autofetch.drain.obra-cap-deferred'] || 0;
-  try {
-    const lease = reserveObra({ ...identity(apiKey, { imdbId, season: 1, episode: 1 }), pool: 'br', hash: hCapped, quality: '720p' });
-    assert.ok(lease);
-    commitObra(lease, { hash: hCapped, pool: 'br', title: 'BR no teto', br: true, dubbed: true, quality: '720p' });
-    autofetch.writeQueue(searchKey, [
-      { infoHash: hCapped, pool: 'br', imdbId, season: 1, episode: 1, title: 'BR no teto', br: true, dubbed: true, quality: '720p' },
-      { infoHash: hSeed, pool: 'seeds', imdbId, season: 1, episode: 1, title: 'Movie 1080p BluRay', br: false, dubbed: false, quality: '1080p', size: 2 * 1024 ** 3 },
-    ], 3600, PM, account);
-    pmAdapter.enqueue = async (_key, h) => { enqueued.push(String(h)); return true; };
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: PM, debridApiKey: apiKey, debridCachedOnly: true, dubbedOnly: false }, encoded: 'cfg-obra-drain' },
-      () => drainNext(searchKey, { refusals: 0, hashes: new Set<string>(), seasonHints: new Map() }),
-    );
-    await sleep(20);
-    assert.deepEqual(enqueued, [hSeed], 'o br no teto é DEFERIDO; o seeds elegível sobe');
-    assert.equal(d(), 0, 'defer NÃO é skip do painel (candidato segue na fila)');
-    assert.equal(
-      (metrics.snapshot().counters['autofetch.drain.obra-cap-deferred'] || 0) - beforeDeferred,
-      1,
-      'o defer tem métrica própria',
-    );
-    // Diferente do descarte antigo, o BR barrado PERMANECE disponível.
-    const fila = autofetch.readQueue(searchKey);
-    assert.deepEqual(fila.map((c) => String(c.infoHash).toLowerCase()), [hCapped], 'o BR barrado segue na fila para a próxima janela');
-  } finally {
-    pmAdapter.enqueue = async () => true;
-    autofetch.dropQueue(searchKey);
-    forgetHashes(apiKey, [hCapped, hSeed]);
   }
 });
 
@@ -350,31 +252,32 @@ test('overflow de upgrade: cap cheio por faixas baixas não bloqueia o 1080p nov
   const apiKey = 'chave-obra-overflow';
   const imdbId = 'tt7000010';
   const o = { imdbId, season: 1, episode: 1 };
-  autofetchLive.set({ autoFetchMax: 3 });
+  autofetchLive.set({ autoFetchMax: 3, autoFetchTtl: 3600 });
   trackKey(apiKey, o);
   const lows: Array<[string, string]> = [[hx('c0'), '720p'], [hx('c1'), '480p'], [hx('c2'), 'sd']];
   const extra = hx('c4');
   const bloqueados = [hx('c3'), hx('c5'), hx('c6')];
   try {
+    const id = identity(apiKey, o);
     for (const [hash, quality] of lows) {
-      const lease = reserveObra({ ...identity(apiKey, o), pool: 'br', hash, quality });
+      const lease = reserveObra({ ...id, pool: 'br', hash, quality });
       assert.ok(lease, `cap ainda tinha vaga para ${quality}`);
       commitObra(lease, { hash, pool: 'br', quality });
     }
     // Cap normal (cheio) barra faixa repetida/inferior.
-    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[0], quality: '720p' }), null, 'faixa repetida não abre overflow');
+    assert.equal(reserveObra({ ...id, pool: 'br', hash: bloqueados[0], quality: '720p' }), null, 'faixa repetida não abre overflow');
 
     // Faixa-alvo ausente e superior ao pior registrado (sd) → UMA extra.
-    const upgrade = reserveObra({ ...identity(apiKey, o), pool: 'br', hash: extra, quality: '1080p' });
+    const upgrade = reserveObra({ ...id, pool: 'br', hash: extra, quality: '1080p' });
     assert.ok(upgrade, '1080p ausente abre a reserva extra de upgrade');
     assert.equal(upgrade?.overflow, true, 'a reserva extra é marcada como overflow');
     commitObra(upgrade, { hash: extra, pool: 'br', quality: '1080p' });
 
     // Só UMA por janela.
-    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[1], quality: '1080p' }), null, 'faixa já presente não repete');
-    assert.equal(reserveObra({ ...identity(apiKey, o), pool: 'br', hash: bloqueados[2], quality: '2160p' }), null, 'uma overflow por janela');
+    assert.equal(reserveObra({ ...id, pool: 'br', hash: bloqueados[1], quality: '1080p' }), null, 'faixa já presente não repete');
+    assert.equal(reserveObra({ ...id, pool: 'br', hash: bloqueados[2], quality: '2160p' }), null, 'uma overflow por janela');
 
-    const rec = obraRecord(identity(apiKey, o));
+    const rec = obraRecord(id);
     assert.equal(rec.length, 4, 'três baixos + um overflow');
     assert.equal(rec.filter((e) => e.overflow === true).length, 1);
     assert.ok(rec.some((e) => e.hash === lows[0][0]), 'magnet antigo NÃO foi removido pelo overflow');
@@ -383,13 +286,14 @@ test('overflow de upgrade: cap cheio por faixas baixas não bloqueia o 1080p nov
     const imdb2 = 'tt7000011';
     const o2 = { imdbId: imdb2 };
     trackKey(apiKey, o2);
+    const id2 = identity(apiKey, o2);
     const b1 = hx('d0'); const b2 = hx('d1'); const b3 = hx('d2');
     for (const [hash, quality] of [[b1, '720p'], [b2, '720p']] as const) {
-      const l = reserveObra({ ...identity(apiKey, o2), pool: 'br', hash, quality });
+      const l = reserveObra({ ...id2, pool: 'br', hash, quality });
       assert.ok(l);
       commitObra(l, { hash, pool: 'br', quality });
     }
-    const normal = reserveObra({ ...identity(apiKey, o2), pool: 'br', hash: b3, quality: '1080p' });
+    const normal = reserveObra({ ...id2, pool: 'br', hash: b3, quality: '1080p' });
     assert.ok(normal, 'com vaga no cap, o 1080p entra normalmente');
     assert.equal(normal?.overflow, undefined, 'cap normal não vira overflow');
     commitObra(normal, { hash: b3, pool: 'br', quality: '1080p' });

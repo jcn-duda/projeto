@@ -335,8 +335,9 @@ function clearNamespace(namespace: string) {
   if (!wanted) return 0;
   // RUST_OWNED não passa pelo L1: `idx`/`raw`/`davail`/`mag`/`adsub`/`adprot`/
   // `adrm` têm handle nativo sobre o MESMO cache.db — o clear é no núcleo.
-  // `autofetch` é MISTO: só `q:`/`m:`/`dead:` vão pela ponte; `pf:` e `sup:`
-  // continuam no L1/L2 e saem pelo `clearWhere` abaixo (o retorno soma os dois).
+  // `autofetch` é MISTO: só `q:`/`m:`/`dead:` vão pela ponte; `pf:` (hoje sem
+  // escritor: só o construtor de chave) e `sup:` continuam no L1/L2 e saem pelo
+  // `clearWhere` abaixo (o retorno soma os dois).
   const fromRust = wanted === 'idx' ? clearIdxStore()
     : wanted === 'raw' ? clearRawStore()
       : wanted === 'davail' ? davailState().clear()
