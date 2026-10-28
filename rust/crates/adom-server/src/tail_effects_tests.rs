@@ -8,6 +8,7 @@ use adom_search::{EffectEntry, EffectsResponse};
 use serde_json::json;
 
 use super::*;
+use crate::autofetch::Vault;
 use crate::dub_audit_fakes::*;
 
 /// Alvo de repasse: guarda os lotes que chegaram e devolve o `ok` combinado.
@@ -150,4 +151,44 @@ async fn aceite_dispara_a_drenagem_em_segundo_plano() {
     assert_eq!(audit.pending(), 0);
     assert_eq!(resolver.calls().len(), 1);
     assert_eq!(resolver.calls()[0].hash, hash_of(1));
+}
+
+fn encoded_key(api_key: &str) -> String {
+    adom_core::encode_config(&json!({ "ds": "alldebrid", "dk": api_key }))
+}
+
+/// O `encoded` do lote alimenta o cofre ANTES da delegação — inclusive quando o
+/// lote só tem `dub_audit` (o Node nem recebe nada).
+#[tokio::test]
+async fn encoded_alimenta_o_cofre_do_worker() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), 2, false);
+    let vault = Arc::new(Vault::new(60_000, 4, ""));
+    let native = NativeTailEffects::with_vault(target.clone(), audit, Some(vault.clone()));
+    let batch = EffectsBatch {
+        encoded: encoded_key("chave-do-cofre-99"),
+        effects: vec![entry("dub_audit", dub_audit_payload(&[hash_of(1)]))],
+    };
+    let response = native.effects(batch).await.unwrap();
+    assert_eq!(response.accepted, 1);
+    assert_eq!(vault.len(), 1, "lote só com dub_audit ensina a conta");
+    assert!(target.batches().is_empty());
+    let debug = format!("{vault:?}");
+    assert!(!debug.contains("chave-do-cofre-99"), "{debug}");
+    assert_eq!(resolver.calls().len(), 0);
+}
+
+/// Cofre ausente (trava desligada) é o default: nada é guardado nem consumido.
+#[tokio::test]
+async fn sem_cofre_o_lote_segue_intacto() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (_resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), 2, false);
+    let native = NativeTailEffects::with_vault(target.clone(), audit, None);
+    let batch = EffectsBatch {
+        encoded: encoded_key("chave-do-cofre-99"),
+        effects: vec![entry("autofetch", json!({ "items": [] }))],
+    };
+    let response = native.effects(batch).await.unwrap();
+    assert!(response.ok);
+    assert_eq!(target.batches().len(), 1);
 }

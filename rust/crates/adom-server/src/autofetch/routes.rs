@@ -32,7 +32,11 @@ async fn status(State(state): State<Arc<AdminState>>) -> Response {
                 "queueDepth": 0,
                 "lots": 0,
                 "inflight": false,
-                "intervalMs": 60_000
+                "intervalMs": 60_000,
+                "processed": 0,
+                "skips": {},
+                "lastError": null,
+                "vaultAccounts": 0
             }
         }))
         .into_response(),
@@ -74,27 +78,32 @@ async fn pause(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) ->
     config(State(state), Json(json!({ "paused": body["paused"] }))).await
 }
 
-/// Dreno da fase B. Hoje responde o contrato sem efeito: nenhuma entrada da
-/// fila é tocada, nenhum debrid é chamado. Sem worker no processo não há
-/// contrato a cumprir — a resposta é o 503 de sempre.
+/// Dreno administrativo. Com o worker `prepared` (trava desligada) responde o
+/// contrato sem efeito: nenhuma entrada da fila é tocada, nenhum debrid é
+/// chamado. Com o laço vivo o pedido vai para o canal (`effect: requested`) e a
+/// passagem seguinte drena de verdade.
 async fn drain(State(state): State<Arc<AdminState>>) -> Response {
-    not_enabled(&state, "drain")
+    control(&state, "drain", false)
 }
 
+/// A represa (`sup:`) ainda não é drenada por este worker — a drenagem com
+/// backoff entra na leva do flip. O contrato responde o estado real do laço.
 async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
-    not_enabled(&state, "suppressed-drain")
+    control(&state, "suppressed-drain", true)
 }
 
-fn not_enabled(state: &AdminState, operation: &str) -> Response {
-    if state.autofetch.is_none() {
+fn control(state: &AdminState, operation: &str, suppressed: bool) -> Response {
+    let Some(handle) = state.autofetch.as_ref() else {
         return unavailable();
-    }
+    };
+    let status = handle.status();
+    let requested = !suppressed && status.enabled && handle.request_drain();
     Json(json!({
         "ok": true,
-        "enabled": false,
-        "phase": "prepared",
+        "enabled": status.enabled,
+        "phase": status.phase,
         "operation": operation,
-        "effect": "none",
+        "effect": if requested { "requested" } else { "none" },
         "drained": 0
     }))
     .into_response()

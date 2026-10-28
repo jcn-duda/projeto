@@ -1,18 +1,28 @@
+//! Config, painel e canal do worker NATIVO do Chupim.
+//!
+//! Esta leva sobe o ciclo INTEIRO (cofre, enfileiramento, recheck, dreno) atrás
+//! da trava `AUTOFETCH_WORKER=on`. Sem a trava — e sem um adaptador de debrid
+//! injetado — o worker fica `prepared`: nenhum canal existe, nenhum lote é
+//! escrito e `GET /autofetch` continua contando o que o KV já tinha no boot.
+//!
+//! O que o KV guarda aqui é SÓ `autofetch-worker:v1:config` (`paused` +
+//! `intervalMs`). A chave do usuário vive no cofre em RAM (`vault.rs`) e não
+//! atravessa este módulo: o status é montado de contadores, nunca de credencial.
+
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use adom_index::NativeKv;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Notify;
+use tokio::sync::mpsc;
+
+use super::enqueue::Job;
+use super::serve::{self, Control, DebridIo, Message, Snapshot};
+use super::vault::Vault;
+use super::{worker_enabled, Policy, LOT_PREFIX, QUEUE_PREFIX};
 
 const CONFIG_KEY: &str = "autofetch-worker:v1:config";
 const CONFIG_TTL_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-/// Prefixos de dono do Chupim que o retrato do boot lê. São os mesmos que o
-/// Node e a ponte napi usam: fila por busca (`queue_key`) e lote de recheck
-/// persistido (`autofetch_v3_lot_write`).
-const QUEUE_PREFIX: &str = "autofetch:v3:q:";
-const LOT_PREFIX: &str = "autofetch:v3:lot:";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -33,17 +43,28 @@ impl Default for WorkerConfig {
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AutofetchStatus {
+    /// `AUTOFETCH_WORKER=on` E adaptador presente. `false` = nada consome canal.
     pub(crate) enabled: bool,
+    /// `prepared` | `paused` | `active` (`unavailable` é da rota sem worker).
     pub(crate) phase: &'static str,
     pub(crate) paused: bool,
     pub(crate) queue_depth: usize,
     pub(crate) lots: usize,
     pub(crate) inflight: bool,
     pub(crate) interval_ms: u64,
+    /// Lotes processados desde o boot (a passagem do ciclo).
+    pub(crate) processed: u64,
+    /// Motivo de desistência → contagem (`autofetch.skip.<motivo>`).
+    pub(crate) skips: std::collections::BTreeMap<String, usize>,
+    /// Última falha da passagem. Nunca carrega chave: o erro nasce de store/rede
+    /// e o cofre não entra na mensagem.
+    pub(crate) last_error: Option<String>,
+    /// Contas no cofre (contagem REDIGIDA: nem o escopo `sha256` sai daqui).
+    pub(crate) vault_accounts: usize,
 }
 
-/// Retrato da fila lido UMA vez no boot. Esta fatia não consome nem escreve:
-/// o número é o que o KV nativo já tinha quando o gateway subiu.
+/// Retrato da fila lido UMA vez no boot. O ciclo atualiza os contadores, não
+/// esta foto: `queueDepth`/`lots` continuam sendo o que o KV tinha ao subir.
 #[derive(Clone, Copy, Debug, Default)]
 struct Hydrated {
     queue_depth: usize,
@@ -54,7 +75,19 @@ struct Inner {
     kv: Arc<NativeKv>,
     config: Mutex<WorkerConfig>,
     hydrated: Hydrated,
-    notify: Notify,
+    enabled: bool,
+    vault: Option<Arc<Vault>>,
+    control: Option<Arc<Control>>,
+    tx: Option<mpsc::Sender<Message>>,
+}
+
+impl Inner {
+    fn snapshot(&self) -> Snapshot {
+        self.control
+            .as_ref()
+            .map(|control| control.snapshot())
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Clone)]
@@ -63,7 +96,64 @@ pub(crate) struct AutofetchHandle {
 }
 
 impl AutofetchHandle {
+    /// Handle de admin sem ciclo: `prepared`, sem canal e sem adaptador. É o caso
+    /// normal do boot (trava desligada) e o do teste das rotas. O cofre só nasce
+    /// com a trava ligada (sem consumidor, guardar chave seria exposição sem uso).
     pub(super) fn with_store(kv: Arc<NativeKv>) -> Self {
+        Self::build(kv, &Policy::from_env(), super::vault::shared(), None)
+    }
+
+    /// Handle completo. `enabled` exige a trava E o adaptador: sem os dois o
+    /// canal nem é criado (`submit` devolve `false`).
+    pub(crate) fn build(
+        kv: Arc<NativeKv>,
+        policy: &Policy,
+        vault: Option<Arc<Vault>>,
+        debrid: Option<DebridIo>,
+    ) -> Self {
+        let config = load_config(&kv);
+        let hydrated = hydrate(&kv);
+        let wanted = worker_enabled() && debrid.is_some();
+        let (tx, rx) = if wanted {
+            let (tx, rx) = mpsc::channel(serve::CHANNEL_CAPACITY);
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
+        let control = wanted.then(|| Arc::new(Control::new(config.paused, config.interval_ms)));
+        let mut enabled = wanted;
+        if let (Some(rx), Some(control), Some(debrid)) = (rx, control.clone(), debrid) {
+            if let Err(err) =
+                serve::spawn(Arc::clone(&kv), *policy, vault.clone(), debrid, rx, control)
+            {
+                // Sem laço o status NÃO pode dizer `active`: o canal morreria
+                // cheio em silêncio.
+                eprintln!("[autofetch] laço não iniciou: {err}; worker fica prepared");
+                enabled = false;
+            }
+        }
+        Self {
+            inner: Arc::new(Inner {
+                kv,
+                config: Mutex::new(config),
+                hydrated,
+                enabled,
+                vault,
+                control: enabled.then_some(control).flatten(),
+                tx,
+            }),
+        }
+    }
+
+    /// Handle LIGADO sem laço: só os testes usam, para provar o contrato do
+    /// status (`enabled`, `inflight`, `lastError`, skips) sem subir thread nem
+    /// depender de `AUTOFETCH_WORKER` no ambiente do processo.
+    #[cfg(test)]
+    pub(crate) fn stub_enabled(
+        kv: Arc<NativeKv>,
+        vault: Option<Arc<Vault>>,
+        control: Arc<Control>,
+    ) -> Self {
         let config = load_config(&kv);
         let hydrated = hydrate(&kv);
         Self {
@@ -71,25 +161,35 @@ impl AutofetchHandle {
                 kv,
                 config: Mutex::new(config),
                 hydrated,
-                notify: Notify::new(),
+                enabled: true,
+                vault,
+                control: Some(control),
+                tx: None,
             }),
         }
     }
 
-    /// Foto em memória: o `GET /autofetch` não toca SQLite. `queue_depth`/`lots`
-    /// vêm da hidratação do boot — o ciclo que os atualiza é da fase B.
+    /// Foto em memória: o `GET /autofetch` não toca SQLite.
     pub(crate) fn status(&self) -> AutofetchStatus {
         let config = self.config();
+        let snapshot = self.inner.snapshot();
         AutofetchStatus {
-            // Phase B liga a fila e o executor. Não há caminho que habilite
-            // downloads ou consuma entradas nesta fatia.
-            enabled: false,
-            phase: "prepared",
+            enabled: self.inner.enabled,
+            phase: phase_of(self.inner.enabled, config.paused),
             paused: config.paused,
             queue_depth: self.inner.hydrated.queue_depth,
             lots: self.inner.hydrated.lots,
-            inflight: false,
+            inflight: snapshot.inflight,
             interval_ms: config.interval_ms,
+            processed: snapshot.processed,
+            skips: snapshot.skips,
+            last_error: snapshot.last_error,
+            vault_accounts: self
+                .inner
+                .vault
+                .as_ref()
+                .map(|vault| vault.len())
+                .unwrap_or(0),
         }
     }
 
@@ -114,8 +214,53 @@ impl AutofetchHandle {
             .put_json(CONFIG_KEY, &value, CONFIG_TTL_SECONDS, now)?;
         *current = config.clone();
         drop(current);
-        self.inner.notify.notify_one();
+        if let Some(control) = self.inner.control.as_ref() {
+            control.set_paused(config.paused);
+            control.set_interval_ms(config.interval_ms);
+            control.wake();
+        }
         Ok(self.status())
+    }
+
+    /// Publica um lote no canal do laço. `false` = worker desligado, sem canal
+    /// ou fila cheia — quem publica decide o que fazer (hoje: nada).
+    ///
+    /// A ponte `autofetch` → `submit` no orquestrador é da leva do flip; até
+    /// lá só os testes usam este caminho.
+    #[allow(dead_code)]
+    pub(crate) fn submit(&self, job: Job) -> bool {
+        let Some(tx) = self.inner.tx.as_ref() else {
+            return false;
+        };
+        if tx.try_send(Message::Batch(job)).is_err() {
+            return false;
+        }
+        if let Some(control) = self.inner.control.as_ref() {
+            control.wake();
+        }
+        true
+    }
+
+    /// Pede ao laço um dreno administrativo. `false` = não há laço.
+    pub(crate) fn request_drain(&self) -> bool {
+        let Some(tx) = self.inner.tx.as_ref() else {
+            return false;
+        };
+        if tx.try_send(Message::Drain).is_err() {
+            return false;
+        }
+        if let Some(control) = self.inner.control.as_ref() {
+            control.wake();
+        }
+        true
+    }
+}
+
+fn phase_of(enabled: bool, paused: bool) -> &'static str {
+    match (enabled, paused) {
+        (false, _) => "prepared",
+        (true, true) => "paused",
+        (true, false) => "active",
     }
 }
 
@@ -131,44 +276,9 @@ pub(crate) fn spawn() -> Option<AutofetchHandle> {
             return None;
         }
     };
-    let handle = AutofetchHandle::with_store(kv);
-    let inner = handle.inner.clone();
-    let thread_inner = inner;
-    let thread = std::thread::Builder::new()
-        .name("adom-autofetch".into())
-        .spawn(move || {
-            let runtime = match tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .build()
-            {
-                Ok(runtime) => runtime,
-                Err(err) => {
-                    eprintln!("[autofetch] runtime idle não iniciou: {err}");
-                    return;
-                }
-            };
-            runtime.block_on(async move {
-                loop {
-                    let interval = thread_inner
-                        .config
-                        .lock()
-                        .unwrap_or_else(|err| err.into_inner())
-                        .interval_ms
-                        .max(1);
-                    tokio::select! {
-                        _ = thread_inner.notify.notified() => {},
-                        _ = tokio::time::sleep(Duration::from_millis(interval)) => {},
-                    }
-                    // Sem consumir filas nesta etapa. A fase B liga o ciclo de
-                    // escolha, validação de credencial e execução.
-                }
-            });
-        });
-    if let Err(err) = thread {
-        eprintln!("[autofetch] thread não iniciou: {err}");
-        return None;
-    }
-    Some(handle)
+    // Sem fábrica de `AutofetchDebrid` não há laço: a injeção por conta entra na
+    // leva do flip. Com a trava desligada isto é `prepared`, como antes.
+    Some(AutofetchHandle::with_store(kv))
 }
 
 /// Leitura única (boot): profundidade da fila e lotes de recheck persistidos.

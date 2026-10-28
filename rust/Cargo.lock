@@ -162,6 +162,7 @@ dependencies = [
 name = "adom-server"
 version = "0.0.0"
 dependencies = [
+ "adom-autofetch",
  "adom-core",
  "adom-debrid",
  "adom-harvest",

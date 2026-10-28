@@ -7,6 +7,9 @@ description = "Gateway HTTP do Adom. Com ROUTES_RUST vazio, só faz proxy para o
 license = "UNLICENSED"
 
 [dependencies]
+# Decisões puras do Chupim v3 (cascata, recheck, lote, dreno) consumidas pelo
+# worker nativo do gateway.
+adom-autofetch = { path = "../adom-autofetch" }
 adom-core = { path = "../adom-core" }
 adom-debrid = { path = "../adom-debrid" }
 # Fila durável + worker do colhedor nativo (Fase 5).
