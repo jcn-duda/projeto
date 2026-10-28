@@ -22,6 +22,12 @@ pub(super) struct Item {
     pub(super) seeders: Option<i64>,
     pub(super) br: bool,
     pub(super) dubbed: bool,
+    pub(super) dub_claim: bool,
+    pub(super) bank_dub: bool,
+    pub(super) lied: bool,
+    pub(super) from_fallback: bool,
+    pub(super) fallback_fetchable: bool,
+    pub(super) multi_work_admitted: bool,
     pub(super) waived: bool,
 }
 
@@ -41,6 +47,27 @@ impl Item {
             seeders: raw.get("_seeders").and_then(Value::as_i64),
             br: raw.get("_br").and_then(Value::as_bool).unwrap_or(false),
             dubbed: raw.get("_dubbed").and_then(Value::as_bool).unwrap_or(false),
+            dub_claim: raw
+                .get("_dubClaim")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            bank_dub: raw
+                .get("_bankDub")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            lied: raw.get("_lied").and_then(Value::as_bool).unwrap_or(false),
+            from_fallback: raw
+                .get("_fromFallback")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            fallback_fetchable: raw
+                .get("_fallbackFetchable")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            multi_work_admitted: raw
+                .get("_multiWorkAdmitted")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
             waived: raw
                 .get("_seedFloorWaived")
                 .and_then(Value::as_bool)
@@ -51,13 +78,19 @@ impl Item {
     /// Pool da cascata: dublado BR → `br`, dublado global → `any`, resto →
     /// `seeds` (o mesmo recorte de `autoFetchCandidates`/`autoFetchBrDubbed`).
     pub(super) fn pool(&self) -> CascadePool {
-        if self.br {
+        if self.is_br_dubbed_proven() {
             CascadePool::Br
-        } else if self.dubbed {
+        } else if self.dubbed && !self.lied {
             CascadePool::Any
         } else {
             CascadePool::Seeds
         }
+    }
+
+    /// Mesmo predicado de retenção BR do runner TS: origem BR e prova positiva
+    /// (`_dubbed`, `_dubClaim` ou `_bankDub`), sem contradição `_lied`.
+    pub(super) fn is_br_dubbed_proven(&self) -> bool {
+        self.br && (self.dubbed || self.dub_claim || self.bank_dub) && !self.lied
     }
 }
 
@@ -66,7 +99,16 @@ pub(super) fn parse_items(payload: &Map<String, Value>) -> Vec<Item> {
     payload
         .get("items")
         .and_then(Value::as_array)
-        .map(|items| items.iter().filter_map(Item::parse).collect())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Item::parse)
+                // Mesmo filtro do `autofetch_items`: packs multiobra nunca
+                // entram no Chupim e fallback só entra quando é fetchable.
+                .filter(|item| !item.multi_work_admitted)
+                .filter(|item| !item.from_fallback || item.fallback_fetchable)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -92,8 +134,8 @@ pub(super) fn candidate_of(
         seeders: item.seeders.map(Number::from_i64),
         br: Some(item.br),
         dubbed: Some(item.dubbed),
-        bank_dub: None,
-        lied: None,
+        bank_dub: Some(item.bank_dub),
+        lied: Some(item.lied),
         pool: Some(attempt.pool.as_str().to_string()),
         imdb_id: payload
             .get("imdbId")

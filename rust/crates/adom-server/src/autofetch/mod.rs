@@ -1,9 +1,11 @@
-//! Worker NATIVO do Chupim no gateway — ciclo completo, DESLIGADO por padrão.
+//! Worker NATIVO do Chupim no gateway — ciclo completo, LIGADO só por
+//! `AUTOFETCH_WORKER=on`.
 //!
-//! Esta leva entrega o ciclo inteiro do worker (cofre, enfileiramento, recheck e
-//! laço) com uma trava explícita: sem `AUTOFETCH_WORKER=on` **nada** consome o
-//! canal, `phase` continua `"prepared"` e nenhuma fila é escrita. O flip do
-//! flag é a leva seguinte — aqui o ciclo só precisa funcionar nos testes.
+//! O ciclo inteiro (cofre, enfileiramento, recheck e laço) existe desde a leva
+//! anterior atrás de uma trava explícita: sem `AUTOFETCH_WORKER=on` **nada**
+//! consome o canal, `phase` continua `"prepared"` e nenhuma fila é escrita. O
+//! boot agora MONTA a fábrica de produção ([`build`]) quando a trava está
+//! ligada; sem ela o caminho é o mesmo de antes (nenhum cliente HTTP é criado).
 //!
 //! # Peças e donos
 //!
@@ -18,6 +20,10 @@
 //!   lidos dos lotes; o adaptador de debrid entra pela fábrica por conta;
 //! - [`ports`] — adaptador do trait do crate sobre as portas do `adom-debrid` e
 //!   a FÁBRICA (`scope` → adaptador, chave lida do cofre no momento do uso);
+//! - [`build`] — fábrica de PRODUÇÃO (cinco serviços, gate RD único, fatos da
+//!   AllDebrid do `cache.db`);
+//! - [`rd_store`] — intent durável do RD (`rdq:v1:uncertain:`) e peek do ledger;
+//! - [`boot`] — abertura do KV, trava do worker e o handle ÚNICO do boot;
 //! - [`control`] — pausa/intervalo/contadores que o painel lê;
 //! - [`worker`] — config/painel (`autofetch-worker:v1:config`) e o handler.
 //!
@@ -34,15 +40,18 @@
 //! Rotas (montadas na admin do store, `127.0.0.1:8711`, loopback + token):
 //! `GET /autofetch`, `POST /autofetch/config|pause|drain|suppressed-drain`.
 
+mod boot;
+mod build;
 mod control;
 mod enqueue;
 mod enqueue_drain;
 mod enqueue_items;
-// A cola de flip: `DebridIo`/`DebridFactory` já são usados pelo laço, mas o
-// adaptador e a fábrica só ganham chamador real no boot do `main.rs`. Até lá o
-// alvo de bin os vê como mortos — o `allow` evita ruído de `dead_code`.
+// O adaptador (`PortedDebrid`) e a fábrica já são usados no boot; `scope`,
+// `service` e `capabilities` só têm chamador nos testes, e o alvo de bin os vê
+// como mortos — o `allow` evita ruído de `dead_code`.
 #[allow(dead_code)]
 mod ports;
+mod rd_store;
 mod recheck;
 mod recheck_expire;
 mod routes;

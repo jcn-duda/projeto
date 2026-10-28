@@ -1,9 +1,11 @@
 //! Config, painel e canal do worker NATIVO do Chupim.
 //!
 //! Esta leva sobe o ciclo INTEIRO (cofre, enfileiramento, recheck, dreno) atrás
-//! da trava `AUTOFETCH_WORKER=on`. Sem a trava — e sem um adaptador de debrid
-//! injetado — o worker fica `prepared`: nenhum canal existe, nenhum lote é
-//! escrito e `GET /autofetch` continua contando o que o KV já tinha no boot.
+//! da trava `AUTOFETCH_WORKER=on`. Sem a trava — e sem fábrica de debrid — o
+//! worker fica `prepared`: nenhum canal existe, nenhum lote é escrito e
+//! `GET /autofetch` continua contando o que o KV já tinha no boot. A fábrica de
+//! produção é montada no boot (`boot::spawn_at`, quando a trava está ligada) e
+//! `spawn_with(Some(..))` injeta uma pronta para teste.
 //!
 //! O que o KV guarda aqui é SÓ `autofetch-worker:v1:config` (`paused` +
 //! `intervalMs`). A chave do usuário vive no cofre em RAM (`vault.rs`) e não
@@ -265,36 +267,17 @@ fn phase_of(enabled: bool, paused: bool) -> &'static str {
 }
 
 pub(crate) fn spawn() -> Option<AutofetchHandle> {
-    // TODO(flip): montar a fábrica de verdade exige o `Vault` do processo E o
-    // `RdGateExecutor`/`RdUncertainStore` COMPARTILHADOS com o play nativo (gate
-    // próprio faria o AIMD mentir sobre gap/cooldown). Nenhum dos dois existe
-    // hoje no `adom-server`: o boot deles é do `main.rs`, fora desta área — até
-    // lá o worker fica `prepared`, mesmo com `AUTOFETCH_WORKER=on`.
     spawn_with(None)
 }
 
-/// Variante de boot que recebe a fábrica por conta (é o ponto do flip):
-/// `spawn_with(Some(factory))` liga o ciclo, `None` mantém `prepared`.
+/// Boot do ciclo. `Some(factory)` injeta a fábrica (teste); `None` monta a de
+/// PRODUÇÃO quando `AUTOFETCH_WORKER=on` — sem a trava nada muda: `prepared`.
 pub(crate) fn spawn_with(debrid: Option<DebridFactory>) -> Option<AutofetchHandle> {
-    let path = adom_store::default_cache_db_path();
-    let kv = match NativeKv::open(&path) {
-        Ok(kv) => Arc::new(kv),
-        Err(err) => {
-            eprintln!(
-                "[autofetch] controle indisponível ({}): {err}; worker permanece ausente",
-                path.display()
-            );
-            return None;
-        }
-    };
-    // Sem fábrica de `AutofetchDebrid` não há laço: com a trava desligada (ou
-    // sem cofre) isto é `prepared`, como antes.
-    Some(AutofetchHandle::build(
-        kv,
-        &Policy::from_env(),
+    super::boot::spawn_at(
+        &adom_store::default_cache_db_path(),
         super::vault::shared(),
         debrid,
-    ))
+    )
 }
 
 /// Leitura única (boot): profundidade da fila e lotes de recheck persistidos.

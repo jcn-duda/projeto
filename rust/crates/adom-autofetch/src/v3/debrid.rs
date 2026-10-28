@@ -72,8 +72,7 @@ pub trait AutofetchDebrid: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use std::task::{Context, Poll, Wake, Waker};
+    use std::task::{Context, Poll, Waker};
 
     struct Stub;
     impl AutofetchDebrid for Stub {
@@ -116,16 +115,10 @@ mod tests {
             })
         }
     }
-    struct Noop;
-    impl Wake for Noop {
-        fn wake(self: Arc<Self>) {}
-    }
-
     #[test]
     fn contrato_pode_ser_exercitado_com_stub_sem_rede() {
         let mut future = Stub.check(&[]);
-        let waker = Waker::from(Arc::new(Noop));
-        let mut cx = Context::from_waker(&waker);
+        let mut cx = Context::from_waker(Waker::noop());
         assert_eq!(
             future.as_mut().poll(&mut cx),
             Poll::Ready(Ok(CacheEvidence {

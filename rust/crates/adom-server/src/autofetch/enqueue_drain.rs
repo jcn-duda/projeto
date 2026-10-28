@@ -52,22 +52,40 @@ pub(crate) async fn drain_one(
     if adapter.is_empty() || account.is_empty() {
         return Ok(DrainReport::default());
     }
+    let live_policy = super::enqueue::gates::LivePolicy::load(kv, adapter, now_ms)?;
+    if !live_policy.queue_enabled || live_policy.queue_depth == 0 {
+        return Ok(DrainReport {
+            blocked: Some("drain-disabled"),
+            ..DrainReport::default()
+        });
+    }
+    let mut policy = policy;
+    policy.queue_depth = live_policy.queue_depth;
     let queue = QueueV3::new(kv);
-    let live = queue.read_queue(search_key, now_ms)?;
+    let queue_items = queue.read_queue(search_key, now_ms)?;
+    let account_blocked = if live_policy.pause_at > 0 {
+        debrid.account().await.ok().is_some_and(|evidence| {
+            super::enqueue::gates::account_is_blocked(evidence.used, live_policy.pause_at)
+        })
+    } else {
+        false
+    };
+    let budget_blocked = super::enqueue::gates::budget_count(kv, adapter, account, now_ms)?
+        >= live_policy.hourly_limit;
     let gates = DrainGates {
         search_key_present: !search_key.is_empty(),
         queue_enabled: true,
         paused,
         adapter_available: true,
-        budget_blocked: false,
+        budget_blocked,
         rd_cooldown: false,
-        account_blocked: false,
+        account_blocked,
         refusals: 0,
         max_refusals: 3,
     };
     let selected = drain_next::<(), String>(
         &gates,
-        live,
+        queue_items,
         |candidate| {
             Ok(
                 queue.is_dead(adapter, account, &candidate.info_hash, now_ms)?
@@ -96,6 +114,7 @@ pub(crate) async fn drain_one(
             ..
         } => {
             let started = start(
+                kv,
                 &queue,
                 policy,
                 holds,
@@ -104,6 +123,7 @@ pub(crate) async fn drain_one(
                 search_key,
                 &candidate,
                 remaining,
+                live_policy.hourly_limit,
                 now_ms,
             )
             .await?;
@@ -159,6 +179,7 @@ pub(crate) async fn drain_one(
 
 #[allow(clippy::too_many_arguments)]
 async fn start(
+    kv: &NativeKv,
     queue: &QueueV3<'_>,
     policy: Policy,
     holds: &Holds,
@@ -167,11 +188,42 @@ async fn start(
     search_key: &str,
     candidate: &QueueCandidate,
     remaining: Vec<QueueCandidate>,
+    hourly_limit: usize,
     now_ms: i64,
 ) -> Result<DrainReport, String> {
     let (adapter, account) = scope;
-    // Hold ANTES do enqueue: o mesmo invariante do lote.
-    holds.acquire(&candidate.info_hash);
+    // Hold ANTES do enqueue: hold é por conta e somente quem o adquiriu pode
+    // disparar ou soltar. Se já existe, a fila conserva a cabeça.
+    if !holds.acquire(account, &candidate.info_hash) {
+        let mut next = Vec::with_capacity(remaining.len() + 1);
+        next.push(candidate.clone());
+        next.extend(remaining);
+        persist(queue, policy, scope, search_key, &next, now_ms)?;
+        return Ok(DrainReport {
+            blocked: Some("in-flight"),
+            remaining: next.len(),
+            ..DrainReport::default()
+        });
+    }
+    match super::enqueue::gates::reserve_budget(kv, adapter, account, hourly_limit, now_ms) {
+        Ok(true) => {}
+        Ok(false) => {
+            holds.release(account, &candidate.info_hash);
+            let mut next = Vec::with_capacity(remaining.len() + 1);
+            next.push(candidate.clone());
+            next.extend(remaining);
+            persist(queue, policy, scope, search_key, &next, now_ms)?;
+            return Ok(DrainReport {
+                blocked: Some("budget"),
+                remaining: next.len(),
+                ..DrainReport::default()
+            });
+        }
+        Err(err) => {
+            holds.release(account, &candidate.info_hash);
+            return Err(err);
+        }
+    }
     let outcome = debrid.enqueue(candidate).await;
     let transfer = match &outcome {
         Ok(evidence) if evidence.accepted => evidence.transfer_id.clone(),
@@ -179,16 +231,19 @@ async fn start(
     };
     let started = matches!(&outcome, Ok(evidence) if evidence.accepted);
     if started {
-        queue.set_marker(
+        if let Err(err) = queue.set_marker(
             adapter,
             account,
             &candidate.info_hash,
             &marker_value(true, transfer.as_deref(), None, now_ms),
             policy.marker_ttl_seconds,
             now_ms,
-        )?;
+        ) {
+            holds.release(account, &candidate.info_hash);
+            return Err(err);
+        }
     }
-    holds.release(&candidate.info_hash);
+    holds.release(account, &candidate.info_hash);
     let mut next = Vec::with_capacity(remaining.len() + 1);
     if !started {
         next.push(candidate.clone());

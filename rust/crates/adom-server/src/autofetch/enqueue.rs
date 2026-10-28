@@ -28,7 +28,6 @@
 //! em [`super::enqueue_drain`].
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::{Mutex, PoisonError};
 
 use adom_autofetch::v3::{cascade, marker_value, CascadeCandidate, CascadeFacts, QueueV3};
 use adom_core::{classify_enqueue, rollback_for, EnqueueGates, RollbackAction};
@@ -37,6 +36,12 @@ use serde_json::{Map, Value};
 
 use super::enqueue_items::{candidate_of, parse_items};
 use super::Policy;
+#[path = "enqueue_holds.rs"]
+mod holds;
+pub(super) use holds::Holds;
+
+#[path = "enqueue_gates.rs"]
+pub(super) mod gates;
 
 /// Trabalho que chega pelo canal: o escopo da conta e o payload do efeito.
 #[derive(Clone, Debug)]
@@ -50,35 +55,6 @@ impl Job {
     fn parts(&self) -> Option<(&str, &str)> {
         let (adapter, account) = self.scope.split_once(':')?;
         (!adapter.is_empty() && !account.is_empty()).then_some((adapter, account))
-    }
-}
-
-/// Hashes presos pela seleção (o `held` do Node). Em memória: o hold morre com
-/// o processo, como o hold volátil do Node.
-#[derive(Default)]
-pub(crate) struct Holds {
-    inner: Mutex<HashSet<String>>,
-}
-
-impl Holds {
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashSet<String>> {
-        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// `true` quando o hash passou a estar preso por ESTA chamada.
-    pub(crate) fn acquire(&self, hash: &str) -> bool {
-        !hash.is_empty() && self.lock().insert(hash.to_ascii_lowercase())
-    }
-
-    pub(crate) fn release(&self, hash: &str) -> bool {
-        self.lock().remove(&hash.to_ascii_lowercase())
-    }
-
-    /// Profundidade do hold. Só os testes leem hoje (o painel da próxima leva
-    /// conta a fila, não o hold).
-    #[allow(dead_code)]
-    pub(crate) fn len(&self) -> usize {
-        self.lock().len()
     }
 }
 
@@ -140,16 +116,26 @@ pub(crate) async fn run(
         return Ok(Report::refused(&search_key, "empty-batch"));
     }
 
-    // 1. Hold ANTES da checagem, com todos os hashes do lote.
+    let live = gates::LivePolicy::load(kv, adapter, now_ms)?;
+
+    // 1. Hold ANTES da checagem. Só a chamada que adquiriu o hold pode usar ou
+    // soltar esse hash; uma busca concorrente mantém a própria proteção.
     let mut seen = HashSet::new();
     let mut hashes: Vec<String> = Vec::new();
     for item in &items {
-        if seen.insert(item.info_hash.clone()) {
+        if seen.insert(item.info_hash.clone()) && holds.acquire(account, &item.info_hash) {
             hashes.push(item.info_hash.clone());
         }
     }
-    for hash in &hashes {
-        holds.acquire(hash);
+    if hashes.is_empty() {
+        return Ok(Report::refused(&search_key, "in-flight"));
+    }
+
+    // O applyDebrid já mediu esse mesmo universo; known=false encerra sem uma
+    // segunda pergunta ao serviço, como `autoFetchBrDubbed` no TS.
+    if payload.get("known").and_then(Value::as_bool) == Some(false) {
+        release_all(holds, account, &hashes);
+        return Ok(Report::refused(&search_key, "unknown-cache"));
     }
 
     let queue = QueueV3::new(kv);
@@ -162,14 +148,15 @@ pub(crate) async fn run(
     let evidence = match debrid.check(&hashes).await {
         Ok(evidence) => evidence,
         Err(_) => {
-            release_all(holds, &hashes);
+            release_all(holds, account, &hashes);
             return Err("checagem de cache falhou".to_string());
         }
     };
     if !evidence.known {
-        release_all(holds, &hashes);
+        release_all(holds, account, &hashes);
         return Ok(Report::refused(&search_key, "unknown-cache"));
     }
+    let eligible: HashSet<&str> = hashes.iter().map(String::as_str).collect();
     let cached: HashSet<String> = evidence
         .cached
         .iter()
@@ -178,27 +165,60 @@ pub(crate) async fn run(
 
     // 3. Fatos da cascata. O que o worker ainda não mede (sonda, seeds stop,
     // teto por obra) entra no default do crate — que não bloqueia nada.
+    let probe_account = if live.pause_at > 0 {
+        debrid.account().await.ok()
+    } else {
+        None
+    };
+    let budget_full = match gates::budget_count(kv, adapter, account, now_ms) {
+        Ok(count) => count >= live.hourly_limit,
+        Err(err) => {
+            release_all(holds, account, &hashes);
+            return Err(err);
+        }
+    };
     let mut facts = CascadeFacts {
         paused,
         cache_known: true,
-        slots: policy.max_attempts,
+        slots: live.max_attempts,
+        account_blocked: probe_account
+            .as_ref()
+            .is_some_and(|evidence| gates::account_is_blocked(evidence.used, live.pause_at)),
+        budget_blocked: budget_full,
         ..CascadeFacts::default()
     };
-    facts.has_cached_br_dubbed = items
-        .iter()
-        .any(|item| item.br && item.dubbed && cached.contains(&item.info_hash));
-    facts.has_cached_any_dubbed = items
-        .iter()
-        .any(|item| item.dubbed && cached.contains(&item.info_hash));
+    facts.has_cached_br_dubbed = items.iter().any(|item| {
+        eligible.contains(item.info_hash.as_str())
+            && item.is_br_dubbed_proven()
+            && cached.contains(&item.info_hash)
+    });
+    facts.has_cached_any_dubbed = items.iter().any(|item| {
+        eligible.contains(item.info_hash.as_str())
+            && item.dubbed
+            && !item.lied
+            && cached.contains(&item.info_hash)
+    });
     facts.covered_qualities = items
         .iter()
-        .filter(|item| item.br && item.dubbed && cached.contains(&item.info_hash))
+        .filter(|item| {
+            eligible.contains(item.info_hash.as_str())
+                && item.is_br_dubbed_proven()
+                && cached.contains(&item.info_hash)
+        })
         .filter_map(|item| item.quality.clone())
         .collect();
 
     let mut by_hash: HashMap<&str, &super::enqueue_items::Item> = HashMap::new();
     let mut candidates = Vec::with_capacity(items.len());
     for item in &items {
+        if !eligible.contains(item.info_hash.as_str()) {
+            continue;
+        }
+        if (item.pool() == adom_autofetch::v3::CascadePool::Any && !live.any_dubbed_enabled)
+            || (item.pool() == adom_autofetch::v3::CascadePool::Seeds && !live.top_seeds_enabled)
+        {
+            continue;
+        }
         by_hash.insert(item.info_hash.as_str(), item);
         candidates.push(CascadeCandidate {
             info_hash: item.info_hash.clone(),
@@ -207,12 +227,28 @@ pub(crate) async fn run(
             slot_limit: None,
             rare: false,
             cached: cached.contains(&item.info_hash),
-            dead: queue.is_dead(adapter, account, &item.info_hash, now_ms)?,
+            dead: match queue.is_dead(adapter, account, &item.info_hash, now_ms) {
+                Ok(dead) => dead,
+                Err(err) => {
+                    release_all(holds, account, &hashes);
+                    return Err(err);
+                }
+            },
             adrm: false,
             // O piso de seeders já foi aplicado na lista; o waiver é a exceção.
             viable: !item.waived,
         });
     }
+
+    let seeds_only = candidates
+        .iter()
+        .filter(|candidate| !candidate.dead && candidate.viable && !candidate.adrm)
+        .all(|candidate| candidate.pool == adom_autofetch::v3::CascadePool::Seeds);
+    facts.slots = if seeds_only {
+        live.top_seeds_max
+    } else {
+        live.max_attempts
+    };
 
     let decision = cascade(&facts, candidates);
     report.attempts = decision.attempts.len();
@@ -232,36 +268,53 @@ pub(crate) async fn run(
             continue;
         };
         let candidate = candidate_of(attempt, item, payload, now_ms);
+        let marker_active = match queue.marker(adapter, account, &attempt.info_hash, now_ms) {
+            Ok(marker) => marker.is_some(),
+            Err(err) => {
+                release_all(holds, account, &hashes);
+                return Err(err);
+            }
+        };
         let gates = EnqueueGates {
             is_paused: paused,
             is_dead: false,
             is_cached: cached.contains(&attempt.info_hash),
-            marker_active: queue
-                .marker(adapter, account, &attempt.info_hash, now_ms)?
-                .is_some(),
+            marker_active,
             ..EnqueueGates::default()
         };
         match classify_enqueue(&gates) {
             Some(reason) => {
-                rollback(holds, &attempt.info_hash, rollback_for(reason));
+                rollback(holds, account, &attempt.info_hash, rollback_for(reason));
                 report.skip(reason.as_str());
             }
-            None => match debrid.enqueue(&candidate).await {
-                Ok(evidence) if evidence.accepted => {
-                    queue.set_marker(
-                        adapter,
-                        account,
-                        &attempt.info_hash,
-                        &marker_value(true, evidence.transfer_id.as_deref(), None, now_ms),
-                        policy.marker_ttl_seconds,
-                        now_ms,
-                    )?;
-                    report
-                        .enqueued
-                        .push((attempt.info_hash.clone(), evidence.transfer_id));
+            None => match gates::reserve_budget(kv, adapter, account, live.hourly_limit, now_ms) {
+                Err(err) => {
+                    release_all(holds, account, &hashes);
+                    return Err(err);
                 }
-                // Falha de rede/serviço: o hash fica na fila, sem marker.
-                Ok(_) | Err(_) => report.skip("enqueue-error"),
+                Ok(false) => {
+                    report.skip("budget");
+                }
+                Ok(true) => match debrid.enqueue(&candidate).await {
+                    Ok(evidence) if evidence.accepted => {
+                        if let Err(err) = queue.set_marker(
+                            adapter,
+                            account,
+                            &attempt.info_hash,
+                            &marker_value(true, evidence.transfer_id.as_deref(), None, now_ms),
+                            policy.marker_ttl_seconds,
+                            now_ms,
+                        ) {
+                            release_all(holds, account, &hashes);
+                            return Err(err);
+                        }
+                        report
+                            .enqueued
+                            .push((attempt.info_hash.clone(), evidence.transfer_id));
+                    }
+                    // Falha de rede/serviço: o hash fica na fila, sem marker.
+                    Ok(_) | Err(_) => report.skip("enqueue-error"),
+                },
             },
         }
         queue_out.push(candidate);
@@ -274,35 +327,43 @@ pub(crate) async fn run(
 
     // 5. Fila: `attempts ∪ deferred`, escritor único. O corte por profundidade
     // é do `write_queue` (mesma régua do `writeQueue` do Node).
-    report.queue_len = queue_out.len();
-    if queue_out.is_empty() {
-        queue.drop_queue(&search_key)?;
+    report.queue_len = if live.queue_enabled {
+        queue_out.len()
     } else {
-        queue.write_queue(
-            &search_key,
-            &queue_out,
-            policy.queue_ttl_seconds,
-            policy.queue_depth,
-            Some((adapter, account)),
-            now_ms,
-        )?;
+        0
+    };
+    if !live.queue_enabled || live.queue_depth == 0 || queue_out.is_empty() {
+        if let Err(err) = queue.drop_queue(&search_key) {
+            release_all(holds, account, &hashes);
+            return Err(err);
+        }
+    } else if let Err(err) = queue.write_queue(
+        &search_key,
+        &queue_out,
+        policy.queue_ttl_seconds,
+        live.queue_depth,
+        Some((adapter, account)),
+        now_ms,
+    ) {
+        release_all(holds, account, &hashes);
+        return Err(err);
     }
-    release_all(holds, &hashes);
+    release_all(holds, account, &hashes);
     Ok(report)
 }
 
-fn release_all(holds: &Holds, hashes: &[String]) {
+fn release_all(holds: &Holds, account: &str, hashes: &[String]) {
     for hash in hashes {
-        holds.release(hash);
+        holds.release(account, hash);
     }
 }
 
 /// Aplica a tabela do `rollbackFor`: só o hold existe neste worker (lock/vaga/
 /// obra são do dreno da próxima leva), mas o mapa é lido do núcleo para o
 /// motivo `in-flight` continuar NÃO soltando o hold.
-fn rollback(holds: &Holds, hash: &str, actions: &[RollbackAction]) {
+fn rollback(holds: &Holds, account: &str, hash: &str, actions: &[RollbackAction]) {
     if actions.contains(&RollbackAction::Hold) {
-        holds.release(hash);
+        holds.release(account, hash);
     }
 }
 

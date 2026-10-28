@@ -6,6 +6,7 @@ use adom_index::NativeKv;
 use adom_sources::now_ms;
 use serde_json::json;
 
+use super::super::enqueue_items::{candidate_of, parse_items};
 use super::super::fakes::{batch_payload, job, FakeDebrid, SCOPE};
 use super::super::Policy;
 use super::{run, Holds};
@@ -270,4 +271,53 @@ async fn falha_da_checagem_solta_o_hold_e_devolve_erro() {
 
     assert!(error.contains("checagem"));
     assert_eq!(holds.len(), 0, "hold não pode vazar na falha");
+}
+
+#[test]
+fn parser_usa_prova_de_audio_br_e_veto_de_mentira() {
+    let payload = json!({"items": [
+        {"infoHash": "a", "_br": true, "_dubClaim": true},
+        {"infoHash": "b", "_br": true, "_bankDub": true},
+        {"infoHash": "c", "_br": true, "_dubbed": true, "_lied": true},
+        {"infoHash": "d", "_br": false, "_dubbed": true}
+    ]});
+    let items = parse_items(payload.as_object().unwrap());
+    assert_eq!(items[0].pool(), adom_autofetch::v3::CascadePool::Br);
+    assert_eq!(items[1].pool(), adom_autofetch::v3::CascadePool::Br);
+    assert_eq!(items[2].pool(), adom_autofetch::v3::CascadePool::Seeds);
+    assert_eq!(items[3].pool(), adom_autofetch::v3::CascadePool::Any);
+    assert!(!items[2].is_br_dubbed_proven());
+
+    let candidate = candidate_of(
+        &adom_autofetch::v3::CascadeAttempt {
+            info_hash: "b".into(),
+            pool: adom_autofetch::v3::CascadePool::Br,
+            quality: None,
+            slot_limit: None,
+            rare: false,
+            overflow: false,
+        },
+        &items[1],
+        payload.as_object().unwrap(),
+        1,
+    );
+    assert_eq!(candidate.bank_dub, Some(true));
+    assert_eq!(candidate.lied, Some(false));
+}
+
+#[test]
+fn parser_exclui_fallback_nao_fetchable_e_pack_multiobra() {
+    let payload = json!({"items": [
+        {"infoHash": "a", "_fromFallback": true, "_fallbackFetchable": false},
+        {"infoHash": "b", "_fromFallback": true, "_fallbackFetchable": true},
+        {"infoHash": "c", "_multiWorkAdmitted": true}
+    ]});
+    let items = parse_items(payload.as_object().unwrap());
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.info_hash.as_str())
+            .collect::<Vec<_>>(),
+        ["b"]
+    );
 }
