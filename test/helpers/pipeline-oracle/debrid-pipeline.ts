@@ -40,11 +40,11 @@ import {
 } from './autofetch-bridge.js';
 import rdWarmer from '../../../src/providers/rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
-import { enrichInstantWithoutCacheCheck } from '../../../src/providers/debrid-cache-steps.js';
+import { enrichInstantWithoutCacheCheck } from './debrid-instant-steps.js';
 import { countFirstBr, pruneKnownBroken } from './debrid-cache-steps.js';
 import type { FirstObserverState } from './first-observer.js';
 import { dropTrace, type StreamTraceState } from '../../../src/utils/stream-trace.js';
-import { annotateEpisodeSizes, packHashesMissingFiles } from '../../../src/providers/episode-size.js';
+import { annotateEpisodeSizes, packHashesMissingFiles } from './episode-size.js';
 import { playDisposition, playDispositions } from './debrid-play-guard.js';
 import { checkCachedFrozen } from './debrid-check-frozen.js';
 

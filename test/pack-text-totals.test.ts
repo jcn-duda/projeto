@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { annotateEpisodeSizes, streamSizeLabel } from '../src/providers/episode-size.js';
+import { annotateEpisodeSizes, streamSizeLabel } from './helpers/pipeline-oracle/episode-size.js';
 import { recordFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import type { Stream } from '../types/domain.js';
 

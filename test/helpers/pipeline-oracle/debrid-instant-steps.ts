@@ -1,18 +1,23 @@
 // `enrichInstantWithoutCacheCheck`: complemento de ⚡ do autofetch (lote
-// nativo) para adaptador sem `cacheCheck`. As etapas do corte do pipeline TS
-// (`countFirstBr`, `pruneKnownBroken`) moram no oráculo de teste
-// (`test/helpers/pipeline-oracle/debrid-cache-steps.ts`).
-import config from '../config.js';
-import type { DebridAdapter, Stream } from '../../types/domain.js';
-import debrid from '../debrid/index.js';
-import { peekDavail } from '../debrid/cache-check.js';
-import { reuploadBlocked } from '../debrid/alldebrid-reupload.js';
-import { accountScope } from '../utils/request-key.js';
-import * as magnetdb from '../utils/magnetdb.js';
-import * as rdLedger from '../debrid/rd-ledger.js';
-import * as autofetch from './autofetch.js';
-import * as log from '../utils/logger.js';
-import * as metrics from '../utils/metrics.js';
+// nativo) para adaptador sem `cacheCheck`. Saiu de `src/providers/`: a produção
+// não o chama desde o corte do Chupim (B4); só o oráculo congelado o mede. As
+// demais etapas do corte (`countFirstBr`, `pruneKnownBroken`) estão em
+// `debrid-cache-steps.ts`, aqui ao lado.
+import config from '../../../src/config.js';
+import type { DebridAdapter, Stream } from '../../../types/domain.js';
+import debrid from '../../../src/debrid/index.js';
+import { peekDavail } from '../../../src/debrid/cache-check.js';
+import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
+import { accountScope } from '../../../src/utils/request-key.js';
+import * as magnetdb from '../../../src/utils/magnetdb.js';
+import * as rdLedger from '../../../src/debrid/rd-ledger.js';
+import * as autofetch from '../../../src/providers/autofetch.js';
+import * as log from '../../../src/utils/logger.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+// Lê `magnetdb`/ledger/KV: sem setup-env o destino seria o banco real.
+assertSafeTestDb('pipeline-oracle/debrid-instant-steps');
 
 /** Resultado da complementação de ⚡ para adaptador sem `cacheCheck`. */
 export type InstantEnrichment = {

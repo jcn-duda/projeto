@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as cache from '../src/utils/cache.js';
-import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel } from '../src/providers/episode-size.js';
+import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel } from './helpers/pipeline-oracle/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';

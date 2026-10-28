@@ -1,8 +1,8 @@
-import type { Stream } from '../../types/domain.js';
-import { isSeasonPackRelease, parseTitleSeasonEpisode, UNKNOWN_QUALITY } from '../utils/format.js';
-import { hasFileSizes } from '../debrid/file-sizes.js';
-import { rustAnnotateEpisodeSizes } from '../utils/rust-episode-size.js';
-import type { StreamTraceState } from '../utils/stream-trace.js';
+import type { Stream } from '../../../types/domain.js';
+import { isSeasonPackRelease, parseTitleSeasonEpisode, UNKNOWN_QUALITY } from '../../../src/utils/format.js';
+import { hasFileSizes } from '../../../src/debrid/file-sizes.js';
+import { rustAnnotateEpisodeSizes } from '../../../src/utils/rust-episode-size.js';
+import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
 
 // Tamanho do EPISÓDIO numa release que é pack da temporada. O tracker publica
 // só o total ("41.67 GB" de oito episódios em 4K), e a linha do stream dizia

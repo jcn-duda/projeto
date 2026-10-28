@@ -1,7 +1,7 @@
-// Tipos do pipeline de debrid que sobrevivem ao corte do pipeline TS de busca.
-// `dub-audit` (tail de áudio, que fica na rota de efeitos) consome
-// `ApplyDebridOptions`; o tipo mora aqui para não depender do núcleo removido.
-import type { StreamTraceState } from '../utils/stream-trace.js';
+// Tipos do pipeline de debrid congelado. Só o `dub-audit` do oráculo consome
+// `ApplyDebridOptions` (o tail de áudio de produção é nativo desde a T3-L7a),
+// por isso o tipo saiu de `src/providers/`.
+import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
 
 type WorkHintInput = { n: string[]; y: number | null } | null;
 

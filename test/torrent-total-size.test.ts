@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as premiumize from '../src/debrid/premiumize.js';
-import { annotateEpisodeSizes } from '../src/providers/episode-size.js';
+import { annotateEpisodeSizes } from './helpers/pipeline-oracle/episode-size.js';
 import { recordTorrentTotal, peekTorrentTotal, clearFileSizes, recordFileSizes } from '../src/debrid/file-sizes.js';
 import { stubFetch } from './helpers/stub.js';
 import type { Stream } from '../types/domain.js';
