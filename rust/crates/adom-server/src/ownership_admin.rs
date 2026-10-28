@@ -12,10 +12,22 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
 use serde_json::{json, Value};
+use std::sync::{Mutex, MutexGuard};
 
 const HOLD_TTL_MAX: i64 = 7 * 24 * 60 * 60;
 const OWNERSHIP_TTL_MAX: i64 = 10 * 365 * 24 * 60 * 60;
 const REUPLOAD_TTL_MAX: i64 = 30 * 24 * 60 * 60;
+
+// `ready` precisa manter o lock desde a leitura do adprot até a atualização.
+// Compartilha a mesma serialização com remoção e unprotect, evitando que uma
+// resposta de ready atrasada recrie a proteção após esses caminhos terminarem.
+static OWNERSHIP_MUTATION_LOCK: Mutex<()> = Mutex::new(());
+
+fn mutation_lock() -> MutexGuard<'static, ()> {
+    OWNERSHIP_MUTATION_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 /// Abre o mesmo `cache.db` compartilhado com o Node. Falha de abertura não
 /// interrompe o gateway; todas as operações de escrita retornam 503.
@@ -143,6 +155,7 @@ async fn ready(
     if body.get("adapter").and_then(Value::as_str) != Some("alldebrid") {
         return bad_request("proteção durável só aceita adapter alldebrid");
     }
+    let _guard = mutation_lock();
     let key = protect_key(account, hash);
     let prior = match kv.get_json(&key, now_ms()) {
         Ok(Some(value)) => value,
@@ -171,6 +184,7 @@ async fn unprotect(
     if body.get("adapter").and_then(Value::as_str) != Some("alldebrid") {
         return bad_request("unprotect só aceita adapter alldebrid");
     }
+    let _guard = mutation_lock();
     write(kv.forget(&protect_key(account, hash)))
 }
 
@@ -202,8 +216,8 @@ async fn deleted(
     if body.get("deleteConfirmed").and_then(Value::as_bool) != Some(true) {
         return conflict("marcas só podem mudar após remoção confirmada");
     }
-    if body.get("brOrigin").and_then(Value::as_bool) == Some(true) {
-        return conflict("release de origem BR não pode receber adrm");
+    if !br_origin_proven_non_br(&body) {
+        return conflict("origem BR precisa ser comprovadamente falsa para marcar adrm");
     }
     let mut value = json!({ "at": now_ms() });
     if let Some(name) = body
@@ -226,6 +240,7 @@ async fn deleted(
     let sub = submitted_key(account, hash);
     let prot = protect_key(account, hash);
     let held = hold_key(account, hash);
+    let _guard = mutation_lock();
     match kv.put_many_json_and_forget(&write, &[&sub, &prot, &held]) {
         Ok(()) => {
             Json(json!({ "ok": true, "blocked": true, "ownershipCleared": true })).into_response()
@@ -252,6 +267,10 @@ fn ttl(body: &Value, field: &str, max: i64) -> Option<i64> {
     body.get(field)
         .and_then(Value::as_i64)
         .filter(|ttl| *ttl > 0 && *ttl <= max)
+}
+
+fn br_origin_proven_non_br(body: &Value) -> bool {
+    body.get("brOrigin").and_then(Value::as_bool) == Some(false)
 }
 
 fn hold_key(account: &str, hash: &str) -> String {
@@ -325,46 +344,5 @@ fn storage_error(message: String) -> Response {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scopes_and_hashes_validos_sao_normalizados_sem_segredos() {
-        let body = json!({
-            "accountScope": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "infoHash": "0123456789ABCDEF0123456789ABCDEF01234567",
-            "apiKey": "nao-deve-ser-persistida"
-        });
-        let account = account(&body).unwrap();
-        let hash = hash(&body).unwrap();
-        assert_eq!(
-            submitted_key(account, hash),
-            format!(
-                "adsub:v1:{}:{}",
-                "a".repeat(64),
-                "0123456789abcdef0123456789abcdef01234567"
-            )
-        );
-        assert_eq!(
-            protect_key(account, hash),
-            format!(
-                "adprot:v1:alldebrid:{}:{}",
-                "a".repeat(64),
-                "0123456789abcdef0123456789abcdef01234567"
-            )
-        );
-    }
-
-    #[test]
-    fn rejeita_scope_hash_e_ttl_invalidos() {
-        assert!(account(&json!({"accountScope":"api-key-raw"})).is_none());
-        assert!(hash(&json!({"infoHash":"xyz"})).is_none());
-        assert!(ttl(&json!({"ttlSeconds":0}), "ttlSeconds", HOLD_TTL_MAX).is_none());
-        assert!(ttl(
-            &json!({"ttlSeconds":HOLD_TTL_MAX + 1}),
-            "ttlSeconds",
-            HOLD_TTL_MAX
-        )
-        .is_none());
-    }
-}
+#[path = "ownership_admin_tests.rs"]
+mod tests;
