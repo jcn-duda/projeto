@@ -35,6 +35,19 @@ services:
       # modo de busca — rollback funcional é a imagem/commit anterior.
       GATEWAY: "on"
       ROUTES_RUST: "stream"
+      # Worker NATIVO do Chupim (autofetch do gateway): `on` = o gateway é dono
+      # do canal; `off`/vazio = o Node segue dono — este é o kill-switch.
+      #
+      # Com o `on` o boot monta a fábrica dos cinco serviços
+      # (`autofetch/build.rs`); sem credencial no escopo o worker continua
+      # `enabled:false`/`phase:prepared` e todo efeito de trabalho segue ao Node
+      # (`tail_effects.rs`). O cofre em RAM da chave (`autofetch/vault.rs`) vale
+      # desde o boot: chave de usuário só em memória, nunca em KV, disco ou log.
+      #
+      # Confira o estado real com `scripts/check-autofetch.sh` (GET /autofetch
+      # na admin de loopback 8711) — log de boot não distingue `prepared` de
+      # `active`.
+      AUTOFETCH_WORKER: "on"
       # R3: a checagem/cache da AllDebrid é NATIVA e incondicional. HOLDS e
       # CLEANUP são os kill-switches das varreduras DESTRUTIVAS:
       #   DEBRID_AL_HOLDS=on ...... feed in-process dos holds (`/internal/debrid/holds`):
