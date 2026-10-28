@@ -109,51 +109,56 @@
     },
     {
       "id": "cq-quota-18",
+      "input": "{\"op\":\"quota\",\"ns\":\"adhold\"}",
+      "note": "cota de adhold"
+    },
+    {
+      "id": "cq-quota-19",
       "input": "{\"op\":\"quota\",\"ns\":\"adsub\"}",
       "note": "cota de adsub"
     },
     {
-      "id": "cq-quota-19",
+      "id": "cq-quota-20",
       "input": "{\"op\":\"quota\",\"ns\":\"adrm\"}",
       "note": "cota de adrm"
     },
     {
-      "id": "cq-quota-20",
+      "id": "cq-quota-21",
       "input": "{\"op\":\"quota\",\"ns\":\"fsz\"}",
       "note": "cota de fsz"
     },
     {
-      "id": "cq-quota-21",
+      "id": "cq-quota-22",
       "input": "{\"op\":\"quota\",\"ns\":\"vres\"}",
       "note": "cota de vres"
     },
     {
-      "id": "cq-quota-22",
+      "id": "cq-quota-23",
       "input": "{\"op\":\"quota\",\"ns\":\"tsz\"}",
       "note": "cota de tsz"
     },
     {
-      "id": "cq-quota-23",
+      "id": "cq-quota-24",
       "input": "{\"op\":\"quota\",\"ns\":\"dinv\"}",
       "note": "cota de dinv"
     },
     {
-      "id": "cq-quota-24",
+      "id": "cq-quota-25",
       "input": "{\"op\":\"quota\",\"ns\":\"notify\"}",
       "note": "cota de notify"
     },
     {
-      "id": "cq-quota-25",
+      "id": "cq-quota-26",
       "input": "{\"op\":\"quota\",\"ns\":\"seed\"}",
       "note": "cota de seed"
     },
     {
-      "id": "cq-quota-26",
+      "id": "cq-quota-27",
       "input": "{\"op\":\"quota\",\"ns\":\"harvest\"}",
       "note": "cota de harvest"
     },
     {
-      "id": "cq-quota-27",
+      "id": "cq-quota-28",
       "input": "{\"op\":\"quota\",\"ns\":\"__default\"}",
       "note": "cota de __default"
     },
@@ -241,6 +246,11 @@
       "id": "cq-ns-adprot",
       "input": "{\"op\":\"namespace\",\"key\":\"adprot:qualquer:coisa\"}",
       "note": "namespace de uma chave de adprot"
+    },
+    {
+      "id": "cq-ns-adhold",
+      "input": "{\"op\":\"namespace\",\"key\":\"adhold:qualquer:coisa\"}",
+      "note": "namespace de uma chave de adhold"
     },
     {
       "id": "cq-ns-adsub",
@@ -370,6 +380,11 @@
     {
       "id": "cq-quota-ns-adprot",
       "input": "{\"op\":\"quota\",\"ns\":\"adprot\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-adhold",
+      "input": "{\"op\":\"quota\",\"ns\":\"adhold\"}",
       "note": "namespace versionado tem cota explícita"
     },
     {

@@ -17,10 +17,11 @@
 //! `__default` para todo nome sem entrada própria, então cada namespace
 //! versionado sem cota nomeada soma mais 500. O universo real é a união dos dois
 //! registros ([`QUOTAS`] + [`crate::cache_keys::NAMESPACE_VERSIONS`]) mais o
-//! balde `__default` das chaves sem `:`. Hoje: 91.721 + 500 = 92.221 entradas
-//! alcançáveis contra o teto de 93.000 — folga de 779, ~1 balde de 500 de
-//! namespace novo antes de o teto virar o garrote. Teto IGUAL OU ABAIXO da soma
-//! reintroduz o despejo global antes da repartição por namespace. Foi a falta
+//! balde `__default` das chaves sem `:`. Hoje: 92.221 + 500 = 92.721 entradas
+//! alcançáveis contra o teto de 93.000 — folga de 279, MENOS de um balde de 500:
+//! o próximo namespace nomeado já encosta no teto (a folga era 779 antes do
+//! `adhold`). Teto IGUAL OU ABAIXO da soma reintroduz o despejo global antes da
+//! repartição por namespace. Foi a falta
 //! dessa guarda que deixou `dinv`, `harvest`, `notify` e `seed` vivendo de
 //! fallback até a soma real passar do teto em 1.051 (medido no container: todos
 //! os namespaces dentro da própria cota, store parado em 91.000 com
@@ -43,7 +44,7 @@ pub const DEFAULT_NAMESPACE: &str = "__default";
 pub const MAX_ENTRIES: usize = 93_000;
 
 /// `(namespace, cota)` na ordem exata do objeto TS. Números são contrato: cada
-/// um tem motivo de memória/população no fonte, e o golden prende os 27.
+/// um tem motivo de memória/população no fonte, e o golden prende os 28.
 pub const QUOTAS: &[(&str, usize)] = &[
     // Lista pronta para o cliente: ~27 KB por entrada no teto de itens atual.
     ("streams", 2_000),
@@ -74,6 +75,9 @@ pub const QUOTAS: &[(&str, usize)] = &[
     ("indexer-status", 200),
     ("cfg", 50),
     ("adprot", 2_000),
+    // Hold curto do Chupim (`adhold:v1`): um registro minúsculo por download em
+    // voo, TTL de horas — dezenas de chaves, nunca o acervo.
+    ("adhold", 500),
     ("adsub", 1_000),
     ("adrm", 500),
     ("fsz", 3_000),
@@ -182,9 +186,9 @@ mod tests {
     #[test]
     fn teto_e_soma_do_universo_batem_com_o_producao() {
         assert_eq!(MAX_ENTRIES, 93_000);
-        assert_eq!(universe_total(), 92_221);
-        assert_eq!(headroom(), 779);
-        assert_eq!(universe_len(), 26);
+        assert_eq!(universe_total(), 92_721);
+        assert_eq!(headroom(), 279);
+        assert_eq!(universe_len(), 27);
         assert!(validate_quotas());
     }
 

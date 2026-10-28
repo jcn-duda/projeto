@@ -99,26 +99,31 @@
     },
     {
       "id": "ck-prefix-17",
+      "input": "{\"op\":\"prefix\",\"ns\":\"adhold\"}",
+      "note": "prefixo de adhold"
+    },
+    {
+      "id": "ck-prefix-18",
       "input": "{\"op\":\"prefix\",\"ns\":\"adsub\"}",
       "note": "prefixo de adsub"
     },
     {
-      "id": "ck-prefix-18",
+      "id": "ck-prefix-19",
       "input": "{\"op\":\"prefix\",\"ns\":\"adrm\"}",
       "note": "prefixo de adrm"
     },
     {
-      "id": "ck-prefix-19",
+      "id": "ck-prefix-20",
       "input": "{\"op\":\"prefix\",\"ns\":\"fsz\"}",
       "note": "prefixo de fsz"
     },
     {
-      "id": "ck-prefix-20",
+      "id": "ck-prefix-21",
       "input": "{\"op\":\"prefix\",\"ns\":\"tsz\"}",
       "note": "prefixo de tsz"
     },
     {
-      "id": "ck-prefix-21",
+      "id": "ck-prefix-22",
       "input": "{\"op\":\"prefix\",\"ns\":\"vres\"}",
       "note": "prefixo de vres"
     },
@@ -204,26 +209,31 @@
     },
     {
       "id": "ck-key-17",
+      "input": "{\"op\":\"key\",\"ns\":\"adhold\",\"parts\":[\"x\"]}",
+      "note": "chave composta de adhold"
+    },
+    {
+      "id": "ck-key-18",
       "input": "{\"op\":\"key\",\"ns\":\"adsub\",\"parts\":[\"2\",\"a1b2c3\"]}",
       "note": "chave composta de adsub"
     },
     {
-      "id": "ck-key-18",
+      "id": "ck-key-19",
       "input": "{\"op\":\"key\",\"ns\":\"adrm\",\"parts\":[\"2\",\"a1b2c3\"]}",
       "note": "chave composta de adrm"
     },
     {
-      "id": "ck-key-19",
+      "id": "ck-key-20",
       "input": "{\"op\":\"key\",\"ns\":\"fsz\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"]}",
       "note": "chave composta de fsz"
     },
     {
-      "id": "ck-key-20",
+      "id": "ck-key-21",
       "input": "{\"op\":\"key\",\"ns\":\"tsz\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"]}",
       "note": "chave composta de tsz"
     },
     {
-      "id": "ck-key-21",
+      "id": "ck-key-22",
       "input": "{\"op\":\"key\",\"ns\":\"vres\",\"parts\":[\"a1b2c3\",\"9f86d081\"]}",
       "note": "chave composta de vres"
     },

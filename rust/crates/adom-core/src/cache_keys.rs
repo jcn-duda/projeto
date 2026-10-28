@@ -74,6 +74,10 @@ namespace_table! {
     "cfg"         => "v1",
     // Proteção durável dos BR no AllDebrid (`adprot:v1:<adapter>:<conta>:<hash>`).
     "adprot"      => "v1",
+    // Hold curto do Chupim (`adhold:v1:<conta>:<hash>`, TTL do autofetch): era
+    // memória do processo; no KV nativo sobrevive ao restart até vencer e o
+    // gateway o lê sem o feed HTTP.
+    "adhold"      => "v1",
     // Posse dos uploads do próprio addon (`adsub:v1:<conta>:<hash>`).
     "adsub"       => "v1",
     // Anti-reenchimento do AllDebrid (`adrm:v1:<conta>:<hash>`).

@@ -85,11 +85,11 @@ mod tests {
         let dump = cache_quotas_dump();
         let v: serde_json::Value = serde_json::from_str(&dump).expect("dump é JSON válido");
         assert_eq!(v["maxEntries"], 93_000);
-        assert_eq!(v["universeTotal"], 92_221);
-        assert_eq!(v["headroom"], 779);
+        assert_eq!(v["universeTotal"], 92_721);
+        assert_eq!(v["headroom"], 279);
         assert_eq!(v["validate"], true);
         let quotas = v["quotas"].as_array().expect("quotas é lista");
-        assert_eq!(quotas.len(), 27);
+        assert_eq!(quotas.len(), 28);
         assert_eq!(quotas[0], serde_json::json!(["streams", 2_000]));
         // Universo ordenado e sem fallback.
         assert!(v["namespacesWithoutExplicitQuota"]
