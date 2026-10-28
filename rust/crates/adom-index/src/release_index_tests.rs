@@ -315,3 +315,7 @@ fn autofetch_promove_ao_rever_e_observacao_publica_limpa_a_fonte() {
 
 #[path = "release_index_tests_part2.rs"]
 mod part2;
+
+// Cota por faixa de prefixo: semântica, plano e a medição antes/depois.
+#[path = "release_index_quota_tests.rs"]
+mod quota;

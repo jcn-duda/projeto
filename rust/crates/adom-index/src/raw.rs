@@ -20,6 +20,8 @@ use adom_core::{prefix, quota_for};
 use rusqlite::{params, Connection};
 use serde_json::Value;
 
+use crate::release_index::prefix_bounds;
+
 const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 5000;
@@ -142,10 +144,11 @@ impl RawCacheStore {
 
     pub fn len(&self) -> Result<usize, String> {
         let conn = self.lock();
+        let (lo, hi) = prefix_bounds(raw_prefix());
         let n: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-                params![raw_prefix()],
+                "SELECT COUNT(*) FROM cache WHERE key >= ?1 AND key < ?2",
+                params![lo, hi],
                 |row| row.get(0),
             )
             .map_err(|err| err.to_string())?;
@@ -165,11 +168,12 @@ impl RawCacheStore {
     /// Apaga o namespace `raw` INTEIRO (clear-cache pela ponte napi); devolve
     /// quantas linhas saíram. Só alcança chaves do próprio namespace.
     pub fn clear_all(&self) -> Result<usize, String> {
+        let (lo, hi) = prefix_bounds(raw_prefix());
         let conn = self.lock();
         let n = conn
             .execute(
-                "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-                params![raw_prefix()],
+                "DELETE FROM cache WHERE key >= ?1 AND key < ?2",
+                params![lo, hi],
             )
             .map_err(|err| err.to_string())?;
         Ok(n)
@@ -189,16 +193,21 @@ fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, Strin
 }
 
 /// Fora do TTL some; acima da cota o que expira primeiro cede lugar.
+///
+/// As três passadas usam a FAIXA de prefixo de [`prefix_bounds`] (mesmo helper
+/// do índice): `key >= ?1 AND key < ?2` é SARGÁVEL pela PRIMARY KEY, enquanto o
+/// `substr(key, 1, length(?1)) = ?1` varria a tabela inteira a cada gravação.
 fn enforce_quota(conn: &Connection, prefix: &str, quota: u64, now_ms: i64) -> Result<(), String> {
+    let (lo, hi) = prefix_bounds(prefix);
     conn.execute(
-        "DELETE FROM cache WHERE expires_at <= ?1 AND substr(key, 1, length(?2)) = ?2",
-        params![now_ms, prefix],
+        "DELETE FROM cache WHERE expires_at <= ?1 AND key >= ?2 AND key < ?3",
+        params![now_ms, lo, hi],
     )
     .map_err(|err| err.to_string())?;
     let count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-            params![prefix],
+            "SELECT COUNT(*) FROM cache WHERE key >= ?1 AND key < ?2",
+            params![lo, hi],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
@@ -208,10 +217,10 @@ fn enforce_quota(conn: &Connection, prefix: &str, quota: u64, now_ms: i64) -> Re
     }
     conn.execute(
         "DELETE FROM cache WHERE key IN (
-            SELECT key FROM cache WHERE substr(key, 1, length(?1)) = ?1
-            ORDER BY expires_at ASC LIMIT ?2
+            SELECT key FROM cache WHERE key >= ?1 AND key < ?2
+            ORDER BY expires_at ASC LIMIT ?3
         )",
-        params![prefix, extra],
+        params![lo, hi, extra],
     )
     .map_err(|err| err.to_string())?;
     Ok(())

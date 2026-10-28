@@ -272,20 +272,51 @@ fn drop_stale_idx(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+/// Faixa lexicográfica `[prefixo, sucessor)` de um namespace — SARGÁVEL pela
+/// PRIMARY KEY (`key`), diferente do `substr(key, 1, length(?1)) = ?1` que
+/// forçava varredura integral da tabela a cada gravação (o `cache.db` chega a
+/// ~93k linhas).
+///
+/// O prefixo de namespace sempre termina em `:` (0x3A), então o sucessor é o
+/// MESMO prefixo com o último byte incrementado (`idx:` → `idx;`,
+/// `raw:v1:` → `raw:v1;`): todo `key` que começa com o prefixo cai em
+/// `key >= prefixo AND key < sucessor` e nada mais cai — mesma semântica do
+/// `substr`, agora com `SEARCH ... USING INDEX` na PK e collation BINARY.
+///
+/// Prefixo vazio ou terminado em 0xFF não tem sucessor: não use aqui.
+pub(crate) fn prefix_bounds(prefix: &str) -> (String, String) {
+    debug_assert!(
+        prefix.ends_with(':'),
+        "prefixo de namespace termina em ':' (recebido: {prefix})"
+    );
+    let mut successor = prefix.as_bytes().to_vec();
+    if let Some(last) = successor.last_mut() {
+        *last = last.saturating_add(1);
+    }
+    (
+        prefix.to_string(),
+        String::from_utf8(successor).expect("prefixo de namespace é ASCII"),
+    )
+}
+
 /// Fora do TTL some; acima da cota o que expira primeiro cede lugar. Escopo do
 /// namespace `idx` — nenhuma chave de outro namespace é tocada.
+///
+/// As três passadas (limpeza do vencido, contagem, despejo do excedente) usam a
+/// FAIXA de prefixo de [`prefix_bounds`], nunca `substr`: o custo acompanha as
+/// linhas do namespace, não o acervo inteiro.
 fn enforce_quota(conn: &Connection, namespace: &str, now_ms: i64) -> Result<(), String> {
-    let prefix = format!("{namespace}:");
+    let (lo, hi) = prefix_bounds(&format!("{namespace}:"));
     let quota = quota_for(namespace) as i64;
     conn.execute(
-        "DELETE FROM cache WHERE expires_at <= ?1 AND substr(key, 1, length(?2)) = ?2",
-        params![now_ms, prefix],
+        "DELETE FROM cache WHERE expires_at <= ?1 AND key >= ?2 AND key < ?3",
+        params![now_ms, lo, hi],
     )
     .map_err(|err| err.to_string())?;
     let count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-            params![prefix],
+            "SELECT COUNT(*) FROM cache WHERE key >= ?1 AND key < ?2",
+            params![lo, hi],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
@@ -295,10 +326,10 @@ fn enforce_quota(conn: &Connection, namespace: &str, now_ms: i64) -> Result<(), 
     }
     conn.execute(
         "DELETE FROM cache WHERE key IN (
-            SELECT key FROM cache WHERE substr(key, 1, length(?1)) = ?1
-            ORDER BY expires_at ASC LIMIT ?2
+            SELECT key FROM cache WHERE key >= ?1 AND key < ?2
+            ORDER BY expires_at ASC LIMIT ?3
         )",
-        params![prefix, extra],
+        params![lo, hi, extra],
     )
     .map_err(|err| err.to_string())?;
     Ok(())
