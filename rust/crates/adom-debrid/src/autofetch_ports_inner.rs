@@ -2,14 +2,17 @@
 //! `account`. `evict` fica em `autofetch_ports_evict.rs` (é o único serviço
 //! com prova de `hash -> id`) e `status` em `autofetch_ports_status.rs`.
 
+use std::collections::HashSet;
+
 use adom_core::PlayHint;
 use serde_json::Value;
 
 use super::{
-    non_negative, rejected, safe_id, wanted_hashes, AccountEvidence, AutofetchPorts, Backend,
-    CacheEvidence, EnqueueEvidence, PortCandidate, PortError,
+    non_negative, rejected, safe_id, wanted_hashes, AccountEvidence, AlldebridFacts,
+    AutofetchPorts, Backend, CacheEvidence, EnqueueEvidence, PortCandidate, PortError,
 };
 use crate::alldebrid::{CheckOpts, EnqueueOutcome};
+use crate::alldebrid_cleanup::{account_scope, DurablePeek};
 use crate::error::now_ms;
 use crate::torbox::ACTIVE_LIMIT;
 
@@ -123,12 +126,27 @@ impl AutofetchPorts {
             });
         }
         match &self.backend {
-            Backend::AllDebrid { service, .. } => {
+            Backend::AllDebrid { service, facts } => {
+                // INVARIANTE 6, lado do WORKER: nesta conta "checar cache" É um
+                // `/magnet/upload` real, então o `adrm` tem que filtrar AQUI — a
+                // lista vazia deixava o hash apagado de propósito voltar para a
+                // conta a cada `check`. Mesma chave (`adrm:v1:<conta>:<hash>`) e
+                // mesmo normalizador do `enqueue` (`alldebrid_enqueue`).
+                let Some(blocked) = blocked_for_check(facts, &self.api_key) else {
+                    // Fail-closed: sem prova do bloqueio nenhum hash é enviado.
+                    // `known:false` é a resposta honesta (não sei), nunca "frio".
+                    return Ok(CacheEvidence {
+                        known: false,
+                        cached: Vec::new(),
+                    });
+                };
                 // `CheckOpts::default()` é read-only (`CleanupMode::Off`): o porto
                 // consulta; apagar é do dono do inventário e dos holds.
-                let report = service
-                    .check_cached(&self.api_key, &wanted, &CheckOpts::default())
-                    .await?;
+                let opts = CheckOpts {
+                    blocked,
+                    ..CheckOpts::default()
+                };
+                let report = service.check_cached(&self.api_key, &wanted, &opts).await?;
                 Ok(CacheEvidence {
                     known: report.complete,
                     cached: report.cached,
@@ -254,4 +272,19 @@ impl AutofetchPorts {
             Backend::DebridLink(_) => Err(PortError::Unsupported("account")),
         }
     }
+}
+
+/// Lista `adrm` VIVA desta conta, para o `check` tirar do `/magnet/upload` o
+/// hash que a limpeza apagou de propósito.
+///
+/// `None` = guarda ilegível (`cache.db` ausente, sem a tabela, ou consulta que
+/// estourou o `busy_timeout`), e o `check` do worker para ali: fail-closed,
+/// porque na AllDebrid consultar é subir. Sem `db_path` o `enqueue` já recusa
+/// todo hash pelo mesmo motivo — as duas portas concordam.
+///
+/// Kill-switch/TTL (`DEBRID_REUPLOAD_BLOCK`/`ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`,
+/// as MESMAS envs do Node) devolve conjunto vazio: desligar libera o upload.
+fn blocked_for_check(facts: &AlldebridFacts, api_key: &str) -> Option<HashSet<String>> {
+    let path = facts.db_path.clone()?;
+    DurablePeek::new(path).blocked_hashes_checked(&account_scope(api_key), now_ms() as i64)
 }

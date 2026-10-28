@@ -25,6 +25,10 @@ const KEY: &str = "ad-port-key";
 
 struct Hit {
     path: String,
+    /// Query CRUA: na AllDebrid o `check` é um GET `/magnet/upload`, então o
+    /// que foi enviado ao serviço (os hashes) só existe aqui — o corpo vai
+    /// vazio. Sem ela, "o hash bloqueado não subiu" seria provado por contador.
+    query: String,
     body: String,
 }
 
@@ -59,6 +63,7 @@ async fn listen(routes: Vec<(&str, u16, String)>, fallback: (u16, String)) -> (S
 async fn respond(State(scene): State<Scene>, req: Request<Body>) -> Response {
     let method = req.method().as_str().to_string();
     let path = req.uri().path().to_string();
+    let query = req.uri().query().unwrap_or_default().to_string();
     let bytes = req
         .into_body()
         .collect()
@@ -67,6 +72,7 @@ async fn respond(State(scene): State<Scene>, req: Request<Body>) -> Response {
         .unwrap_or_default();
     scene.hits.lock().unwrap().push(Hit {
         path: path.clone(),
+        query,
         body: String::from_utf8_lossy(&bytes).to_string(),
     });
     let key = format!("{method} {path}");
@@ -294,6 +300,9 @@ async fn check_premiumize_prova_hit_e_nao_conta_miss_como_frio() {
 
 #[path = "autofetch_ports_tests_part2.rs"]
 mod part2;
+
+#[path = "autofetch_ports_adrm_tests.rs"]
+mod adrm;
 
 #[path = "autofetch_ports_evict_tests.rs"]
 mod evict;

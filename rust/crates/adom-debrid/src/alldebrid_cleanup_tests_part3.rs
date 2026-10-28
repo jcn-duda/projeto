@@ -169,6 +169,10 @@ fn chave_da_protecao_bate_com_o_node() {
 /// a fonte é read-only, então nada aqui pode gravar/apagar.
 #[test]
 fn blocked_hashes_so_devolve_adrm_vivo_da_propria_conta() {
+    // A flag do anti-reenchimento é env do PROCESSO: serializa com quem a troca
+    // (o teste do kill-switch nas portas do worker), senão `false` de outro
+    // teste zeraria este conjunto no meio do assert.
+    let _env = crate::test_env::lock();
     let account = account_scope("ad-adrm-conta");
     let outra = account_scope("ad-adrm-outra");
     let now = crate::error::now_ms() as i64;
@@ -257,6 +261,62 @@ fn blocked_hashes_respeita_kill_switch_e_ttl_do_node() {
         HashSet::from([hash_of('a')]),
         "ligado, o adrm vivo volta a filtrar"
     );
+}
+
+/// A variante do WORKER (`blocked_hashes_checked`) não confunde "nenhuma marca"
+/// com "não deu para ler": conjunto vazio é PROVA, `None` é ausência de prova —
+/// e é o `None` que faz o `check` da AllDebrid parar antes do `/magnet/upload`.
+/// Kill-switch desligado é DECISÃO (`Some(vazio)`), nunca falha de leitura.
+#[test]
+fn blocked_hashes_checked_nao_confunde_vazio_com_ilegivel() {
+    let account = account_scope("ad-adrm-strict");
+    let now = crate::error::now_ms() as i64;
+    let dir = tempfile::tempdir().unwrap();
+
+    let legivel = dir.path().join("legivel.db");
+    {
+        let conn = rusqlite::Connection::open(&legivel).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params![adrm_key(&account, &hash_of('a')), now + 60_000],
+        )
+        .unwrap();
+    }
+    let peek = DurablePeek::new(&legivel);
+    assert_eq!(
+        peek.blocked_hashes_checked(&account, now),
+        Some(HashSet::from([hash_of('a')])),
+        "adrm vivo desta conta é prova positiva"
+    );
+    assert_eq!(
+        peek.blocked_hashes_checked_when(&account, now, false),
+        Some(HashSet::new()),
+        "kill-switch/TTL 0 é decisão: vazio provado, sem I/O"
+    );
+
+    // Arquivo legível, mas sem a tabela `cache` (schema que não é o do Node).
+    let sem_tabela = dir.path().join("sem-tabela.db");
+    rusqlite::Connection::open(&sem_tabela)
+        .unwrap()
+        .execute_batch("CREATE TABLE outra (id INTEGER);")
+        .unwrap();
+    assert_eq!(
+        DurablePeek::new(&sem_tabela).blocked_hashes_checked(&account, now),
+        None,
+        "schema ilegível não vira 'nada bloqueado'"
+    );
+
+    // Arquivo ausente: `None`, e a leitura não cria o banco do Node.
+    let ausente = dir.path().join("ausente.db");
+    assert_eq!(
+        DurablePeek::new(&ausente).blocked_hashes_checked(&account, now),
+        None
+    );
+    assert!(!ausente.exists(), "guarda é somente leitura");
 }
 
 /// `cache.db` ausente continua fail-open, mas NÃO silencioso: sai UM aviso por

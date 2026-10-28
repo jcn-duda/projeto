@@ -258,10 +258,49 @@ impl DurablePeek {
         self.prefixed_hashes(&adrm_prefix(account), now)
     }
 
+    /// Filtro de upload SEM fail-open: `None` = a base durável não abriu ou não
+    /// respondeu, e aí não há como provar que o hash não foi apagado de
+    /// propósito.
+    ///
+    /// Existe porque na AllDebrid "checar cache" É um `/magnet/upload` real: na
+    /// rota HTTP, `blocked_hashes` (fail-open) pode devolver vazio sem prova — o
+    /// pior caso é reconsultar um hash. No worker nativo (`autofetch_ports`),
+    /// reconsultar é REFAZER O UPLOAD, então o chamador precisa distinguir
+    /// "nenhuma marca" de "não li" para poder falhar fechado.
+    ///
+    /// Kill-switch/TTL desligado continua `Some(vazio)`: desligar é DECISÃO
+    /// (regra do Node), não falha de leitura — e sem I/O, como em
+    /// `blocked_hashes`.
+    pub fn blocked_hashes_checked(&self, account: &str, now: i64) -> Option<HashSet<String>> {
+        self.blocked_hashes_checked_when(account, now, reupload_block_enabled())
+    }
+
+    /// Miolo fail-closed com a flag explícita — testes sem env global.
+    pub(super) fn blocked_hashes_checked_when(
+        &self,
+        account: &str,
+        now: i64,
+        enabled: bool,
+    ) -> Option<HashSet<String>> {
+        if !enabled {
+            return Some(HashSet::new());
+        }
+        self.prefixed_hashes_checked(&adrm_prefix(account), now)
+    }
+
     /// Hashes vivos com `prefix` (`<namespace>:v1:<conta>:`), numa consulta — o
     /// MESMO SQL do `owned_hashes`, de propósito: um só lugar para a régua de
-    /// TTL do `cache.db` do Node.
+    /// TTL do `cache.db` do Node. Fail-open: ilegível vira conjunto vazio.
     fn prefixed_hashes(&self, prefix: &str, now: i64) -> HashSet<String> {
+        self.prefixed_hashes_checked(prefix, now)
+            .unwrap_or_default()
+    }
+
+    /// Igual a `prefixed_hashes`, mas distingue "sem linha" de "não deu para
+    /// ler": `None` = `cache.db` ausente, sem a tabela `cache` ou consulta
+    /// falhou (o `busy_timeout` de 200 ms estourou em um checkpoint do Node).
+    /// Conjunto VAZIO é prova; `None` não é.
+    fn prefixed_hashes_checked(&self, prefix: &str, now: i64) -> Option<HashSet<String>> {
         self.with_conn(|conn| {
             let mut stmt = conn
                 .prepare(
@@ -279,6 +318,5 @@ impl DurablePeek {
                     .collect(),
             )
         })
-        .unwrap_or_default()
     }
 }
