@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 
 use adom_core::{
-    combined_view, obra_identity, obra_key, overflow_upgrade_allowed, pool_cap, seeds_rare,
-    window_ms, ObraIdentityInput, ObraLiveConfig, ObraRecordEntry, PendingReservation,
+    combined_view, obra_digest, obra_identity, obra_key, overflow_upgrade_allowed, pool_cap,
+    seeds_rare, window_ms, ObraIdentityInput, ObraLiveConfig, ObraRecordEntry, PendingReservation,
 };
 
 use super::ObraStoreV3;
@@ -25,6 +25,11 @@ pub struct ObraReservationInput {
 pub struct ObraLeaseV3 {
     pub id: String,
     pub key: String,
+    /// Digest (sha256) da identidade da obra — a MESMA que compõe [`Self::key`]
+    /// (`autofetch:v3:o:<digest>`) e que o marker do aceite grava em `obra`. A
+    /// evicção compara este valor (`marker_matches_work`), então ele sobe do
+    /// lease em vez de ser recalculado no ponto de escrita.
+    pub digest: String,
     pub pool: String,
     pub hash: String,
     pub rare: bool,
@@ -51,6 +56,7 @@ impl ObraReservations {
         let mut lease = ObraLeaseV3 {
             id: String::new(),
             key: String::new(),
+            digest: String::new(),
             pool: input.pool.clone(),
             hash: input.hash.to_lowercase(),
             rare,
@@ -72,7 +78,8 @@ impl ObraReservations {
         {
             return Ok(Some(lease));
         }
-        let key = obra_key(&obra_identity(&input.identity));
+        let identity = obra_identity(&input.identity);
+        let key = obra_key(&identity);
         self.prune(&key, now);
         let alive = self.pending.get(&key).map(Vec::as_slice).unwrap_or(&[]);
         let span = window_ms(cfg);
@@ -104,6 +111,9 @@ impl ObraReservations {
         }
         self.sequence = self.sequence.wrapping_add(1);
         lease.id = format!("{now}:{}", self.sequence);
+        // O digest sai da MESMA identidade que virou chave: duas réguas aqui
+        // fariam o marker apontar para uma obra que o teto nunca gravou.
+        lease.digest = obra_digest(&identity);
         lease.key = key.clone();
         self.pending
             .entry(key)

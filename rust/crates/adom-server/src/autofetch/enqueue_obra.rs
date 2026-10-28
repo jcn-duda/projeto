@@ -42,7 +42,7 @@ use adom_autofetch::v3::{
 };
 use adom_core::{ObraIdentityInput, ObraLiveConfig, ObraRecordEntry, RollbackAction};
 use adom_index::NativeKv;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 use super::gates::LivePolicy;
 use super::Holds;
@@ -144,6 +144,66 @@ impl Gate {
             Self::Closed | Self::Skipped => None,
         }
     }
+
+    /// Digest da obra reservada. Vazio quando não há lease (`Skipped`/
+    /// `Closed`) ou quando a identidade era DEGENERADA — nesse caso o `reserve`
+    /// devolve um lease sem chave (fail-open) e o marker não ganha `obra`.
+    pub(super) fn digest(&self) -> &str {
+        match self {
+            Self::Granted(lease) => &lease.digest,
+            Self::Closed | Self::Skipped => "",
+        }
+    }
+}
+
+/// Meta do marker do aceite — porte de `evictMarkerMeta`
+/// (`src/providers/autofetch-evict.ts:97-127`, chamado no aceite por
+/// `autofetch-runner.ts:109-113`).
+///
+/// Regras do TS, todas mantidas: SÓ o AllDebrid e SÓ com IMDb válido
+/// (`/^tt\d+$/`) ganham meta, porque é o único consumidor (a evicção dirigida da
+/// Fase 6); o `obra` é o DIGEST da identidade (nunca imdbId nem conta crus) e o
+/// título é a PRIMEIRA linha, que o `marker_value` corta em 120 chars.
+///
+/// O digest vem do lease ([`Gate::digest`]) — o MESMO que virou chave do
+/// registro por obra (`autofetch:v3:o:<digest>`) — em vez de ser recalculado
+/// aqui com outra régua: é esse valor que o `evict_job` compara
+/// (`marker_matches_work`).
+pub(super) fn marker_meta(
+    adapter: &str,
+    payload: &Map<String, Value>,
+    item: &Item,
+    attempt: &CascadeAttempt,
+    digest: &str,
+    now_ms: i64,
+) -> Option<Value> {
+    if adapter != "alldebrid" || digest.is_empty() {
+        return None;
+    }
+    if !valid_imdb(&text(payload, "imdbId").unwrap_or_default()) {
+        return None;
+    }
+    Some(json!({
+        "pool": attempt.pool.as_str(),
+        "obra": digest,
+        "acceptedAt": now_ms,
+        "title": first_line(&item.label()),
+        "br": item.br,
+        "dubbed": item.dubbed,
+    }))
+}
+
+/// `/^tt\d+$/` do TS (`src/providers/autofetch-evict.ts:111`): o prefixo `tt`
+/// seguido de AO MENOS um dígito e nada mais.
+fn valid_imdb(imdb: &str) -> bool {
+    imdb.strip_prefix("tt")
+        .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit()))
+}
+
+/// `String(title || name || '').split('\n')[0]` (`autofetch-runner.ts:111`): o
+/// rótulo do aceite é a PRIMEIRA linha do release.
+fn first_line(label: &str) -> String {
+    label.split('\n').next().unwrap_or("").to_string()
 }
 
 /// Reservas por obra do processo. Serializa acesso como o módulo do TS: a

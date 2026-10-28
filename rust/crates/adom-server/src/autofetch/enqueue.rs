@@ -28,15 +28,17 @@
 //! [`gates`], medição em [`facts`], teto por obra e encerramento em [`obra`],
 //! entrada em [`Job`] e saída em [`Report`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use adom_autofetch::v3::{cascade, marker_value, CascadeCandidate, QueueV3};
-use adom_core::{classify_enqueue, rollback_for, EnqueueGates};
+use adom_autofetch::v3::{cascade, marker_value, QueueV3};
+use adom_core::{can_auto_fetch_br, classify_enqueue, rollback_for, EnqueueGates};
 use adom_index::NativeKv;
 use serde_json::Value;
 
 use super::enqueue_items::{candidate_of, parse_items, season_hints};
 use super::Policy;
+#[path = "enqueue_account.rs"]
+mod account;
 #[path = "enqueue_holds.rs"]
 mod holds;
 pub(super) use holds::Holds;
@@ -53,6 +55,9 @@ pub(crate) use job::Job;
 
 #[path = "enqueue_obra.rs"]
 pub(super) mod obra;
+
+#[path = "enqueue_pick.rs"]
+mod pick;
 
 #[path = "enqueue_report.rs"]
 mod report;
@@ -90,6 +95,17 @@ pub(crate) async fn run(
     let hints = season_hints(&items, payload);
 
     let live = gates::LivePolicy::load(kv, adapter, now_ms)?;
+
+    // Gate MESTRE do TS (`autofetch-candidates.ts:104`): com `autoFetchBr`
+    // desligado `autoFetchCandidates` devolve `[]` ANTES de escolher pool —
+    // nada de hold, marker, fila ou chamada ao serviço. Fica antes do hold de
+    // propósito: lote desligado não prende hash nem escreve.
+    // `cacheCheck`/`autofetchSource` do adaptador são sempre verdadeiros aqui
+    // (só chega neste worker quem implementa `check`; a divergência está
+    // declarada em [`obra`]), então a régua do núcleo reduz a `autoFetchBr`.
+    if !can_auto_fetch_br(live.br_enabled, true, true) {
+        return Ok(Report::refused(&search_key, "disabled"));
+    }
 
     // 1. Hold ANTES da checagem. Só a chamada que adquiriu o hold pode usar ou
     // soltar esse hash; uma busca concorrente mantém a própria proteção.
@@ -140,12 +156,12 @@ pub(crate) async fn run(
     // 3. Fatos da cascata: orçamento, sonda da conta, cache por hash e `adrm`
     // (invariante 6). O teto por OBRA tem portão próprio no passo 4 — medir os
     // dois aqui daria duas réguas para a mesma pergunta.
+    //
+    // A sonda de conta é MEMOIZADA no KV por `autoFetchPauseRefreshMs`
+    // ([`account::probe`]): sem o memo o worker pergunta a conta a cada lote,
+    // enquanto o TS só a cada janela de `accountGateMemo`.
     let account_used = if live.pause_at > 0 {
-        debrid
-            .account()
-            .await
-            .ok()
-            .and_then(|evidence| evidence.used)
+        account::probe(kv, adapter, account, debrid, live.pause_refresh_ms, now_ms).await
     } else {
         None
     };
@@ -171,64 +187,29 @@ pub(crate) async fn run(
     let mut facts = measured.facts;
     let adrm_blocked = measured.adrm;
 
-    let mut by_hash: HashMap<&str, &super::enqueue_items::Item> = HashMap::new();
-    let mut candidates = Vec::with_capacity(items.len());
-    for item in &items {
-        if !eligible.contains(item.info_hash.as_str()) {
-            continue;
+    // Candidatos e teto imediato em [`pick`]: lá mora o `pickSeedsPool` do pool
+    // `seeds` (`minSeeders`/`ptFirst`/regime raro) e a marca `adrm`.
+    let picked = match pick::pick(pick::PickInput {
+        kv,
+        adapter,
+        account,
+        live: &live,
+        items: &items,
+        eligible: &eligible,
+        cached: &cached,
+        adrm: &adrm_blocked,
+        season: payload.get("season").and_then(Value::as_i64),
+        now_ms,
+    }) {
+        Ok(picked) => picked,
+        Err(err) => {
+            release_all(holds, account, &hashes);
+            return Err(err);
         }
-        // `adrm` vence o filtro de pool: o hash sai ROTULADO, não sumido.
-        let adrm = adrm_blocked.contains(&item.info_hash);
-        if !adrm
-            && ((item.pool() == adom_autofetch::v3::CascadePool::Any && !live.any_dubbed_enabled)
-                || (item.pool() == adom_autofetch::v3::CascadePool::Seeds
-                    && !live.top_seeds_enabled))
-        {
-            continue;
-        }
-        by_hash.insert(item.info_hash.as_str(), item);
-        candidates.push(CascadeCandidate {
-            info_hash: item.info_hash.clone(),
-            pool: item.pool(),
-            quality: item.quality.clone(),
-            // `slotLimit`/`rare` vêm do lote quando quem selecionou já decidiu
-            // (o regime RARO do pool seeds sobe o teto imediato para
-            // `rareMax`: `autofetch-seeds-pool.ts:101-121`); ausentes, o teto
-            // sai da config viva do worker.
-            slot_limit: item.slot_limit,
-            rare: item.rare,
-            cached: cached.contains(&item.info_hash),
-            dead: match queue.is_dead(adapter, account, &item.info_hash, now_ms) {
-                Ok(dead) => dead,
-                Err(err) => {
-                    release_all(holds, account, &hashes);
-                    return Err(err);
-                }
-            },
-            adrm,
-            // O piso de seeders já foi aplicado na lista; o waiver é a exceção.
-            viable: !item.waived,
-        });
-    }
-
-    // Teto imediato do pool seeds: raro (poucos candidatos fracos) sobe de
-    // `topSeedsMax` para `rareMax` — o `pickSeedsPool` do TS já entrega esse
-    // limite ao lote (`autofetch-seeds-pool.ts:103-121`); aqui ele é
-    // reconstruído a partir do mesmo flag.
-    let seeds_only = candidates
-        .iter()
-        .filter(|candidate| !candidate.dead && candidate.viable && !candidate.adrm)
-        .all(|candidate| candidate.pool == adom_autofetch::v3::CascadePool::Seeds);
-    facts.slots = if seeds_only {
-        let rare = candidates.iter().any(|candidate| candidate.rare);
-        if rare {
-            live.rare_max
-        } else {
-            live.top_seeds_max
-        }
-    } else {
-        live.max_attempts
     };
+    let by_hash = picked.by_hash;
+    let candidates = picked.candidates;
+    facts.slots = picked.slots;
 
     let decision = cascade(&facts, candidates);
     report.attempts = decision.attempts.len();
@@ -310,11 +291,29 @@ pub(crate) async fn run(
                 }
                 Ok(true) => match debrid.enqueue(&candidate).await {
                     Ok(evidence) if evidence.accepted => {
+                        // Marker com a meta de `evictMarkerMeta`
+                        // (`autofetch-runner.ts:109-113`): o `obra` é o DIGEST
+                        // do lease, o mesmo da chave do registro por obra — é
+                        // o que faz a evicção dirigida reconhecer este aceite
+                        // como da obra (`evict_job`, `marker_matches_work`).
+                        let meta = obra::marker_meta(
+                            adapter,
+                            payload,
+                            item,
+                            attempt,
+                            obra_gate.digest(),
+                            now_ms,
+                        );
                         if let Err(err) = queue.set_marker(
                             adapter,
                             account,
                             &attempt.info_hash,
-                            &marker_value(true, evidence.transfer_id.as_deref(), None, now_ms),
+                            &marker_value(
+                                true,
+                                evidence.transfer_id.as_deref(),
+                                meta.as_ref(),
+                                now_ms,
+                            ),
                             policy.marker_ttl_seconds,
                             now_ms,
                         ) {

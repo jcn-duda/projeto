@@ -16,12 +16,17 @@
 //! `src/providers/autofetch-seeds-pool.ts:174,190`). O worker do Node só
 //! TRANSPORTA o par até `tryObraCap` (`autofetch-runner.ts:82`); o teto que ele
 //! aplica vem de `rare` (`poolCap`, `autofetch-obra.ts:161`) e `slotLimit` é a
-//! vaga por busca. Aqui o worker faz o mesmo: lê os dois do item e não recalcula
-//! — recalculá-los seria uma SEGUNDA régua de um fato que já veio decidido.
+//! vaga por busca. Aqui o worker faz o mesmo: quando o lote JÁ traz `_rare`
+//! (`rare_decided`), ele é lido e não recalculado — recalculá-lo seria uma
+//! SEGUNDA régua de um fato que veio decidido. Quando o lote NÃO traz (o caso
+//! do lote nativo: `orchestrator/effects.rs` não emite esses dois campos), a
+//! decisão sai de [`seeds_pick`], a Mesma régua `pickSeedsPool` do núcleo
+//! (`adom_core::pick_seeds_pool`).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use adom_autofetch::v3::{CascadeAttempt, CascadePool, Number, QueueCandidate};
+use adom_core::{pick_seeds_pool, PoolStream, RareConfig, SeedsPickLive, SeedsPickOpts};
 use serde_json::{Map, Value};
 
 use super::season_fill::SeasonHint;
@@ -48,6 +53,9 @@ pub(super) struct Item {
     /// `autofetch-candidates.ts:40`). Decide entre `rareMax` e `topSeedsMax` no
     /// teto por obra (`autofetch-obra.ts:161`) e nos slots do lote.
     pub(super) rare: bool,
+    /// O lote DECIDIU o `rare` (`_rare` presente). Sem isso, `rare` é `false`
+    /// por omissão e quem decide é [`seeds_pick`].
+    pub(super) rare_decided: bool,
     /// `slotLimit` do pool que decidiu o candidato
     /// (`autofetch-candidates.ts:281`): quantas vagas a BUSCA pode gastar com
     /// ele. `None` = pool sem regime de vaga (o teto do lote manda).
@@ -96,6 +104,7 @@ impl Item {
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
             rare: raw.get("_rare").and_then(Value::as_bool).unwrap_or(false),
+            rare_decided: raw.get("_rare").and_then(Value::as_bool).is_some(),
             slot_limit: raw.get("_slotLimit").and_then(Value::as_i64),
         })
     }
@@ -223,5 +232,103 @@ pub(super) fn candidate_of(
         // `addedAt` nasce agora; o `write_queue` preserva o que já existia.
         added_at: Some(Number::from_i64(now_ms)),
         extra: std::collections::BTreeMap::new(),
+    }
+}
+
+/// Config viva do pool `seeds`, medida em [`super::gates::LivePolicy`] com os
+/// mesmos defaults/clamps do TS (`src/config/debrid-autofetch-seeds.ts:19,28,29,34`
+/// + `src/utils/autofetch-live.ts:113-122`).
+pub(super) struct SeedsKnobs {
+    pub(super) min_seeders: i64,
+    pub(super) top_seeds_max: i64,
+    pub(super) pt_first: bool,
+    pub(super) rare_max: i64,
+    pub(super) rare_threshold: i64,
+    pub(super) rare_max_seeders: i64,
+    pub(super) queue_depth: i64,
+}
+
+/// Resultado do pool `seeds`: quem entra, em que ordem, o regime raro e o teto
+/// imediato.
+pub(super) struct SeedsPool {
+    /// Hashes (minúsculos) selecionados NA ORDEM do pick — melhor swarm/PT
+    /// primeiro, como o TS enfileira. O resto do pool `seeds` NÃO é candidato
+    /// (o `pickSeedsPool` nem o devolve).
+    pub(super) ranked: Vec<String>,
+    /// Regime raro ativo: poucos candidatos viáveis E fracos
+    /// (`autofetch-seeds-pool.ts:112`).
+    pub(super) rare: bool,
+    /// Teto imediato efetivo (`rareMax` no raro, `topSeedsMax` no normal).
+    pub(super) immediate_limit: i64,
+}
+
+/// `pickSeedsPool` (`src/providers/autofetch-seeds-pool.ts:58-143`) sobre o lote.
+///
+/// Delega ao núcleo (`adom_core::pick_seeds_pool`) a MESMA régua que o bridge
+/// do Node usa: ordenação por pack → PT → swarm (`topSeededPool`), piso de
+/// `minSeeders` com o complemento relaxado, e o regime RARO por
+/// `rareThreshold`/`rareMaxSeeders`. Nada de filtro próprio aqui.
+///
+/// A ORDEM devolvida é a do pick (melhor swarm primeiro): o TS enfileira nessa
+/// ordem, e é ela que decide quem ocupa a vaga imediata quando há mais viáveis
+/// que `topSeedsMax`.
+pub(super) fn seeds_pick(items: &[&Item], knobs: &SeedsKnobs, season: Option<i64>) -> SeedsPool {
+    // Só o pool `seeds` entra no pick (`isSeedsStream`/`topSeededPool` no TS).
+    let streams: Vec<PoolStream> = items
+        .iter()
+        .filter(|item| item.pool() == CascadePool::Seeds)
+        .map(|item| stream_of(item))
+        .collect();
+    // Viabilidade = NÃO-waived. O waiver do piso existe para o item alcançar a
+    // CHECAGEM, não para o Chupim baixar o que ninguém semeia
+    // (`autofetch-candidates.ts:128-143`).
+    let viable: HashSet<String> = items
+        .iter()
+        .filter(|item| !item.waived)
+        .map(|item| item.info_hash.clone())
+        .collect();
+    let live = SeedsPickLive {
+        min_seeders: knobs.min_seeders,
+        top_seeds_max: knobs.top_seeds_max,
+        pt_first: knobs.pt_first,
+    };
+    let opts = SeedsPickOpts {
+        season,
+        queue_depth: knobs.queue_depth,
+        rare: RareConfig {
+            max: knobs.rare_max,
+            threshold: knobs.rare_threshold,
+            max_seeders: knobs.rare_max_seeders,
+        },
+    };
+    let picked = pick_seeds_pool(&streams, &live, &opts, &viable);
+    SeedsPool {
+        ranked: picked
+            .candidates
+            .iter()
+            .filter_map(|&index| streams[index].info_hash.as_deref())
+            .map(str::to_lowercase)
+            .collect(),
+        rare: picked.rare_used,
+        immediate_limit: picked.immediate_limit,
+    }
+}
+
+/// Tradução `Item` → `PoolStream`: os mesmos fatos que o bridge do Node passa
+/// ao núcleo, sem inventar campo.
+fn stream_of(item: &Item) -> PoolStream {
+    PoolStream {
+        info_hash: Some(item.info_hash.clone()),
+        title: item.title.clone(),
+        name: item.name.clone(),
+        quality: item.quality.clone(),
+        seeders: item.seeders,
+        is_br: item.br,
+        is_dubbed: item.dubbed,
+        is_dub_claim: item.dub_claim,
+        is_bank_dub: item.bank_dub,
+        is_lied: item.lied,
+        from_fallback: item.from_fallback,
+        fallback_fetchable: item.fallback_fetchable,
     }
 }

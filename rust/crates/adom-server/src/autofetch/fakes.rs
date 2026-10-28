@@ -39,6 +39,12 @@ pub(crate) struct FakeDebrid {
     pub(crate) states: BTreeMap<String, TorrentEvidence>,
     pub(crate) removed: Mutex<Vec<String>>,
     pub(crate) accepted: Mutex<Vec<String>>,
+    /// Quantas vezes `account()` foi chamado (prova do memo do P5).
+    pub(crate) account_calls: Mutex<usize>,
+    /// Uso devolvido por `account()`.
+    pub(crate) account_used: Option<u64>,
+    /// `account()` responde erro (o memo NUNCA pode cachear isso).
+    pub(crate) fail_account: bool,
 }
 
 impl FakeDebrid {
@@ -72,6 +78,11 @@ impl FakeDebrid {
 
     pub(crate) fn accepted(&self) -> Vec<String> {
         self.accepted.lock().unwrap().clone()
+    }
+
+    /// Chamadas a `account()` até agora.
+    pub(crate) fn account_calls(&self) -> usize {
+        *self.account_calls.lock().unwrap()
     }
 }
 
@@ -132,8 +143,12 @@ impl AutofetchDebrid for FakeDebrid {
 
     fn account(&self) -> DebridFuture<'_, AccountEvidence, String> {
         Box::pin(async move {
+            *self.account_calls.lock().unwrap() += 1;
+            if self.fail_account {
+                return Err("conta indisponível".to_string());
+            }
             Ok(AccountEvidence {
-                used: None,
+                used: self.account_used,
                 max: None,
             })
         })

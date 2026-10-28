@@ -17,6 +17,16 @@ const BUDGET_PREFIX: &str = "autofetch-worker:v1:budget:";
 const HOUR_MS: i64 = 60 * 60 * 1000;
 /// Nome do pool global dublado no Node (`src/config/debrid.ts:210`).
 const ANY_ENV: &str = "DEBRID_AUTO_FETCH_ANY";
+/// Gate mestre do Chupim no Node (`src/config/debrid.ts:195`).
+const BR_ENV: &str = "DEBRID_AUTO_FETCH_BR";
+/// Pool `seeds`: prioridade PT, piso de swarm e regime RARO
+/// (`src/config/debrid-autofetch-seeds.ts:19,28,29,34`).
+const PT_FIRST_ENV: &str = "DEBRID_AUTO_FETCH_SEEDS_PT_FIRST";
+const MIN_SEEDERS_ENV: &str = "DEBRID_AUTO_FETCH_MIN_SEEDERS";
+const RARE_THRESHOLD_ENV: &str = "DEBRID_AUTO_FETCH_RARE_THRESHOLD";
+const RARE_MAX_SEEDERS_ENV: &str = "DEBRID_AUTO_FETCH_RARE_MAX_SEEDERS";
+/// Janela do memo da sonda de conta (`src/config/debrid.ts:285`).
+const PAUSE_REFRESH_ENV: &str = "DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS";
 /// Alias histórico deste laço: só decide quando `ANY_ENV` está ausente.
 const ANY_DUBBED_ENV: &str = "DEBRID_AUTO_FETCH_ANY_DUBBED";
 
@@ -46,6 +56,39 @@ pub(in crate::autofetch) struct LivePolicy {
     /// vaga da TEMPORADA, não a do episódio
     /// (`src/providers/autofetch-runner.ts:67`).
     pub(in crate::autofetch) season_fill: bool,
+    /// `autoFetchBr` (`DEBRID_AUTO_FETCH_BR`, default LIGADO) — gate MESTRE de
+    /// `autoFetchCandidates` (`src/providers/autofetch-candidates.ts:104`):
+    /// desligado, o Node devolve `[]` antes de escolher qualquer pool. Default
+    /// de `String(env || 'true') === 'true'` (`src/config/debrid.ts:195`) e
+    /// overlay por `Boolean(value)` (`src/utils/autofetch-live.ts:102`).
+    pub(in crate::autofetch) br_enabled: bool,
+    /// `autoFetchSeedsPtFirst` (`DEBRID_AUTO_FETCH_SEEDS_PT_FIRST`, default
+    /// LIGADO) — no pool `seeds` o candidato com sinal de português baixa antes
+    /// do mais semeado (`src/config/debrid-autofetch-seeds.ts:34`, aplicado por
+    /// `topSeededPool` em `src/utils/autofetch-pools.ts`).
+    pub(in crate::autofetch) seeds_pt_first: bool,
+    /// `autoFetchMinSeeders` (`DEBRID_AUTO_FETCH_MIN_SEEDERS`, default `3`) —
+    /// piso de swarm do pool `seeds`. Par default/clamp do TS:
+    /// `Math.max(0, Math.trunc(num(env, 3)))`
+    /// (`src/config/debrid-autofetch-seeds.ts:19`) +
+    /// `Math.max(0, Math.trunc(n))` do overlay (`src/utils/autofetch-live.ts:121`).
+    pub(in crate::autofetch) min_seeders: i64,
+    /// `autoFetchRareThreshold` (`DEBRID_AUTO_FETCH_RARE_THRESHOLD`, default
+    /// `6`) — poucos candidatos viáveis (≤ limiar) caracterizam título RARO.
+    /// `Math.min(20, Math.max(0, Math.trunc(num(env, 6))))`
+    /// (`src/config/debrid-autofetch-seeds.ts:28`) + `utils/autofetch-live.ts:115`.
+    pub(in crate::autofetch) rare_threshold: i64,
+    /// `autoFetchRareMaxSeeders` (`DEBRID_AUTO_FETCH_RARE_MAX_SEEDERS`, default
+    /// `10`) — raro também exige o MELHOR candidato abaixo deste teto de
+    /// seeders (poucos E fracos). `Math.max(1, Math.trunc(num(env, 10)))`
+    /// (`src/config/debrid-autofetch-seeds.ts:29`) + `utils/autofetch-live.ts:117`.
+    pub(in crate::autofetch) rare_max_seeders: i64,
+    /// `autoFetchPauseRefreshMs` (`DEBRID_AUTO_FETCH_PAUSE_REFRESH_MS`, default
+    /// `900_000` = 15 min) — TTL do memo da sonda de conta
+    /// (`debrid.account()`). `Math.max(0, num(env, 900_000))`
+    /// (`src/config/debrid.ts:285`) + `Math.max(0, n)` do overlay
+    /// (`src/utils/autofetch-live.ts:129`). `0` desliga o memo.
+    pub(in crate::autofetch) pause_refresh_ms: i64,
 }
 
 impl LivePolicy {
@@ -62,13 +105,30 @@ impl LivePolicy {
                 .or_else(|| std::env::var(env).ok()?.trim().parse::<i64>().ok())
                 .unwrap_or(fallback)
         };
+        // Inteiro com o `Math.trunc` do TS: um float no painel (`6.5`) vale 6,
+        // não "cai no default" como o `as_i64` seco faria.
+        let number_trunc = |key: &str, env: &str, fallback: i64| {
+            live.as_ref()
+                .and_then(|value| value.get(key))
+                .and_then(|value| {
+                    value
+                        .as_i64()
+                        .or_else(|| value.as_f64().map(|real| real.trunc() as i64))
+                })
+                .or_else(|| std::env::var(env).ok()?.trim().parse::<i64>().ok())
+                .unwrap_or(fallback)
+        };
         // Boletim do painel (`cfg:v1:autofetch`) vence o `.env` nos DOIS lados;
         // no `.env` a régua é a do Node (`env_js_true`), não `== "true"` seco:
-        // `KEY=` (vazia) cai no default ligado, como o `|| 'true'` do TS.
+        // `KEY=` (vazia) cai no default ligado, como o `|| 'true'` do TS. No
+        // painel a régua é `Boolean(value)` (`utils/autofetch-live.ts:102`): o
+        // campo EXISTE e vale o truthiness do JS — `0`, `""` e `null`
+        // DESLIGAM, enquanto `{}`/`[]` ligam (ao contrário de um bool estrito,
+        // que cairia no default e ignoraria o painel).
         let boolean = |key: &str, env: &str, fallback: bool| {
             live.as_ref()
                 .and_then(|value| value.get(key))
-                .and_then(Value::as_bool)
+                .map(js_truthy)
                 .unwrap_or_else(|| {
                     std::env::var(env)
                         .ok()
@@ -113,6 +173,19 @@ impl LivePolicy {
         };
         let pause_at =
             number("autoFetchPauseAt", "DEBRID_AUTO_FETCH_PAUSE_AT", 2_000).max(0) as u64;
+        // Pool `seeds` e gate mestre: mesma régua de `autofetch-seeds-pool` e de
+        // `autofetch-live`. `rare_threshold` sai do intervalo `0..20` porque 0
+        // DESLIGA o regime raro no TS (`if (rare.threshold > 0 && …)`,
+        // `src/providers/autofetch-seeds-pool.ts:103`).
+        let min_seeders = number_trunc("autoFetchMinSeeders", MIN_SEEDERS_ENV, 3).max(0);
+        let rare_threshold =
+            number_trunc("autoFetchRareThreshold", RARE_THRESHOLD_ENV, 6).clamp(0, 20);
+        let rare_max_seeders =
+            number_trunc("autoFetchRareMaxSeeders", RARE_MAX_SEEDERS_ENV, 10).max(1);
+        // TTL do memo da conta: `0` = sempre perguntar ao serviço (o TS com
+        // `Date.now() - memo.at < 0` nunca considera o memo fresco).
+        let pause_refresh_ms =
+            number_trunc("autoFetchPauseRefreshMs", PAUSE_REFRESH_ENV, 900_000).max(0);
         Ok(Self {
             max_attempts,
             top_seeds_max,
@@ -125,7 +198,28 @@ impl LivePolicy {
             rare_max,
             obra_ttl_seconds,
             season_fill: boolean("autoFetchSeasonFill", "DEBRID_AUTO_FETCH_SEASON_FILL", true),
+            br_enabled: boolean("autoFetchBr", BR_ENV, true),
+            seeds_pt_first: boolean("autoFetchSeedsPtFirst", PT_FIRST_ENV, true),
+            min_seeders,
+            rare_threshold,
+            rare_max_seeders,
+            pause_refresh_ms,
         })
+    }
+}
+
+/// `Boolean(value)` do JS, a régua do boletim do painel: falso SÓ para `false`,
+/// `null`, `0`, `-0`, `NaN` e `""`. Array e objeto vazios são VERDADEIROS no
+/// JS (o oposto do que uma conversão estrita sugere).
+fn js_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(flag) => *flag,
+        Value::Number(number) => number
+            .as_f64()
+            .is_some_and(|real| !real.is_nan() && real != 0.0),
+        Value::String(text) => !text.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
     }
 }
 
@@ -267,3 +361,7 @@ pub(in crate::autofetch) fn reserve_budget(
 #[cfg(test)]
 #[path = "enqueue_gates_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "enqueue_gates_config_tests.rs"]
+mod config_tests;
