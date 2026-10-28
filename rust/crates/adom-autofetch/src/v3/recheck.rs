@@ -1,4 +1,8 @@
 //! Transições puras de recheck. Rede, timers e persistência pertencem ao worker.
+//!
+//! Duas escalas: por HASH ([`recheck_step`], com prova de posse na expiração) e
+//! por LOTE ([`lot_outcome`], com o settle e o LRU). `unknown` nunca é prova de
+//! morte — só ausência de resposta, que mantém os contadores como estão.
 
 use adom_core::{expired_removal_allowed, ExpiredFacts};
 
@@ -104,6 +108,87 @@ pub fn recheck_step(input: &RecheckInput) -> RecheckAction {
     RecheckAction::Pending
 }
 
+/// Fatos do LOTE ao fim de uma varredura, já sem os hashes resolvidos.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LotFacts {
+    /// Hashes ainda no lote.
+    pub remaining: usize,
+    pub is_settle: bool,
+    pub attempts: i64,
+    /// `autoFetchRecheckMax` efetivo.
+    pub recheck_max: i64,
+    /// `now - createdAt`, medido por quem tem relógio.
+    pub age_ms: i64,
+    /// Horizonte de settle já multiplicado (`autoFetchTtl * 1000`).
+    pub settle_horizon_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LotOutcome {
+    /// Lote assentou: `dropQueue` da busca. Só acontece com o lote vazio.
+    Finished,
+    /// Settle vencido: expira hash a hash, com prova de posse.
+    Expired,
+    /// Entrou em settle AGORA: roda o LRU e NÃO drena a fila.
+    EnterSettle,
+    /// Segue armado para a próxima passagem.
+    Continue,
+}
+
+/// Ordem do `runRecheck` do Node, preservada: fim de lote, expiração do settle,
+/// entrada em settle, continuação.
+///
+/// Entrar em settle NUNCA drena fila alguma: só evidência COMPROVADA repõe
+/// (morto/parado nativo ou parada derivada). "Estar em settle" como motivo de
+/// dreno era o dreno cego removido na Fase 0 e não volta por aqui.
+pub fn lot_outcome(facts: LotFacts) -> LotOutcome {
+    if facts.remaining == 0 {
+        return LotOutcome::Finished;
+    }
+    if facts.is_settle && facts.age_ms >= facts.settle_horizon_ms {
+        return LotOutcome::Expired;
+    }
+    if !facts.is_settle && facts.attempts >= facts.recheck_max {
+        return LotOutcome::EnterSettle;
+    }
+    LotOutcome::Continue
+}
+
+/// Lote em estabilização visto pelo LRU (`manageSettleLru`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettleLotRef {
+    pub search_key: String,
+    pub created_at: i64,
+    pub info_hashes: Vec<String>,
+    /// Só lotes JÁ em settle entram no LRU; os demais passam intactos.
+    pub is_settle: bool,
+    /// Adapter DONO do lote, gravado no enqueue/recheck. A evicção usa ESTE id —
+    /// nunca o adapter "corrente", que no contexto de outra request pode ser
+    /// outro serviço e deixaria a memória de progresso do lote para trás. Vazio
+    /// = limpeza impossível (não inventa chave).
+    pub adapter_id: String,
+}
+
+/// Quais lotes em settle saem quando o número passa de `max_lots`.
+///
+/// Evicta os mais ANTIGOS primeiro (ordem de `createdAt`, estável como o `sort`
+/// do Node). Cada lote devolvido deve ter o timer limpo, os holds liberados e a
+/// memória de progresso limpa com o PRÓPRIO `adapter_id`, antes do delete —
+/// sem isso o lote settleado ocuparia vaga e hold até o TTL.
+pub fn settle_lru_evictions(lots: &[SettleLotRef], max_lots: usize) -> Vec<SettleLotRef> {
+    let mut settle: Vec<&SettleLotRef> = lots.iter().filter(|lot| lot.is_settle).collect();
+    if settle.len() <= max_lots {
+        return Vec::new();
+    }
+    settle.sort_by_key(|lot| lot.created_at);
+    let excess = settle.len() - max_lots;
+    settle.into_iter().take(excess).cloned().collect()
+}
+
 #[cfg(test)]
 #[path = "recheck_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "recheck_lot_tests.rs"]
+mod lot_tests;

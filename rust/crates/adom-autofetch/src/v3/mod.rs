@@ -25,6 +25,7 @@
 //!   não tem LRU, toda leitura é "quiet".
 
 mod candidate;
+mod cascade;
 mod debrid;
 mod dispatch;
 mod drain;
@@ -41,6 +42,11 @@ mod suppressed;
 use sha2::{Digest, Sha256};
 
 pub use candidate::{Number, QueueCandidate};
+pub use cascade::{
+    cascade, CascadeAttempt, CascadeCandidate, CascadeDecision, CascadeDefer, CascadeDeferred,
+    CascadeDrop, CascadeDropped, CascadeFacts, CascadePool, ObraCapFacts, SeedsBlock, SeedsPurge,
+    SeedsTrace,
+};
 pub use debrid::{
     AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence,
     TorrentEvidence, TorrentProgress,
@@ -53,11 +59,22 @@ pub use drain::{
 pub use evict::{eligible_evictions, EvictCandidate, EvictInput};
 pub use obra::ObraStoreV3;
 pub use obra_reservation::{ObraLeaseV3, ObraReservationInput, ObraReservations};
-pub use probe::{probe_blocks_seeds, probe_state, ProbeState};
+pub use probe::{
+    probe_blocks_seeds, probe_state, probe_step, ProbeDecision, ProbeInput, ProbeRecord, ProbeSkip,
+    ProbeState, PROBE_PENDING_LEASE_MS, PROBE_RETRY_MS,
+};
 pub use queue::{marker_value, QueueV3, WriteReport};
-pub use recheck::{recheck_step, recheck_streaks, RecheckAction, RecheckInput, RecheckStreaks};
-pub use season::season_fill_eligible;
-pub use seeds::seeds_stop;
+pub use recheck::{
+    lot_outcome, recheck_step, recheck_streaks, settle_lru_evictions, LotFacts, LotOutcome,
+    RecheckAction, RecheckInput, RecheckStreaks, SettleLotRef,
+};
+pub use season::{
+    season_fill_decision, season_fill_eligible, SeasonFill, SeasonFillSkip, SeasonGap, SeasonIndex,
+};
+pub use seeds::{
+    purge_seeds, seeds_stop, seeds_stop_gate, SeedsGateOutcome, SeedsGatePlan, SeedsPurgePlan,
+    SeedsQueueEntry, SEEDS_POOL,
+};
 pub use suppressed::{suppressed_key, Suppressed, SuppressedRetry, SuppressedV3};
 
 /// Namespace inteiro da metade viva (a `v1` do [`crate::state`] é o alvo).
