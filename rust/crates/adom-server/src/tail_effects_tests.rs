@@ -1,11 +1,12 @@
-//! Testes da interceptação do `dub_audit` no tail (T3-L7a): o gateway executa
-//! o que ele mesmo decidiu e não duplica o trabalho no Node.
+//! Testes da interceptação no tail: `dub_audit` (T3-L7a) e os donos nativos que
+//! chegaram depois (o lote do Chupim e a costura genérica ficam no irmão
+//! `tail_effects_tests_part2.rs`, pela catraca de linhas).
 
 use std::sync::{Arc, Mutex};
 
 use adom_search::orchestrator::{EffectsBatch, RouteFuture, TailEffects};
 use adom_search::{EffectEntry, EffectsResponse};
-use serde_json::json;
+use serde_json::{json, Map, Value};
 
 use super::*;
 use crate::autofetch::Vault;
@@ -44,6 +45,74 @@ impl TailEffects for RecordingTail {
     }
 }
 
+/// Canal do worker: grava os jobs publicados e responde pelo próprio estado.
+struct FakeQueue {
+    enabled: bool,
+    accept: bool,
+    jobs: Mutex<Vec<(String, Map<String, Value>)>>,
+}
+
+impl FakeQueue {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            accept: true,
+            jobs: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Canal cheio: `submit` recusa.
+    fn refusing() -> Self {
+        Self {
+            enabled: true,
+            accept: false,
+            jobs: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn jobs(&self) -> Vec<(String, Map<String, Value>)> {
+        self.jobs.lock().unwrap().clone()
+    }
+}
+
+impl NativeWorkQueue for FakeQueue {
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn submit(&self, scope: &str, payload: &Map<String, Value>) -> bool {
+        if !self.accept {
+            return false;
+        }
+        self.jobs
+            .lock()
+            .unwrap()
+            .push((scope.to_string(), payload.clone()));
+        true
+    }
+}
+
+/// Dono registrado por outro módulo (`rd_warmer`).
+#[derive(Default)]
+struct RecordingSink {
+    offers: Mutex<Vec<(String, Value)>>,
+}
+
+impl RecordingSink {
+    fn offers(&self) -> Vec<(String, Value)> {
+        self.offers.lock().unwrap().clone()
+    }
+}
+
+impl NativeEffectSink for RecordingSink {
+    fn offer(&self, kind: &str, payload: &Value) {
+        self.offers
+            .lock()
+            .unwrap()
+            .push((kind.to_string(), payload.clone()));
+    }
+}
+
 fn entry(kind: &str, payload: serde_json::Value) -> EffectEntry {
     EffectEntry {
         kind: kind.to_string(),
@@ -65,6 +134,30 @@ fn dub_audit_payload(hashes: &[String]) -> serde_json::Value {
     })
 }
 
+/// Lote do Chupim com um item — a forma do `effects::autofetch_batch`.
+fn autofetch_payload(hash: &str) -> Value {
+    json!({
+        "items": [{ "infoHash": hash, "title": "Titulo", "name": "Titulo 1080p",
+                    "_br": true, "_dubbed": true, "_quality": "1080p" }],
+        "cached": [],
+        "known": true,
+        "season": null,
+        "episode": null,
+        "imdbId": "tt123",
+        "searchKey": "tt123:movie"
+    })
+}
+
+fn br_probe_payload() -> Value {
+    json!({ "imdbId": "tt123", "type": "movie", "season": null,
+            "episode": null, "mode": "evidence" })
+}
+
+fn season_key_payload() -> Value {
+    json!({ "adapter_id": "alldebrid", "account": "digest-da-conta",
+            "imdb": "tt123", "season": 2, "cache_key": "streams:v21:chave" })
+}
+
 fn build(
     tail: Arc<RecordingTail>,
     tail_max: usize,
@@ -72,6 +165,17 @@ fn build(
     let (resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), tail_max, false);
     let native = Arc::new(NativeTailEffects::new(tail, audit.clone()));
     (resolver, audit, native)
+}
+
+/// Tail com cofre e canal injetados (o worker fora da env do processo).
+fn worker_tail(
+    tail: Arc<RecordingTail>,
+    queue: Arc<FakeQueue>,
+    tail_max: usize,
+) -> Arc<NativeTailEffects> {
+    let (_resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), tail_max, false);
+    let vault = Arc::new(Vault::new(60_000, 4, ""));
+    Arc::new(NativeTailEffects::with_vault(tail, audit, Some(vault)).with_queue(queue))
 }
 
 #[tokio::test]
@@ -192,3 +296,7 @@ async fn sem_cofre_o_lote_segue_intacto() {
     assert!(response.ok);
     assert_eq!(target.batches().len(), 1);
 }
+
+/// Lote do Chupim e a costura genérica de donos.
+#[path = "tail_effects_tests_part2.rs"]
+mod lote;
