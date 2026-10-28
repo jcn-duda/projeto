@@ -23,6 +23,11 @@ use super::vault::Vault;
 use super::{worker_enabled, Policy, LOT_PREFIX, QUEUE_PREFIX};
 use crate::harvest::HarvestHandle;
 
+// O overlay da config ao vivo (`cfg:v1:autofetch`) mora em arquivo próprio pela
+// catraca de 400: é a régua que o `Policy::from_env()` congelava no boot.
+#[path = "live.rs"]
+pub(super) mod live;
+
 const CONFIG_KEY: &str = "autofetch-worker:v1:config";
 const CONFIG_TTL_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
@@ -118,8 +123,11 @@ impl AutofetchHandle {
         vault: Option<Arc<Vault>>,
         debrid: Option<DebridFactory>,
     ) -> Self {
-        let config = load_config(&kv);
+        let (config, overlay) = load_effective(&kv);
         let hydrated = hydrate(&kv);
+        // Painel vence o `.env` TAMBÉM no nativo: o `Policy` que o laço recebe
+        // já sai com os overrides de `cfg:v1:autofetch`.
+        let policy = overlay.as_ref().map_or(*policy, |live| live.apply(policy));
         let wanted = worker_enabled() && debrid.is_some();
         let (tx, rx) = if wanted {
             let (tx, rx) = mpsc::channel(serve::CHANNEL_CAPACITY);
@@ -133,7 +141,7 @@ impl AutofetchHandle {
         if let (Some(rx), Some(control), Some(debrid)) = (rx, control.clone(), debrid) {
             if let Err(err) = serve::spawn(
                 Arc::clone(&kv),
-                *policy,
+                policy,
                 vault.clone(),
                 debrid,
                 rx,
@@ -169,7 +177,7 @@ impl AutofetchHandle {
         vault: Option<Arc<Vault>>,
         control: Arc<Control>,
     ) -> Self {
-        let config = load_config(&kv);
+        let (config, _) = load_effective(&kv);
         let hydrated = hydrate(&kv);
         Self {
             inner: Arc::new(Inner {
@@ -337,6 +345,22 @@ fn load_config(kv: &NativeKv) -> WorkerConfig {
             WorkerConfig::default()
         }
     }
+}
+
+/// O par persistido (`paused`/`intervalMs`) + o overlay do painel, lidos UMA vez
+/// no boot. Devolve o overlay junto porque o `Policy` do laço nasce dele.
+///
+/// A pausa do painel (`cfg:v1:autofetch`) só SOMA: o botão grava as duas
+/// chaves, mas uma pausa esquecida no KV do Node não pode sumir no restart. Na
+/// direção contrária quem manda é a admin (`update`), senão o
+/// `POST /autofetch/pause {paused:false}` nunca retomaria o worker.
+pub(super) fn load_effective(kv: &NativeKv) -> (WorkerConfig, Option<live::LiveOverlay>) {
+    let mut config = load_config(kv);
+    let overlay = live::LiveOverlay::load(kv, adom_sources::now_ms());
+    if overlay.as_ref().is_some_and(|live| live.paused) {
+        config.paused = true;
+    }
+    (config, overlay)
 }
 
 pub(crate) fn parse_config(
