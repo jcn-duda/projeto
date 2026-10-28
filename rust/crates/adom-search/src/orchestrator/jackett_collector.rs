@@ -21,11 +21,10 @@ use crate::orchestrator::jackett_live::live_state_from_outcomes;
 use crate::raw_item::RawItem;
 
 #[path = "jackett_collector_env.rs"]
-mod env;
-use env::{
-    default_index_only_indexers, default_live_exempt_indexers, parse_title_precision_tail_cut,
-    split_csv,
-};
+// `pub(crate)` só pela PONTE DE PARIDADE: o teste do `adom-server`
+// (`harvest/drain_shape.rs`) compara as duas cópias da mesma régua.
+pub(crate) mod env;
+use env::{index_only_from, live_exempt_from, parse_title_precision_tail_cut};
 
 /// `TITLE_PRECISION_TAIL_CUT` do processo (default true, como o Node). O
 /// coletor é montado por env e não recebe o `OrchestratorConfig`; o Prowlarr
@@ -180,16 +179,16 @@ pub struct JackettCollector {
 impl JackettCollector {
     pub fn new(client: JackettClient) -> Self {
         let cfg = client.config();
-        let index_only = std::env::var("JACKETT_INDEX_ONLY_INDEXERS")
-            .ok()
-            .map(|raw| split_csv(&raw))
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(default_index_only_indexers);
+        // `env || default` do Node: vazio/ausente → default; `'   '` → lista
+        // vazia (a régua vive em `env::index_only_from`).
+        let index_only =
+            index_only_from(std::env::var("JACKETT_INDEX_ONLY_INDEXERS").ok().as_deref());
         // `??` do Node: env PRESENTE (mesmo vazia) manda; ausente = default.
-        let live_exempt = std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS")
-            .ok()
-            .map(|raw| split_csv(&raw))
-            .unwrap_or_else(default_live_exempt_indexers);
+        let live_exempt = live_exempt_from(
+            std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS")
+                .ok()
+                .as_deref(),
+        );
         Self {
             selected_indexers: cfg.indexers.clone(),
             pt_br_indexers: cfg.pt_br_indexers.clone(),

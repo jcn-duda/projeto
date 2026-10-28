@@ -126,9 +126,10 @@ export const jackett = () => ({
   //     atrasa todo mundo. Não promova pelo número acima.
   //
   // O buraco que a lista abre é conhecido e tem dono: obra nunca colhida mostra
-  // o dublado só na SEGUNDA abertura. Quem fecha isso é a sonda dirigida
-  // (br-probe.ts, interseção indexOnlyIndexers ∩ ptBrIndexers) somada ao
-  // instantâneo do banco de magnets — não uma consulta viva a estes indexers.
+  // o dublado só na SEGUNDA abertura. Quem fecha isso é a sonda dirigida do
+  // worker nativo (`adom-server/src/autofetch/probe_step.rs`, interseção
+  // indexOnlyIndexers ∩ ptBrIndexers) somada ao instantâneo do banco de
+  // magnets — não uma consulta viva a estes indexers.
   //
   // O 1337x entrou medido: busca fria de 12,2–19s (com re-resolução do
   // desafio Cloudflare) e redirect `/dl/` de 1,8–6,5s contra orçamento de
@@ -137,6 +138,10 @@ export const jackett = () => ({
   // resolução do magnet permanece (JACKETT_RESOLVE_DOWNLOAD_INDEXERS) e o
   // colhedor o consulta individualmente com orçamento dedicado
   // (JACKETT_INDEX_ONLY_HARVEST_TIMEOUT_MS).
+  // Sem leitor no Node desde o corte do `/stream`: quem consome a lista é o
+  // Rust, que lê a MESMA env (`jackett_collector.rs`, `stream_config.rs` e
+  // `harvest/drain_shape.rs`). O campo aqui é o espelho do operador — não
+  // apague achando que está morto, e não mude um lado sem o outro.
   indexOnlyIndexers: indexerList(
     process.env.JACKETT_INDEX_ONLY_INDEXERS || 'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws',
   ),
@@ -154,7 +159,9 @@ export const jackett = () => ({
   //   - hdrtorrent-cardigann: 0,007–0,03s, mas catálogo frio devolve vazio e só
   //     geraria wastedQueries e card verde mentindo cobertura. Fica fora.
   //
-  // ?? e não ||: string vazia permite kill-switch total via env.
+  // ?? e não ||: string vazia permite kill-switch total via env. Lido pelo
+  // Rust pela mesma env (`jackett_collector.rs` para a presença ao vivo e
+  // `harvest/drain_shape.rs` para o subset da sonda) — espelho, como acima.
   liveExemptIndexers: indexerList(
     process.env.JACKETT_LIVE_EXEMPT_INDEXERS ?? 'apachetorrent-cardigann',
   ),

@@ -184,11 +184,16 @@ fn operator_jackett_indexers() -> Vec<String> {
 /// CSV de indexers (`indexerList` do Node): trim, descarta vazios e aplica o
 /// rename dos ids aposentados. `raw` vazio ou ausente cai no `default` (vazio
 /// = lista vazia), nunca no catálogo vivo.
+///
+/// Régua do oráculo (`src/config/helpers.ts:13`): o gate é a string CRUA —
+/// só ausente e `""` são falsy (`env || default`). `"   "` é TRUTHY e o
+/// `list()` apara para `[]`, então aqui também vira lista VAZIA, nunca o
+/// default (senão a sonda do colhedor e a busca viva leem knobs diferentes).
 fn indexer_list(raw: Option<&str>, default: &str) -> Vec<String> {
-    let source = raw
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(default);
+    let source = match raw {
+        None | Some("") => default,
+        Some(value) => value,
+    };
     let ids: Vec<String> = source
         .split(',')
         .map(str::trim)
@@ -371,13 +376,17 @@ mod tests {
             indexer_list(Some(" bludv-cardigann, ,nerdfilmes "), ""),
             vec!["bludv-cardigann".to_string(), "nerdfilmes".to_string()]
         );
-        // Ausente/vazio usa o default (que pode ser vazio — ji automático NÃO é
-        // replicado no nativo).
+        let ab = vec!["a".to_string(), "b".to_string()];
+        // Valor presente: split simples (sem default envolvido).
+        assert_eq!(indexer_list(Some("a,b"), "x"), ab);
+        // Ausente e `""` são falsy: caem no default (que pode ser vazio — ji
+        // automático NÃO é replicado no nativo).
         assert_eq!(indexer_list(None, ""), Vec::<String>::new());
-        assert_eq!(indexer_list(Some("   "), ""), Vec::<String>::new());
-        assert_eq!(
-            indexer_list(None, "a,b"),
-            vec!["a".to_string(), "b".to_string()]
-        );
+        assert_eq!(indexer_list(None, "a,b"), ab);
+        assert_eq!(indexer_list(Some(""), "a,b"), ab);
+        // `"   "` é TRUTHY no Node: `list()` apara e devolve `[]` — lista
+        // VAZIA, nunca o default (mesma régua da sonda do colhedor).
+        assert!(indexer_list(Some("   "), "a,b").is_empty());
+        assert!(indexer_list(Some(" , , "), "a,b").is_empty());
     }
 }

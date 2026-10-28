@@ -18,22 +18,45 @@ pub(crate) const DEFAULT_INDEX_ONLY: &str = "redetorrent-cardigann,apachetorrent
 /// `JACKETT_INDEX_ONLY_INDEXERS` do processo — a fonte que a sonda do worker
 /// consulta (o `OrchestratorConfig` não existe quando o worker nasce).
 pub(crate) fn index_only_indexers() -> Vec<String> {
-    split_ids("JACKETT_INDEX_ONLY_INDEXERS", DEFAULT_INDEX_ONLY)
+    index_only_from(std::env::var("JACKETT_INDEX_ONLY_INDEXERS").ok().as_deref())
+}
+
+/// Régua da env do index-only: `env || default`, como o
+/// `indexerList(process.env.JACKETT_INDEX_ONLY_INDEXERS || '…')` do Node.
+///
+/// O gate é a string CRUA (`None`/`""` = falsy → default). String VAZIA **não**
+/// é kill-switch desta lista; já `"   "` é TRUTHY no Node e o `list()` do TS
+/// apara para `[]` — lista vazia, nunca o default. Mesma régua de
+/// `stream_config::indexer_list` e de `jackett_collector::env::index_only_from`:
+/// antes desta leva, esta porta lia `""` como lista vazia e as outras liam
+/// `"   "` como default — com a sonda sem alvo e a busca VIVA excluindo os
+/// index-only do default (`no-intersection` silencioso), o mesmo knob com duas
+/// regras.
+/// Quem aceita vazio como lista vazia é `JACKETT_LIVE_EXEMPT_INDEXERS`
+/// (`??` no TS, ver [`live_exempt_indexers`]).
+fn index_only_from(raw: Option<&str>) -> Vec<String> {
+    match raw {
+        None | Some("") => split_ids_value(DEFAULT_INDEX_ONLY),
+        Some(value) => split_ids_value(value),
+    }
 }
 
 /// `JACKETT_LIVE_EXEMPT_INDEXERS` do processo (env presente manda, mesmo
 /// vazia; ausente = default do Node).
 pub(crate) fn live_exempt_indexers() -> Vec<String> {
-    match std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS") {
-        Ok(raw) => split_ids_value(&raw),
-        Err(_) => vec![DEFAULT_LIVE_EXEMPT.to_string()],
-    }
+    live_exempt_from(
+        std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS")
+            .ok()
+            .as_deref(),
+    )
 }
 
-fn split_ids(key: &str, default: &str) -> Vec<String> {
-    match std::env::var(key) {
-        Ok(raw) => split_ids_value(&raw),
-        Err(_) => split_ids_value(default),
+/// `??` do Node: env PRESENTE manda, mesmo `''` ou `'   '` — split devolve
+/// lista vazia, que é o kill-switch total. Só a AUSÊNCIA cai no default.
+fn live_exempt_from(raw: Option<&str>) -> Vec<String> {
+    match raw {
+        Some(value) => split_ids_value(value),
+        None => vec![DEFAULT_LIVE_EXEMPT.to_string()],
     }
 }
 
@@ -97,7 +120,10 @@ mod tests {
     use adom_search::orchestrator::harvest_support::raw_items_from_jackett;
     use adom_sources::JackettRawItem;
 
-    use super::{jackett_targets_complete, relevance_items};
+    use super::{
+        index_only_from, jackett_targets_complete, live_exempt_from, relevance_items,
+        DEFAULT_INDEX_ONLY, DEFAULT_LIVE_EXEMPT,
+    };
 
     #[test]
     fn relevance_de_raw_jackett_preserva_campos() {
@@ -120,6 +146,68 @@ mod tests {
         assert!(rel[0].magnet_uri.is_none());
         assert!(rel[0].guid.is_none());
         assert!(rel[0].is_br);
+    }
+
+    #[test]
+    fn index_only_env_vazia_cai_no_default_do_node() {
+        let default: Vec<String> = DEFAULT_INDEX_ONLY.split(',').map(str::to_string).collect();
+        // `env || default` do TS: vazio é FALSY e volta ao default.
+        assert_eq!(index_only_from(None), default);
+        assert_eq!(index_only_from(Some("")), default);
+        // `'   '` é TRUTHY no Node: `indexerList('   ')` devolve lista vazia.
+        assert!(index_only_from(Some("   ")).is_empty());
+        assert!(index_only_from(Some(" , , ")).is_empty());
+        // Presença de valor: split + rename do id aposentado (mesmo do TS).
+        assert_eq!(
+            index_only_from(Some("apachetorrent,eztv")),
+            vec!["apachetorrent-cardigann".to_string(), "eztv".to_string()]
+        );
+    }
+
+    #[test]
+    fn live_exempt_vazio_e_kill_switch() {
+        // `??` do Node: só a AUSÊNCIA cai no default.
+        assert_eq!(
+            live_exempt_from(None),
+            vec![DEFAULT_LIVE_EXEMPT.to_string()]
+        );
+        // Env presente vazia OU só espaços = kill-switch (lista vazia).
+        assert!(live_exempt_from(Some("")).is_empty());
+        assert!(live_exempt_from(Some("   ")).is_empty());
+        assert_eq!(
+            live_exempt_from(Some("apachetorrent, eztv")),
+            vec!["apachetorrent-cardigann".to_string(), "eztv".to_string()]
+        );
+    }
+
+    /// Paridade da régua das envs do Jackett com a cópia do `adom-search`
+    /// (`orchestrator/jackett_collector_env.rs`) — a MESMA regra em dois crates,
+    /// cada lado testando só a sua. Env real não entra: os vetores saem das
+    /// funções puras dos dois lados, na ordem `[ausente, "", "   "]`.
+    #[test]
+    fn regua_das_envs_igual_ao_adom_search() {
+        let (index_only_search, live_exempt_search) = adom_search::orchestrator::env_parity_probe();
+        // `env || default` do TS: ausente e `""` caem no default; `"   "` é
+        // TRUTHY e vira lista VAZIA — nunca o default.
+        assert_eq!(
+            [
+                index_only_from(None),
+                index_only_from(Some("")),
+                index_only_from(Some("   ")),
+            ],
+            index_only_search,
+            "JACKETT_INDEX_ONLY_INDEXERS divergiu entre adom-server e adom-search"
+        );
+        // `??` do TS: só a AUSÊNCIA cai no default; `""`/`"   "` são kill-switch.
+        assert_eq!(
+            [
+                live_exempt_from(None),
+                live_exempt_from(Some("")),
+                live_exempt_from(Some("   ")),
+            ],
+            live_exempt_search,
+            "JACKETT_LIVE_EXEMPT_INDEXERS divergiu entre adom-server e adom-search"
+        );
     }
 
     #[test]

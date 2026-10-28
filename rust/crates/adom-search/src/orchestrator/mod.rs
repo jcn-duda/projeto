@@ -129,6 +129,11 @@ pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
     plan_jackett_searches, try_jackett_collector_from_env, JackettCollector, PlannedJackettSearch,
 };
+// PONTE DE PARIDADE (`doc(hidden)`): o teste de `harvest/drain_shape.rs` do
+// `adom-server` compara a régua das envs daqui com a cópia de lá — a mesma
+// regra em dois crates e nenhum lado comparava com o outro.
+#[doc(hidden)]
+pub use jackett_collector::env::env_parity_probe;
 pub use known_broken::KnownBroken;
 pub use live_state::{
     live_state_snapshot, merge_states, shared_live_state, LiveAllState, LiveBatchState,

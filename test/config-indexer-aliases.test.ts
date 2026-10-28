@@ -103,6 +103,7 @@ describe('config: ids de indexer aposentados', () => {
       'bareTitleIndexers',
       'slowIndexers',
       'indexOnlyIndexers',
+      'liveExemptIndexers',
     ];
     for (const key of keys) {
       const re = new RegExp(`^\\s*${key}: indexerList\\(`, 'm');
@@ -146,5 +147,63 @@ describe('config: ids de indexer aposentados', () => {
     // Divergir entre os dois lados faria o TS mandar um id ao Jackett e o Rust
     // outro — o indexer sumiria da busca sem erro visível.
     assert.deepEqual(mapaRust(), { ...RETIRED_INDEXERS });
+  });
+});
+
+// ── knobs do Jackett sem leitor no Node (consumidos só pelo Rust) ────────────
+//
+// `indexOnlyIndexers` e `liveExemptIndexers` não têm leitor de runtime no TS
+// desde o corte do `/stream`: quem decide é o Rust, que lê a MESMA env
+// (`JACKETT_INDEX_ONLY_INDEXERS` / `JACKETT_LIVE_EXEMPT_INDEXERS`). Estes dois
+// testes amarram o que uma limpeza futura quebraria em silêncio: o default que
+// o operador vê e o operador do `||`/`??` que cada lista aceita.
+describe('config: listas de indexer lidas só pelo Rust', () => {
+  /** Default literal da env de uma lista do `jackett.ts`: `env <op> 'valor'`. */
+  function envDefault(key: string): { envName: string; op: string; value: string } {
+    const re = new RegExp(
+      `^\\s*${key}: indexerList\\(\\s*process\\.env\\.([A-Z_]+)\\s*(\\|\\||\\?\\?)\\s*'([^']*)'`,
+      'm',
+    );
+    const m = jackettSrc.match(re);
+    assert.ok(m, `${key} precisa ler uma env com default literal`);
+    return { envName: m[1], op: m[2], value: m[3] };
+  }
+
+  const rustSource = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+
+  test('o default do index-only é o MESMO nos três leitores do Rust', () => {
+    const list = envDefault('indexOnlyIndexers');
+    // `||` e não `??`: vazio volta ao default (não é kill-switch desta lista).
+    assert.equal(list.op, '||', 'index-only: vazio não pode zerar a lista');
+    assert.equal(
+      list.value,
+      'redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws',
+    );
+    for (const rel of [
+      'rust/crates/adom-search/src/orchestrator/jackett_collector_env.rs',
+      'rust/crates/adom-server/src/stream_config.rs',
+      'rust/crates/adom-server/src/harvest/drain_shape.rs',
+    ]) {
+      assert.ok(
+        rustSource(rel).includes(list.value),
+        `${rel} precisa do MESMO default de ${list.envName}`,
+      );
+    }
+  });
+
+  test('o default do live-exempt é o MESMO nos dois leitores do Rust', () => {
+    const list = envDefault('liveExemptIndexers');
+    // `??` e não `||`: vazio é kill-switch TOTAL (documentado no campo).
+    assert.equal(list.op, '??', 'live-exempt: vazio precisa zerar a lista');
+    assert.equal(list.value, 'apachetorrent-cardigann');
+    for (const rel of [
+      'rust/crates/adom-search/src/orchestrator/jackett_collector_env.rs',
+      'rust/crates/adom-server/src/harvest/drain_shape.rs',
+    ]) {
+      assert.ok(
+        rustSource(rel).includes(list.value),
+        `${rel} precisa do MESMO default de ${list.envName}`,
+      );
+    }
   });
 });

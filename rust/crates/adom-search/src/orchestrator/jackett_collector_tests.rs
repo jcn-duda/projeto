@@ -309,6 +309,36 @@ fn item_relevante_limpa_a_suspeita_de_vazio() {
 }
 
 #[test]
+fn live_exempt_vazio_mantem_kill_switch() {
+    // `??` do Node: env PRESENTE manda, mesmo vazia/só espaços (kill-switch).
+    assert!(super::env::live_exempt_from(Some("")).is_empty());
+    assert!(super::env::live_exempt_from(Some("   ")).is_empty());
+    // Ausente cai no default do Node e o valor presente passa pelo rename.
+    assert_eq!(
+        super::env::live_exempt_from(None),
+        super::env::default_live_exempt_indexers()
+    );
+    assert_eq!(
+        super::env::live_exempt_from(Some("apachetorrent, eztv")),
+        vec!["apachetorrent-cardigann".to_string(), "eztv".to_string()]
+    );
+}
+
+#[test]
+fn index_only_whitespace_e_lista_vazia_nao_default() {
+    // `env || default`: ausente e `''` caem no default...
+    let default = super::env::default_index_only_indexers();
+    assert_eq!(super::env::index_only_from(None), default);
+    assert_eq!(super::env::index_only_from(Some("")), default);
+    // ...mas `'   '` é TRUTHY no Node: `list()` apara e devolve `[]`.
+    assert!(super::env::index_only_from(Some("   ")).is_empty());
+    assert_eq!(
+        super::env::index_only_from(Some("a,b")),
+        vec!["a".to_string(), "b".to_string()]
+    );
+}
+
+#[test]
 fn indexer_em_branco_e_ignorado_e_chave_normalizada() {
     let outcomes = [
         outcome("   ", IndexerStatus::Failed),
