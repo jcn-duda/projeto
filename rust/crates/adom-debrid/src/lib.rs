@@ -32,6 +32,10 @@ pub mod account;
 pub mod account_gate;
 pub mod api;
 pub mod debridlink;
+/// Orçamento deslizante de enqueues por hora, por `adapter:account` (porte do
+/// `checkAndRecordBudget`/`blockBudget` do TS); puro em memória, `now_ms` do
+/// chamador.
+pub mod enqueue_budget;
 pub mod error;
 /// Feed do hold volátil do autofetch para o seam in-process
 /// (`DEBRID_AL_HOLDS`, default OFF) — rota `/internal/debrid/holds` do Node.
@@ -47,11 +51,14 @@ pub mod play;
 pub mod play_audit;
 pub mod premiumize;
 pub mod realdebrid;
+/// Primitivos RD de autofetch; requer NativeKv compartilhado antes de ligar rede.
+pub mod realdebrid_autofetch;
 pub mod resolve_effects;
 pub mod store;
 pub mod torbox;
 pub mod verdict;
 
+pub use enqueue_budget::EnqueueBudget;
 pub use error::DebridError;
 pub use http::{Call, HttpClient};
 pub use metrics::Metrics;
