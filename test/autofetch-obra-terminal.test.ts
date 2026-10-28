@@ -13,13 +13,14 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as held from '../src/debrid/protected.js';
 import * as cache from '../src/utils/cache.js';
-import { kvForget } from '../src/utils/native-kv.js';
+import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { enqueueAutofetch, drainNext } from '../src/providers/autofetch-runner.js';
 import { toQueueCandidate } from '../src/providers/autofetch-fallback.js';
 import {
   reserveObra, commitObra, forgetObraHash, obraRecord, obraKey, resetObraForTest,
 } from '../src/providers/autofetch-obra.js';
+import { obraSummaries } from '../src/providers/autofetch-obra-summary.js';
 import { makeDrainHarness, flush } from './helpers/autofetch-fixtures.js';
 import type { DebridAdapter } from '../types/domain.js';
 
@@ -82,7 +83,30 @@ after(() => {
   autofetch.resetBudget();
   autofetchLive.reset();
   resetObraForTest();
-  for (const key of trash) cache.forget(key);
+  for (const key of trash) { kvForget(key); cache.forget(key); }
+});
+
+// `o:` é RUST_OWNED (dono ÚNICO = KV nativo): a semente no L1 não é lida, nem
+// sobra no painel. O `cache.set` virou fallback e a linha do Node nunca chega
+// ao store; quem prova a leitura é a ponte (`kvSet`), o MESMO caminho do commit
+// real (`autofetch-obra-state.ts`).
+test('obraRecord lê o registro pela ponte e ignora a semente no L1', () => {
+  const id = identity('legado-l1', { imdbId: 'tt7100999', season: 1, episode: 2 });
+  const key = obraKey(id), hash = hx('f3');
+  const digest = key.slice(key.lastIndexOf(':') + 1, key.lastIndexOf(':') + 13);
+  kvForget(key);
+  cache.set(key, { entries: [{ hash, pool: 'br', acceptedAt: Date.now(), br: true, dubbed: true }] }, 3600);
+  try {
+    assert.equal(cache.get(key), null, 'L1 não é fonte de `o:` (nem visualiza a escrita)');
+    assert.deepEqual(obraRecord(id), [], 'semente no L1 não vira registro');
+    assert.ok(!obraSummaries().some((item) => item.digest === digest), 'o painel não inventa obra');
+    kvSet(key, { entries: [{ hash, pool: 'br', acceptedAt: Date.now(), br: true, dubbed: true }] }, 3600);
+    assert.equal(obraRecord(id)[0]?.hash, hash, 'a ponte é a fonte da leitura');
+    assert.ok(obraSummaries().some((item) => item.digest === digest), 'o painel enumera pela ponte');
+  } finally {
+    kvForget(key);
+    cache.forget(key);
+  }
 });
 
 test('forgetObraHash remove só o hash terminal e preserva outros hashes/pools', () => {
@@ -111,7 +135,9 @@ test('forgetObraHash remove só o hash terminal e preserva outros hashes/pools',
     assert.equal(forgetObraHash({ ...id, hash: brB }), true);
     assert.equal(forgetObraHash({ ...id, hash: seed }), true);
     assert.equal(obraRecord(id).length, 0);
-    assert.ok(!cache.peek(obraKey(id)), 'registro que esvazia tem a chave esquecida');
+    // `o:` é do KV nativo: o registro que esvazia é esquecido pela PONTE (o
+    // `cache.peek` do L1 devolveria null de qualquer jeito e não provaria nada).
+    assert.equal(kvPeek(obraKey(id)), null, 'registro que esvazia tem a chave esquecida');
   } finally {
     forgetHashes(apiKey, [brA, brB, seed]);
   }

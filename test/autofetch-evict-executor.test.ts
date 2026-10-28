@@ -11,8 +11,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import * as cache from '../src/utils/cache.js';
-import { kvPeek } from '../src/utils/native-kv.js';
+import { kvPeek, kvSet } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import { markerKey } from '../src/providers/autofetch-marker.js';
 import { obraRecord, obraKey } from '../src/providers/autofetch-obra.js';
@@ -193,7 +192,9 @@ test('F6: obras distintas não coalescem entre si', async () => {
     statusGate: g,
   });
   putRecord([readyEntry(), entry(HA, 'seeds')]);
-  cache.set(obraKey(identityB), { entries: [entry(RB, 'br', { dubbed: true }), entry(HB, 'seeds')] }, 3600);
+  // Registro da OUTRA obra pela ponte: `o:` é RUST_OWNED desde a onda do teto por
+  // obra — semear no L1 seria no-op e a obra B ficaria sem registro.
+  kvSet(obraKey(identityB), { entries: [entry(RB, 'br', { dubbed: true }), entry(HB, 'seeds')] }, 3600);
   setMarker(HA, 'seeds');
   setMarker(HB, 'seeds', OUTRA_IMDB);
   own(HA);

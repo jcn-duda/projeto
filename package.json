@@ -123,6 +123,7 @@
     "test/audio-cleanup-classifiers.test.js",
     "test/audio-cleanup-dub-guards.test.js",
     "test/autofetch-adprot.test.js",
+    "test/autofetch-cut-edges.test.js",
     "test/autofetch-dead-reindex.test.js",
     "test/autofetch-enqueue-cases.test.js",
     "test/autofetch-enqueue.test.js",

@@ -13,7 +13,7 @@ import autofetchLive from '../src/utils/autofetch-live.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as held from '../src/debrid/protected.js';
 import * as cache from '../src/utils/cache.js';
-import { kvForget } from '../src/utils/native-kv.js';
+import { kvForget, kvSet } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { enqueueAutofetch, drainNext } from '../src/providers/autofetch-runner.js';
@@ -34,8 +34,8 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const hx = (seed: string) => seed.repeat(40).slice(0, 40);
 const trash: string[] = [];
 
-test('obraRecord consulta L1 legado no miss do NativeKv', () => { const id = identity('legado-l1', { imdbId: 'tt7100999', season: 1, episode: 2 }), key = obraKey(id), hash = hx('f3'); kvForget(key); cache.set(key, { entries: [{ hash, pool: 'br', acceptedAt: Date.now(), br: true, dubbed: true }] }, 3600); try { assert.equal(obraRecord(id)[0]?.hash, hash); const digest = key.slice(key.lastIndexOf(':') + 1, key.lastIndexOf(':') + 13); assert.ok(obraSummaries().some((item) => item.digest === digest)); } finally { cache.forget(key); kvForget(key); } });
-
+// `o:` é RUST_OWNED (dono ÚNICO = KV nativo): a fonte de leitura do registro e
+// do painel é a ponte, não o L1 — o teste vive em `autofetch-obra-terminal`.
 function identity(apiKey: string, o: { imdbId?: string | null; season?: number | null; episode?: number | null; searchKey?: string | null } = {}) {
   return {
     adapterId: PM, account: accountScope(apiKey),
@@ -104,7 +104,8 @@ after(() => {
   autofetch.resetBudget();
   autofetchLive.reset();
   resetObraForTest();
-  for (const key of trash) cache.forget(key);
+  // `cache.forget` de `o:` é no-op (RUST_OWNED): a limpeza do registro é da ponte.
+  for (const key of trash) { kvForget(key); cache.forget(key); }
 });
 
 test('ordem dos portões: obra-cap entre slot e account-gate; rollback devolve a reserva', () => {

@@ -74,14 +74,14 @@ test('obras no status: digest curto, pools contados e prova BR-ready sem vazar i
   const identity = { adapterId: 'premiumize', account: 'conta-secreta-f7', imdbId: 'tt7654321', season: 1, episode: 2 };
   const key = obraKey(identity);
   const now = Date.now();
-  cache.set(key, { entries: [
+  // `o:` e `er:` são RUST_OWNED: o seed vai pela ponte (o `cache.set` vira no-op).
+  kvSet(key, { entries: [
     { hash: 'a'.repeat(40), pool: 'br', acceptedAt: now, br: true, dubbed: true },
     { hash: 'b'.repeat(40), pool: 'seeds', acceptedAt: now - 1000 },
     { hash: 'c'.repeat(40), pool: 'exotico', acceptedAt: now - 500 },
   ] }, 900);
   const obraPrefix = `${prefix('autofetch')}o:`;
   const digest = key.slice(obraPrefix.length);
-  // `er:` é RUST_OWNED: o seed vai pela ponte (o `cache.set` vira no-op).
   kvSet(`${prefix('autofetch')}er:${digest}`, { at: now }, 900);
 
   try {
@@ -100,6 +100,7 @@ test('obras no status: digest curto, pools contados e prova BR-ready sem vazar i
     assert.equal(bloco.includes('conta-secreta-f7'), false, 'nenhuma conta no bloco');
     assert.doesNotMatch(bloco, /[a-f0-9]{40}/i, 'nenhum hash cru no bloco');
   } finally {
+    kvForget(key);
     cache.forget(key);
     kvForget(`${prefix('autofetch')}er:${digest}`);
   }

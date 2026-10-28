@@ -6,7 +6,7 @@
 // posse/anti-reenchimento para o verde não depender do .env do operador.
 import config from '../../src/config.js';
 import * as cache from '../../src/utils/cache.js';
-import { kvClearPrefix } from '../../src/utils/native-kv.js';
+import { kvClearPrefix, kvSet } from '../../src/utils/native-kv.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as metrics from '../../src/utils/metrics.js';
 import { accountScope } from '../../src/utils/request-key.js';
@@ -58,7 +58,9 @@ export const limpa = () => {
 export const entry = (hash: string, pool: string, extra: Record<string, unknown> = {}): ObraEntry =>
   ({ hash, pool, acceptedAt: Date.now(), ...extra });
 
-export const putRecord = (entries: ObraEntry[]) => cache.set(obraKey(identity), { entries }, 3600);
+// Seed do registro F2 pela PONTE: `o:` é RUST_OWNED (o `cache.set` do Node virou
+// fallback sem núcleo), então semear no L1 seria no-op silencioso.
+export const putRecord = (entries: ObraEntry[]) => kvSet(obraKey(identity), { entries }, 3600);
 
 export const readyEntry = () => entry(READY, 'br', { br: true, dubbed: true, title: 'BR Dublado' });
 

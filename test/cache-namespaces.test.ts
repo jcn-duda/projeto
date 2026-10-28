@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as metrics from '../src/utils/metrics.js';
-import { NAMESPACE_VERSIONS, LEGACY_PREFIXES } from '../src/utils/cache-keys.js';
+import { NAMESPACE_VERSIONS, LEGACY_PREFIXES, AUTOFETCH_NATIVE_PREFIXES, prefix } from '../src/utils/cache-keys.js';
 import { quotaFor, QUOTAS } from '../src/utils/cache-quotas.js';
 
 const DLMAG_QUOTA = 4000;
@@ -322,6 +322,31 @@ test('cache.set de chave streams não entra no L1 (dono é o streams.db) e a lei
     // A LEITURA não é bloqueada por `isRustOwned` (só escrita/forget/persist):
     // devolve null em vez de lançar, que é o sinal para a rota consultar a ponte.
     assert.equal(cache.snapshot().namespaces.streams, undefined, 'nenhum balde criado');
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+  }
+});
+
+test('cache.set de chave de obra (o:) não entra no L1: o registro é do KV nativo', async () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    const cache = await freshCache();
+    const obraPrefix = `${prefix('autofetch')}o:`;
+    const key = `${obraPrefix}${'a'.repeat(64)}`;
+    // O registro F2 nasce na ponte (`autofetch-obra-state.ts`). `o:` entrou em
+    // `AUTOFETCH_NATIVE_PREFIXES` porque o Node gravava a MESMA linha no L1 e o
+    // `forget` dele podia apagar a linha fresca do nativo: quem lê (a evicção)
+    // podia ver registro mais velho que o commit nativo. Dono único = nativo.
+    assert.ok(AUTOFETCH_NATIVE_PREFIXES.includes(obraPrefix), 'o: é prefixo nativo');
+    cache.set(key, { entries: [{ hash: 'h', pool: 'br', acceptedAt: 1 }] }, TTL_S);
+    assert.equal(cache.get(key), null, 'o segundo escritor não chega ao L1');
+    assert.equal(cache.peek(key), null, 'nem a leitura quieta vê a escrita');
+    assert.equal(cache.snapshot().namespaces.autofetch, undefined, 'nenhum balde criado');
+    // `forget` do Node também é no-op: a poda é da ponte.
+    cache.set(key, { entries: [] }, TTL_S);
+    assert.equal(cache.has(key), false, 'nada ficou no store para o forget alcançar');
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
