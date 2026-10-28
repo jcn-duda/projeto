@@ -10,25 +10,43 @@ use adom_search::orchestrator::{MetaQuery, RawItem};
 
 /// Default do Node para `JACKETT_LIVE_EXEMPT_INDEXERS` (o `adom-search` guarda
 /// o dele em `pub(super)`; aqui a lista é só para o subset da sonda).
-pub(super) const DEFAULT_LIVE_EXEMPT: &str = "apachetorrent-cardigann";
+pub(crate) const DEFAULT_LIVE_EXEMPT: &str = "apachetorrent-cardigann";
+
+/// Default do Node para `JACKETT_INDEX_ONLY_INDEXERS` (`src/config/jackett.ts`).
+pub(crate) const DEFAULT_INDEX_ONLY: &str = "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x,kickasstorrents-ws";
+
+/// `JACKETT_INDEX_ONLY_INDEXERS` do processo — a fonte que a sonda do worker
+/// consulta (o `OrchestratorConfig` não existe quando o worker nasce).
+pub(crate) fn index_only_indexers() -> Vec<String> {
+    split_ids("JACKETT_INDEX_ONLY_INDEXERS", DEFAULT_INDEX_ONLY)
+}
 
 /// `JACKETT_LIVE_EXEMPT_INDEXERS` do processo (env presente manda, mesmo
 /// vazia; ausente = default do Node).
-pub(super) fn live_exempt_indexers() -> Vec<String> {
-    std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS")
-        .ok()
-        .map(|raw| {
-            let ids: Vec<String> = raw
-                .split(',')
-                .map(str::trim)
-                .filter(|id| !id.is_empty())
-                .map(str::to_string)
-                .collect();
-            // Rename dos ids aposentados (mesmo mapa do TS): a env é a MESMA
-            // que o Node lê, então os dois lados precisam casar o mesmo id.
-            adom_core::rename_indexer_ids(&ids)
-        })
-        .unwrap_or_else(|| vec![DEFAULT_LIVE_EXEMPT.to_string()])
+pub(crate) fn live_exempt_indexers() -> Vec<String> {
+    match std::env::var("JACKETT_LIVE_EXEMPT_INDEXERS") {
+        Ok(raw) => split_ids_value(&raw),
+        Err(_) => vec![DEFAULT_LIVE_EXEMPT.to_string()],
+    }
+}
+
+fn split_ids(key: &str, default: &str) -> Vec<String> {
+    match std::env::var(key) {
+        Ok(raw) => split_ids_value(&raw),
+        Err(_) => split_ids_value(default),
+    }
+}
+
+fn split_ids_value(raw: &str) -> Vec<String> {
+    let ids: Vec<String> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect();
+    // Rename dos ids aposentados (mesmo mapa do TS): a env é a MESMA que o
+    // Node lê, então os dois lados precisam casar o mesmo id.
+    adom_core::rename_indexer_ids(&ids)
 }
 
 /// Id do `MetaQuery`: `tt…:S:E` quando a obra é episódica.

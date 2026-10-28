@@ -166,9 +166,15 @@ pub(crate) fn batch_payload(search_key: &str, items: &[(&str, bool)]) -> Map<Str
     .unwrap()
 }
 
-/// Trabalho do canal com o escopo da conta.
+/// Trabalho do canal com o escopo da conta (lote de debrid por omissão).
 pub(crate) fn job(scope: &str, payload: Map<String, Value>) -> Job {
+    job_of(crate::tail_effects::AUTOFETCH_BATCH, scope, payload)
+}
+
+/// Trabalho de um kind explícito (sonda/season), para os testes do despacho.
+pub(crate) fn job_of(kind: &str, scope: &str, payload: Map<String, Value>) -> Job {
     Job {
+        kind: kind.to_string(),
         scope: scope.to_string(),
         payload,
     }

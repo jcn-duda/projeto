@@ -11,7 +11,7 @@
 //! `intervalMs`). A chave do usuário vive no cofre em RAM (`vault.rs`) e não
 //! atravessa este módulo: o status é montado de contadores, nunca de credencial.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use adom_index::NativeKv;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ use super::enqueue::Job;
 use super::serve::{self, Control, DebridFactory, Message, Snapshot};
 use super::vault::Vault;
 use super::{worker_enabled, Policy, LOT_PREFIX, QUEUE_PREFIX};
+use crate::harvest::HarvestHandle;
 
 const CONFIG_KEY: &str = "autofetch-worker:v1:config";
 const CONFIG_TTL_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
@@ -81,6 +82,10 @@ struct Inner {
     vault: Option<Arc<Vault>>,
     control: Option<Arc<Control>>,
     tx: Option<mpsc::Sender<Message>>,
+    /// Colhedor nativo: nasce DEPOIS do worker em `proxy::run` (o colhedor
+    /// precisa do orquestrador, que precisa do tail, que precisa deste handle).
+    /// O slot é preenchido uma vez pelo boot; vazio = `br_probe` volta ao Node.
+    harvest: Arc<OnceLock<HarvestHandle>>,
 }
 
 impl Inner {
@@ -123,11 +128,18 @@ impl AutofetchHandle {
             (None, None)
         };
         let control = wanted.then(|| Arc::new(Control::new(config.paused, config.interval_ms)));
+        let harvest = Arc::new(OnceLock::new());
         let mut enabled = wanted;
         if let (Some(rx), Some(control), Some(debrid)) = (rx, control.clone(), debrid) {
-            if let Err(err) =
-                serve::spawn(Arc::clone(&kv), *policy, vault.clone(), debrid, rx, control)
-            {
+            if let Err(err) = serve::spawn(
+                Arc::clone(&kv),
+                *policy,
+                vault.clone(),
+                debrid,
+                rx,
+                control,
+                Arc::clone(&harvest),
+            ) {
                 // Sem laço o status NÃO pode dizer `active`: o canal morreria
                 // cheio em silêncio.
                 eprintln!("[autofetch] laço não iniciou: {err}; worker fica prepared");
@@ -143,6 +155,7 @@ impl AutofetchHandle {
                 vault,
                 control: enabled.then_some(control).flatten(),
                 tx,
+                harvest,
             }),
         }
     }
@@ -167,6 +180,7 @@ impl AutofetchHandle {
                 vault,
                 control: Some(control),
                 tx: None,
+                harvest: Arc::new(OnceLock::new()),
             }),
         }
     }
@@ -222,6 +236,17 @@ impl AutofetchHandle {
             control.wake();
         }
         Ok(self.status())
+    }
+
+    /// Registra o colhedor nativo no slot (uma vez, no boot). `false` = já
+    /// havia um colhedor: o primeiro vence, nunca há dois donos.
+    pub(crate) fn set_harvest(&self, handle: HarvestHandle) -> bool {
+        self.inner.harvest.set(handle).is_ok()
+    }
+
+    /// Colhedor nativo, quando o boot já o registrou.
+    pub(crate) fn harvest(&self) -> Option<&HarvestHandle> {
+        self.inner.harvest.get()
     }
 
     /// Publica um lote no canal do laço. `false` = worker desligado, sem canal

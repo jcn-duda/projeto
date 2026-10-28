@@ -74,6 +74,10 @@ use evidence::{queue_identities, EvidenceSnapshot};
 use live::LiveOverlay;
 use serve::serve;
 
+/// Listas de indexers do processo: o worker do Chupim (sonda dirigida) precisa
+/// das MESMAS réguas do drain, e nasce antes do `OrchestratorConfig`.
+pub(crate) use drain_shape::{index_only_indexers, live_exempt_indexers};
+
 /// Estado compartilhado entre o loop e a API administrativa.
 pub(crate) struct Inner {
     /// `.env` do gateway: a base sobre a qual o overlay do painel se aplica.

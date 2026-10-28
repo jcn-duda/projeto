@@ -63,8 +63,10 @@ pub(crate) trait NativeEffectSink: Send + Sync {
 pub(crate) trait NativeWorkQueue: Send + Sync {
     /// `false` = worker em `prepared` (ou sem laço): o efeito é do Node.
     fn enabled(&self) -> bool;
-    /// `false` = canal ausente/cheio: quem publica decide (aqui, volta ao Node).
-    fn submit(&self, scope: &str, payload: &Map<String, Value>) -> bool;
+    /// `false` = canal ausente/cheio (ou kind sem consumidor): quem publica
+    /// decide (aqui, volta ao Node). O `kind` viaja porque o laço despacha por
+    /// ele — sem isso sonda e season cairiam no lote de debrid.
+    fn submit(&self, kind: &str, scope: &str, payload: &Map<String, Value>) -> bool;
 }
 
 /// Intercepta os efeitos com dono nativo e delega o resto ao Node.
@@ -142,7 +144,7 @@ impl NativeTailEffects {
                     );
                     return Routed::Deferred;
                 };
-                if queue.submit(&scope, &effect.payload) {
+                if queue.submit(&effect.kind, &scope, &effect.payload) {
                     return Routed::Native;
                 }
                 eprintln!(

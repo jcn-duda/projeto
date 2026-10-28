@@ -67,7 +67,7 @@ async fn passagem_enfileira_arma_o_lote_e_conta_os_skips() {
     let payload = batch_payload(SEARCH, &[(&hash_of(1), true), (&hash_of(2), true)]);
     tx.try_send(Message::Batch(job(SCOPE, payload))).unwrap();
 
-    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control, None);
     let pass = engine.run_once(&mut rx, now).await;
 
     assert_eq!(pass.jobs, 1);
@@ -93,7 +93,7 @@ async fn passagem_vazia_nao_inventa_trabalho() {
     let control = Control::new(false, 60_000);
     let factory = no_factory();
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control, None);
 
     let pass = engine.run_once(&mut rx, now_ms()).await;
     assert_eq!(pass.jobs, 0);
@@ -116,7 +116,7 @@ async fn timer_processa_lote_vencido_e_limpa_quando_resolve() {
     let factory = factory_for(SCOPE, debrid);
     let control = Control::new(false, 60_000);
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &factory, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control, None);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 1);
@@ -152,7 +152,7 @@ async fn terminal_com_fila_viva_drena_o_proximo_com_hold() {
     let control = Control::new(false, 60_000);
     let factory = factory_for(SCOPE, debrid.clone());
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &factory, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control, None);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 1);
@@ -194,7 +194,7 @@ async fn pedido_de_dreno_da_admin_consome_o_canal() {
     let factory = factory_for(SCOPE, debrid.clone());
     let (tx, mut rx) = mpsc::channel(4);
     tx.try_send(Message::Drain).unwrap();
-    let engine = Engine::new(&kv, policy, None, &factory, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control, None);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.drained, 1);
@@ -211,7 +211,7 @@ async fn adaptador_injetado_como_trait_object() {
     let debrid: DebridIo = Arc::new(FakeDebrid::accepting());
     let factory = factory_for(SCOPE, debrid);
     let control = Control::new(true, 60_000);
-    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control);
+    let engine = Engine::new(&kv, Policy::fixture(), None, &factory, &control, None);
     let payload = batch_payload(SEARCH, &[(&hash_of(1), true)]);
     let (tx, mut rx) = mpsc::channel(4);
     tx.try_send(Message::Batch(job(SCOPE, payload))).unwrap();
@@ -234,7 +234,7 @@ async fn falha_do_adaptador_vira_last_error_no_painel() {
     let control = Control::new(false, 60_000);
     let factory = factory_for(SCOPE, Arc::new(fake));
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, policy, None, &factory, &control);
+    let engine = Engine::new(&kv, policy, None, &factory, &control, None);
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.rechecked, 0);
@@ -255,7 +255,14 @@ async fn passagem_poda_o_cofre_e_o_status_conta_sem_vazar_chave() {
     let control = Arc::new(Control::new(false, 60_000));
     let factory = no_factory();
     let (_tx, mut rx) = mpsc::channel(4);
-    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &factory, &control);
+    let engine = Engine::new(
+        &kv,
+        Policy::fixture(),
+        Some(&vault),
+        &factory,
+        &control,
+        None,
+    );
 
     let pass = engine.run_once(&mut rx, now + 5_000).await;
     assert_eq!(pass.forgotten_keys, 1);

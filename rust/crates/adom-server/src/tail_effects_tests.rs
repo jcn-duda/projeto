@@ -45,11 +45,14 @@ impl TailEffects for RecordingTail {
     }
 }
 
+/// Job publicado no canal: `(kind, escopo, payload)`.
+type PublishedJob = (String, String, Map<String, Value>);
+
 /// Canal do worker: grava os jobs publicados e responde pelo próprio estado.
 struct FakeQueue {
     enabled: bool,
     accept: bool,
-    jobs: Mutex<Vec<(String, Map<String, Value>)>>,
+    jobs: Mutex<Vec<PublishedJob>>,
 }
 
 impl FakeQueue {
@@ -70,7 +73,7 @@ impl FakeQueue {
         }
     }
 
-    fn jobs(&self) -> Vec<(String, Map<String, Value>)> {
+    fn jobs(&self) -> Vec<PublishedJob> {
         self.jobs.lock().unwrap().clone()
     }
 }
@@ -80,14 +83,14 @@ impl NativeWorkQueue for FakeQueue {
         self.enabled
     }
 
-    fn submit(&self, scope: &str, payload: &Map<String, Value>) -> bool {
+    fn submit(&self, kind: &str, scope: &str, payload: &Map<String, Value>) -> bool {
         if !self.accept {
             return false;
         }
         self.jobs
             .lock()
             .unwrap()
-            .push((scope.to_string(), payload.clone()));
+            .push((kind.to_string(), scope.to_string(), payload.clone()));
         true
     }
 }

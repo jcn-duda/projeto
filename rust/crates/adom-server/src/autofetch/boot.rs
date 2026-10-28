@@ -70,6 +70,12 @@ pub(crate) fn spawn_at(
         Some(factory) => Some(factory),
         None => production_factory(&kv, cache_db, vault.as_ref()),
     };
+    // A represa (`autofetch:v3:sup:`) drena com a MESMA fábrica do laço: sem
+    // este registro `POST /autofetch/suppressed-drain` e o dreno da passagem
+    // respondem `factory-unavailable` e o Node segue dono do passo.
+    if let Some(factory) = debrid.as_ref() {
+        super::suppressed_step::register_factory(factory.clone());
+    }
     Some(AutofetchHandle::build(
         kv,
         &Policy::from_env(),

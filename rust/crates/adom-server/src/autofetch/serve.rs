@@ -21,17 +21,18 @@
 //! Nenhuma passagem entra no caminho da resposta: o canal é do laço.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use adom_index::NativeKv;
 use tokio::sync::mpsc;
 
-use super::enqueue::{self, Holds, Job};
+use super::enqueue::{Holds, Job};
 use super::enqueue_drain;
 use super::recheck;
 use super::vault::Vault;
 use super::Policy;
+use crate::harvest::HarvestHandle;
 
 pub(crate) use super::control::{Control, Snapshot};
 pub(crate) use super::ports::DebridFactory;
@@ -55,6 +56,10 @@ pub(crate) struct Pass {
     pub(crate) drained: usize,
     pub(crate) rechecked: usize,
     pub(crate) forgotten_keys: usize,
+    /// Sondas com `pending` gravado nesta passagem.
+    pub(crate) probed: usize,
+    /// Buscas de temporada registradas nesta passagem.
+    pub(crate) seasons: usize,
     pub(crate) skips: BTreeMap<String, usize>,
     pub(crate) errors: Vec<String>,
 }
@@ -75,6 +80,9 @@ pub(crate) struct Engine<'a> {
     vault: Option<&'a Vault>,
     debrid: &'a DebridFactory,
     control: &'a Control,
+    /// Colhedor nativo: `None` até o boot registrá-lo (ou sem colhedor no
+    /// processo). Só a sonda dirigida depende dele.
+    harvest: Option<&'a HarvestHandle>,
 }
 
 impl<'a> Engine<'a> {
@@ -84,6 +92,7 @@ impl<'a> Engine<'a> {
         vault: Option<&'a Vault>,
         debrid: &'a DebridFactory,
         control: &'a Control,
+        harvest: Option<&'a HarvestHandle>,
     ) -> Self {
         Self {
             kv,
@@ -92,6 +101,7 @@ impl<'a> Engine<'a> {
             vault,
             debrid,
             control,
+            harvest,
         }
     }
 
@@ -110,63 +120,13 @@ impl<'a> Engine<'a> {
             }
         }
         self.timers(paused, now_ms, &mut pass).await;
+        self.drain_suppressed(now_ms, &mut pass).await;
         if let Some(vault) = self.vault {
             pass.forgotten_keys = vault.sweep(now_ms);
         }
         self.control.leave();
         self.control.record(pass.jobs, &pass.skips, &pass.errors);
         pass
-    }
-
-    /// Um lote do canal: enfileirar e, com aceite, armar o recheck.
-    async fn batch(&self, job: &Job, paused: bool, now_ms: i64, pass: &mut Pass) {
-        pass.jobs += 1;
-        let Some(debrid) = (self.debrid)(&job.scope) else {
-            pass.skip("no-credential", 1);
-            return;
-        };
-        let report = match enqueue::run(
-            self.kv,
-            self.policy,
-            &self.holds,
-            paused,
-            &*debrid,
-            job,
-            now_ms,
-        )
-        .await
-        {
-            Ok(report) => report,
-            Err(err) => {
-                pass.errors.push(err);
-                return;
-            }
-        };
-        for (label, count) in &report.skips {
-            pass.skip(label, *count);
-        }
-        if let Some(label) = report.refused {
-            pass.skip(label, 1);
-        }
-        pass.enqueued += report.enqueued.len();
-        if report.enqueued.is_empty() {
-            return;
-        }
-        let Some((adapter, account)) = job.scope.split_once(':') else {
-            return;
-        };
-        match recheck::schedule(
-            self.kv,
-            self.policy,
-            &report.search_key,
-            adapter,
-            account,
-            &report.enqueued,
-            now_ms,
-        ) {
-            Ok(_) => pass.scheduled += 1,
-            Err(err) => pass.errors.push(err),
-        }
     }
 
     /// Timers: só lote vencido roda; terminal com fila viva pede o próximo.
@@ -267,6 +227,7 @@ pub(crate) fn spawn(
     debrid: DebridFactory,
     mut rx: mpsc::Receiver<Message>,
     control: Arc<Control>,
+    harvest: Arc<OnceLock<HarvestHandle>>,
 ) -> Result<(), String> {
     std::thread::Builder::new()
         .name("adom-autofetch".into())
@@ -282,13 +243,22 @@ pub(crate) fn spawn(
                 }
             };
             runtime.block_on(async move {
-                let engine = Engine::new(&kv, policy, vault.as_deref(), &debrid, &control);
                 loop {
                     let wait = control.interval_ms();
                     tokio::select! {
                         _ = control.wait() => {},
                         _ = tokio::time::sleep(Duration::from_millis(wait)) => {},
                     }
+                    // O colhedor nasce DEPOIS do laço (`proxy::run`): o slot é
+                    // lido a cada passagem, nunca fixado no boot.
+                    let engine = Engine::new(
+                        &kv,
+                        policy,
+                        vault.as_deref(),
+                        &debrid,
+                        &control,
+                        harvest.get(),
+                    );
                     let pass = engine.run_once(&mut rx, adom_sources::now_ms()).await;
                     if !pass.errors.is_empty() {
                         eprintln!(
@@ -303,6 +273,9 @@ pub(crate) fn spawn(
         .map(|_| ())
         .map_err(|err| err.to_string())
 }
+
+#[path = "serve_jobs.rs"]
+mod jobs;
 
 #[cfg(test)]
 #[path = "serve_tests.rs"]

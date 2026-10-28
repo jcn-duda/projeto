@@ -43,9 +43,14 @@ pub(super) use holds::Holds;
 #[path = "enqueue_gates.rs"]
 pub(super) mod gates;
 
-/// Trabalho que chega pelo canal: o escopo da conta e o payload do efeito.
+/// Trabalho que chega pelo canal: o kind do efeito, o escopo da conta e o
+/// payload. O kind é o que separa o lote de debrid (`autofetch_batch`) da sonda
+/// dirigida (`br_probe`) e do índice de temporada (`season_key`) — sem ele todo
+/// job cairia em [`run`] e viraria `empty-batch`.
 #[derive(Clone, Debug)]
 pub(crate) struct Job {
+    /// `autofetch_batch`, `br_probe` ou `season_key` (`tail_effects::*`).
+    pub(crate) kind: String,
     /// `adapter:sha256(chave)` — o escopo do cofre, nunca a chave.
     pub(crate) scope: String,
     pub(crate) payload: Map<String, Value>,

@@ -113,6 +113,11 @@ pub async fn run(config: Config) -> Result<(), String> {
             stores.as_ref().and_then(|stores| stores.streams.clone()),
         )
     });
+    // O colhedor nasce DEPOIS do worker: o slot do handle é preenchido aqui,
+    // uma vez. Sem colhedor a sonda dirigida volta ao Node (o canal recusa).
+    if let (Some(worker), Some(harvester)) = (autofetch.as_ref(), harvest.as_ref()) {
+        worker.set_harvest(harvester.clone());
+    }
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
         spawn_store_admin(
             stores,

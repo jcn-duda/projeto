@@ -46,16 +46,26 @@ mod control;
 mod enqueue;
 mod enqueue_drain;
 mod enqueue_items;
+// Evicção F6: a política e o executor estão prontos e testados; a passagem
+// ainda NÃO recebe os fatos do acervo (transfer id + nome autoritativo), então
+// o passo não tem chamador de produção — o `allow` evita ruído de `dead_code`
+// até a fiação dos fatos. O módulo DECLARADO é o que faz os testes rodarem.
+#[allow(dead_code)]
+mod evict_step;
 // O adaptador (`PortedDebrid`) e a fábrica já são usados no boot; `scope`,
 // `service` e `capabilities` só têm chamador nos testes, e o alvo de bin os vê
 // como mortos — o `allow` evita ruído de `dead_code`.
 #[allow(dead_code)]
 mod ports;
+mod probe_job;
+mod probe_step;
 mod rd_store;
 mod recheck;
 mod recheck_expire;
 mod routes;
+mod season_step;
 mod serve;
+mod suppressed_step;
 mod vault;
 mod worker;
 
@@ -65,17 +75,31 @@ pub(crate) use worker::{spawn, AutofetchHandle};
 // O `Job` atravessa a fronteira do módulo pelo seam do tail (`NativeWorkQueue`).
 pub(crate) use enqueue::Job;
 
-/// Ponte de produção do canal: o seam do tail só conhece o escopo e o payload,
-/// e quem monta o `Job` é o dono do tipo.
+/// Ponte de produção do canal: o seam do tail só conhece o kind, o escopo e o
+/// payload, e quem monta o `Job` é o dono do tipo.
+///
+/// `br_probe` sem colhedor montado é RECUSADO aqui: o efeito não pode ser
+/// marcado `Native` e morrer na fila do worker (o passo precisa do
+/// `HarvestHandle` para enfileirar a obra). Recusar devolve o efeito ao Node,
+/// que é quem sabe sondar enquanto não há colhedor.
 impl crate::tail_effects::NativeWorkQueue for AutofetchHandle {
     fn enabled(&self) -> bool {
         self.status().enabled
     }
 
-    fn submit(&self, scope: &str, payload: &serde_json::Map<String, serde_json::Value>) -> bool {
+    fn submit(
+        &self,
+        kind: &str,
+        scope: &str,
+        payload: &serde_json::Map<String, serde_json::Value>,
+    ) -> bool {
+        if kind == crate::tail_effects::BR_PROBE && self.harvest().is_none() {
+            return false;
+        }
         AutofetchHandle::submit(
             self,
             Job {
+                kind: kind.to_string(),
                 scope: scope.to_string(),
                 payload: payload.clone(),
             },

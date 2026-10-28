@@ -75,13 +75,17 @@ async fn worker_ligado_enfileira_com_escopo_e_payload_intacto() {
     assert_eq!(jobs.len(), 3);
     // `autofetch_batch` e `br_probe` não trazem conta: o escopo vem do `encoded`.
     let scope = Vault::scope_of("alldebrid", "chave-do-worker-7").expect("escopo do cofre");
-    assert_eq!(jobs[0].0, scope);
-    assert_eq!(jobs[1].0, scope);
+    assert_eq!(jobs[0].1, scope);
+    assert_eq!(jobs[1].1, scope);
     // `season_key` carrega `adapter_id` + `account`: o escopo sai do payload.
-    assert_eq!(jobs[2].0, "alldebrid:digest-da-conta");
+    assert_eq!(jobs[2].1, "alldebrid:digest-da-conta");
+    // O kind viaja junto: sem ele a passagem trataria tudo como lote.
+    assert_eq!(jobs[0].0, AUTOFETCH_BATCH);
+    assert_eq!(jobs[1].0, BR_PROBE);
+    assert_eq!(jobs[2].0, SEASON_KEY);
     // Payload intacto (o worker monta o `Job` com ele como veio).
-    assert_eq!(jobs[0].1, *autofetch.as_object().unwrap());
-    assert_eq!(jobs[2].1, *season_key_payload().as_object().unwrap());
+    assert_eq!(jobs[0].2, *autofetch.as_object().unwrap());
+    assert_eq!(jobs[2].2, *season_key_payload().as_object().unwrap());
 }
 
 /// (c) Sem `encoded` (nem conta no payload) o escopo não se deriva: o efeito

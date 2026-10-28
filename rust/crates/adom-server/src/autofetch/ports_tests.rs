@@ -182,7 +182,14 @@ async fn lote_com_dois_escopos_usa_duas_contas() {
         batch_payload("tt2:1:1", &[(&hash_of(2), true)]),
     )))
     .unwrap();
-    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &factory, &control);
+    let engine = Engine::new(
+        &kv,
+        Policy::fixture(),
+        Some(&vault),
+        &factory,
+        &control,
+        None,
+    );
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.jobs, 2);
@@ -222,7 +229,14 @@ async fn adaptador_de_uma_conta_nao_derruba_o_lote_da_outra() {
         batch_payload("tt2:1:1", &[(&hash_of(2), true)]),
     )))
     .unwrap();
-    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &factory, &control);
+    let engine = Engine::new(
+        &kv,
+        Policy::fixture(),
+        Some(&vault),
+        &factory,
+        &control,
+        None,
+    );
 
     let pass = engine.run_once(&mut rx, now).await;
     assert_eq!(pass.jobs, 2);
@@ -256,7 +270,14 @@ async fn cofre_expira_no_meio_do_lote_e_o_passo_seguinte_e_pulado() {
         batch_payload(SEARCH, &[(&hash_of(1), true)]),
     )))
     .unwrap();
-    let engine = Engine::new(&kv, Policy::fixture(), Some(&vault), &factory, &control);
+    let engine = Engine::new(
+        &kv,
+        Policy::fixture(),
+        Some(&vault),
+        &factory,
+        &control,
+        None,
+    );
 
     // Passagem com a chave viva: enfileira de verdade.
     let first = engine.run_once(&mut rx, 0).await;
