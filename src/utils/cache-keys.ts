@@ -245,12 +245,19 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // retomável) fecharam o mesmo caminho: leitor e escritor passam pela ponte
 // (`autofetch-state-native.ts`), então valem o mesmo bloqueio.
 //
+// `o:` (registro F2 por obra) entrou depois: o registro já era escrito pela
+// ponte (`autofetch-obra-state.ts`), mas o Node TAMBÉM gravava a mesma linha no
+// L1 (`autofetch-obra.ts`) — dois escritores, e o `cache.forget` do Node podia
+// apagar a linha fresca do nativo. Quem lê (`evict_job.rs`, teto por obra) passava
+// a poder ver um registro mais velho que o commit nativo. Com o prefixo marcado,
+// a escrita do Node vira fallback (só sem ponte) e o boot deixa de hidratar `o:`
+// no L1 — o painel enumera pela ponte (`listObraKeysNative`). Os seeds de teste
+// que moravam no L1 migraram para `kvSet`.
+//
 // AINDA FORA, cada um por um motivo concreto:
-//   `o:`/`probe:` — a produção já é 100% ponte, mas testes semeiam o registro
-//      direto no L1 (`test/helpers/autofetch-evict-harness.ts` e
-//      `test/br-probe.test.ts`); marcar o prefixo transformaria o seed em
-//      no-op e apagaria a prova do caso legado. Entram quando esses seeds
-//      migrarem para `kvSet`.
+//   `probe:` — a produção já é 100% ponte, mas `test/br-probe.test.ts` semeia a
+//      sonda direto no L1; marcar o prefixo transformaria o seed em no-op e
+//      apagaria a prova do caso legado. Entra quando o seed migrar para `kvSet`.
 //   `pf:` (prefetch) e `sup:` — o Node ainda grava e enumera no L1
 //      (`cache.set` + `cache.keysMatching`): marcar o prefixo faria a escrita
 //      virar no-op silencioso.
@@ -258,7 +265,7 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // o gateway persiste aqui apenas pausa/intervalo, sem qualquer credencial.
 const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
   `${prefix('autofetch')}q:`, `${prefix('autofetch')}m:`, `${prefix('autofetch')}dead:`,
-  `${prefix('autofetch')}er:`, `${prefix('autofetch')}lot:`,
+  `${prefix('autofetch')}er:`, `${prefix('autofetch')}lot:`, `${prefix('autofetch')}o:`,
 ]);
 
 const RUST_OWNED_PREFIXES = Object.freeze([

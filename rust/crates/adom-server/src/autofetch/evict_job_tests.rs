@@ -91,6 +91,7 @@ fn config() -> EvictConfig {
             enabled: true,
             ttl_seconds: 259_200,
         },
+        ownership: true,
     }
 }
 
@@ -390,3 +391,6 @@ async fn teto_da_rodada_limita_o_plano() {
     assert_eq!(report.skips.get("evict-over-limit"), Some(&1));
     assert_eq!(io.calls().len(), 1);
 }
+
+#[path = "evict_job_tests_owner.rs"]
+mod owner;

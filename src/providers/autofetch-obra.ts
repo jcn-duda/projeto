@@ -320,12 +320,7 @@ export function commitObra(
     quality: entry.quality,
     overflow: (entry.overflow ?? lease.overflow) === true,
   }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)), now);
-  void nativeCommitted;
-  const kept = readRecord(lease.key).filter((e) => {
-    if (e.hash === hash) return false;
-    if (span <= 0) return false;
-    return e.acceptedAt > now - span;
-  });
+  const kept = readRecord(lease.key).filter((e) => e.hash !== hash && span > 0 && e.acceptedAt > now - span);
   kept.push({
     hash,
     pool: String(entry.pool || lease.pool || ''),
@@ -337,7 +332,9 @@ export function commitObra(
     ...(entry.quality ? { quality: String(entry.quality) } : {}),
     ...((entry.overflow ?? lease.overflow) === true ? { overflow: true } : {}),
   });
-  cache.set(lease.key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
+  // FALLBACK, nunca segundo escritor: `o:` é do KV nativo e a linha do L1 podia
+  // ficar mais velha que o commit nativo — a evicção lia o registro velho.
+  if (!nativeCommitted) cache.set(lease.key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
   metrics.count('autofetch.obra.committed');
 }
 
@@ -365,10 +362,16 @@ export function forgetObraHash(input: ObraIdentityInput & { hash: string }): boo
   );
   const kept = before.filter((e) => e.hash !== hash);
   if (kept.length === before.length && !nativeForgotten) return false;
-  if (kept.length > 0) {
-    cache.set(key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
-  } else {
-    cache.forget(key);
+  // Ponte fora (`undefined`): o L1 era o único escritor possível. Com a ponte,
+  // `forgetObraHashNative` já reescreveu (ou apagou, quando esvaziou) o registro
+  // e o prefixo `o:` é de outro dono — `cache.set`/`cache.forget` seria segundo
+  // escritor. Mesmo tratamento de `m:`: assinatura idêntica, dono único.
+  if (nativeForgotten === undefined) {
+    if (kept.length > 0) {
+      cache.set(key, { entries: kept }, Math.max(1, Math.trunc(Number(live.autoFetchTtl) || 0)));
+    } else {
+      cache.forget(key);
+    }
   }
   metrics.count('autofetch.obra.forgotten');
   return true;

@@ -1,18 +1,16 @@
 //! Evicção F6 FIADA no ciclo: os fallbacks da obra caem depois do ready BR.
-//!
-//! Espelho do orquestrador `src/providers/autofetch-evict.ts` (política) +
-//! `src/debrid/alldebrid-fallback-evict.ts` (executor). A régua pura mora em
-//! [`super::super::evict_step`]; este módulo é quem LÊ os fatos e executa.
+//! Espelho de `src/providers/autofetch-evict.ts` (política) +
+//! `src/debrid/alldebrid-fallback-evict.ts` (executor); a régua pura mora em
+//! [`super::super::evict_step`] e este módulo LÊ os fatos e executa.
 //!
 //! # Por que a execução vai pela PORTA, e não por `execute`
 //!
 //! `evict_step::execute` apaga por `transfer_id` e exige o NOME autoritativo do
-//! acervo (`/magnet/status`). O trait `AutofetchDebrid` não expõe filename — ele
-//! só existe DENTRO da porta —, então planejar com âncora aqui daria `NoName`
-//! para todo item: fiação morta. A execução vai pela PORTA `evict`
-//! (`adom-debrid/src/autofetch_ports_evict.rs`), que re-lê o inventário da
-//! conta, resolve hash → id e re-prova upload date, `adsub`, `adhold`, `adprot`,
-//! `adrm` e a blindagem BR no filename REAL. Ela devolve só o que saiu.
+//! acervo, mas o trait `AutofetchDebrid` não expõe filename: planejar com âncora
+//! aqui daria `NoName` para todo item. A execução vai pela PORTA `evict`
+//! (`adom-debrid/src/autofetch_ports_evict.rs`), que re-lê `/magnet/status` e
+//! re-prova upload date, `adsub`, `adhold`, `adprot`, `adrm` e a blindagem BR no
+//! filename REAL — devolve só o que saiu.
 //!
 //! # Mapa dos fatos (nada inventado)
 //!
@@ -23,29 +21,21 @@
 //! | `pool`/`overflow`/`acceptedAt` | registro F2 (`autofetch:v3:o:<digest>`) |
 //! | `current_ready_is_br` | entrada do PRÓPRIO hash ready: `pool == "br" && dubbed` |
 //! | BR ready anterior | chave `autofetch:v3:er:<digest>` viva |
-//! | `owned` | `adsub:v1` vivo **e** `adrm:v1` ausente |
+//! | `owned` | `adsub:v1` vivo **e** `adrm:v1` ausente, **e** posse ligada (`ALLDEBRID_SUBMITTED_TTL_MS > 0`) |
 //! | `held` / `protected` | `adhold:v1` / `adprot:v1` vivos |
 //! | `transfer_id` | marker (`id`), quando o serviço devolveu |
 //! | `name` / `br_retained` | a PORTA (filename real) — aqui `None`/`false` |
 //!
-//! Tudo lê o MESMO `cache.db` que o worker já abriu (`boot::open_kv`), sem abrir
-//! banco novo.
+//! Tudo lê o MESMO `cache.db` que o worker já abriu (`boot::open_kv`).
 //!
-//! # Fato que o Node ainda é dono
+//! # Fato que o Node ainda é dono, e quem apaga não marca (metade)
 //!
-//! O marker COM `obra` e o registro F2 nascem do Node (ponte napi,
-//! `adom-napi/src/autofetch/state_v3.rs`): o `enqueue` nativo grava marker SEM
-//! meta (`enqueue.rs:331`). Sem eles este passo é fail-closed por construção —
-//! `evict-no-marker`/`evict-no-record` —, nunca um passe livre.
-//!
-//! # Quem apaga não marca (metade)
-//!
-//! O `adrm` é escrito AQUI: gravação append-only (`{"at":now}`) no KV do worker,
-//! gated por `DEBRID_REUPLOAD_BLOCK` e com o TTL de
-//! `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS` — o mesmo `markReuploadBlocked` do Node
-//! (`src/debrid/alldebrid-reupload.ts:63`). O que NÃO se faz aqui é podar
-//! `marker`/registro F2 (read-modify-write em prefixo do Node): a idempotência
-//! fica com a porta (hash fora do inventário não tem id) e com o próprio `adrm`.
+//! O marker COM `obra` nasce do Node (ponte napi,
+//! `adom-napi/src/autofetch/state_v3.rs`) E do `enqueue` nativo
+//! (`obra::marker_meta`), sempre com o digest do registro por obra. Sem eles o
+//! passo é fail-closed por construção (`evict-no-marker`/`evict-no-record`),
+//! nunca um passe livre. O `adrm` é escrito AQUI (`DEBRID_REUPLOAD_BLOCK` +
+//! `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`).
 
 use std::collections::BTreeMap;
 
@@ -54,7 +44,8 @@ use adom_core::{
     marker_key, marker_obra, marker_transfer_id, obra_prefix, MarkerValue, ObraRecordEntry,
 };
 use adom_debrid::alldebrid_cleanup::{
-    adhold_key, adprot_key, adrm_key, adsub_key, reupload_block_enabled, REUPLOAD_TTL_ENV,
+    adhold_key, adprot_key, adrm_key, adsub_key, ownership_enabled, reupload_block_enabled,
+    REUPLOAD_TTL_ENV,
 };
 use adom_index::NativeKv;
 use serde_json::json;
@@ -96,11 +87,14 @@ impl MarkGates {
     }
 }
 
-/// Réguas da passagem: kill-switch/teto da evicção + `adrm`.
+/// Réguas da passagem: kill-switch/teto da evicção + `adrm` + posse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct EvictConfig {
     pub(crate) gates: EvictGates,
     pub(crate) marks: MarkGates,
+    /// Posse durável (`adsub`): `ALLDEBRID_SUBMITTED_TTL_MS <= 0` a desliga —
+    /// a MESMA régua de `hasDurableOwnership`, no ponto único do passo.
+    pub(crate) ownership: bool,
 }
 
 impl EvictConfig {
@@ -108,6 +102,7 @@ impl EvictConfig {
         Self {
             gates: EvictGates::from_env(),
             marks: MarkGates::from_env(),
+            ownership: ownership_enabled(),
         }
     }
 }
@@ -151,6 +146,13 @@ pub(crate) async fn run(
     // Kill-switch OFF (ou teto 0): zero leitura, zero rede.
     if !config.gates.armed() {
         report.skip("evict-off");
+        return report;
+    }
+    // Posse DESLIGADA (`ALLDEBRID_SUBMITTED_TTL_MS <= 0`): o Node nega a prova
+    // (`hasDurableOwnership` → `false`) e a evicção cai junto — sem posse
+    // concedida nada é nosso, e um `adsub` que sobrou no KV não vale mais.
+    if !config.ownership {
+        report.skip("evict-ownership-off");
         return report;
     }
     // Uma obra pode ter VÁRIOS hashes ready na mesma passagem: o plano é por

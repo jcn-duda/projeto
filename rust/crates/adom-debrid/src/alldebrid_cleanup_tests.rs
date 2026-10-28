@@ -391,3 +391,6 @@ mod part2;
 
 #[path = "alldebrid_cleanup_tests_part3.rs"]
 mod part3;
+
+#[path = "alldebrid_cleanup_tests_part4.rs"]
+mod part4;

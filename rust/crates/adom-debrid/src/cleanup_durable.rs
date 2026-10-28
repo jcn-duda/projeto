@@ -13,7 +13,7 @@ use std::time::Duration;
 use rusqlite::params;
 use sha2::{Digest, Sha256};
 
-use super::flags::{reupload_block_enabled, CACHE_DB_ENV};
+use super::flags::{ownership_enabled, reupload_block_enabled, CACHE_DB_ENV};
 
 const DEFAULT_CACHE_DB: &str = "data/cache.db";
 
@@ -171,8 +171,14 @@ impl DurablePeek {
     }
 
     /// O addon subiu este hash (`adsub:v1`): ele pode sair sem virar "acervo".
+    ///
+    /// PONTO ÚNICO da posse: `ALLDEBRID_SUBMITTED_TTL_MS <= 0` devolve `false`
+    /// aqui — a MESMA régua de `hasDurableOwnership`
+    /// (`src/debrid/alldebrid-inventory.ts:121`). Um registro que sobrou no
+    /// `cache.db` de uma janela com TTL ligado não pode conceder posse com o
+    /// kill-switch desligado no Node: a evicção cai dos DOIS lados.
     pub fn is_owned(&self, account: &str, hash: &str, now: i64) -> bool {
-        self.alive(&adsub_key(account, hash), now)
+        ownership_enabled() && self.alive(&adsub_key(account, hash), now)
     }
 
     /// A base durável está LEGÍVEL? Sonda curta, sem chave: `true` só quando o
@@ -188,8 +194,13 @@ impl DurablePeek {
     }
 
     /// Carimbo `at` (epoch ms) do `adsub` VIVO — a idade da posse. `None` =
-    /// sem posse durável legível, vencida ou sem carimbo (`{ at }` do Node).
+    /// sem posse durável legível, vencida, sem carimbo (`{ at }` do Node) ou
+    /// posse DESLIGADA (`ALLDEBRID_SUBMITTED_TTL_MS <= 0`, régua do
+    /// `hasDurableOwnership`).
     pub fn owned_at(&self, account: &str, hash: &str, now: i64) -> Option<i64> {
+        if !ownership_enabled() {
+            return None;
+        }
         self.alive_stamp(&adsub_key(account, hash), now)
     }
 
@@ -225,7 +236,24 @@ impl DurablePeek {
     }
 
     /// Todos os `adsub` vivos da conta numa consulta (usado pelo inventário).
+    ///
+    /// Mesmo portão: com a posse desligada devolve vazio SEM abrir o banco — o
+    /// `knownBefore` do Node também deixa de subtrair `adsub` (`persistedSubmitted`
+    /// é falso), então o magnet volta a ser "acervo do usuário" e sai do alcance
+    /// da limpeza dos dois lados.
     pub fn owned_hashes(&self, account: &str, now: i64) -> HashSet<String> {
+        self.owned_hashes_when(account, now, ownership_enabled())
+    }
+
+    pub(super) fn owned_hashes_when(
+        &self,
+        account: &str,
+        now: i64,
+        ownership: bool,
+    ) -> HashSet<String> {
+        if !ownership {
+            return HashSet::new();
+        }
         self.prefixed_hashes(&adsub_prefix(account), now)
     }
 

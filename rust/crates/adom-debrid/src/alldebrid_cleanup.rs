@@ -38,11 +38,15 @@
 #[path = "cleanup_flags.rs"]
 mod flags;
 pub use flags::{
-    env_truthy, kill_switch_on, reupload_block_enabled, CleanupMode, CACHE_DB_ENV, CLEANUP_ENV,
-    KILL_ENV, PREEXISTING_TTL_ENV, REUPLOAD_BLOCK_ENV, REUPLOAD_TTL_ENV,
+    env_truthy, kill_switch_on, ownership_enabled, reupload_block_enabled, CleanupMode,
+    CACHE_DB_ENV, CLEANUP_ENV, KILL_ENV, PREEXISTING_TTL_ENV, REUPLOAD_BLOCK_ENV, REUPLOAD_TTL_ENV,
+    SUBMITTED_TTL_ENV,
 };
 #[cfg(test)]
-pub(crate) use flags::{reupload_block_enabled_from, reupload_flag_from, reupload_ttl_ms_from};
+pub(crate) use flags::{
+    ownership_enabled_from, reupload_block_enabled_from, reupload_flag_from, reupload_ttl_ms_from,
+    submitted_ttl_ms_from,
+};
 
 #[path = "cleanup_holds.rs"]
 mod holds;

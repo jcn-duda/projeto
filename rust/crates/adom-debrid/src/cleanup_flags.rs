@@ -22,9 +22,18 @@ pub const REUPLOAD_BLOCK_ENV: &str = "DEBRID_REUPLOAD_BLOCK";
 /// (`alldebridReuploadBlockTtlMs`, default 3 dias). `0` desliga gravação E
 /// leitura, também nos dois lados (rollback de uma linha no `.env`).
 pub const REUPLOAD_TTL_ENV: &str = "ALLDEBRID_REUPLOAD_BLOCK_TTL_MS";
+/// TTL da POSSE durável (`adsub:v1`) — a MESMA env do Node
+/// (`alldebridSubmittedTtlMs`, default 7 dias). `0` desliga a prova de posse no
+/// Node (`hasDurableOwnership` devolve `false`) e a evicção cai junto: sem
+/// posse concedida, nenhum hash é nosso. Sem esta régua o nativo continuava
+/// lendo `adsub` só por presença e podia apagar com o kill-switch ligado.
+pub const SUBMITTED_TTL_ENV: &str = "ALLDEBRID_SUBMITTED_TTL_MS";
 
 /// `3 * 24 * 3600 * 1000` do Node.
 const DEFAULT_REUPLOAD_TTL_MS: f64 = 259_200_000.0;
+
+/// `7 * 24 * 3600 * 1000` do Node.
+const DEFAULT_SUBMITTED_TTL_MS: f64 = 604_800_000.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CleanupMode {
@@ -123,4 +132,35 @@ pub(crate) fn reupload_ttl_ms_from(raw: Option<&str>) -> f64 {
             .filter(|value| value.is_finite())
             .unwrap_or(DEFAULT_REUPLOAD_TTL_MS),
     }
+}
+
+/// A posse (`adsub`) está LIGADA? Espelho de `hasDurableOwnership`
+/// (`src/debrid/alldebrid-inventory.ts:121`): TTL ≤ 0 devolve `false` para TODO
+/// hash — a prova é desligada na origem, não em cada leitor. Quem depende dela
+/// (evicção, limpeza, inventário) perde a posse por consequência, igual ao Node.
+pub fn ownership_enabled() -> bool {
+    ownership_enabled_from(std::env::var(SUBMITTED_TTL_ENV).ok().as_deref())
+}
+
+/// Regra pura (sem env global): usada pelos testes e pelo `ownership_enabled`.
+pub(crate) fn ownership_enabled_from(ttl: Option<&str>) -> bool {
+    submitted_ttl_ms_from(ttl) > 0.0
+}
+
+/// `Math.max(0, num(process.env.ALLDEBRID_SUBMITTED_TTL_MS, 7d))`
+/// (`src/config/debrid.ts:139`): `Number('')` é 0 (desliga), valor não numérico
+/// cai no default e negativo nunca chega a `> 0`.
+pub(crate) fn submitted_ttl_ms_from(raw: Option<&str>) -> f64 {
+    let Some(text) = raw else {
+        return DEFAULT_SUBMITTED_TTL_MS;
+    };
+    // `Number('')` e `Number('  ')` são 0 no Node: vazio DESLIGA a prova.
+    if text.trim().is_empty() {
+        return 0.0;
+    }
+    text.trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
+        .unwrap_or(DEFAULT_SUBMITTED_TTL_MS)
 }
