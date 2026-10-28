@@ -4,10 +4,21 @@
  * com testes/instalações cujo `.node` ainda não exporta estas APIs.
  */
 import { requireCore } from './rust-core.js';
-import { nativeKv } from './native-kv.js';
+import { nativeKv, type NativeKvNapi } from './native-kv.js';
 
-type Core = ReturnType<typeof requireCore>;
+type Core = ReturnType<typeof requireCore> & Partial<BrReadyCore>;
 type Suppressed = { id: string; at: number; fails: number; nextAt: number };
+/**
+ * Portas da evidência de BR-ready (`autofetch:v3:er:<digest>`) no napi. O
+ * contrato canônico mora no `rust-autofetch.ts`; fica declarado aqui porque é
+ * a ponte quem o consome e o arquivo de tipos tem outro dono.
+ */
+type BrReadyCore = {
+  autofetchV3BrReadyKey(digest: string): string;
+  autofetchV3BrReadyRead(kv: NativeKvNapi, digest: string, nowMs: number): string | null;
+  autofetchV3BrReadyWrite(kv: NativeKvNapi, digest: string, ttlSeconds: number, nowMs: number): void;
+  autofetchV3BrReadyForget(kv: NativeKvNapi, digest: string): boolean;
+};
 type LotSnapshot = {
   hashes: string[];
   attempts: number;
@@ -148,4 +159,38 @@ export function lotNativeKey(searchKey: string): string | undefined {
 export function setKvNative(key: string, value: unknown, ttlSeconds: number, now = Date.now()): boolean {
   try { const handle = kv(); if (!handle) return false; handle.setJson(key, JSON.stringify(value), ttlSeconds, now); return true; }
   catch { return false; }
+}
+
+/**
+ * BR-ready (`autofetch:v3:er:<digest>`): prova, por OBRA, que um BR ficou ready
+ * — é o que permite um fallback que fica pronto DEPOIS reavaliar a evicção.
+ * O prefixo é RUST_OWNED: fora daqui só a varredura nativa (`kvKeys`) o alcança.
+ */
+export function brReadyNativeKey(digest: string): string | undefined {
+  const c = core();
+  if (!c?.autofetchV3BrReadyKey) return undefined;
+  try { return c.autofetchV3BrReadyKey(digest); } catch { return undefined; }
+}
+
+/** Registro `{ at }` vivo; `null` = ausente/vencido, `undefined` = ponte fora. */
+export function readBrReadyNative(digest: string, now = Date.now()): { at?: number } | null | undefined {
+  const c = core(); const handle = kv();
+  if (!c?.autofetchV3BrReadyRead || !handle) return undefined;
+  try { return parse<{ at?: number }>(c.autofetchV3BrReadyRead(handle, digest, now)); }
+  catch { return undefined; }
+}
+
+/** Grava a evidência no KV nativo; `false` = sem núcleo/handle (nada foi feito). */
+export function noteBrReadyNative(digest: string, ttl: number, now = Date.now()): boolean {
+  const c = core(); const handle = kv();
+  if (!c?.autofetchV3BrReadyWrite || !handle) return false;
+  try { c.autofetchV3BrReadyWrite(handle, digest, Math.max(1, Math.trunc(ttl) || 0), now); return true; }
+  catch { return false; }
+}
+
+/** Apaga a evidência; `false`/`undefined` = não havia nada ou ponte fora. */
+export function forgetBrReadyNative(digest: string): boolean | undefined {
+  const c = core(); const handle = kv();
+  if (!c?.autofetchV3BrReadyForget || !handle) return undefined;
+  try { return c.autofetchV3BrReadyForget(handle, digest); } catch { return undefined; }
 }

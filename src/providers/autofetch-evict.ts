@@ -31,13 +31,12 @@
 // bloqueia a finalização do lote do recheck; erro só vira log/métrica.
 
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
-import { prefix } from '../utils/cache-keys.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as held from '../debrid/protected.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { DebridAdapter } from '../../types/domain.js';
+import { noteBrReadyNative, readBrReadyNative } from '../utils/autofetch-state-native.js';
 import { markerObra, forgetMarker, type MarkerMeta } from './autofetch-marker.js';
 import { obraRecord, forgetObraHash, obraDigest, type ObraIdentityInput } from './autofetch-obra.js';
 import { hasDurableOwnership } from '../debrid/alldebrid-inventory.js';
@@ -68,16 +67,17 @@ const inFlight = new Map<string, Promise<void>>();
 // adapter+conta), TTL da janela do autofetch. É escrita SÓ com o knob ON; OFF
 // segue zero escrita/rede da F6. É o que permite reavaliar um fallback que fica
 // pronto DEPOIS do BR (o hold dele ainda estava vivo no primeiro ready).
-const brReadyPrefix = `${prefix('autofetch')}er:`;
+// A chave (`autofetch:v3:er:<digest>`) é RUST_OWNED: vive no `NativeKv` pela
+// ponte, nunca no L1 do Node — `cache.set`/`peek` nesse prefixo são no-op.
 
 function noteBrReady(digest: string): void {
   const ttl = Math.max(1, Math.trunc(Number(autofetchLive.effective().autoFetchTtl) || 0));
-  cache.set(`${brReadyPrefix}${digest}`, { at: Date.now() }, ttl);
+  noteBrReadyNative(digest, ttl);
   metrics.count('autofetch.evict.brReady');
 }
 
 export function hasBrReady(digest: string): boolean {
-  return cache.peek(`${brReadyPrefix}${digest}`) != null;
+  return readBrReadyNative(digest) != null;
 }
 
 /** Pulos elegíveis SOMENTE no AllDebrid e com o adapter implementando o método. */

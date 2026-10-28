@@ -15,9 +15,10 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 91.721 + 500 = 92.221 entradas alcançáveis contra o
-// teto de 93.000 — folga de 779, ~1 balde de 500 de namespace novo antes
-// de o teto virar o garrote. A conta é refeita no teste
+// chaves sem `:`. Hoje: 92.221 + 500 = 92.721 entradas alcançáveis contra o
+// teto de 93.000 — folga de 279, MENOS de um balde de 500: o próximo namespace
+// nomeado já encosta no teto (a folga era 779 antes do `adhold`). A conta é
+// refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
 // `harvest`, `notify` e `seed` vivendo de fallback até a soma real passar do
@@ -29,7 +30,7 @@
 // Cotas nomeadas: mag=50.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
 // fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
 // adsub=1.000, vres=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
-// adrm=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
+// adrm=500, adhold=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
 // cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
 // caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
 // por entrada): no teto teórico do namespace (2.000) soma ~54 MB — observado
@@ -99,10 +100,13 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   idx: 2000,
   // Fila do autofetch: markers vivos, dead/queues/prefetch, os registros `sup:`
   // com TTL próprio de 30 dias e — desde a Fase 2 — os registros por OBRA
-  // (`o:<sha256>`, teto por janela), sonda dirigida (`probe:<sha256>`) e
-  // snapshots de recheck retomáveis (`lot:<sha256>`). Os represados são lidos via `peek` (não
+  // (`o:<sha256>`, teto por janela), sonda dirigida (`probe:<sha256>`),
+  // snapshots de recheck retomáveis (`lot:<sha256>`) e a evidência de BR-ready
+  // por obra (`er:<sha256>`, um registro `{ at }`). Os represados são lidos via `peek` (não
   // promovem LRU) e ficam como os itens mais frios do namespace: cota apertada
   // ali evicta justamente o acervo que a fila existe para tornar retroativo.
+  // A cota é POR NAMESPACE (`autofetch`), não por prefixo: `er:`/`lot:` não
+  // pedem verba nova, só dividem o balde já dimensionado abaixo.
   // Recalculado na Fase 2: o registro `o:` soma ao balde que já carregava
   // markers/dead/queues/prefetch/sup, então 2.000 virou 4.000 (dobro) —
   // registro `o:` é uma lista curta de entradas minúsculas (hash+pool+at), e o

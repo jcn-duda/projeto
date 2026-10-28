@@ -295,6 +295,70 @@ pub fn autofetch_v3_lot_keys(kv: &NativeKv, now_ms: i64) -> napi::Result<Vec<Str
         .map_err(erro)
 }
 
+// ---------------------------------------------------------------------------
+// Evidência de BR-ready por OBRA (`autofetch:v3:er:<digest>`).
+//
+// Nasceu no cache do Node (`autofetch-evict.ts`): a prova de que o BR da obra
+// ficou READY de verdade, para um fallback que fica pronto DEPOIS reavaliar a
+// evicção. Mesmo formato de valor do TS (`{"at":<ms>}`) e mesmo TTL (janela do
+// autofetch, no mínimo 1 s) — só o dono mudou para o `NativeKv`.
+// ---------------------------------------------------------------------------
+
+fn br_ready_key(digest: &str) -> String {
+    format!("autofetch:v3:er:{digest}")
+}
+
+/// Digest de obra é sha256 em hex (o `obraDigest` do TS): qualquer outra forma
+/// criaria chave fora do prefixo `er:` e nunca casaria com `o:`/`m:`.
+fn digest_ok(digest: &str) -> bool {
+    !digest.is_empty() && digest.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+#[napi(catch_unwind)]
+pub fn autofetch_v3_br_ready_key(digest: String) -> String {
+    br_ready_key(&digest)
+}
+
+#[napi(catch_unwind)]
+pub fn autofetch_v3_br_ready_read(
+    kv: &NativeKv,
+    digest: String,
+    now_ms: i64,
+) -> napi::Result<Option<String>> {
+    if !digest_ok(&digest) {
+        return Ok(None);
+    }
+    kv.store()
+        .get_json(&br_ready_key(&digest), now_ms)
+        .map_err(erro)?
+        .map(|value| serde_json::to_string(&value).map_err(|e| erro(e.to_string())))
+        .transpose()
+}
+
+#[napi(catch_unwind)]
+pub fn autofetch_v3_br_ready_write(
+    kv: &NativeKv,
+    digest: String,
+    ttl_seconds: i64,
+    now_ms: i64,
+) -> napi::Result<()> {
+    if !digest_ok(&digest) {
+        return Err(erro("digest de obra inválido para BR-ready".into()));
+    }
+    let value = json!({ "at": now_ms });
+    kv.store()
+        .put_json(&br_ready_key(&digest), &value, ttl_seconds.max(1), now_ms)
+        .map_err(erro)
+}
+
+#[napi(catch_unwind)]
+pub fn autofetch_v3_br_ready_forget(kv: &NativeKv, digest: String) -> napi::Result<bool> {
+    if !digest_ok(&digest) {
+        return Ok(false);
+    }
+    kv.store().forget(&br_ready_key(&digest)).map_err(erro)
+}
+
 #[cfg(test)]
 #[path = "state_v3_tests.rs"]
 mod tests;

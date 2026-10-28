@@ -12,6 +12,8 @@
 //   5. reindexDead repovoa knownDead a partir do KV (plantado com kvSet) e o
 //      snapshot().deadBlacklistCount acompanha;
 //   6. writeQueue continua descartando o hash morto.
+//   7. `er:` (evidência de BR-ready por obra) e `lot:` (snapshot de lote)
+//      também vivem na ponte: round-trip, TTL e o L1 do Node como no-op.
 process.env.CACHE_PERSIST = 'false';
 
 import { test } from 'node:test';
@@ -21,6 +23,11 @@ import * as autofetch from '../src/providers/autofetch.js';
 import {
   markerIdIndex, markerKey, markerObra, markerTransferId, markerValue,
 } from '../src/providers/autofetch-marker.js';
+import { hasBrReady } from '../src/providers/autofetch-evict.js';
+import {
+  brReadyNativeKey, forgetBrReadyNative, forgetLotNative, lotNativeKey,
+  noteBrReadyNative, readBrReadyNative, readLotNative, writeLotNative,
+} from '../src/utils/autofetch-state-native.js';
 import * as cache from '../src/utils/cache.js';
 import { kvForget, kvKeys, kvPeek, kvSet } from '../src/utils/native-kv.js';
 
@@ -213,5 +220,113 @@ test('writeQueue continua descartando hash morto (blacklist + fila)', () => {
   } finally {
     autofetch.dropQueue(searchKey);
     kvForget(autofetch.deadKey(ADAPTER, account, H2));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// `er:` — evidência de BR-ready por OBRA (`autofetch:v3:er:<digest>`).
+// Saiu do cache do Node: escrita e leitura passam pela ponte e o L1 devolve
+// null/no-op. É o que impede um L1 velho de "provar" um BR-ready que o disco
+// não tem (e vice-versa: segundo escritor sobre um estado durável).
+// ---------------------------------------------------------------------------
+
+const ER_DIGEST = 'e'.repeat(64);
+const erKey = (digest: string) => `autofetch:v3:er:${digest}`;
+
+test('BR-ready (er:) faz round-trip pela ponte e o L1 do Node é no-op', () => {
+  const key = erKey(ER_DIGEST);
+  try {
+    assert.equal(brReadyNativeKey(ER_DIGEST), key, 'formato da chave preservado');
+    assert.equal(readBrReadyNative(ER_DIGEST), null, 'começa ausente');
+    assert.equal(hasBrReady(ER_DIGEST), false, 'sem evidência não há BR-ready');
+
+    assert.equal(noteBrReadyNative(ER_DIGEST, 60), true, 'a ponte grava');
+    const stored = kvPeek(key) as { at?: number };
+    assert.equal(typeof stored?.at, 'number', 'valor é o `{ at }` do formato antigo');
+    assert.equal(readBrReadyNative(ER_DIGEST)?.at, stored.at, 'a leitura devolve o mesmo registro');
+    assert.equal(hasBrReady(ER_DIGEST), true, 'o leitor de produção (evict) vê a evidência');
+
+    // O L1 não serve nem aceita este prefixo.
+    assert.equal(cache.get(key), null, 'cache.get do er: não é a fonte');
+    assert.equal(cache.peek(key), null, 'cache.peek também não');
+    cache.set(key, { at: 1 }, 60);
+    assert.equal((kvPeek(key) as { at?: number }).at, stored.at, 'cache.set não sobrescreve o KV');
+    cache.forget(key);
+    assert.ok(kvPeek(key), 'cache.forget não apaga o KV');
+
+    assert.equal(forgetBrReadyNative(ER_DIGEST), true, 'a limpeza confirma que havia o quê');
+    assert.equal(hasBrReady(ER_DIGEST), false, 'sem a evidência volta a false');
+    assert.equal(forgetBrReadyNative(ER_DIGEST), false, 'segunda limpeza é idempotente');
+  } finally {
+    forgetBrReadyNative(ER_DIGEST);
+  }
+});
+
+test('BR-ready vence no TTL do KV e digest fora do formato de obra não casa', async () => {
+  try {
+    assert.equal(noteBrReadyNative(ER_DIGEST, 1), true);
+    assert.equal(hasBrReady(ER_DIGEST), true, 'viva antes de vencer');
+
+    await sleep(1_100);
+
+    assert.equal(kvPeek(erKey(ER_DIGEST)), null, 'a chave vencida some do KV');
+    assert.equal(hasBrReady(ER_DIGEST), false, 'vencida não prova mais nada');
+
+    // Só digest de obra (sha256 hex) chega a criar chave: o resto falha fechado.
+    assert.equal(noteBrReadyNative('nao-e-digest', 60), false, 'digest inválido não grava');
+    assert.equal(readBrReadyNative('nao-e-digest'), null);
+    assert.equal(hasBrReady('nao-e-digest'), false);
+    assert.equal(kvPeek(erKey('nao-e-digest')), null, 'nada foi criado fora do formato');
+  } finally {
+    forgetBrReadyNative(ER_DIGEST);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// `lot:` — snapshot de recheck retomável (`autofetch:v3:lot:<sha256>`).
+// A retomada depois do restart depender SÓ do KV nativo é o que o teste fixa:
+// nenhum estado de processo participa da leitura.
+// ---------------------------------------------------------------------------
+
+const LOT_SEARCH_KEY = 'streams:v21:movie:ttNativeLotResume';
+const LOT_HASH = 'f'.repeat(40);
+
+function lotSnapshot() {
+  return {
+    hashes: [LOT_HASH],
+    attempts: 2,
+    deadStreak: { [LOT_HASH]: 1 },
+    stallStreak: {},
+    seasonHints: { [LOT_HASH]: { imdbId: 'tt1234567', season: 1, episode: 2, isPack: false } },
+    createdAt: 1_760_000_000_000,
+    isSettle: false,
+    refusals: 1,
+    adapterId: 'torbox',
+  };
+}
+
+test('lote (lot:) retoma o snapshot do KV nativo e o L1 não responde', () => {
+  const key = lotNativeKey(LOT_SEARCH_KEY);
+  assert.ok(key?.startsWith('autofetch:v3:lot:'), 'a chave do lote vem da ponte');
+  const snapshot = lotSnapshot();
+  try {
+    assert.equal(readLotNative(LOT_SEARCH_KEY), null, 'sem snapshot no início');
+    assert.equal(writeLotNative(LOT_SEARCH_KEY, snapshot, 600), true, 'a ponte grava');
+    assert.deepEqual(kvPeek(key!), snapshot, 'o snapshot inteiro está no KV');
+
+    // Retomada: a leitura reconstrói o lote sem nenhum estado de processo.
+    assert.deepEqual(readLotNative(LOT_SEARCH_KEY), snapshot, 'a retomada devolve o snapshot');
+
+    // L1 no-op: semear pelo cache do Node não serve nem sobrescreve.
+    assert.equal(cache.peek(key!), null, 'cache.peek do lot: é null');
+    cache.set(key!, { hashes: [] }, 600);
+    assert.deepEqual(kvPeek(key!), snapshot, 'cache.set não sobrescreve o KV');
+    cache.forget(key!);
+    assert.deepEqual(readLotNative(LOT_SEARCH_KEY), snapshot, 'cache.forget não apaga o KV');
+
+    assert.equal(forgetLotNative(LOT_SEARCH_KEY), true, 'a limpeza confirma o snapshot');
+    assert.equal(readLotNative(LOT_SEARCH_KEY), null, 'esquecido, não há retomada');
+  } finally {
+    forgetLotNative(LOT_SEARCH_KEY);
   }
 });

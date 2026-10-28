@@ -100,6 +100,43 @@ fn suppressed_bridge_preserves_legacy_and_retry_states() {
 }
 
 #[test]
+fn br_ready_roundtrip_keeps_node_format_and_ttl() {
+    let kv = kv();
+    let digest = "e".repeat(64);
+    assert_eq!(
+        autofetch_v3_br_ready_key(digest.clone()),
+        format!("autofetch:v3:er:{digest}")
+    );
+    assert!(autofetch_v3_br_ready_read(&kv, digest.clone(), 1000)
+        .unwrap()
+        .is_none());
+
+    autofetch_v3_br_ready_write(&kv, digest.clone(), 60, 1000).unwrap();
+    // Formato do TS preservado: `{"at":<ms>}` e nada mais.
+    assert_eq!(
+        autofetch_v3_br_ready_read(&kv, digest.clone(), 1001)
+            .unwrap()
+            .as_deref(),
+        Some(r#"{"at":1000}"#)
+    );
+    // Vencida, a evidência não prova mais BR-ready.
+    assert!(autofetch_v3_br_ready_read(&kv, digest.clone(), 61_001)
+        .unwrap()
+        .is_none());
+
+    // Digest fora do formato de obra não grava nada.
+    assert!(autofetch_v3_br_ready_write(&kv, "nao-e-digest".into(), 60, 1002).is_err());
+    assert!(autofetch_v3_br_ready_read(&kv, "nao-e-digest".into(), 1003)
+        .unwrap()
+        .is_none());
+
+    // Limpeza idempotente (o evict esquece ao remover o fallback).
+    autofetch_v3_br_ready_write(&kv, digest.clone(), 60, 1004).unwrap();
+    assert!(autofetch_v3_br_ready_forget(&kv, digest.clone()).unwrap());
+    assert!(!autofetch_v3_br_ready_forget(&kv, digest).unwrap());
+}
+
+#[test]
 fn lot_snapshot_is_restart_safe_and_rejects_runtime_or_secret_fields() {
     let kv = kv();
     let search_key = "movie:tt123".to_string();

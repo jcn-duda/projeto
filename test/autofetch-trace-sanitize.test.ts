@@ -8,6 +8,7 @@ import * as autofetchTrace from '../src/utils/autofetch-trace.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { obraKey } from '../src/providers/autofetch-obra.js';
+import { kvForget, kvSet } from '../src/utils/native-kv.js';
 import { noteSkip } from '../src/providers/autofetch-gates.js';
 import { autofetchRunnerStatus } from '../src/providers/autofetch-runner.js';
 import {
@@ -80,7 +81,8 @@ test('obras no status: digest curto, pools contados e prova BR-ready sem vazar i
   ] }, 900);
   const obraPrefix = `${prefix('autofetch')}o:`;
   const digest = key.slice(obraPrefix.length);
-  cache.set(`${prefix('autofetch')}er:${digest}`, { at: now }, 900);
+  // `er:` é RUST_OWNED: o seed vai pela ponte (o `cache.set` vira no-op).
+  kvSet(`${prefix('autofetch')}er:${digest}`, { at: now }, 900);
 
   try {
     const status = autofetchRunnerStatus();
@@ -99,6 +101,6 @@ test('obras no status: digest curto, pools contados e prova BR-ready sem vazar i
     assert.doesNotMatch(bloco, /[a-f0-9]{40}/i, 'nenhum hash cru no bloco');
   } finally {
     cache.forget(key);
-    cache.forget(`${prefix('autofetch')}er:${digest}`);
+    kvForget(`${prefix('autofetch')}er:${digest}`);
   }
 });

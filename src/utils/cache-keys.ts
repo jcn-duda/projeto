@@ -241,14 +241,28 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 // A fila (`q:`), o marker (`m:`) e a blacklist (`dead:`) do Chupim são do
 // `NativeKv` (mesma tabela `cache` do `cache.db`): o Node não os lê nem grava
 // no L1, e o prefixo é o que impede o L1 velho de responder no `get`/`peek`.
-// `pf:` (prefetch) e `sup:` seguem do Node e NÃO entram aqui: marcar o
-// namespace inteiro faria `cache.set`/`get` deles virarem no-op silencioso.
+// `er:` (evidência de BR-ready por obra) e `lot:` (snapshot de recheck
+// retomável) fecharam o mesmo caminho: leitor e escritor passam pela ponte
+// (`autofetch-state-native.ts`), então valem o mesmo bloqueio.
+//
+// AINDA FORA, cada um por um motivo concreto:
+//   `o:`/`probe:` — a produção já é 100% ponte, mas testes semeiam o registro
+//      direto no L1 (`test/helpers/autofetch-evict-harness.ts` e
+//      `test/br-probe.test.ts`); marcar o prefixo transformaria o seed em
+//      no-op e apagaria a prova do caso legado. Entram quando esses seeds
+//      migrarem para `kvSet`.
+//   `pf:` (prefetch) e `sup:` — o Node ainda grava e enumera no L1
+//      (`cache.set` + `cache.keysMatching`): marcar o prefixo faria a escrita
+//      virar no-op silencioso.
+// `autofetch-worker:v1:` é namespace separado do `cfg:v1:autofetch` do painel:
+// o gateway persiste aqui apenas pausa/intervalo, sem qualquer credencial.
 const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
   `${prefix('autofetch')}q:`, `${prefix('autofetch')}m:`, `${prefix('autofetch')}dead:`,
+  `${prefix('autofetch')}er:`, `${prefix('autofetch')}lot:`,
 ]);
 
 const RUST_OWNED_PREFIXES = Object.freeze([
-  prefix('harvest'), prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot'), prefix('adrm'),
+  prefix('harvest'), 'autofetch-worker:v1:', prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot'), prefix('adrm'),
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 
