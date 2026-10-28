@@ -29,7 +29,9 @@ pub(crate) struct Report {
 }
 
 impl Report {
-    pub(super) fn skip(&mut self, label: &str) {
+    /// `pub(crate)` porque o registro do aceite no índice (`index_record`) conta
+    /// os próprios motivos neste mesmo `skips` (canal único do painel).
+    pub(crate) fn skip(&mut self, label: &str) {
         *self.skips.entry(label.to_string()).or_default() += 1;
     }
 

@@ -394,3 +394,6 @@ async fn teto_da_rodada_limita_o_plano() {
 
 #[path = "evict_job_tests_owner.rs"]
 mod owner;
+// As seis regras de POLÍTICA lidas do KV: o que o teste do TS cobria inteiro.
+#[path = "evict_job_tests_rules.rs"]
+mod rules;

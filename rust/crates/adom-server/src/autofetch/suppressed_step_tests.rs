@@ -4,6 +4,10 @@
 //! o id lido no início da varredura; (b) entrada que deixou de ser represada
 //! sai sem rede; (c) retenção viva (`adhold:`/`adprot:`) e backoff mantêm a
 //! entrada — invariante 6 do `AGENTS.md`.
+//!
+//! Mais o GATE do knob (`DrainGate`): o passo automático com
+//! `DEBRID_REMOVE_BY_ID` OFF não apaga nada, e só o `force` do painel fura o
+//! knob — o `if (!removeById && !force) return 0` do Node.
 
 use std::sync::Arc;
 
@@ -11,13 +15,20 @@ use adom_autofetch::v3::{marker_value, suppressed_key, QueueV3, SuppressedV3};
 use adom_index::NativeKv;
 use serde_json::json;
 
-use super::{clear, drain, read_one, test_lock};
+use super::{clear, count, drain, read_one, test_lock, DrainGate, GATE_REMOVE_BY_ID_OFF};
 use crate::autofetch::fakes::{factory_for, FakeDebrid, SCOPE};
 use crate::autofetch::ports::{DebridFactory, DebridIo};
 
 const ADAPTER: &str = "alldebrid";
 const ACCOUNT: &str = "conta-de-teste";
 const TTL: i64 = 600;
+
+/// Gate do CORPO do dreno: knob ligado. Os casos que medem a régua de
+/// retenção/backoff/id atual não são sobre o gate.
+const KNOB_ON: DrainGate = DrainGate {
+    remove_by_id: true,
+    force: false,
+};
 
 /// `writes` no KV no formato do Node (`{id, at, fails, nextAt}`).
 fn note(kv: &NativeKv, hash: &str, id: &str, now: i64) {
@@ -61,7 +72,7 @@ async fn dreno_apaga_o_id_atual_e_nao_o_lido_no_inicio() {
         })
     };
 
-    let report = drain(&kv, factory, 10, now).await.unwrap();
+    let report = drain(&kv, factory, 10, now, KNOB_ON).await.unwrap();
 
     assert_eq!(fake.removed(), vec!["id-novo".to_string()]);
     assert_eq!(report.operations, 1);
@@ -93,7 +104,9 @@ async fn entrada_que_deixou_de_ser_represada_sai_da_represa() {
         .unwrap();
     let (fake, io) = fake();
 
-    let report = drain(&kv, factory_for(SCOPE, io), 10, now).await.unwrap();
+    let report = drain(&kv, factory_for(SCOPE, io), 10, now, KNOB_ON)
+        .await
+        .unwrap();
 
     assert!(fake.removed().is_empty(), "{:?}", fake.removed());
     assert_eq!(report.operations, 0);
@@ -168,13 +181,110 @@ async fn entrada_defendida_por_posse_ou_retencao_nao_sai() {
     assert_eq!(waiting.next_at, now + 60_000);
 
     let (fake, io) = fake();
-    let report = drain(&kv, factory_for(SCOPE, io), 10, now).await.unwrap();
+    let report = drain(&kv, factory_for(SCOPE, io), 10, now, KNOB_ON)
+        .await
+        .unwrap();
 
     assert!(fake.removed().is_empty(), "{:?}", fake.removed());
     assert_eq!(report.operations, 0);
     assert_eq!(report.counters.kept, 3);
     assert_eq!(report.counters.dropped, 0);
     assert_eq!(report.depth, 3);
+}
+
+/// Passo AUTOMÁTICO com o knob OFF (o default): o dreno é NO-OP — nenhuma
+/// chamada ao serviço, nada varrido, `kept` igual à profundidade e o motivo
+/// publicado. É o freio destrutivo do Node (`removeById` desligado).
+#[tokio::test]
+async fn passo_automatico_com_knob_off_nao_apaga_nada() {
+    let _guard = test_lock().await;
+    clear();
+    let now = adom_sources::now_ms();
+    let kv = Arc::new(NativeKv::open_memory().unwrap());
+    let hash = "1212121212121212121212121212121212121212";
+    note(&kv, hash, "id-preso", now);
+    let (fake, io) = fake();
+
+    let report = drain(
+        &kv,
+        factory_for(SCOPE, io),
+        10,
+        now,
+        DrainGate::automatic(false),
+    )
+    .await
+    .unwrap();
+
+    assert!(fake.removed().is_empty(), "knob OFF não pode apagar");
+    assert_eq!(report.operations, 0);
+    assert_eq!(report.counters.kept, 1);
+    assert_eq!(report.counters.dropped, 0);
+    assert_eq!(report.counters.failed, 0);
+    assert_eq!(report.counters.retried, 0);
+    assert_eq!(report.depth, 1);
+    assert_eq!(report.gate, Some(GATE_REMOVE_BY_ID_OFF));
+    // O painel lê o motivo no último passo.
+    assert_eq!(report.snapshot()["gate"], GATE_REMOVE_BY_ID_OFF);
+    // Represa INTACTA: o id segue lá para quando o knob/força cobrar.
+    let kept = read_one(&kv, ADAPTER, ACCOUNT, hash, now).unwrap().unwrap();
+    assert_eq!(kept.id, "id-preso");
+    assert_eq!(count(&kv, now).unwrap(), 1);
+}
+
+/// O MESMO passo com o knob ON apaga — o gate não é um freio permanente.
+#[tokio::test]
+async fn passo_automatico_com_knob_on_apaga() {
+    let _guard = test_lock().await;
+    clear();
+    let now = adom_sources::now_ms();
+    let kv = Arc::new(NativeKv::open_memory().unwrap());
+    let hash = "1313131313131313131313131313131313131313";
+    note(&kv, hash, "id-livre", now);
+    let (fake, io) = fake();
+
+    let report = drain(
+        &kv,
+        factory_for(SCOPE, io),
+        10,
+        now,
+        DrainGate::automatic(true),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(fake.removed(), vec!["id-livre".to_string()]);
+    assert_eq!(report.operations, 1);
+    assert_eq!(report.counters.dropped, 1);
+    assert_eq!(report.depth, 0);
+    assert_eq!(report.gate, None);
+    assert_eq!(report.snapshot()["gate"], serde_json::Value::Null);
+}
+
+/// `force` (só a ação CONFIRMADA do painel) fura o knob desligado: é o fluxo
+/// executável do operador, nunca o automático.
+#[tokio::test]
+async fn forca_confirmada_no_painel_apaga_com_o_knob_off() {
+    let _guard = test_lock().await;
+    clear();
+    let now = adom_sources::now_ms();
+    let kv = Arc::new(NativeKv::open_memory().unwrap());
+    let hash = "1414141414141414141414141414141414141414";
+    note(&kv, hash, "id-forcado", now);
+    let (fake, io) = fake();
+    let gate = DrainGate {
+        remove_by_id: false,
+        force: true,
+    };
+
+    let report = drain(&kv, factory_for(SCOPE, io), 10, now, gate)
+        .await
+        .unwrap();
+
+    assert_eq!(fake.removed(), vec!["id-forcado".to_string()]);
+    assert_eq!(report.operations, 1);
+    assert_eq!(report.counters.dropped, 1);
+    assert_eq!(report.depth, 0);
+    assert_eq!(report.gate, None);
 }
 
 // Golden de CONTRATO (fixture `.jsonl`) do que entra no dreno.

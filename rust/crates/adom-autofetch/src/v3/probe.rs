@@ -1,13 +1,15 @@
 //! Estado puro da sonda BR e lease que bloqueia pool seeds.
 //!
-//! Espelha `br-probe.ts` sem rede: o pedido ao colhedor é do executor; aqui
-//! ficam o registro persistido (`state`/`at`/`leaseUntil`), a leitura que
-//! promove `pending` órfão a `failed` e a decisão de agendar ou pular.
+//! Espelha o antigo `br-probe.ts` (apagado na B4) sem rede: o pedido ao
+//! colhedor é do executor; aqui ficam o registro persistido
+//! (`state`/`at`/`leaseUntil`), a leitura que promove `pending` órfão a
+//! `failed` e a decisão de agendar ou pular.
 //!
-//! [`ProbeRecord`] tem o MESMO JSON do TS (`{state, at, leaseUntil}`): o Node lê
-//! o registro pela ponte (`readBrProbeNative`) e o worker nativo grava pela
-//! mesma chave (`autofetch:v3:probe:<sha256>`), então a serialização é
-//! contrato de fio, não detalhe interno.
+//! [`ProbeRecord`] tem o MESMO JSON do antigo TS (`{state, at, leaseUntil}`).
+//! Depois do corte o único leitor/escritor do registro é o worker nativo, pela
+//! chave `autofetch:v3:probe:<sha256>`; o Node não tem mais ponte TS para ele
+//! (as `readBrProbeNative`/`writeBrProbeNative` saíram junto), então o formato
+//! segue contrato de fio apenas para o estado já persistido em disco.
 
 /// Lease do `pending`: crash/restart não deixa seeds bloqueados para sempre.
 /// Maior que os 60s com que a lista que só tem o aviso é cacheada, para o aviso

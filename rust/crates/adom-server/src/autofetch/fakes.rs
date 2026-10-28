@@ -72,6 +72,26 @@ impl FakeDebrid {
         self
     }
 
+    /// Evidência identificada SÓ pelo id (`via === 'id'` do Premiumize): é a
+    /// que o knob `DEBRID_REMOVE_BY_ID` barra no settle.
+    pub(crate) fn via_id(self, hash: &str, state: &str) -> Self {
+        let mut item = evidence(hash, state);
+        item.via_id = true;
+        self.with(hash, item)
+    }
+
+    /// Evidência NATIVA de parado (`stalled` do TorBox/Premiumize).
+    pub(crate) fn stalled(self, hash: &str, state: &str) -> Self {
+        let mut item = evidence(hash, state);
+        item.stalled = true;
+        self.with(hash, item)
+    }
+
+    fn with(mut self, hash: &str, item: TorrentEvidence) -> Self {
+        self.states.insert(hash.to_string(), item);
+        self
+    }
+
     pub(crate) fn removed(&self) -> Vec<String> {
         self.removed.lock().unwrap().clone()
     }

@@ -1,15 +1,15 @@
 //! Evicção dos FALLBACKS da mesma obra (Chupim 2.0, F6) como PASSO do worker.
 //!
-//! Espelho de `src/providers/autofetch-evict.ts` (política) +
-//! `src/debrid/alldebrid-fallback-evict.ts` (executor), que hoje só rodam pelo
-//! recheck do Node (`src/providers/autofetch-recheck.ts:299`).
+//! Porte do TS removido na B4 (`autofetch-evict.ts` + `alldebrid-fallback-evict.ts`,
+//! ambos apagados; só a leitura da prova `er:` ficou no Node, via `hasBrReady`).
+//! Quem executa é o passo [`super::evict_job`], pela porta `evict`.
 //!
 //! # Uma régua, duas saídas
 //!
 //! [`walk`] é o único laço decisório; os planos diferem só em QUEM prova as
 //! âncoras do delete. [`plan`] as exige aqui: `transfer_id` + NOME autoritativo
-//! do acervo, porque a blindagem BR lê o filename
-//! (`alldebrid-fallback-evict.ts:97`). [`plan_hashes`] não as tem — o worker
+//! do acervo, porque a blindagem BR lê o filename (no TS apagado,
+//! `alldebrid-fallback-evict.ts:97`). [`plan_hashes`] não as tem — o worker
 //! nativo não vê filename — e quem as prova é a porta `evict`
 //! (`adom-debrid/src/autofetch_ports_evict.rs`). `may_delete` vale nos dois.
 //!

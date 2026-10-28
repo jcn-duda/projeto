@@ -48,6 +48,7 @@ mod control;
 mod enqueue;
 mod enqueue_drain;
 mod enqueue_items;
+mod index_record;
 // Evicção F6: a régua pura (`evict_step`) é consumida pelo `evict_job` de
 // `serve`, que lê os fatos do KV e chama a porta da AllDebrid. Kill-switch
 // próprio (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, default OFF) e orçamento por
@@ -65,6 +66,7 @@ mod probe_step;
 mod rd_store;
 mod recheck;
 mod recheck_expire;
+mod recheck_poll;
 mod routes;
 mod season_fill;
 mod season_step;
@@ -192,6 +194,17 @@ pub(crate) struct Policy {
     pub(crate) key_ttl_ms: i64,
     /// Teto de contas no cofre (LRU).
     pub(crate) vault_cap: usize,
+    /// `DEBRID_REMOVE_BY_ID` — freio de rollout da remoção de uma transferência
+    /// identificada SÓ pelo id (`via === 'id'`). Nasce DESLIGADO no Node
+    /// (`src/config/debrid.ts:243`) e não tem controle no painel: é variável de
+    /// `.env`, lida no boot como as outras réguas do ciclo.
+    ///
+    /// Consumido em `recheck_expire` (`remove_by_id_enabled`): com ele OFF o
+    /// hash identificado por id vai para a represa (`sup:`) em vez de virar
+    /// `remove` — o mesmo `policyOk = via !== 'id' || removeById` do TS
+    /// (`src/providers/autofetch-recheck.ts:340`). Hash visto por HASH remove
+    /// sempre, com ou sem o knob.
+    pub(crate) remove_by_id: bool,
 }
 
 impl Policy {
@@ -230,6 +243,7 @@ impl Policy {
             // era `ttl * 1_000`, que virava pânico em debug).
             key_ttl_ms: lot_ttl_ms,
             vault_cap: env_num("DEBRID_AUTO_FETCH_VAULT_MAX", 64).clamp(1, 1_024) as usize,
+            remove_by_id: env_flag("DEBRID_REMOVE_BY_ID"),
         }
     }
 
@@ -251,6 +265,7 @@ impl Policy {
             max_settle_lots: 50,
             key_ttl_ms: 21_600_000,
             vault_cap: 4,
+            remove_by_id: false,
         }
     }
 }
@@ -260,6 +275,13 @@ fn env_num(key: &str, default: i64) -> i64 {
         .ok()
         .and_then(|raw| raw.trim().parse::<i64>().ok())
         .unwrap_or(default)
+}
+
+/// Flag de env com a régua do NODE: só o literal `true` liga
+/// (`String(env || 'false') === 'true'`, `src/config/debrid.ts:243`). Sem
+/// `trim`: `" true"` continua desligado, como no operador do TS.
+fn env_flag(key: &str) -> bool {
+    std::env::var(key).map(|value| value == "true") == Ok(true)
 }
 
 #[cfg(test)]

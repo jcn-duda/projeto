@@ -1,6 +1,6 @@
 //! Evicção F6 FIADA no ciclo: os fallbacks da obra caem depois do ready BR.
-//! Espelho de `src/providers/autofetch-evict.ts` (política) +
-//! `src/debrid/alldebrid-fallback-evict.ts` (executor); a régua pura mora em
+//! Porte do TS apagado na B4 (`autofetch-evict.ts` política +
+//! `alldebrid-fallback-evict.ts` executor); a régua pura mora em
 //! [`super::super::evict_step`] e este módulo LÊ os fatos e executa.
 //!
 //! # Por que a execução vai pela PORTA, e não por `execute`
@@ -182,13 +182,13 @@ pub(crate) async fn run(
             }
         };
         if record.is_empty() {
-            // O registro F2 é escrito pelo Node; sem ele não há `pool`,
-            // `acceptedAt` nem `overflow` — nenhum fato, nenhuma remoção.
+            // O registro F2 (`autofetch:v3:o:`) nasce do ACEITE (`enqueue_obra`/`marker_meta`),
+            // não do Node: sem ele não há `pool`, `acceptedAt` nem `overflow` — nada a remover.
             report.skip("evict-no-record");
             continue;
         }
         // Prova do EVENTO: o hash ready é pool `br` + `dubbed` no registro —
-        // a MESMA régua de `autofetch-evict.ts:184`.
+        // a MESMA régua que a política TS apagada usava.
         let current_ready_is_br = ready_hashes.iter().any(|hash| {
             record
                 .iter()

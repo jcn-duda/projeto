@@ -27,6 +27,11 @@ impl<'a> Engine<'a> {
     /// Represa (`autofetch:v3:sup:`): drena o que a remoção automática deixou
     /// de apagar. Só roda com a fábrica registrada no boot (o mesmo gate da rota
     /// `suppressed-drain`) e com entrada viva — represa vazia não abre conexão.
+    ///
+    /// O passo automático NUNCA força: passa o knob `DEBRID_REMOVE_BY_ID` do
+    /// `Policy` e, com ele OFF, o dreno é NO-OP (`remove-by-id-off`) — o mesmo
+    /// `drainSuppressed` sem `force` do Node. Apagar sem o knob é ação do
+    /// painel, com confirmação.
     pub(super) async fn drain_suppressed(&self, now_ms: i64, pass: &mut Pass) {
         if suppressed_step::factory().is_none() {
             return;
@@ -40,7 +45,9 @@ impl<'a> Engine<'a> {
             }
         }
         let factory = Arc::clone(self.debrid);
-        match suppressed_step::drain(self.kv, factory, suppressed_step::drain_max(), now_ms).await {
+        let gate = suppressed_step::DrainGate::automatic(self.policy.remove_by_id);
+        let max = suppressed_step::drain_max();
+        match suppressed_step::drain(self.kv, factory, max, now_ms, gate).await {
             Ok(report) => {
                 pass.drained += report.counters.dropped;
                 for _ in 0..report.counters.failed {

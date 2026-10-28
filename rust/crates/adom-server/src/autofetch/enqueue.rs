@@ -339,6 +339,9 @@ pub(crate) async fn run(
                         report
                             .enqueued
                             .push((attempt.info_hash.clone(), evidence.transfer_id));
+                        // Ciclo fechado: o aceite vira registro `source:autofetch`
+                        // no índice (visibilidade, nunca cobertura BR).
+                        super::index_record::keep(attempt, item, payload, &mut report);
                     }
                     // Falha de rede/serviço: o hash fica na fila, sem marker, e
                     // `releaseObra` + `held.release` voltam (`autofetch-runner.ts:163-165`).

@@ -9,8 +9,9 @@ use serde_json::{json, Value};
 
 use crate::store_admin::AdminState;
 
-use super::suppressed_step;
+use super::suppressed_step::{self, DrainGate, GATE_REMOVE_BY_ID_OFF};
 use super::worker::AutofetchStatus;
+use super::Policy;
 
 pub(crate) fn router() -> Router<Arc<AdminState>> {
     Router::new()
@@ -110,14 +111,23 @@ async fn drain(State(state): State<Arc<AdminState>>) -> Response {
 
 /// Dreno da represa (`autofetch:v3:sup:`) — o `drainSuppressed` do Node.
 ///
-/// A rota é a ação do operador, então o passo roda AQUI e devolve contadores
-/// reais: `drained` é a contagem de remoções confirmadas no serviço (o painel
-/// pinta isso em "removidas"). Sem worker (`enabled:false`), sem KV ou sem a
-/// fábrica do ciclo, responde `drained:0` + `reason` — nunca 500: painel
-/// quebrado é pior que dreno adiado, e é o motivo que mantém o Node como dono
-/// enquanto os dois existirem (`autofetchEffectApplied` só liga com
-/// `effect:"applied"`, que exige chamada de serviço).
-async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
+/// A rota é a ação do OPERADOR e é DESTRUTIVA: `force` só nasce do corpo
+/// `{"confirm":true}`. Sem confirmação (corpo ausente ou `{}`) vale o gate
+/// estático `DEBRID_REMOVE_BY_ID`: com o knob OFF — o default — a resposta é
+/// `effect:"none"` + `reason:"remove-by-id-off"` e NADA é varrido nem
+/// apagado, exatamente como o dreno automático. Com a confirmação o passo roda
+/// AQUI e devolve contadores reais: `drained` é a contagem de remoções
+/// confirmadas no serviço (o painel pinta isso em "removidas"). Sem worker
+/// (`enabled:false`), sem KV ou sem a fábrica do ciclo, responde `drained:0` +
+/// `reason` — nunca 500: painel quebrado é pior que dreno adiado, e é o motivo
+/// que mantém o Node como dono enquanto os dois existirem
+/// (`autofetchEffectApplied` só liga com `effect:"applied"`, que exige chamada
+/// de serviço).
+async fn suppressed_drain(
+    State(state): State<Arc<AdminState>>,
+    // Corpo OPCIONAL: ausente = `{}` (a confirmação é o que libera o `force`).
+    body: Option<Json<Value>>,
+) -> Response {
     let Some(handle) = state.autofetch.as_ref() else {
         return unavailable();
     };
@@ -127,6 +137,20 @@ async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
         // Worker `prepared`: não há fábrica nem laço — quem drena é o Node.
         return press_skipped(&status, "worker-disabled", depth);
     }
+    // `force` SÓ com `{"confirm":true}`: ação destrutiva, nunca implícita.
+    let confirmed = body
+        .map(|Json(value)| value)
+        .and_then(|value| value.get("confirm").and_then(Value::as_bool))
+        == Some(true);
+    // A `Policy` nasce do `.env` no boot e é imutável: reler aqui dá o MESMO
+    // knob, sem getter novo no worker.
+    let gate = DrainGate {
+        remove_by_id: Policy::from_env().remove_by_id,
+        force: confirmed,
+    };
+    if !gate.open() {
+        return press_gated(&status, depth);
+    }
     let Some(kv) = state.ownership_kv.as_deref() else {
         return press_skipped(&status, "kv-unavailable", depth);
     };
@@ -134,9 +158,15 @@ async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
         return press_skipped(&status, "factory-unavailable", depth);
     };
     let now = adom_sources::now_ms();
-    match suppressed_step::drain(kv, factory, suppressed_step::drain_max(), now).await {
+    let max = suppressed_step::drain_max();
+    match suppressed_step::drain(kv, factory, max, now, gate).await {
         Ok(report) => {
             let removed = report.operations.saturating_sub(report.counters.failed);
+            let reason = if report.operations > 0 {
+                None
+            } else {
+                report.gate.or(Some(idle_reason(&report)))
+            };
             Json(json!({
                 "ok": true,
                 "enabled": status.enabled,
@@ -150,7 +180,8 @@ async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
                 "failed": report.counters.failed,
                 "operations": report.operations,
                 "suppressed": report.depth,
-                "reason": if report.operations > 0 { None } else { Some(idle_reason(&report)) },
+                "reason": reason,
+                "gate": report.gate,
                 "lastSuppressedDrain": report.snapshot(),
             }))
             .into_response()
@@ -160,6 +191,31 @@ async fn suppressed_drain(State(state): State<Arc<AdminState>>) -> Response {
             press_skipped(&status, "drain-failed", depth)
         }
     }
+}
+
+/// Gate do knob fechado (sem `confirm` e com `DEBRID_REMOVE_BY_ID` OFF):
+/// nenhuma chave é varrida e o serviço não é chamado — `kept` é a profundidade
+/// preservada, como no relatório do passo automático.
+fn press_gated(status: &AutofetchStatus, depth: Option<usize>) -> Response {
+    let depth = depth.unwrap_or(0);
+    Json(json!({
+        "ok": true,
+        "enabled": status.enabled,
+        "phase": status.phase,
+        "operation": "suppressed-drain",
+        "effect": "none",
+        "drained": 0,
+        "retried": 0,
+        "dropped": 0,
+        "kept": depth,
+        "failed": 0,
+        "operations": 0,
+        "suppressed": depth,
+        "reason": GATE_REMOVE_BY_ID_OFF,
+        "gate": GATE_REMOVE_BY_ID_OFF,
+        "lastSuppressedDrain": suppressed_step::last(),
+    }))
+    .into_response()
 }
 
 /// Resposta do passo que NÃO executou: `drained:0`, `effect:"none"` e o motivo

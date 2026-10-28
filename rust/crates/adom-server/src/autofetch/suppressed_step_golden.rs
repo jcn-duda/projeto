@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 
 use crate::autofetch::fakes::{factory_for, FakeDebrid, SCOPE};
 use crate::autofetch::ports::DebridIo;
-use crate::autofetch::suppressed_step::{clear, count, drain, test_lock};
+use crate::autofetch::suppressed_step::{clear, count, drain, test_lock, DrainGate};
 
 const JSONL: &str = include_str!("../../../../golden/autofetch-suppressed-step.jsonl");
 const MANIFEST_TEXT: &str =
@@ -127,7 +127,14 @@ async fn dreno_bate_com_o_contrato() {
         let fake = Arc::new(FakeDebrid::accepting());
         let io: DebridIo = fake.clone();
         let max = case.input["max"].as_u64().expect("max") as usize;
-        let report = drain(&kv, factory_for(SCOPE, io), max, NOW)
+        // Gate ABERTO de propósito: o caso mede o CORPO do dreno (o que fica
+        // represado e o que entra no dreno), não o gate do knob — esse tem
+        // testes próprios em `suppressed_step_tests.rs`.
+        let gate = DrainGate {
+            remove_by_id: true,
+            force: false,
+        };
+        let report = drain(&kv, factory_for(SCOPE, io), max, NOW, gate)
             .await
             .expect("dreno sem erro de KV");
         assert_eq!(

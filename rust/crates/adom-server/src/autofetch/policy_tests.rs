@@ -16,11 +16,12 @@ use crate::autofetch::build::test_lock;
 
 /// Chaves que estes testes tocam. `DEBRID_AUTO_FETCH_TTL` entra porque é dele
 /// que nasce o horizonte do settle.
-const KEYS: [&str; 4] = [
+const KEYS: [&str; 5] = [
     "DEBRID_AUTO_FETCH_SETTLE_MS",
     "DEBRID_AUTO_FETCH_DEAD_TTL",
     "DEBRID_AUTO_FETCH_STALL_STREAK",
     "DEBRID_AUTO_FETCH_TTL",
+    "DEBRID_REMOVE_BY_ID",
 ];
 
 /// Lock + env limpo, com restauração no fim do escopo.
@@ -178,6 +179,26 @@ fn stall_streak_negativo_vira_zero() {
     let env = EnvScope::new();
     env.set("DEBRID_AUTO_FETCH_STALL_STREAK", "-2");
     assert_eq!(Policy::from_env().stall_streak, 0);
+}
+
+/// `DEBRID_REMOVE_BY_ID` — a PRIMEIRA perna do fio do freio de rollout: a env
+/// vira campo da `Policy` com a régua do Node (`String(env || 'false') ===
+/// 'true'`, `src/config/debrid.ts:243`). Sem `trim` e sem case-fold: `" true"`
+/// continua desligado, e o default é OFF.
+///
+/// O efeito observável (represa x `remove`) está em `recheck_removal_tests.rs`.
+#[test]
+fn remove_by_id_so_liga_com_o_literal_true() {
+    let env = EnvScope::new();
+    assert!(!Policy::from_env().remove_by_id, "default do Node é OFF");
+
+    env.set("DEBRID_REMOVE_BY_ID", "true");
+    assert!(Policy::from_env().remove_by_id);
+
+    for raw in ["TRUE", " true", "true ", "1", "yes", "on", "false", ""] {
+        env.set("DEBRID_REMOVE_BY_ID", raw);
+        assert!(!Policy::from_env().remove_by_id, "{raw:?} não liga o knob");
+    }
 }
 
 /// O horizonte acompanha o TTL do lote — e o TTL é o TETO.

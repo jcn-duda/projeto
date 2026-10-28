@@ -5,11 +5,15 @@
 //! puras (`adom_autofetch::v3::recheck_step`, `lot_outcome`,
 //! `settle_lru_evictions`); aqui moram o KV, a rede e a ordem:
 //!
-//! 1. lote vazio → `Finished`: a fila da busca cai (`dropQueue`) e o lote sai;
+//! 1. lote vazio → `Finished`: a fila da busca cai (`dropQueue`) e o lote sai.
+//!    `lot_outcome` só devolve `Finished` com `remaining == 0`, então não há hash
+//!    aqui para esquecer no índice: o esquecimento acontece onde o hash SAI —
+//!    colapso terminal em `recheck_poll` e fim do settle vencido abaixo;
 //! 2. settle vencido (`createdAt + autoFetchTtl`) → `Expired`: expira hash a hash
 //!    **com prova de posse** (marker/adsub + snapshot; fora da AllDebrid a
 //!    remoção histórica é preservada) e o que não tem prova vai para represados
-//!    (`sup:`), nunca para o lixo;
+//!    (`sup:`), nunca para o lixo; lote que esvaziou esquece o índice
+//!    (`forget_index`, o `autofetch-recheck.ts:375` do TS);
 //! 3. `attempts >= autoFetchRecheckMax` → `EnterSettle`: entra em settle, roda o
 //!    LRU e **não** drena fila (dreno cego não volta);
 //! 4. senão → passagem de status: `ready`/terminal resolvem o hash, morte
@@ -18,11 +22,10 @@
 //! Terminal com fila viva chama o dreno do próximo (`enqueue_drain`): é o
 //! chamador (laço) que decide, para o módulo não depender do engine inteiro.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use adom_autofetch::v3::{
-    lot_outcome, recheck_step, recheck_streaks, settle_lru_evictions, LotFacts, LotOutcome,
-    QueueV3, RecheckAction, RecheckInput, SettleLotRef,
+    lot_outcome, settle_lru_evictions, LotFacts, LotOutcome, QueueV3, SettleLotRef,
 };
 use adom_index::NativeKv;
 use serde::{Deserialize, Serialize};
@@ -58,6 +61,12 @@ pub(crate) struct Lot {
     /// `autofetch_batch` e sobrevivem ao restart aqui.
     #[serde(default)]
     pub(crate) season_hints: BTreeMap<String, SeasonHint>,
+    /// Hashes cujo ÚLTIMO status veio SÓ do id (`via === 'id'`, o Premiumize).
+    /// Gravado na passagem de status (`recheck_poll`) e lido pelo settle: o
+    /// `recheck_expire` não consulta o serviço, então o gate do knob
+    /// `DEBRID_REMOVE_BY_ID` (`recheck_expire.rs`) depende desta memória.
+    #[serde(default)]
+    pub(crate) via_id: BTreeSet<String>,
 }
 
 /// Resultado de uma passagem. `terminal` avisa o laço que vale a pena drenar.
@@ -232,8 +241,22 @@ pub(crate) async fn step(
             Ok(StepReport::outcome("finished"))
         }
         LotOutcome::Expired => {
-            super::recheck_expire::expire(kv, policy, debrid, adapter_is_alldebrid, &lot, now_ms)
-                .await
+            let report = super::recheck_expire::expire(
+                kv,
+                policy,
+                debrid,
+                adapter_is_alldebrid,
+                &lot,
+                now_ms,
+            )
+            .await?;
+            // Settle vencido com o lote inteiro resolvido: o TS apagava o
+            // registro do Chupim de TODOS os hashes (`autofetch-recheck.ts:375`),
+            // e o `lot` local é o snapshot de quem estava no lote.
+            if report.outcome == Some("finished") {
+                forget_index(&lot);
+            }
+            Ok(report)
         }
         LotOutcome::EnterSettle => {
             lot.is_settle = true;
@@ -243,103 +266,26 @@ pub(crate) async fn step(
             report.remaining = lot.info_hashes.len();
             Ok(report)
         }
-        LotOutcome::Continue => poll(kv, policy, debrid, &lot, now_ms).await,
+        LotOutcome::Continue => super::recheck_poll::poll(kv, policy, debrid, &lot, now_ms).await,
     }
 }
 
-/// Passagem de status: `ready`/terminal resolvem; morte comprovada vira `dead:`
-/// da conta; ausência de resposta não é prova de nada.
-async fn poll(
-    kv: &NativeKv,
-    policy: Policy,
-    debrid: &dyn adom_autofetch::v3::AutofetchDebrid<Error = String>,
-    lot: &Lot,
-    now_ms: i64,
-) -> Result<StepReport, String> {
-    let statuses = match debrid.status(&lot.info_hashes, &lot.transfers).await {
-        Ok(statuses) => statuses,
-        Err(_) => return Err("status do debrid falhou".to_string()),
-    };
-    let queue = QueueV3::new(kv);
-    let mut next = lot.clone();
-    next.attempts = lot.attempts.saturating_add(1);
-    let mut report = StepReport::outcome("poll");
-    let mut kept = Vec::new();
+/// `forgetAutofetchHash` do fim do lote (`autofetch-recheck.ts:375`): hash que
+/// saiu do lote não pode seguir como `autofetch_seeded` no índice — ele ligava a
+/// via rápida da busca para uma transferência que a conta não tem mais.
+///
+/// Um `forget` por hash do SNAPSHOT do lote, pelo canal do escritor: sem I/O
+/// aqui, e hash sem hint (lote escrito pelo Node) cai no no-op de `forget`.
+fn forget_index(lot: &Lot) {
     for hash in &lot.info_hashes {
-        let evidence = statuses.get(hash);
-        let input = RecheckInput {
-            cached: false,
-            status_ok: evidence.is_some(),
-            state: evidence.map(|item| item.state.clone()),
-            stalled: evidence.is_some_and(|item| item.stalled),
-            derived_stalled: false,
-            dead_streak: *lot.dead_streak.get(hash).unwrap_or(&0),
-            stall_streak: *lot.stall_streak.get(hash).unwrap_or(&0),
-            dead_threshold: DEAD_THRESHOLD,
-            stall_threshold: policy.stall_streak,
-            expired: false,
-            expired_facts: super::recheck_expire::expired_facts(false, false, false),
-            remove_supported: true,
-            via_id: evidence.is_some_and(|item| item.via_id),
-            remove_by_id_enabled: false,
-            id_present: lot.transfers.contains_key(hash),
-        };
-        let action = recheck_step(&input);
-        let streaks = recheck_streaks(&input);
-        next.dead_streak.insert(hash.clone(), streaks.dead);
-        next.stall_streak.insert(hash.clone(), streaks.stalled);
-        match action {
-            RecheckAction::Ready => {
-                report.resolved += 1;
-                // Fato do PACK: o release pronto leva título e obra declarada
-                // para fora da passagem — quem invalida é o laço.
-                if let Some(hint) = lot.season_hints.get(hash) {
-                    report.ready.push(hint.clone());
-                }
-            }
-            RecheckAction::TerminalDead => {
-                queue.mark_dead(
-                    &lot.adapter_id,
-                    &lot.account,
-                    hash,
-                    policy.dead_ttl_seconds,
-                    now_ms,
-                )?;
-                report.dead += 1;
-                report.terminal = true;
-            }
-            RecheckAction::TerminalStalled | RecheckAction::TerminalProgress => {
-                // Parado/progresso terminal saem do lote, mas NÃO viram `dead:`:
-                // não há prova de morte, só de que aquele download não anda.
-                report.resolved += 1;
-                report.terminal = true;
-            }
-            // Sem resposta/sem estado: o hash fica e os contadores não mudam.
-            RecheckAction::Pending
-            | RecheckAction::Unknown
-            | RecheckAction::RemoveExpired
-            | RecheckAction::SuppressExpired
-            | RecheckAction::ReleaseExpired => kept.push(hash.clone()),
-        }
+        let imdb_id = lot
+            .season_hints
+            .get(hash)
+            .and_then(|hint| hint.imdb_id.as_deref());
+        super::index_record::forget(imdb_id, hash);
     }
-    next.info_hashes = kept.clone();
-    next.transfers.retain(|hash, _| kept.contains(hash));
-    next.season_hints.retain(|hash, _| kept.contains(hash));
-    report.remaining = kept.len();
-    if kept.is_empty() {
-        // Terminal (morto/parado) NÃO derruba a fila: é dela que sai o próximo
-        // candidato do dreno. Só o lote que esvaziou sem terminal (tudo pronto)
-        // fecha o ciclo da busca e apaga a fila — a ordem do Node.
-        if !report.terminal {
-            QueueV3::new(kv).drop_queue(&lot.search_key)?;
-        }
-        kv.forget(&lot_key(&lot.search_key))?;
-        report.outcome = Some("finished");
-        return Ok(report);
-    }
-    write(kv, &next, policy, now_ms)?;
-    Ok(report)
 }
+
 /// LRU dos lotes em settle (`manageSettleLru`): os mais antigos saem, com a
 /// memória de progresso limpa pelo PRÓPRIO `adapterId` do lote.
 pub(crate) fn settle_lru(kv: &NativeKv, policy: Policy, now_ms: i64) -> Result<usize, String> {
@@ -380,8 +326,20 @@ pub(crate) fn due(kv: &NativeKv, policy: Policy, now_ms: i64) -> Result<Vec<Lot>
 #[path = "recheck_tests.rs"]
 mod tests;
 
+// Remoção por id (knob `DEBRID_REMOVE_BY_ID`) e blacklist do colapso: arquivo
+// próprio pela catraca de 400 linhas de `recheck_tests.rs`.
+#[cfg(test)]
+#[path = "recheck_removal_tests.rs"]
+mod removal_tests;
+
 // Relógio do lote em arquivo próprio (a catraca de 400 linhas de
 // `recheck_tests.rs`).
 #[cfg(test)]
 #[path = "recheck_mode_tests.rs"]
 mod mode_tests;
+
+// Esquecimento do registro do Chupim no índice dentro do laço (M2) — arquivo
+// próprio porque `recheck_removal_tests.rs` já está no teto de 400 linhas.
+#[cfg(test)]
+#[path = "recheck_forget_tests.rs"]
+mod forget_tests;

@@ -113,6 +113,12 @@ pub(crate) fn spawn_at(
     // Preenchimento de temporada: o cache a invalidar é o `streams.db`, não o KV
     // do worker — a porta é registrada UMA vez, aqui.
     super::season_fill::register(streams_sink());
+    // Registro do aceite do Chupim no índice (`source:autofetch`): escritor
+    // PRÓPRIO (canal + thread), fora do caminho da resposta. Índice desligado
+    // (`RELEASE_INDEX=false`/TTL 0) devolve `None` e o aceite não grava nada.
+    if let Some(sink) = super::index_record::spawn(cache_db) {
+        super::index_record::register(sink);
+    }
     Some(AutofetchHandle::build(
         kv,
         &Policy::from_env(),

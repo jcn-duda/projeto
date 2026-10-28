@@ -5,7 +5,18 @@
 //! ([`crate::autofetch::recheck_expire`]) desde a leva do recheck, mas nunca a
 //! drenava — a rota `suppressed-drain` respondia `drained:0` sem olhar o KV.
 //!
-//! Este módulo é declarado por `routes.rs` (`#[path]`) porque `mod.rs` está fora do escopo.
+//! Este módulo é declarado em `mod.rs`, e as guardas (gate + retenção viva)
+//! vivem em `suppressed_guard.rs` (`#[path]` daqui) pela catraca de linhas.
+//!
+//! # Gate do knob — o passo é DESTRUTIVO
+//!
+//! Régua do Node (`src/providers/autofetch-suppressed.ts:280`): sem
+//! `DEBRID_REMOVE_BY_ID` (default OFF) e sem `force`, o dreno é NO-OP — não
+//! varre chave de remoção, não chama o serviço e devolve `kept = depth` com
+//! `gate = "remove-by-id-off"` ([`DrainGate`]). O laço usa
+//! [`DrainGate::automatic`] e NUNCA força; `force` só existe na ação do painel
+//! (`POST /autofetch/suppressed-drain`), que é destrutiva e exige
+//! `{"confirm":true}` no corpo.
 //!
 //! # Formato da chave (idêntico ao Node)
 //!
@@ -50,6 +61,11 @@ use adom_index::NativeKv;
 use serde_json::{json, Value};
 
 use crate::autofetch::ports::DebridFactory;
+
+#[path = "suppressed_guard.rs"]
+mod guard;
+
+pub(crate) use guard::{already_removed, defended, DrainGate, GATE_REMOVE_BY_ID_OFF};
 
 /// `config.debrid.suppressedTtl` do Node (`DEBRID_SUPPRESSED_TTL`, 30 dias).
 const TTL_DEFAULT_SECONDS: i64 = 2_592_000;
@@ -129,6 +145,8 @@ pub(crate) struct DrainReport {
     /// Profundidade que sobrou na represa (relida do KV).
     pub(crate) depth: usize,
     pub(crate) at: i64,
+    /// Gate que barrou a passagem (`None` = o dreno rodou).
+    pub(crate) gate: Option<&'static str>,
 }
 
 impl DrainReport {
@@ -142,6 +160,7 @@ impl DrainReport {
             "operations": self.operations,
             "depth": self.depth,
             "at": self.at,
+            "gate": self.gate,
         })
     }
 }
@@ -198,65 +217,35 @@ pub(crate) fn read_one(
     }))
 }
 
-/// Retenção viva: hold volátil (`adhold:v1:<conta>:<hash>`) ou proteção durável
-/// do pool BR (`adprot:v1:<adapter>:<conta>:<hash>`, T2-L6). `get_json` já
-/// responde `None` para o vencido, então registro expirado não defende nada.
-/// `adsub:v1:` (posse) NÃO entra: ele autoriza apagar, não impede.
-pub(crate) fn defended(
-    kv: &NativeKv,
-    adapter: &str,
-    account: &str,
-    hash: &str,
-    now_ms: i64,
-) -> Result<bool, String> {
-    let Some((account, hash)) = account_hash(account, hash) else {
-        return Ok(false);
-    };
-    if kv
-        .get_json(&format!("adhold:v1:{account}:{hash}"), now_ms)?
-        .is_some()
-    {
-        return Ok(true);
-    }
-    let adapter = adapter.trim().to_ascii_lowercase();
-    Ok(kv
-        .get_json(&format!("adprot:v1:{adapter}:{account}:{hash}"), now_ms)?
-        .is_some())
-}
-
-/// `adrm:v1:` (anti-reenchimento) — remoção já confirmada: nada a apagar na
-/// conta, então a entrada sai da represa sem rede.
-pub(crate) fn already_removed(
-    kv: &NativeKv,
-    account: &str,
-    hash: &str,
-    now_ms: i64,
-) -> Result<bool, String> {
-    let Some((account, hash)) = account_hash(account, hash) else {
-        return Ok(false);
-    };
-    Ok(kv
-        .get_json(&format!("adrm:v1:{account}:{hash}"), now_ms)?
-        .is_some())
-}
-
-/// `(conta, hash)` normalizados — chave vazia não identifica nada.
-fn account_hash(account: &str, hash: &str) -> Option<(String, String)> {
-    let account = account.trim().to_ascii_lowercase();
-    let hash = hash.trim().to_ascii_lowercase();
-    (!account.is_empty() && !hash.is_empty()).then_some((account, hash))
-}
-
 /// Drena a represa: apaga até `max` transferências por passagem, com backoff.
 ///
 /// `resolve` é a fábrica por CONTA do ciclo (`adapter:conta` → adaptador): a
 /// chave é lida do cofre no momento do uso, e escopo sem chave devolve `None`.
+/// `gate` fechado = NO-OP: nada é varrido e o serviço não é chamado.
 pub(crate) async fn drain(
     kv: &NativeKv,
     resolve: DebridFactory,
     max: usize,
     now_ms: i64,
+    gate: DrainGate,
 ) -> Result<DrainReport, String> {
+    if !gate.open() {
+        // Gate fechado: nenhuma chave de remoção é varrida nem o serviço é
+        // chamado — só a profundidade, que é o que o painel cobra.
+        let depth = count(kv, now_ms)?;
+        let report = DrainReport {
+            counters: DrainCounters {
+                kept: depth,
+                ..DrainCounters::default()
+            },
+            operations: 0,
+            depth,
+            at: now_ms,
+            gate: Some(GATE_REMOVE_BY_ID_OFF),
+        };
+        publish(&report);
+        return Ok(report);
+    }
     let ttl = ttl_seconds();
     let limit = max.max(1);
     let suppressed = SuppressedV3::new(kv);
@@ -322,6 +311,7 @@ pub(crate) async fn drain(
         operations,
         depth: count(kv, now_ms)?,
         at: now_ms,
+        gate: None,
     };
     publish(&report);
     Ok(report)

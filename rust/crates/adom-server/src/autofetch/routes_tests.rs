@@ -25,6 +25,37 @@ const TOKEN: &str = "token-de-teste";
 const ADAPTER: &str = "alldebrid";
 const ACCOUNT: &str = "conta-de-teste";
 const TTL: i64 = 600;
+/// Knob estático do dreno (`DEBRID_REMOVE_BY_ID`, default OFF).
+const KNOB: &str = "DEBRID_REMOVE_BY_ID";
+
+/// `DEBRID_REMOVE_BY_ID` controlado no teste: segura o MESMO lock dos testes de
+/// `Policy` (`build::test_lock`, porque `std::env` é global) e devolve o valor
+/// anterior no `Drop`, mesmo quando a asserção falha.
+struct KnobScope {
+    _lock: std::sync::MutexGuard<'static, ()>,
+    saved: Option<String>,
+}
+
+impl KnobScope {
+    fn value(raw: Option<&str>) -> Self {
+        let lock = crate::autofetch::build::test_lock();
+        let saved = std::env::var(KNOB).ok();
+        match raw {
+            Some(value) => std::env::set_var(KNOB, value),
+            None => std::env::remove_var(KNOB),
+        }
+        Self { _lock: lock, saved }
+    }
+}
+
+impl Drop for KnobScope {
+    fn drop(&mut self) {
+        match &self.saved {
+            Some(value) => std::env::set_var(KNOB, value),
+            None => std::env::remove_var(KNOB),
+        }
+    }
+}
 
 /// Hash sintético distinto por `n` (40 hex, como o infoHash real).
 fn hash(n: u8) -> String {
@@ -163,7 +194,10 @@ async fn get_autofetch_conta_a_represa_e_o_dreno_devolve_contadores() {
     suppressed_step::register_factory(factory_for(SCOPE, io));
 
     let (status, body) = admin
-        .call(post("/autofetch/suppressed-drain", json!({})))
+        .call(post(
+            "/autofetch/suppressed-drain",
+            json!({ "confirm": true }),
+        ))
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["effect"], "applied", "{body}");
@@ -199,5 +233,81 @@ async fn get_autofetch_conta_a_represa_e_o_dreno_devolve_contadores() {
             > 0,
         "{body}"
     );
+    suppressed_step::clear();
+}
+
+/// Sem `confirm` e com o knob OFF (o default) a rota NÃO drena: `effect:"none"`,
+/// `reason`/`gate` = `remove-by-id-off`, serviço intocado e represa intacta —
+/// apagar por id sem confirmação é o buraco que esta rota fechou.
+#[tokio::test]
+async fn rota_sem_confirm_e_knob_off_nao_apaga() {
+    let knob = KnobScope::value(None);
+    let _guard = suppressed_step::test_lock().await;
+    suppressed_step::clear();
+    let now = adom_sources::now_ms();
+    let kv = Arc::new(NativeKv::open_memory().unwrap());
+    SuppressedV3::new(&kv)
+        .note(ADAPTER, ACCOUNT, &hash(7), "id-7", TTL, now)
+        .unwrap();
+    let handle =
+        AutofetchHandle::stub_enabled(Arc::clone(&kv), None, Arc::new(Control::new(false, 60_000)));
+    let admin = Admin::mount(Some(handle), Some(Arc::clone(&kv))).await;
+    let debrid = Arc::new(FakeDebrid::accepting());
+    let io: DebridIo = debrid.clone();
+    suppressed_step::register_factory(factory_for(SCOPE, io));
+
+    // Corpo `{}`: o painel antigo (sem confirmação) cai no gate do knob.
+    let (status, body) = admin
+        .call(post("/autofetch/suppressed-drain", json!({})))
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["operation"], "suppressed-drain", "{body}");
+    assert_eq!(body["effect"], "none", "{body}");
+    assert_eq!(body["drained"], 0, "{body}");
+    assert_eq!(body["reason"], "remove-by-id-off", "{body}");
+    assert_eq!(body["gate"], "remove-by-id-off", "{body}");
+    assert_eq!(body["kept"], 1, "{body}");
+    assert_eq!(body["operations"], 0, "{body}");
+    assert!(debrid.removed().is_empty(), "{:?}", debrid.removed());
+    assert_eq!(suppressed_step::count(&kv, now).unwrap(), 1);
+    drop(knob);
+    suppressed_step::clear();
+}
+
+/// `{"confirm":true}` libera o `force` do operador: com o knob OFF o dreno roda
+/// AQUI, apaga pelo id atual e responde `effect:"applied"`.
+#[tokio::test]
+async fn rota_com_confirm_forca_o_dreno_com_o_knob_off() {
+    let knob = KnobScope::value(None);
+    let _guard = suppressed_step::test_lock().await;
+    suppressed_step::clear();
+    let now = adom_sources::now_ms();
+    let kv = Arc::new(NativeKv::open_memory().unwrap());
+    SuppressedV3::new(&kv)
+        .note(ADAPTER, ACCOUNT, &hash(8), "id-8", TTL, now)
+        .unwrap();
+    let handle =
+        AutofetchHandle::stub_enabled(Arc::clone(&kv), None, Arc::new(Control::new(false, 60_000)));
+    let admin = Admin::mount(Some(handle), Some(Arc::clone(&kv))).await;
+    let debrid = Arc::new(FakeDebrid::accepting());
+    let io: DebridIo = debrid.clone();
+    suppressed_step::register_factory(factory_for(SCOPE, io));
+
+    let (status, body) = admin
+        .call(post(
+            "/autofetch/suppressed-drain",
+            json!({ "confirm": true }),
+        ))
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["effect"], "applied", "{body}");
+    assert_eq!(body["drained"], 1, "{body}");
+    assert_eq!(body["operations"], 1, "{body}");
+    assert_eq!(body["gate"], Value::Null, "{body}");
+    assert_eq!(debrid.removed(), vec!["id-8".to_string()]);
+    assert_eq!(suppressed_step::count(&kv, now).unwrap(), 0);
+    drop(knob);
     suppressed_step::clear();
 }

@@ -38,7 +38,13 @@ pub(super) struct Item {
     pub(super) title: Option<String>,
     pub(super) name: Option<String>,
     pub(super) quality: Option<String>,
+    /// `_indexer`/`_tracker`: procedência do release, gravada no índice quando o
+    /// aceite vira registro do Chupim (`index_record`).
+    pub(super) indexer: Option<String>,
+    pub(super) tracker: Option<String>,
     pub(super) size: Option<i64>,
+    /// `_packBytes`: total do download de um pack (o 💾 do filme em coleção).
+    pub(super) pack_bytes: Option<i64>,
     pub(super) seeders: Option<i64>,
     pub(super) br: bool,
     pub(super) dubbed: bool,
@@ -74,7 +80,10 @@ impl Item {
             title: text("title"),
             name: text("name"),
             quality: text("_quality"),
+            indexer: text("_indexer"),
+            tracker: text("_tracker"),
             size: raw.get("_size").and_then(Value::as_i64),
+            pack_bytes: raw.get("_packBytes").and_then(Value::as_i64),
             seeders: raw.get("_seeders").and_then(Value::as_i64),
             br: raw.get("_br").and_then(Value::as_bool).unwrap_or(false),
             dubbed: raw.get("_dubbed").and_then(Value::as_bool).unwrap_or(false),
