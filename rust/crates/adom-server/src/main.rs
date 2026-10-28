@@ -1,3 +1,5 @@
+/// Worker do Chupim em modo preparado (sem dreno até a fase B).
+mod autofetch;
 mod config;
 /// Interrogatório de áudio do tail (T3-L7a): fila e veredito sem o Node.
 mod dub_audit;

@@ -108,7 +108,13 @@ pub async fn run(config: Config) -> Result<(), String> {
         )
     });
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
-        spawn_store_admin(stores, orch.config().stale_grace_seconds, harvest);
+        let autofetch = crate::autofetch::spawn();
+        spawn_store_admin(
+            stores,
+            orch.config().stale_grace_seconds,
+            harvest,
+            autofetch,
+        );
     }
     let state = AppState {
         client: client(),
@@ -143,6 +149,7 @@ fn spawn_store_admin(
     stores: &stream::StreamStores,
     grace_seconds: u64,
     harvest: Option<crate::harvest::HarvestHandle>,
+    autofetch: Option<crate::autofetch::AutofetchHandle>,
 ) {
     let Some(streams) = stores.streams.clone() else {
         eprintln!("[gateway] streams admin sem store SQLite (memória); invalidação indisponível");
@@ -156,7 +163,9 @@ fn spawn_store_admin(
         }
     };
     tokio::spawn(async move {
-        if let Err(err) = crate::store_admin::serve(cfg, streams, grace_seconds, harvest).await {
+        if let Err(err) =
+            crate::store_admin::serve(cfg, streams, grace_seconds, harvest, autofetch).await
+        {
             eprintln!("[gateway] {err}");
         }
     });

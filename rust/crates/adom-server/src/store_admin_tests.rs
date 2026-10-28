@@ -9,9 +9,26 @@ use tokio::net::TcpListener;
 use adom_search::{StreamItem, StreamsEntry};
 use adom_store::StreamsStore;
 
-use super::{router, AdminConfig, DEFAULT_LISTEN};
+use super::{AdminConfig, DEFAULT_LISTEN};
 
 const TOKEN: &str = "token-de-teste";
+
+fn router(
+    cfg: &AdminConfig,
+    store: Arc<StreamsStore>,
+    grace_seconds: u64,
+    harvest: Option<crate::harvest::HarvestHandle>,
+) -> axum::Router {
+    super::router_with_ownership(
+        cfg,
+        store,
+        grace_seconds,
+        harvest,
+        None,
+        crate::ownership_admin::router(),
+        None,
+    )
+}
 
 fn entry_with_trace(hash: &str, finished_at: f64) -> StreamsEntry {
     StreamsEntry {

@@ -44,6 +44,7 @@ use serde_json::{json, Value};
 
 use adom_store::StreamsStore;
 
+use crate::autofetch::AutofetchHandle;
 use crate::harvest::HarvestHandle;
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
@@ -105,31 +106,18 @@ pub(crate) struct AdminState {
     /// Colhedor nativo; `None` = desligado, store indisponível ou corte nativo
     /// desligado: `/harvest*` responde o contrato com `enabled:false`.
     pub(crate) harvest: Option<HarvestHandle>,
+    /// Worker Chupim preparado; a fase atual não lê fila nem chama debrid.
+    pub(crate) autofetch: Option<AutofetchHandle>,
     pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
 }
 
-#[cfg(test)]
-pub fn router(
+/// Roteador completo (auth + rotas); `pub(crate)` para os testes de rota.
+pub(crate) fn router_with_ownership(
     cfg: &AdminConfig,
     store: Arc<StreamsStore>,
     grace_seconds: u64,
     harvest: Option<HarvestHandle>,
-) -> Router {
-    router_with_ownership(
-        cfg,
-        store,
-        grace_seconds,
-        harvest,
-        crate::ownership_admin::router(),
-        None,
-    )
-}
-
-fn router_with_ownership(
-    cfg: &AdminConfig,
-    store: Arc<StreamsStore>,
-    grace_seconds: u64,
-    harvest: Option<HarvestHandle>,
+    autofetch: Option<AutofetchHandle>,
     ownership: Router<Arc<AdminState>>,
     ownership_kv: Option<Arc<adom_index::NativeKv>>,
 ) -> Router {
@@ -141,6 +129,7 @@ fn router_with_ownership(
         store,
         grace_seconds,
         harvest,
+        autofetch,
         ownership_kv,
     });
     Router::new()
@@ -149,6 +138,7 @@ fn router_with_ownership(
         .route("/streams/trace", get(trace))
         .route("/streams/stats", get(stats))
         .route("/indexers/status", get(indexer_status))
+        .merge(crate::autofetch::admin_router())
         .merge(ownership)
         .merge(crate::harvest::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
@@ -162,11 +152,20 @@ pub async fn serve(
     store: Arc<StreamsStore>,
     grace_seconds: u64,
     harvest: Option<HarvestHandle>,
+    autofetch: Option<AutofetchHandle>,
 ) -> Result<(), String> {
     let listen = cfg.listen;
     let ownership = crate::ownership_admin::router();
     let ownership_kv = crate::ownership_admin::from_env();
-    let app = router_with_ownership(&cfg, store, grace_seconds, harvest, ownership, ownership_kv);
+    let app = router_with_ownership(
+        &cfg,
+        store,
+        grace_seconds,
+        harvest,
+        autofetch,
+        ownership,
+        ownership_kv,
+    );
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|err| format!("nao escutei {listen}: {err}"))?;
