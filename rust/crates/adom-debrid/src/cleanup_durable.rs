@@ -42,6 +42,13 @@ pub fn adsub_key(account: &str, hash: &str) -> String {
     format!("adsub:v1:{account}:{}", hash.trim().to_lowercase())
 }
 
+/// Hold VOLÁTIL do autofetch do Node (`adhold:v1:<conta>:<hash>`, TTL do
+/// autofetch). Mora no KV nativo — o `Holds` deste processo é outro mapa e não
+/// é preenchido em produção, então quem precisa do hold de verdade lê AQUI.
+pub fn adhold_key(account: &str, hash: &str) -> String {
+    format!("adhold:v1:{account}:{}", hash.trim().to_lowercase())
+}
+
 fn adsub_prefix(account: &str) -> String {
     format!("adsub:v1:{account}:")
 }
@@ -166,6 +173,55 @@ impl DurablePeek {
     /// O addon subiu este hash (`adsub:v1`): ele pode sair sem virar "acervo".
     pub fn is_owned(&self, account: &str, hash: &str, now: i64) -> bool {
         self.alive(&adsub_key(account, hash), now)
+    }
+
+    /// A base durável está LEGÍVEL? Sonda curta, sem chave: `true` só quando o
+    /// `cache.db` abriu e respondeu. Quem apaga por hash exige isto ANTES de
+    /// confiar em `adsub`/`adprot`/`adrm`/`adhold` — sem fonte legível, "não
+    /// protegido" e "não possuído" dão a MESMA resposta e não provam nada.
+    pub fn readable(&self) -> bool {
+        self.with_conn(|conn| {
+            conn.query_row("SELECT count(*) FROM cache", [], |row| row.get::<_, i64>(0))
+                .ok()
+        })
+        .is_some()
+    }
+
+    /// Carimbo `at` (epoch ms) do `adsub` VIVO — a idade da posse. `None` =
+    /// sem posse durável legível, vencida ou sem carimbo (`{ at }` do Node).
+    pub fn owned_at(&self, account: &str, hash: &str, now: i64) -> Option<i64> {
+        self.alive_stamp(&adsub_key(account, hash), now)
+    }
+
+    /// Hash que a limpeza apagou DE PROPÓSITO (`adrm:v1`): não é posse nossa,
+    /// é o contrário — remover de novo seria tratar como lixo o que já saiu.
+    /// Lido sempre, sem a flag do filtro de upload: a marca é PROVA de remoção
+    /// intencional, e negar remoção a mais é o lado seguro.
+    pub fn is_reupload_blocked(&self, account: &str, hash: &str, now: i64) -> bool {
+        self.alive(&adrm_key(account, hash), now)
+    }
+
+    /// Hold VIVO do Node (`adhold:v1`, TTL do autofetch): o mesmo freio do
+    /// `protected.hold` do TS, que o `Holds` deste processo não enxerga.
+    pub fn is_held(&self, account: &str, hash: &str, now: i64) -> bool {
+        self.alive(&adhold_key(account, hash), now)
+    }
+
+    /// `at` do registro vivo. Ausência, vencimento, valor ilegível ou carimbo
+    /// ausente/zero → `None` (fail-closed: sem carimbo não há idade provada).
+    fn alive_stamp(&self, key: &str, now: i64) -> Option<i64> {
+        let value = self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare("SELECT value FROM cache WHERE key = ?1 AND expires_at > ?2")
+                .ok()?;
+            stmt.query_row(params![key, now], |row| row.get::<_, String>(0))
+                .ok()
+        })?;
+        serde_json::from_str::<serde_json::Value>(&value)
+            .ok()?
+            .get("at")
+            .and_then(serde_json::Value::as_i64)
+            .filter(|at| *at > 0)
     }
 
     /// Todos os `adsub` vivos da conta numa consulta (usado pelo inventário).

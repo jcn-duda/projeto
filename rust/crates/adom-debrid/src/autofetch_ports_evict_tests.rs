@@ -13,13 +13,13 @@ use crate::alldebrid_cleanup::{account_scope, adprot_key, adsub_key};
 use crate::autofetch_ports::evict::{evict_enabled_from, max_per_call_from, EVICT_ENV};
 
 /// Envs da evicção + base em loopback, presas até o fim do teste.
-struct EvictEnv {
+pub(super) struct EvictEnv {
     _lock: MutexGuard<'static, ()>,
     saved: Vec<(&'static str, Option<String>)>,
 }
 
 impl EvictEnv {
-    fn new(addr: SocketAddr, flag: &str) -> Self {
+    pub(super) fn new(addr: SocketAddr, flag: &str) -> Self {
         let lock = crate::test_env::lock();
         let mut saved = Vec::new();
         Self::set("ALLDEBRID_API_BASE", &base(addr), &mut saved);
@@ -51,8 +51,17 @@ impl Drop for EvictEnv {
 /// Data de expiração bem à frente: `alive` compara `expires_at > now`.
 const FAR_FUTURE: i64 = 4_000_000_000_000;
 
+/// Carimbo `at` do `adsub` (ms) na era do `uploadDate` de [`row`]: posse velha
+/// e upload da mesma época, então margem/idade do caminho feliz passam.
+const STAMP: i64 = 1_700_000_000_000;
+
 /// `cache.db` do Node com as marcas que o teste precisa (`adsub`/`adprot`).
-fn db_with(keys: &[String]) -> (tempfile::TempDir, PathBuf) {
+pub(super) fn db_with(keys: &[String]) -> (tempfile::TempDir, PathBuf) {
+    db_with_at(keys, STAMP)
+}
+
+/// Mesmo banco com o `at` do `adsub` escolhido pelo teste (idade da posse).
+pub(super) fn db_with_at(keys: &[String], at: i64) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("cache.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
@@ -62,8 +71,8 @@ fn db_with(keys: &[String]) -> (tempfile::TempDir, PathBuf) {
     .unwrap();
     for key in keys {
         conn.execute(
-            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
-            rusqlite::params![key, FAR_FUTURE],
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)",
+            rusqlite::params![key, format!("{{\"at\":{at}}}"), FAR_FUTURE],
         )
         .unwrap();
     }
@@ -71,21 +80,26 @@ fn db_with(keys: &[String]) -> (tempfile::TempDir, PathBuf) {
 }
 
 /// Posse provada (`adsub:v1`) da chave de teste.
-fn owned(hash: &str) -> String {
+pub(super) fn owned(hash: &str) -> String {
     adsub_key(&account_scope(KEY), hash)
 }
 
 /// Retenção BR durável (`adprot:v1`) da chave de teste.
-fn retained(hash: &str) -> String {
+pub(super) fn retained(hash: &str) -> String {
     adprot_key(&account_scope(KEY), hash)
 }
 
 /// Linha da conta (`/magnet/status`) com id, hash e filename.
-fn row(id: u64, hash: &str, filename: &str) -> serde_json::Value {
-    json!({"id": id, "hash": hash, "filename": filename, "uploadDate": 1_700_000_000})
+pub(super) fn row(id: u64, hash: &str, filename: &str) -> serde_json::Value {
+    row_dated(id, hash, filename, 1_700_000_000)
 }
 
-fn all_debrid(db_path: PathBuf) -> AutofetchPorts {
+/// Mesma linha com `uploadDate` em SEGUNDOS (a API manda segundos).
+pub(super) fn row_dated(id: u64, hash: &str, filename: &str, upload_s: i64) -> serde_json::Value {
+    json!({"id": id, "hash": hash, "filename": filename, "uploadDate": upload_s})
+}
+
+pub(super) fn all_debrid(db_path: PathBuf) -> AutofetchPorts {
     AutofetchPorts::alldebrid(
         Arc::new(AllDebrid::new(HttpClient::new().unwrap())),
         KEY,
@@ -96,7 +110,7 @@ fn all_debrid(db_path: PathBuf) -> AutofetchPorts {
     )
 }
 
-fn paths(scene: &Scene) -> Vec<String> {
+pub(super) fn paths(scene: &Scene) -> Vec<String> {
     scene
         .hits
         .lock()

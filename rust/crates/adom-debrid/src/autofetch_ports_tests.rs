@@ -297,3 +297,6 @@ mod part2;
 
 #[path = "autofetch_ports_evict_tests.rs"]
 mod evict;
+
+#[path = "autofetch_ports_evict_tests_part2.rs"]
+mod evict_part2;

@@ -15,8 +15,10 @@
 //! - **durável** — `adprot:v1:alldebrid:<conta>:<hash>` no `cache.db` (retenção
 //!   BR do autofetch). Lido em modo read-only por [`DurablePeek`]; o `adsub:v1`
 //!   do mesmo banco marca o que o addon subiu (e pode sair) e o `adrm:v1` marca
-//!   o que a limpeza apagou DE PROPÓSITO — filtro de UPLOAD, nunca veto de
-//!   delete: ele só tira o hash do `/magnet/upload` da checagem.
+//!   o que a limpeza apagou DE PROPÓSITO — aqui é filtro de UPLOAD, nunca veto
+//!   de delete: ele só tira o hash do `/magnet/upload` da checagem. Na
+//!   evicção (`autofetch_ports_evict.rs`) a marca vale como o contrário de
+//!   posse: hash removido de propósito nunca é provado como nosso.
 //!
 //! `knownBefore` é o snapshot da conta ANTES do upload: o que já era do usuário
 //! não sai. O Rust carrega o próprio snapshot por `/magnet/status` (TTL
@@ -53,7 +55,7 @@ pub use holds::{
 mod durable;
 #[cfg(test)]
 pub(crate) use durable::warn_missing_cache_db_once;
-pub use durable::{account_scope, adprot_key, adrm_key, adsub_key, DurablePeek};
+pub use durable::{account_scope, adhold_key, adprot_key, adrm_key, adsub_key, DurablePeek};
 
 #[path = "cleanup_inventory.rs"]
 mod inventory;
