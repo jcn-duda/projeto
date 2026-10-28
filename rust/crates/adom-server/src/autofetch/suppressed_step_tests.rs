@@ -176,3 +176,7 @@ async fn entrada_defendida_por_posse_ou_retencao_nao_sai() {
     assert_eq!(report.counters.dropped, 0);
     assert_eq!(report.depth, 3);
 }
+
+// Golden de CONTRATO (fixture `.jsonl`) do que entra no dreno.
+#[path = "suppressed_step_golden.rs"]
+mod golden;

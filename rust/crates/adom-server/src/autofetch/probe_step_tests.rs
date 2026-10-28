@@ -265,3 +265,7 @@ fn estado_final_dedupe_sem_bloquear_seeds() {
     );
     assert!(finish(&kv, &planned.work, ProbeState::Pending, TTL, NOW).is_err());
 }
+
+// Golden de CONTRATO (fixture `.jsonl`) do plano e do `settle`.
+#[path = "probe_step_golden.rs"]
+mod golden;

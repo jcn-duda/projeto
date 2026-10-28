@@ -1,0 +1,22 @@
+{
+  "format": "adom-golden-manifest/1",
+  "kind": "contract",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-evict-step/plan"
+  ],
+  "subject": {
+    "module": "rust/crates/adom-server/src/autofetch/evict_step.rs",
+    "functions": [
+      "plan"
+    ]
+  },
+  "oracle": null,
+  "contractNote": "Sem oráculo TS 1:1: `maybeEvictFallbacks` é async e apaga de verdade; a seleção pura do crate já tem seu próprio golden.",
+  "generator": "scripts/golden/contract-autofetch-steps.mjs",
+  "output": {
+    "path": "rust/golden/autofetch-evict-step.jsonl",
+    "sha256": "9899db9dc8abe4ed270b5d3d0a3ac3ef9f56ac6acce5e3ab35f96a08a2b58dde",
+    "lines": 29
+  }
+}

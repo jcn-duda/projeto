@@ -326,3 +326,7 @@ fn teto_piso_e_prova_de_br_limitam_a_passagem() {
     assert!(removes(&actions).is_empty());
     assert_eq!(reasons(&actions), vec![EvictSkip::TooYoung]);
 }
+
+// Golden de CONTRATO (fixture `.jsonl`) dos vetos e da ordem dos rótulos.
+#[path = "evict_step_golden.rs"]
+mod golden;

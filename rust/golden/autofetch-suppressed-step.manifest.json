@@ -1,0 +1,24 @@
+{
+  "format": "adom-golden-manifest/1",
+  "kind": "contract",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-suppressed-step/drain"
+  ],
+  "subject": {
+    "module": "rust/crates/adom-server/src/autofetch/suppressed_step.rs",
+    "functions": [
+      "drain",
+      "read_one",
+      "defended"
+    ]
+  },
+  "oracle": null,
+  "contractNote": "Sem oráculo TS 1:1: o `drainSuppressed` do Node chama os adaptadores de debrid (rede) e o passo nativo relê o id antes do delete.",
+  "generator": "scripts/golden/contract-autofetch-steps.mjs",
+  "output": {
+    "path": "rust/golden/autofetch-suppressed-step.jsonl",
+    "sha256": "f77d830f34efb67bf76295f8084ce8c65ec2a11e4c059aeda7f8fdaa056a3c68",
+    "lines": 8
+  }
+}

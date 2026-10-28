@@ -1,0 +1,23 @@
+{
+  "format": "adom-golden-manifest/1",
+  "kind": "contract",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-season-step/plan+fill"
+  ],
+  "subject": {
+    "module": "rust/crates/adom-server/src/autofetch/season_step.rs",
+    "functions": [
+      "plan",
+      "plan_fill"
+    ]
+  },
+  "oracle": null,
+  "contractNote": "Sem oráculo TS 1:1: `registerSeasonSearchKey` só indexa o `Map` do processo; a decisão de preencher vive na régua pura do crate.",
+  "generator": "scripts/golden/contract-autofetch-steps.mjs",
+  "output": {
+    "path": "rust/golden/autofetch-season-step.jsonl",
+    "sha256": "1dba58a9cfbae9ec53e2caa66e67b7415917e5064e599e7762b4a280d219b4b5",
+    "lines": 22
+  }
+}

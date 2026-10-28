@@ -1,0 +1,25 @@
+{
+  "format": "adom-golden-manifest/1",
+  "kind": "contract",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-probe-step/plan+settle"
+  ],
+  "subject": {
+    "module": "rust/crates/adom-server/src/autofetch/probe_step.rs",
+    "functions": [
+      "plan",
+      "normalize",
+      "settle"
+    ],
+    "companion": "rust/crates/adom-server/src/autofetch/probe_job.rs"
+  },
+  "oracle": null,
+  "contractNote": "Sem oráculo TS 1:1: o `br-probe.ts` do worktree `../adom-esm` é procedural (rede + fila) e não expõe a régua de plano do worker nativo.",
+  "generator": "scripts/golden/contract-autofetch-steps.mjs",
+  "output": {
+    "path": "rust/golden/autofetch-probe-step.jsonl",
+    "sha256": "82cffb3982f33e8ce92faca1eef3934a6feefd7521eb6f202346edf824dce018",
+    "lines": 32
+  }
+}

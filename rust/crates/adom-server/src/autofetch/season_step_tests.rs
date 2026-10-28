@@ -1,8 +1,8 @@
 //! Season Pack Fill: payload, kill-switch, LRU por temporada e a régua do fill.
 //!
 //! Os casos de fill espelham `test/autofetch-season-fill.test.ts` (pack
-//! "Temporada Completa" sem número não invalida nada) — não há golden `.jsonl`
-//! para este caminho; o oráculo é o teste do Node.
+//! "Temporada Completa" sem número não invalida nada). O golden `.jsonl` deste
+//! caminho é de CONTRATO (`kind: "contract"`), não de paridade com o Node.
 
 use adom_autofetch::v3::{SeasonFillSkip, SeasonGap};
 use adom_index::NativeKv;
@@ -253,3 +253,7 @@ fn indice_desligado_nao_grava_e_entrada_podre_e_vazia() {
     assert!(report.registered);
     assert_eq!(report.keys, 1);
 }
+
+// Golden de CONTRATO (fixture `.jsonl`) do registro e da régua do fill.
+#[path = "season_step_golden.rs"]
+mod golden;
