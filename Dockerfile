@@ -32,6 +32,7 @@ FROM ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef7
 FROM rust:1.92.0-alpine AS rustcore
 RUN apk add --no-cache musl-dev
 WORKDIR /rust
+ENV CARGO_BUILD_JOBS=1
 COPY rust/Cargo.toml rust/Cargo.lock ./
 COPY rust/crates ./crates
 ENV RUSTFLAGS="-C target-feature=-crt-static"
