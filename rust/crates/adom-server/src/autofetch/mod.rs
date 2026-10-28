@@ -48,10 +48,11 @@ mod control;
 mod enqueue;
 mod enqueue_drain;
 mod enqueue_items;
-// Evicção F6: a política e o executor estão prontos e testados; a passagem
-// ainda NÃO recebe os fatos do acervo (transfer id + nome autoritativo), então
-// o passo não tem chamador de produção — o `allow` evita ruído de `dead_code`
-// até a fiação dos fatos. O módulo DECLARADO é o que faz os testes rodarem.
+// Evicção F6: a régua pura (`evict_step`) é consumida pelo `evict_job` de
+// `serve`, que lê os fatos do KV e chama a porta da AllDebrid. Kill-switch
+// próprio (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, default OFF) e orçamento por
+// passagem moram no executor. O `allow` cobre a PORTA ANTIGA (`plan`/`run`),
+// que num alvo de bin só tem chamador no golden — ela é o oráculo do TS.
 #[allow(dead_code)]
 mod evict_step;
 // O adaptador (`PortedDebrid`) e a fábrica já são usados no boot; `scope`,
@@ -148,7 +149,42 @@ pub(crate) struct Policy {
     pub(crate) recheck_interval_ms: i64,
     /// `autoFetchRecheckMax` — passagens antes de entrar em settle.
     pub(crate) recheck_max: i64,
-    /// Horizonte do settle (`autoFetchTtl * 1000`).
+    /// `autoFetchStallStreak` (`DEBRID_AUTO_FETCH_STALL_STREAK`, default `3`) —
+    /// rechecks consecutivos "parado" antes de tratar o download como morto;
+    /// `0` desliga a detecção. Régua copiada de `src/config/debrid.ts:236`:
+    /// `Math.max(0, Math.trunc(num(env, 3)))`.
+    ///
+    /// Consumido em `recheck::poll` (`stall_threshold`) — `0` desliga a
+    /// detecção, como no Node.
+    pub(crate) stall_streak: i64,
+    /// `autoFetchSettleMs` (`DEBRID_AUTO_FETCH_SETTLE_MS`, default `900_000`) —
+    /// INTERVALO entre passagens de um lote JÁ em settle, o `armRecheck` do
+    /// Node (`src/providers/autofetch-recheck.ts:38`).
+    ///
+    /// NÃO é o horizonte de expiração, e não pode virar um: no Node quem expira
+    /// é `createdAt + autoFetchTtl * 1000`
+    /// (`src/providers/autofetch-recheck.ts:347`). Com 900 s aqui, um lote em
+    /// settle venceria aos 15 min e `recheck_expire` chamaria `remove(id)` numa
+    /// transferência que ainda baixa — fora da AllDebrid
+    /// `expired_removal_allowed` devolve `true`
+    /// (`adom-core/src/autofetch_expired.rs:43`). Por isso o horizonte continua
+    /// preso ao TTL do lote (ver `settle_horizon_ms`).
+    ///
+    /// Consumido em `recheck::due_at` (`lot.is_settle ? este : recheck`).
+    pub(crate) settle_interval_ms: i64,
+    /// Horizonte do settle (`autoFetchTtl * 1000`, o `createdAt + autoFetchTtl`
+    /// do Node em `src/providers/autofetch-recheck.ts:347`).
+    ///
+    /// O TETO é o TTL do lote (`lot_ttl_seconds`) e ele VENCE: cada gravação do
+    /// lote re-arma a chave por `lot_ttl_seconds` (`recheck::write`), e `NativeKv`
+    /// apaga o que venceu (`adom-index/src/kv.rs:174`). Um horizonte MAIOR que o
+    /// TTL só seria alcançado se nenhuma passagem atrasasse mais que o TTL —
+    /// laço pausado, worker parado ou restart deixam a chave expirar e o lote
+    /// some ANTES do horizonte, sem passar por `LotOutcome::Expired`
+    /// (`adom-autofetch/src/v3/recheck.rs:148`): sem lote não há prova de posse e
+    /// o hash fica órfão na conta. Por isso o horizonte nasce da MESMA variável do
+    /// TTL em `from_env`, e não da env do settle: o que o operador controla é o
+    /// TTL, e o horizonte nunca passa dele.
     pub(crate) settle_horizon_ms: i64,
     /// `autoFetchSettleMaxLots` — teto do LRU de lotes em settle.
     pub(crate) max_settle_lots: usize,
@@ -161,18 +197,38 @@ pub(crate) struct Policy {
 impl Policy {
     pub(crate) fn from_env() -> Self {
         let ttl = env_num("DEBRID_AUTO_FETCH_TTL", 6 * 3_600).max(1);
+        // UMA variável, dois usos que não podem divergir: o TTL gravado na chave
+        // do lote e o horizonte que o expira. `saturating_mul` porque env absurda
+        // não pode virar overflow (em debug, pânico).
+        let lot_ttl_ms = ttl.saturating_mul(1_000);
         Self {
             max_attempts: env_num("DEBRID_AUTO_FETCH_MAX", 3).clamp(1, 12),
             queue_depth: env_num("DEBRID_AUTO_FETCH_QUEUE_DEPTH", 6).clamp(0, 12) as usize,
             queue_ttl_seconds: env_num("DEBRID_AUTO_FETCH_QUEUE_TTL", 86_400).max(1),
             lot_ttl_seconds: ttl,
             marker_ttl_seconds: ttl,
-            dead_ttl_seconds: 24 * 3_600,
+            // `autoFetchDeadTtl`: `num(env, 86400)`, sem piso no TS
+            // (`src/config/debrid.ts:259`). O piso 1 aqui traduz a GUARDA do
+            // consumidor do Node: TTL <= 0 desliga a blacklist por retorno
+            // antecipado (`src/providers/autofetch.ts:120`), mas no KV nativo
+            // `ttl <= 0` grava PERMANENTE (`adom-index/src/kv.rs:12`) — o `0` do
+            // operador viraria `dead:` eterno. Com 1 s a marca some antes da
+            // passagem seguinte: mesmo efeito observável de "desligado".
+            dead_ttl_seconds: env_num("DEBRID_AUTO_FETCH_DEAD_TTL", 86_400).max(1),
             recheck_interval_ms: env_num("DEBRID_AUTO_FETCH_RECHECK_MS", 120_000).max(0),
             recheck_max: env_num("DEBRID_AUTO_FETCH_RECHECK_MAX", 3).max(0),
-            settle_horizon_ms: ttl * 1_000,
+            // `Math.max(0, Math.trunc(num(env, 3)))` — `src/config/debrid.ts:236`.
+            stall_streak: env_num("DEBRID_AUTO_FETCH_STALL_STREAK", 3).max(0),
+            // `num(env, 900_000)`, sem piso/teto no TS
+            // (`src/config/debrid.ts:260`). Negativo vira 0, como o `setTimeout`
+            // do Node (intervalo negativo dispara na hora).
+            settle_interval_ms: env_num("DEBRID_AUTO_FETCH_SETTLE_MS", 900_000).max(0),
+            settle_horizon_ms: lot_ttl_ms,
             max_settle_lots: env_num("DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS", 50).max(1) as usize,
-            key_ttl_ms: ttl * 1_000,
+            // Mesma régua do lote, e a MESMA variável: o cofre não pode vencer
+            // antes nem depois do lote que ele serve (env absurda não estoura —
+            // era `ttl * 1_000`, que virava pânico em debug).
+            key_ttl_ms: lot_ttl_ms,
             vault_cap: env_num("DEBRID_AUTO_FETCH_VAULT_MAX", 64).clamp(1, 1_024) as usize,
         }
     }
@@ -189,6 +245,8 @@ impl Policy {
             dead_ttl_seconds: 86_400,
             recheck_interval_ms: 120_000,
             recheck_max: 3,
+            stall_streak: 3,
+            settle_interval_ms: 900_000,
             settle_horizon_ms: 21_600_000,
             max_settle_lots: 50,
             key_ttl_ms: 21_600_000,
@@ -206,5 +264,8 @@ fn env_num(key: &str, default: i64) -> i64 {
 
 #[cfg(test)]
 mod fakes;
+#[cfg(test)]
+#[path = "policy_tests.rs"]
+mod policy_tests;
 #[cfg(test)]
 mod tests;

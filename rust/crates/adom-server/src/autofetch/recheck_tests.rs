@@ -10,9 +10,7 @@ use adom_sources::now_ms;
 use super::super::fakes::FakeDebrid;
 use super::super::season_fill::SeasonHint;
 use super::super::Policy;
-use super::{
-    due, due_at, read, schedule, settle_lru, step, write, Lot, DEAD_THRESHOLD, STALL_THRESHOLD,
-};
+use super::{due, due_at, read, schedule, settle_lru, step, write, Lot, DEAD_THRESHOLD};
 use super::{lot_key, LOT_PREFIX};
 
 const SEARCH: &str = "tt1234567:1:2";
@@ -202,7 +200,6 @@ async fn sem_resposta_nao_e_prova_de_morte() {
     let saved = read(&kv, SEARCH, now).unwrap().unwrap();
     assert_eq!(saved.attempts, 1);
     assert_eq!(saved.dead_streak.get(&hash), Some(&0));
-    assert_eq!(STALL_THRESHOLD, 3);
 }
 
 #[tokio::test]

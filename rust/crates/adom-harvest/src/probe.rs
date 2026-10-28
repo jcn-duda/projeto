@@ -2,11 +2,11 @@
 //!
 //! # Fronteira desta fatia
 //!
-//! O consumidor TS continua DONO da persistência até a transferência da fila:
-//! `autofetch:v3:probe:` e `harvest:v1:q` seguem gravadas por `br-probe.ts` +
-//! `harvest-queue.ts`. Aqui só as DECISÕES; nenhum consumidor novo. Invalidar
-//! listas prontas e contar métrica continuam no Node — `skipped` volta para
-//! quem conta e `mode` é do call site.
+//! A persistência é NATIVA: `autofetch:v3:probe:` e `harvest:v1:q` são deste
+//! crate e do `adom-index`, e o chamador é o passo do worker nativo
+//! (`adom-server::autofetch::probe_step`, efeito `br_probe` do tail). Aqui só as
+//! DECISÕES de estado. Invalidar listas prontas e contar métrica ficam no laço
+//! — `skipped` volta para quem conta e `mode` é do call site.
 //!
 //! # Contrato
 //!

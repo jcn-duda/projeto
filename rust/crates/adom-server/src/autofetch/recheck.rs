@@ -32,9 +32,6 @@ use super::{lot_key, Policy, LOT_PREFIX};
 
 /// `isDead` do Node: duas observações de morte seguidas.
 pub(crate) const DEAD_THRESHOLD: i64 = 2;
-/// `autoFetchStallStreak` default (`DEBRID_AUTO_FETCH_STALL_STREAK=3`). Zero
-/// desligaria a detecção — aqui o default do Node é o que vale.
-const STALL_THRESHOLD: i64 = 3;
 
 /// Lote de recheck. Não guarda credencial: só hashes, contadores e ids de
 /// transferência (que já são estado da conta no serviço).
@@ -188,10 +185,20 @@ pub(crate) fn schedule(
 /// que ainda não teve nenhuma passagem espera o PRIMEIRO intervalo
 /// (`createdAt + interval`) — sem isso o laço reprocessaria no mesmo ciclo do
 /// enfileiramento.
+///
+/// O intervalo depende do MODO do lote, como no `armRecheck` do Node: em settle
+/// vale `autoFetchSettleMs` (15 min), fora dele `autoFetchRecheckMs` (2 min).
+/// Usar o intervalo do recheck no settle faria o lote drenar dinheiro do debrid
+/// 7,5× mais vezes do que o Node.
 pub(crate) fn due_at(lot: &Lot, policy: Policy) -> i64 {
+    let interval = if lot.is_settle {
+        policy.settle_interval_ms
+    } else {
+        policy.recheck_interval_ms
+    };
     let passes = lot.attempts.max(1);
     lot.created_at
-        .saturating_add(passes.saturating_mul(policy.recheck_interval_ms))
+        .saturating_add(passes.saturating_mul(interval))
 }
 
 fn facts_of(lot: &Lot, policy: Policy, now_ms: i64) -> LotFacts {
@@ -269,7 +276,7 @@ async fn poll(
             dead_streak: *lot.dead_streak.get(hash).unwrap_or(&0),
             stall_streak: *lot.stall_streak.get(hash).unwrap_or(&0),
             dead_threshold: DEAD_THRESHOLD,
-            stall_threshold: STALL_THRESHOLD,
+            stall_threshold: policy.stall_streak,
             expired: false,
             expired_facts: super::recheck_expire::expired_facts(false, false, false),
             remove_supported: true,
@@ -372,3 +379,9 @@ pub(crate) fn due(kv: &NativeKv, policy: Policy, now_ms: i64) -> Result<Vec<Lot>
 #[cfg(test)]
 #[path = "recheck_tests.rs"]
 mod tests;
+
+// Relógio do lote em arquivo próprio (a catraca de 400 linhas de
+// `recheck_tests.rs`).
+#[cfg(test)]
+#[path = "recheck_mode_tests.rs"]
+mod mode_tests;

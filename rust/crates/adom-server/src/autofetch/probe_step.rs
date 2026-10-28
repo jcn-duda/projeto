@@ -1,7 +1,7 @@
 //! Sonda dirigida (`br_probe`) como PASSO do worker nativo do Chupim.
 //!
 //! O efeito chega pelo tail (`tail_effects::BR_PROBE`), o worker o aceita como
-//! `Job` e nenhum ramo do ciclo o consome — este módulo é a peça que falta:
+//! `Job` e `serve::jobs::batch` o despacha para cá pelo `kind`:
 //!
 //! - [`plan`] traduz o payload em obra + indexers alvo (index-only ∩ pt-BR
 //!   menos os isentos da busca viva) ou `Skip{motivo}`; quem decide AGENDAR é
@@ -328,8 +328,9 @@ pub(crate) fn write_pending(
 /// finaliza pelo próprio store (mesma tabela `cache`); esta porta fecha a sonda
 /// que o worker do Chupim abriu.
 ///
-/// Sem chamador de produção pelo mesmo motivo: quem grava o estado final é o
-/// colhedor nativo. O golden compara esta porta com o `finishBrProbe` do TS.
+/// O colhedor nativo GRAVA o estado final direto no store (§ sonda); esta porta
+/// existe para o golden comparar com o `finishBrProbe` do TS — por isso o
+/// `allow`: num alvo de bin ela só tem chamador nos testes.
 #[allow(dead_code)]
 pub(crate) fn finish(
     kv: &NativeKv,
