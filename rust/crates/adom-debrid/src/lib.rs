@@ -26,6 +26,11 @@ pub mod alldebrid;
 // backoff. Flag `DEBRID_AL_CLEANUP` (default OFF) e kill-switch próprio.
 pub mod alldebrid_cleanup;
 pub mod alldebrid_delete;
+// Varreduras de CONTEÚDO (`sweepDead`/`sweepUndubbed`/reconcile/revalidate):
+// decisão pura (`plan_*`) + executor com HTTP injetado e `may_delete`
+// fail-closed. Sem inventário ninguém sai; nenhuma função lê env (o chamador
+// passa `SweepMode`). O wiring (fatos do `cache.db`, agendamento) é do gateway.
+pub mod alldebrid_sweeps;
 // Inventário PRONTO da conta como fonte (F3): leitura pura, sem memo/efeitos.
 pub mod account;
 /// Memo local, não bloqueante e fail-open da ocupação da conta no autofetch.
