@@ -33,6 +33,10 @@ pub use owned::{mark_owned, owns};
 mod enqueue;
 pub use enqueue::EnqueueOutcome;
 
+#[path = "alldebrid_sweep_api.rs"]
+mod sweep_api;
+pub use sweep_api::{SweepFile, SweepMagnet};
+
 #[path = "alldebrid_parse.rs"]
 mod parse;
 use parse::{
