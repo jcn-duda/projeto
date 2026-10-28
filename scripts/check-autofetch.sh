@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 # Sonda a admin do gateway (loopback + token) e responde se o worker nativo do
-# Chupim está CONSUMIDO o canal, não só se o container subiu.
+# Chupim está CONSUMINDO o canal, não só se o container subiu.
 #
-#   GET /autofetch → phase / enabled / queueDepth / lots
+# Rotas da admin (`rust/crates/adom-server/src/autofetch/routes.rs:15-22`):
+#   GET  /autofetch                    -> phase / enabled / processed / skips /
+#                                         queueDepth / lots / suppressed
+#   POST /autofetch/config             -> {"paused":bool,"intervalMs":n}
+#   POST /autofetch/pause              -> {"paused":bool} (só esse campo)
+#   POST /autofetch/drain              -> SEM corpo
+#   POST /autofetch/suppressed-drain   -> SEM corpo
+# Esta sonda usa SÓ o GET, de propósito: é read-only e `drain` faz trabalho real.
 #
-# Por que existe: com `AUTOFETCH_WORKER=on` no compose o worker só chega a
-# `phase:"active"` quando o boot injeta a fábrica de debrid — até lá o contrato é
-# `enabled:false`/`phase:"prepared"` e TODO efeito de trabalho segue ao Node
-# (`rust/crates/adom-server/src/tail_effects.rs:136`). No log de boot os dois
+# Por que existe: `phase:"active"` só aparece quando o LAÇO subiu. Com
+# `AUTOFETCH_WORKER=on` o boot monta a fábrica de produção
+# (`autofetch/boot.rs::production_factory`, injetada em `boot.rs:103-106`); sem
+# ela — `HttpClient` do debrid que não abriu, `Build::new` falhando, KV do
+# `cache.db` inacessível, trava fora do literal `on` — o worker fica
+# `phase:"prepared"` e TODO efeito de trabalho segue ao Node
+# (`rust/crates/adom-server/src/tail_effects.rs:136-156`). No log de boot os dois
 # estados são indistinguíveis (nenhum canal é criado em `prepared`), então
 # "subiu" passaria por "ligado". Esta sonda separa os casos.
 #
@@ -30,6 +40,9 @@
 #   STREAM_STORE_ADMIN_TOKEN  token próprio; cai para DEBRID_INTERNAL_TOKEN e
 #                             JACKETT_TEST_TOKEN (mesma ordem do `store_admin.rs:88`)
 #   AUTOFETCH_WORKER          expectativa: `on` exige enabled=true; vazio = só informa
+#   CHECK_AUTOFETCH_EXPECT    mesma expectativa, com precedência sobre
+#                             AUTOFETCH_WORKER (é o que o modo container exporta:
+#                             o host não vê o `.env` do compose)
 #   ADOM_CONTAINER            container usado quando a admin só é alcançável por
 #                             dentro dele (default: stremio-adom)
 #   CHECK_AUTOFETCH_INNER=1   uso interno do modo container (não recursa)
@@ -48,6 +61,14 @@ BASE_URL="${BASE_URL%/}"
 TOKEN="${STREAM_STORE_ADMIN_TOKEN:-}"
 [ -z "$TOKEN" ] && TOKEN="${DEBRID_INTERNAL_TOKEN:-}"
 [ -z "$TOKEN" ] && TOKEN="${JACKETT_TEST_TOKEN:-}"
+
+# Token vazio aqui não significa token vazio no container: `fetch_local` manda o
+# header vazio e a admin responde 401/503. O aviso existe para esse 401/503 não
+# ser lido como "worker morto".
+if [ -z "$TOKEN" ]; then
+  echo "[autofetch] AVISO: sem token no host (STREAM_STORE_ADMIN_TOKEN/DEBRID_INTERNAL_TOKEN/JACKETT_TEST_TOKEN)." >&2
+  echo "[autofetch] AVISO: 401/503 abaixo pode ser só isto — o container pode ter o token." >&2
+fi
 
 # Expectativa declarada pelo CHAMADOR, não pelo container: quem roda a sonda no
 # host não tem o `AUTOFETCH_WORKER` do compose no ambiente, e adivinhar pelo
@@ -120,14 +141,19 @@ field() {
 }
 
 report() {
-  local phase enabled depth lots
+  local phase enabled depth lots processed suppressed
   phase="$(field phase)"
   enabled="$(field enabled)"
   depth="$(field queueDepth)"
   lots="$(field lots)"
+  processed="$(field processed)"
+  suppressed="$(field suppressed)"
 
   echo "[autofetch] GET ${BASE_URL}/autofetch (HTTP ${HTTP_CODE})"
-  echo "[autofetch] phase=${phase:-?} enabled=${enabled:-?} queueDepth=${depth:-?} lots=${lots:-?}"
+  echo "[autofetch] phase=${phase:-?} enabled=${enabled:-?} processed=${processed:-?} queueDepth=${depth:-?} lots=${lots:-?} suppressed=${suppressed:-?}"
+  # `queueDepth`/`lots` são FOTO DO BOOT (`worker.rs:69-70`): dizem o que o KV
+  # tinha ao subir, não a fila viva. Quem prova consumo é `processed` — jobs
+  # despachados pelo canal desde o boot (`control.rs:88-89`).
   # Corpo cru é seguro: o status nunca carrega credencial (vault só publica
   # contagem). Ajuda quando o painel e a sonda discordarem.
   echo "[autofetch] status=${BODY}"
@@ -146,8 +172,9 @@ report() {
       fi
       echo "[autofetch] FALHA: AUTOFETCH_WORKER=on mas enabled=${enabled:-?} phase=${phase:-?}." >&2
       if [ "$phase" = "prepared" ]; then
-        echo "[autofetch] ESPERADO NESTA LEVA: a fábrica de debrid ainda não é injetada no boot" >&2
-        echo "[autofetch] (autofetch::spawn() passa None); o trabalho segue no Node. Flip mantido." >&2
+        echo "[autofetch] 'prepared' = o LAÇO não subiu: fábrica ausente (HttpClient do debrid" >&2
+        echo "[autofetch] não abriu, Build::new falhou, KV inacessível) ou trava fora do literal 'on'." >&2
+        echo "[autofetch] Sem a fábrica o efeito volta ao Node; ver '[autofetch]' no log do boot." >&2
       elif [ "$phase" = "unavailable" ]; then
         echo "[autofetch] store/KV indisponível no gateway: o handle do worker nem existe." >&2
       fi

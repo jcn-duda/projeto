@@ -1748,9 +1748,12 @@ continuam no cache do Node; o namespace `autofetch` NÃO entra inteiro, senão
 `cache.db` continua legível: é a MESMA tabela `cache`, a MESMA chave e o MESMO
 valor/TTL — só o transporte mudou, sem migração.
 
-**Worker nativo do Chupim (estado real, `rust` @ `47e475fb` + leva C1).** O
-ciclo inteiro está no gateway e liga com `AUTOFETCH_WORKER=on` — o compose liga
-e `scripts/check-autofetch.sh` confere `enabled`/`phase` pela admin de loopback
+**Worker nativo do Chupim (estado real, `rust` @ `97f9240f` + leva C1).** O
+ciclo inteiro está no gateway e liga com `AUTOFETCH_WORKER=on` — o compose traz
+`${AUTOFETCH_WORKER:-on}` (`docker-compose.yml:68`), o `.env` da VPS vence a
+interpolação e o `env_file`, e `worker_enabled()` aceita só o literal `on`
+(`autofetch/mod.rs:128-130`). `scripts/check-autofetch.sh` confere
+`enabled`/`phase` pela admin de loopback
 (o log de boot não distingue `prepared` de `active`). Arquivos-âncora, todos sob
 `rust/crates/adom-server/src/autofetch/`: `vault.rs` (cofre em RAM por
 `adapter:conta`, TTL `DEBRID_AUTO_FETCH_TTL` default 6 h, LRU
@@ -1781,7 +1784,10 @@ Continua no Node (ver a subseção seguinte): os FATOS que o nativo não produz 
 marker com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/`adprot` e
 `pf:` —, o `harvester_enqueue` e o agendamento das varreduras da AllDebrid
 (`ReadOnly`). Sonda, Season Pack Fill, represa e evicção **saíram** dessa lista
-na leva C1. O flip B4 (apagar o TS) não foi feito.
+na leva C1 — e o despacho por `kind` (`serve_jobs.rs:57-65`) é o que as liga ao
+canal: `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`. O flip B4 (apagar o TS) não foi
+feito; o corte é decisão posterior e tem ordem própria em `DEPLOY.md` §8.4
+(prova do worker → busca real → remoção → rollback por imagem).
 
 #### Leva C1 — o que o worker nativo já consome (2026-10-28)
 
@@ -1835,12 +1841,12 @@ na leva C1. O flip B4 (apagar o TS) não foi feito.
 |---|---|
 | **divergência conhecida** — `cache_check_honest` estático para RD (`season_fill.rs:114`) x `cacheCheck` dinâmico no Node (`src/debrid/registry.ts:66`) | lote de RD nunca preenche: falha fechada, cobertura menor que o TS |
 | **divergência conhecida** — `readded` só na porta (`autofetch_ports_evict.rs:332`) x `alldebrid-fallback-evict.ts:114`; ausente de `evict_step::plan` (`evict_step.rs:175`) e do veto `may_delete` (`:63-73`) | anti-re-add não aparece no contador do plano/painel |
-| **divergência conhecida** — `DEBRID_AUTO_FETCH_SETTLE_MS`/`_STALL_STREAK` lidos e sem consumidor (`recheck.rs:192-195`, `:37`/`:272`) x `armRecheck` (`src/providers/autofetch-recheck.ts:38`) e `config/debrid.ts:236` | knob de `.env` que não muda comportamento; o nativo usa o intervalo do recheck para todo lote |
+| **resolvida** — `DEBRID_AUTO_FETCH_SETTLE_MS`/`_STALL_STREAK` agora têm consumidor: `due_at` escolhe o intervalo pelo modo do lote (`recheck.rs:193-198`) e o passo recebe `stall_threshold` (`recheck.rs:277-279` → `adom-autofetch/src/v3/recheck.rs:66-88`) | os dois knobs voltam a mover o laço; `.env.example` não os lista mais como "não lidas" |
 | **divergência conhecida** — `env_flag` da sonda faz `trim()` (`probe_job.rs:104`) x régua sem `trim` do pool (`enqueue_gates.rs:109-117`) e do Node (`String(env \|\| 'true') === 'true'`) | `AUTOFETCH_BR_PROBE=" true "` liga a sonda e desliga os pools |
 | marker sem `obra` no `enqueue` nativo (`enqueue.rs:331`) e registro F2 escrito pelo Node | sem o Node a evicção é `evict-no-marker`/`evict-no-record` |
 | **divergência conhecida** — `is_pack` derivado do título (`season_fill.rs:119-122`) x booleano persistido no Node (`src/providers/autofetch-lot-state.ts:7`) | lote escrito pelo Node sem `title` cai em `not-pack` |
 
-Nenhuma das cinco divergências foi resolvida lendo o código: o nativo é
+Nenhuma das divergências de paridade foi resolvida lendo o código: o nativo é
 fail-closed em todas (não preenche, não apaga, não aceita), então o custo é
 cobertura menor — nunca perda de acervo. A exceção é o `trim()` do
 `AUTOFETCH_BR_PROBE`, que LIGA a sonda onde os pools ficam desligados.
@@ -1855,7 +1861,9 @@ não é passo consumido: o efeito aceito pelo canal **não volta** ao Node
 (`Deferred` só existe antes do `submit`), então remover o TS com o ramo do laço
 faltando transforma trabalho em silêncio. A ordem é sempre (1) o ramo em
 `serve.rs` com teste, (2) o efeito deixando de chegar ao Node por medição, (3)
-só então apagar o TS.
+só então apagar o TS. O checklist operacional está em `DEPLOY.md` §8.4; o
+degrau 1 do rollback (env) deixa de valer depois do corte, porque
+`AUTOFETCH_WORKER=off` fica sem quem execute o efeito — aí o rollback é imagem.
 
 SWR só serve o que o `finish` promoveria a completa: `partial === false`,
 `debridKnown === true` e pelo menos um stream **tocável** (`url` ou

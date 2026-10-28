@@ -184,30 +184,33 @@ docker compose exec adom sh -lc \
 | `phase` | `active` | `prepared` = o **laço** não subiu (fábrica/`HttpClient` ausente ou `AUTOFETCH_WORKER` diferente de `on`); `paused` = botão do painel |
 | `enabled` | `true` | `false` com `phase=prepared` = flip não aplicado neste container |
 | `vaultAccounts` | `> 0` depois de tráfego com `dk` | `0` = nenhuma chave chegou ao cofre; worker vivo, todo lote em `no-credential` |
-| `processed` / `inflight` | cresce após uma busca | parado = nada foi emitido (ver `EFFECTS_RUST`) ou nenhum lote passou os portões |
+| `processed` / `inflight` | cresce após uma busca | `processed` são os **jobs despachados pelo canal** desde o boot (`control.rs:88-89`); parado = nada foi emitido (ver `EFFECTS_RUST`) ou nenhum lote passou os portões |
 | `skips` | `no-credential`, `paused`, `budget`, `marker` aparecem | é o diagnóstico do que barrou o lote |
 | `lastError` | `null` ou erro pontual de debrid | erro repetido = credencial/adaptador, não deploy |
-| `lots` / `queueDepth` | acompanham a fila v3 | fila cheia com `processed` zero = dreno travado |
+| `lots` / `queueDepth` | **foto do boot**, não da fila viva (`worker.rs:69-70`) | valor congelado desde que o container subiu: não prova dreno nem crescimento. Prova de consumo é `processed` |
 | `suppressed` / `lastSuppressedDrain` | presença do campo | ausência = gateway antigo (imagem anterior à rota) |
 
-Prova de escrita pela admin (o painel usa as mesmas):
+Prova de escrita pela admin (o painel usa as mesmas). As rotas são de
+`rust/crates/adom-server/src/autofetch/routes.rs:15-22`: `pause` exige **só**
+`{"paused":bool}`; `drain` e `suppressed-drain` **não levam corpo** — `effect`
+é campo da RESPOSTA, não do pedido.
 
 ```bash
 docker compose exec adom sh -lc 'T=$STREAM_STORE_ADMIN_TOKEN; B=http://127.0.0.1:8711
 curl -s -X POST -H "x-indexer-test-token: $T" -H "content-type: application/json" \
   -d "{\"paused\":false}" $B/autofetch/pause
-curl -s -X POST -H "x-indexer-test-token: $T" -H "content-type: application/json" \
-  -d "{\"effect\":\"requested\"}" $B/autofetch/drain'
+curl -s -X POST -H "x-indexer-test-token: $T" $B/autofetch/drain
+curl -s -X POST -H "x-indexer-test-token: $T" $B/autofetch/suppressed-drain'
 ```
 
 Sinais no log do container: `docker compose logs adom | grep -i autofetch` —
 um `[autofetch] passagem com N falha(s)` isolado é aceitável; a cada passagem,
 não.
 
-### 8.3 Rollback (na ordem que funciona)
+### 8.3 Rollback (três degraus, do mais barato ao mais caro)
 
-O rollback do Chupim **é env**, e sobrevive a rebuild porque o `.env` não é
-versionado (o cron de deploy não o toca):
+**Degrau 1 — env.** O rollback do Chupim **é env**, e sobrevive a rebuild
+porque o `.env` não é versionado (o cron de deploy não o toca):
 
 ```bash
 # no .env da VPS
@@ -220,7 +223,22 @@ docker compose up -d          # recria o container e RELÊ o .env
 Com `off`, `worker_enabled()` fica falso, nenhuma thread `adom-autofetch` sobe
 e os três kinds voltam ao Node por `Forward`: o TS do Chupim (que segue na
 imagem) reassume em um intervalo. Isso vale inclusive se o laço estiver
-panicando — sem `on` o laço nem é criado.
+panicando — sem `on` o laço nem é criado. **Este degrau só existe enquanto o TS
+estiver na imagem**: depois do corte do §8.4, `off` fica sem quem execute o
+efeito e o rollback começa no degrau 2.
+
+**Degrau 2 — imagem/commit anterior.** Se a env não bastar (gateway não sobe,
+8711 em conflito, `/stream` em 503), rollback é a **imagem/commit anterior** —
+em `esm`, é `git revert` do commit do flip e deixar o cron reconstruir, ou
+`docker compose up -d --build` sobre o commit anterior. O `/stream` nativo
+(fatia anterior) **não** tem rollback por env; o Chupim tem (até o corte do TS,
+que promove este degrau a primeiro).
+
+**Degrau 3 — volume.** Último recurso, e só com o KV ilegível: restaurar o
+backup inteiro de `docker-data/`. O `cache.db` é um só e carrega fila v3,
+marker, blacklist de mortas, represa e os demais namespaces — restaurar o
+volume devolve o estado anterior ao corte, e a fila se reconcilia na busca
+seguinte.
 
 O que **não** é rollback:
 
@@ -231,15 +249,48 @@ O que **não** é rollback:
 - tirar a chave do `.env` — não desliga nada: o worker fica `active` com
   `vaultAccounts:0` e só pula passos.
 
-Se a env não bastar (gateway não sobe, 8711 em conflito, `/stream` em 503),
-rollback é a **imagem/commit anterior** — em `esm`, é `git revert` do commit do
-flip e deixar o cron reconstruir, ou `docker compose up -d --build` sobre o
-commit anterior. O `/stream` nativo (fatia anterior) **não** tem rollback por
-env; o Chupim tem.
-
 Efeito colateral esperado do rollback: o cofre de chaves é RAM, então lotes em
 voo perdem a credencial e são re-injetados pela ponte do `/stream` na próxima
 busca — nenhuma fila é perdida (ela é no `cache.db`).
+
+### 8.4 Checklist do corte do TS
+
+Só depois que os três kinds e a represa estiverem consumidos por **medição**, não
+por leitura de código. A ordem existe porque o rollback fica mais caro a cada
+passo: no fim, `AUTOFETCH_WORKER=off` não tem quem execute o efeito (o TS que
+reassumia saiu da imagem) e o rollback passa a ser sempre imagem.
+
+1. **Prova do worker** — `./scripts/check-autofetch.sh` com `AUTOFETCH_WORKER=on`
+   tem que sair 0: `enabled=true` e `phase=active`. Exit 1 aqui não é "cortar
+   depois", é incidente.
+2. **Uma busca real** — uma obra que precise de dublado BR. Em `GET /autofetch`:
+   `processed` sobe (jobs despachados pelo canal) e `skips` ganha o motivo;
+   `lastError` fica `null`. **Não existe `enqueued` no status** e
+   `queueDepth`/`lots` são foto do boot (§8.2): a prova de enfileiramento é
+   `processed` subindo + a fila `autofetch:v3:q:` no KV, não o `queueDepth`.
+3. **Só então remover os arquivos da lista (a)** — os que o nativo já cobre e
+   cujo único chamador restante é o caminho de fallback do Node
+   (`/internal/search/effects`):
+   - `src/providers/autofetch-{runner,candidates,batch,drain,recheck,settle,
+     expired,terminal,index,lot-state,progress,season-index,seeds-pool,policy,
+     gates,evict,fallback}.ts`
+   - `src/providers/br-probe.ts`
+   - `src/debrid/alldebrid-fallback-evict.ts`
+
+   **Ficam** (o nativo não cobre): `autofetch.ts` (encolhido — `reindexQueues`/
+   `reindexDead` no boot, `markerActive` no `rd-warmer`, `isDeadQuiet` no
+   `trace-recompute`), `autofetch-obra.ts` e família (registro F2 que o nativo
+   só LÊ), `autofetch-marker.ts` (marker com `obra`), `autofetch-gate.ts`,
+   `autofetch-keys.ts`, `autofetch-suppressed.ts` (painel), `autofetch-chupim-trace.ts`
+   e `utils/autofetch-trace.ts` (`trace.chupim` e o anel de motivos), as pontes
+   (`utils/autofetch-native.ts`, `autofetch-state-native.ts`, `rust-autofetch.ts`)
+   e o vocabulário/painel (`utils/autofetch-live*`, `autofetch-pools`,
+   `autofetch-picks`, `autofetch-obra-summary`, `config/debrid*`,
+   `routes/dashboard-*`, `client/painel/view-chupim.ts`).
+4. **Rollback = imagem anterior** — com o TS fora da imagem, `AUTOFETCH_WORKER=off`
+   não devolve o trabalho a ninguém: o efeito é `Deferred` e morre. Voltar é
+   `docker compose up -d --build` sobre o commit/imagem anterior (§8.3, degrau 2,
+   que aqui vira o primeiro).
 
 ---
 
