@@ -3,7 +3,7 @@
 //! A sonda HTTP (`RealDebridAutofetch` + gate AIMD) mora em `rd_warmer_probe.rs`;
 //! aqui ficam as peças que falam KV e cofre.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 
 use adom_core::{
     ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state,
@@ -64,20 +64,15 @@ impl WarmConfig {
 
 /// Produção: cofre do processo + ledger do `cache.db` + sonda com gate.
 pub(crate) fn register() -> Option<Arc<Warmer>> {
-    register_with(crate::autofetch::shared_vault(), None)
+    register_with(crate::autofetch::shared_vault())
 }
 
-/// `scope` é `realdebrid:sha256(chave)` do cofre. O seam do tail ainda não
-/// entrega o escopo ao sink, então a fiação do registro passa por aqui.
-pub(crate) fn register_with(
-    vault: Option<Arc<Vault>>,
-    scope: Option<String>,
-) -> Option<Arc<Warmer>> {
+pub(crate) fn register_with(vault: Option<Arc<Vault>>) -> Option<Arc<Warmer>> {
     let config = WarmConfig::from_env()?;
     let port = probe::port(config.poll_ms)?;
     let warmer = Warmer::new(
         config,
-        Arc::new(VaultKey::new(vault, scope)),
+        Arc::new(VaultKey::new(vault)),
         port,
         Arc::new(KvLedger::from_env()),
     );
@@ -113,48 +108,24 @@ fn env_num_f(key: &str, default: f64) -> f64 {
 // Cofre: a chave vem de `Vault::key`, nunca do payload.
 // ---------------------------------------------------------------------------
 
-/// Escopo aprendido do cofre (`realdebrid:sha256(chave)`). Sem escopo não há
-/// `Vault::key`: o lote é descartado com contador, nunca com pânico.
+/// Busca a chave do escopo individual no cofre em cada uso. O escopo nunca é
+/// inferido de outro item nem armazenado como credencial.
 pub(super) struct VaultKey {
     vault: Option<Arc<Vault>>,
-    scope: Mutex<Option<String>>,
 }
 
 impl VaultKey {
-    pub(super) fn new(vault: Option<Arc<Vault>>, scope: Option<String>) -> Self {
-        let key = Self {
-            vault,
-            scope: Mutex::new(None),
-        };
-        if let Some(scope) = scope {
-            key.learn(&scope);
-        }
-        key
-    }
-
-    /// Só escopo do Real-Debrid entra: outro serviço no cofre não é esta conta.
-    #[allow(dead_code)]
-    pub(super) fn learn(&self, scope: &str) {
-        if !scope.starts_with("realdebrid:") {
-            return;
-        }
-        *self.scope.lock().unwrap_or_else(PoisonError::into_inner) = Some(scope.to_string());
+    pub(super) fn new(vault: Option<Arc<Vault>>) -> Self {
+        Self { vault }
     }
 }
 
 impl WarmKey for VaultKey {
-    fn rd_key(&self, now_ms: i64) -> Option<String> {
-        let scope = self
-            .scope
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()?;
-        self.vault.as_deref()?.key(&scope, now_ms)
-    }
-
-    /// O seam do tail entrega o escopo do `encoded` da busca; só conta RD entra.
-    fn learn(&self, scope: &str) {
-        VaultKey::learn(self, scope);
+    fn rd_key(&self, scope: &str, now_ms: i64) -> Option<String> {
+        if !scope.starts_with("realdebrid:") || scope.len() <= "realdebrid:".len() {
+            return None;
+        }
+        self.vault.as_deref()?.key(scope, now_ms)
     }
 }
 

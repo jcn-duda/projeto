@@ -157,7 +157,10 @@ async fn dub_audit_convive_com_o_lote_do_chupim() {
 async fn sink_registrado_recebe_rd_warmer_sem_mudar_a_ordem() {
     let target = Arc::new(RecordingTail::new(true));
     let queue = Arc::new(FakeQueue::new(true));
-    let sink = Arc::new(RecordingSink::default());
+    let sink = Arc::new(RecordingSink {
+        accept: true,
+        ..RecordingSink::default()
+    });
     let (_resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), 2, false);
     let vault = Arc::new(Vault::new(60_000, 4, ""));
     let native = Arc::new(
@@ -191,4 +194,32 @@ async fn sink_registrado_recebe_rd_warmer_sem_mudar_a_ordem() {
         .map(|effect| effect.kind.clone())
         .collect();
     assert_eq!(rest, ["harvester_enqueue"]);
+}
+
+#[tokio::test]
+async fn sink_que_recusa_devolve_o_efeito_ao_node() {
+    let target = Arc::new(RecordingTail::new(true));
+    let (_resolver, audit) = audit(vec![], Arc::new(FakeWrites::default()), 2, false);
+    let sink = Arc::new(RecordingSink {
+        accept: false,
+        ..RecordingSink::default()
+    });
+    let native = NativeTailEffects::with_vault(
+        target.clone(),
+        audit,
+        Some(Arc::new(Vault::new(60_000, 4, ""))),
+    )
+    .with_sink("rd_warmer", sink);
+    let effect = entry("rd_warmer", json!({ "releases": [] }));
+    let response = native
+        .effects(EffectsBatch {
+            encoded: encoded_key("chave-nao-rd"),
+            effects: vec![effect],
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(response.accepted, 1);
+    assert_eq!(response.rejected, 1);
+    assert_eq!(target.batches()[0].effects[0].kind, "rd_warmer");
 }

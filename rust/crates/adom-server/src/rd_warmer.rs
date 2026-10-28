@@ -17,14 +17,10 @@
 //! 4. rate limit/quota NÃO ganham backoff paralelo: cooldown e quarentena são
 //!    do `RdGateExecutor` (`adom-debrid`) e o lote para no primeiro sinal.
 //!
-//! # O que NÃO foi portado (divergências assumidas)
+//! # Limites atuais
 //!
-//! - fila persistente (`rdq:v1:wq`) e balde horário em KV: esta fatia pede fila
-//!   em RAM; restart zera a fila, o balde e o contador;
-//! - janela ociosa (`idleWindowMs`): sem o timer do Node, o lote só roda quando
-//!   chega efeito — e chegar efeito já é tráfego de usuário;
-//! - `magnetdb.markAlive` e o `scanBlockedRdBads` do boot: o `mag:v1` é escrito
-//!   pelo Node nesta fatia.
+//! Fila e quota horária ainda são voláteis; timer ocioso e integrações do
+//! `magnetdb` continuam dependendo do Node.
 //!
 //! A drenagem é fire-and-forget: [`Warmer::offer`] só empurra para a fila em RAM
 //! e devolve; quem publica nunca espera HTTP.
@@ -36,7 +32,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
 
-use crate::tail_effects::NativeEffectSink;
+#[path = "rd_warmer_sink.rs"]
+mod sink;
+use sink::{is_rd_scope, FlightGuard};
 
 pub(crate) use rd::{register, WarmConfig};
 
@@ -90,10 +88,13 @@ pub(crate) trait WarmPort: Send + Sync {
 /// Chave da conta, lida do cofre (`autofetch::shared_vault` + `Vault::key`) no
 /// momento do uso. NUNCA vem do payload do efeito.
 pub(crate) trait WarmKey: Send + Sync {
-    fn rd_key(&self, now_ms: i64) -> Option<String>;
-    /// Escopo entregue pelo seam do tail (`realdebrid:sha256(chave)`). O
-    /// duplo de teste ignora; o cofre passa a saber de qual conta sondar.
-    fn learn(&self, _scope: &str) {}
+    fn rd_key(&self, scope: &str, now_ms: i64) -> Option<String>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WarmItem {
+    hash: String,
+    scope: String,
 }
 
 /// Ledger `rdc:v2` (leitura para pular, escrita para o ⚡).
@@ -118,7 +119,7 @@ pub(crate) struct Counters {
 
 #[derive(Default)]
 struct State {
-    queue: VecDeque<String>,
+    queue: VecDeque<WarmItem>,
     hour: i64,
     per_hour: i64,
     in_flight: bool,
@@ -176,7 +177,10 @@ impl Warmer {
 
     /// A régua do `enqueue` do Node: score, dedupe, corte, ledger, teto.
     /// Devolve quantos hashes entraram (já descontados os descartes).
-    pub(crate) fn enqueue(&self, payload: &Value) -> usize {
+    pub(crate) fn enqueue(&self, payload: &Value, scope: &str) -> usize {
+        if !is_rd_scope(scope) {
+            return 0;
+        }
         let Some(releases) = payload.get("releases").and_then(Value::as_array) else {
             return 0;
         };
@@ -212,13 +216,17 @@ impl Warmer {
             }
         }
         // `sort_by` é estável: empate mantém a ordem de chegada do efeito.
-        picks.sort_by(|left, right| right.1.cmp(&left.1));
+        picks.sort_by_key(|item| std::cmp::Reverse(item.1));
         picks.truncate(PER_EFFECT_MAX);
         let now = adom_sources::now_ms();
         let mut added = 0;
         let mut state = self.lock();
         for (hash, _) in picks {
-            if state.queue.iter().any(|known| *known == hash) {
+            if state
+                .queue
+                .iter()
+                .any(|known| known.hash == hash && known.scope == scope)
+            {
                 continue;
             }
             // O ledger é a fonte da verdade: hit/blocked não gastam sonda.
@@ -230,7 +238,10 @@ impl Warmer {
                 state.counters.dropped_full += 1;
                 continue;
             }
-            state.queue.push_back(hash);
+            state.queue.push_back(WarmItem {
+                hash,
+                scope: scope.to_string(),
+            });
             state.counters.enqueued += 1;
             added += 1;
         }
@@ -238,8 +249,8 @@ impl Warmer {
     }
 
     /// Enfileira e agenda a drenagem (nunca espera HTTP).
-    pub(crate) fn publish(&self, payload: &Value) -> usize {
-        let added = self.enqueue(payload);
+    pub(crate) fn publish(&self, payload: &Value, scope: &str) -> usize {
+        let added = self.enqueue(payload, scope);
         if added > 0 {
             self.schedule();
         }
@@ -278,18 +289,15 @@ impl Warmer {
             if batch.is_empty() {
                 break;
             }
-            let Some(api_key) = self.inner.key.rd_key(now) else {
-                // Sem credencial não há sonda: descarta o lote com contador.
-                let mut state = self.lock();
-                state.counters.dropped_no_key += batch.len() as u64;
-                drop(state);
-                eprintln!(
-                    "[warmer] sem chave no cofre; {} hash(es) descartado(s)",
-                    batch.len()
-                );
+            let scope = batch[0].scope.clone();
+            let Some(api_key) = self.inner.key.rd_key(&scope, now) else {
+                // A credencial pode expirar entre enqueue e drain. Mantém o
+                // trabalho ligado à conta; nunca tenta outra chave/conta.
+                self.restore_unattempted(batch);
                 break;
             };
-            let report = self.inner.port.warm(&api_key, &batch).await;
+            let hashes: Vec<String> = batch.iter().map(|item| item.hash.clone()).collect();
+            let report = self.inner.port.warm(&api_key, &hashes).await;
             self.apply(&report, now);
             warmed += batch.len();
             if report.stopped {
@@ -305,7 +313,7 @@ impl Warmer {
     }
 
     /// Tira até `batch` hashes respeitando o teto da hora civil.
-    fn take_batch(&self, now: i64) -> Vec<String> {
+    fn take_batch(&self, now: i64) -> Vec<WarmItem> {
         let mut state = self.lock();
         let hour = now.div_euclid(HOUR_MS);
         if state.hour != hour {
@@ -323,21 +331,45 @@ impl Warmer {
             }
             return Vec::new();
         }
-        let take = self.inner.config.batch.min(room).min(state.queue.len());
-        let batch: Vec<String> = state.queue.drain(..take).collect();
+        let Some(scope) = state.queue.front().map(|item| item.scope.clone()) else {
+            return Vec::new();
+        };
+        // Uma chamada de rede sempre usa uma credencial só. Itens de outras
+        // contas ficam na fila para o próximo drain.
+        let same_scope = state
+            .queue
+            .iter()
+            .take_while(|item| item.scope == scope)
+            .count();
+        let take = self.inner.config.batch.min(room).min(same_scope);
+        let batch: Vec<WarmItem> = state.queue.drain(..take).collect();
         state.per_hour += batch.len() as i64;
         state.counters.probes += batch.len() as u64;
         batch
     }
 
-    fn push_front(&self, back: Vec<String>) {
+    fn push_front(&self, back: Vec<WarmItem>) {
         if back.is_empty() {
             return;
         }
         let mut state = self.lock();
-        for hash in back.into_iter().rev() {
-            state.queue.push_front(hash);
+        for item in back.into_iter().rev() {
+            state.queue.push_front(item);
         }
+    }
+
+    /// A ausência transitória de chave não conta como sonda nem consome teto.
+    fn restore_unattempted(&self, batch: Vec<WarmItem>) {
+        if batch.is_empty() {
+            return;
+        }
+        let count = batch.len() as i64;
+        let mut state = self.lock();
+        for item in batch.into_iter().rev() {
+            state.queue.push_front(item);
+        }
+        state.per_hour = (state.per_hour - count).max(0);
+        state.counters.probes = state.counters.probes.saturating_sub(count as u64);
     }
 
     fn apply(&self, report: &WarmReport, now: i64) {
@@ -357,36 +389,6 @@ impl Warmer {
         for (hash, signal) in &report.signals {
             self.inner.ledger.note(hash, *signal, now);
         }
-    }
-}
-
-impl NativeEffectSink for Warmer {
-    fn offer(&self, kind: &str, payload: &Value, scope: Option<&str>) {
-        if kind != RD_WARMER {
-            return;
-        }
-        // O seam só chega aqui com escopo (sem ele o efeito vai ao Node); o
-        // `learn` garante que a chave saia do cofre, nunca do payload.
-        if let Some(scope) = scope {
-            self.inner.key.learn(scope);
-        }
-        self.publish(payload);
-    }
-}
-
-/// Solta o `in_flight` mesmo em panic ou cancelamento da tarefa.
-struct FlightGuard {
-    inner: Arc<Inner>,
-}
-
-impl Drop for FlightGuard {
-    fn drop(&mut self) {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        state.in_flight = false;
     }
 }
 

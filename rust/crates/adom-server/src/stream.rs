@@ -16,13 +16,15 @@ use adom_search::orchestrator::{
     AdapterDebridFactory, Collector, CompositeCollector, InternalRoutes, NodeRoutes,
     NodeTailEffects, Orchestrator, StreamRequest,
 };
-use adom_search::{HoldsFeed, MemorySwrStore, NodeHoldsFeed, StreamResponse, SwrStore};
+use adom_search::{MemorySwrStore, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
 
 use crate::dub_audit::{DubAudit, DubAuditConfig};
 use crate::dub_audit_writes::NativeWrites;
 use crate::resolve_native::DebridPlay;
 use crate::tail_effects::NativeTailEffects;
+
+use stream_support::{holds_feed, rd_ledger_store};
 
 /// Default relativo ao cwd do processo (volume `docker-data/addon` → `data/`).
 const DEFAULT_STREAMS_DB: &str = "data/streams.db";
@@ -186,42 +188,6 @@ pub fn build_orchestrator_from(
     Ok(wire_native_index(orch))
 }
 
-/// Store do ledger do Real-Debrid (`rdc:v2`) no MESMO `cache.db` do Node,
-/// aberto READ-ONLY. Sem ele o `verdict` não tem de onde ler e todo hash do
-/// RD sai `Unknown` — a lista perde o ⚡ sem nenhum erro.
-///
-/// A leitura é só leitura de propósito: o L1 do Node é a autoridade do
-/// arquivo, não relê o disco depois do boot e o flush sobrescreveria a linha
-/// do gateway. Quem renova o hit continua sendo o Node (warmer/play).
-fn rd_ledger_store() -> Option<Arc<adom_debrid::Store>> {
-    let path = adom_store::default_cache_db_path();
-    match adom_debrid::Store::open_cache_db(&path) {
-        Ok(store) => {
-            eprintln!(
-                "[gateway] ledger RD (rdc:v2) lido do cache.db: {}",
-                path.display()
-            );
-            Some(Arc::new(store))
-        }
-        Err(err) => {
-            eprintln!("[gateway] rdc:v2 indisponível ({err}); RD segue unknown");
-            None
-        }
-    }
-}
-
-/// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF no código e ON
-/// no compose). Sem a flag, sem token ou base fora do loopback é `None` — e a
-/// checagem nativa da AllDebrid segue READ-ONLY (`holds_complete:false`).
-fn holds_feed() -> Option<Arc<dyn HoldsFeed>> {
-    let feed = NodeHoldsFeed::from_env()?;
-    eprintln!(
-        "[gateway] feed de holds do autofetch: DEBRID_AL_HOLDS=on \
-         (/internal/debrid/holds; a limpeza nativa só age com DEBRID_AL_CLEANUP=on)"
-    );
-    Some(Arc::new(feed))
-}
-
 /// Abre e injeta o índice/banco nativos. Índice e banco são SEMPRE nativos
 /// (R4): falha de abertura = instrumento ausente, nunca boot caído e nunca
 /// caminho Node — o orquestrador degrada sem índice/banco (log `[search]`)
@@ -284,6 +250,9 @@ pub use stream_config::*;
 
 #[path = "stream_meta.rs"]
 mod stream_meta;
+
+#[path = "stream_support.rs"]
+mod stream_support;
 
 /// `true` para GET/HEAD em caminho `/stream/.../*.json` (com ou sem config).
 pub fn is_native_stream(method: &Method, path: &str) -> bool {

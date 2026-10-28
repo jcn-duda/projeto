@@ -96,6 +96,7 @@ impl NativeWorkQueue for FakeQueue {
 #[derive(Default)]
 struct RecordingSink {
     offers: Mutex<Vec<(String, Value)>>,
+    accept: bool,
 }
 
 impl RecordingSink {
@@ -105,11 +106,12 @@ impl RecordingSink {
 }
 
 impl NativeEffectSink for RecordingSink {
-    fn offer(&self, kind: &str, payload: &Value, _scope: Option<&str>) {
+    fn offer(&self, kind: &str, payload: &Value, _scope: Option<&str>) -> bool {
         self.offers
             .lock()
             .unwrap()
             .push((kind.to_string(), payload.clone()));
+        self.accept
     }
 }
 

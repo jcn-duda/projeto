@@ -50,7 +50,8 @@ pub(crate) trait NativeEffectSink: Send + Sync {
     /// Entrega o efeito já montado (o mesmo payload que iria ao Node) e o
     /// escopo `adapter:sha256(chave)` derivado do `encoded` da busca. Sem
     /// escopo o efeito NÃO é entregue aqui: volta ao Node (`Deferred`).
-    fn offer(&self, kind: &str, payload: &Value, scope: Option<&str>);
+    /// `true` só quando o sink assumiu o efeito; `false` mantém a entrega no Node.
+    fn offer(&self, kind: &str, payload: &Value, scope: Option<&str>) -> bool;
 }
 
 /// Canal do worker nativo do Chupim.
@@ -164,12 +165,14 @@ impl NativeTailEffects {
                 );
                 return Routed::Deferred;
             };
-            sink.offer(
+            if sink.offer(
                 &effect.kind,
                 &Value::Object(effect.payload.clone()),
                 Some(&scope),
-            );
-            return Routed::Native;
+            ) {
+                return Routed::Native;
+            }
+            return Routed::Deferred;
         }
         Routed::Forward
     }
