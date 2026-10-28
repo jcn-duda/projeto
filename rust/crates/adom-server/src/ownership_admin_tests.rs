@@ -67,3 +67,21 @@ fn mutacoes_de_posse_sao_serializadas() {
         .expect("mutação deve prosseguir após soltar o lock");
     worker.join().unwrap();
 }
+
+#[test]
+fn nome_com_marca_br_veta_adrm_mesmo_com_flag_falso() {
+    // O flag `brOrigin` é do chamador; o nome é a evidência que o TS usava.
+    assert!(name_has_br_mark(
+        &json!({"brOrigin":false,"name":"Filme.2024.1080p.WEB-DL.Dublado.mkv"})
+    ));
+    assert!(!name_has_br_mark(
+        &json!({"name":"Movie.2024.1080p.WEB-DL.x264-GRP.mkv"})
+    ));
+    assert!(!name_has_br_mark(&json!({})));
+}
+
+#[test]
+fn sem_kv_a_resposta_e_503_e_nao_400() {
+    assert_eq!(unavailable().status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(bad_request("x").status(), StatusCode::BAD_REQUEST);
+}

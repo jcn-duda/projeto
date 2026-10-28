@@ -48,7 +48,6 @@ pub fn router() -> Router<std::sync::Arc<super::store_admin::AdminState>> {
         .route("/ownership/accept", post(accept))
         .route("/ownership/ready", post(ready))
         .route("/ownership/unprotect", post(unprotect))
-        .route("/ownership/reupload-block", post(deleted))
         .route("/ownership/reupload-unblock", post(reupload_unblock))
         .route("/ownership/deleted", post(deleted))
 }
@@ -57,8 +56,10 @@ async fn hold(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash), Some(ttl)) = (
-        ready_store(&state),
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash), Some(ttl)) = (
         account(&body),
         hash(&body),
         ttl(&body, "ttlSeconds", HOLD_TTL_MAX),
@@ -73,8 +74,10 @@ async fn release(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash)) = (ready_store(&state), account(&body), hash(&body))
-    else {
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash)) = (account(&body), hash(&body)) else {
         return bad_request("release exige accountScope e infoHash válidos");
     };
     write(kv.forget(&hold_key(account, hash)))
@@ -84,8 +87,10 @@ async fn accept(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash)) = (ready_store(&state), account(&body), hash(&body))
-    else {
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash)) = (account(&body), hash(&body)) else {
         return bad_request("accept exige accountScope e infoHash válidos");
     };
     if body.get("accepted").and_then(Value::as_bool) != Some(true)
@@ -144,8 +149,10 @@ async fn ready(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash), Some(ttl)) = (
-        ready_store(&state),
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash), Some(ttl)) = (
         account(&body),
         hash(&body),
         ttl(&body, "protectTtlSeconds", OWNERSHIP_TTL_MAX),
@@ -177,8 +184,10 @@ async fn unprotect(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash)) = (ready_store(&state), account(&body), hash(&body))
-    else {
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash)) = (account(&body), hash(&body)) else {
         return bad_request("unprotect exige accountScope e infoHash válidos");
     };
     if body.get("adapter").and_then(Value::as_str) != Some("alldebrid") {
@@ -192,8 +201,10 @@ async fn reupload_unblock(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash)) = (ready_store(&state), account(&body), hash(&body))
-    else {
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash)) = (account(&body), hash(&body)) else {
         return bad_request("reupload-unblock exige accountScope e infoHash válidos");
     };
     write(kv.forget(&reupload_key(account, hash)))
@@ -205,8 +216,10 @@ async fn deleted(
     State(state): State<std::sync::Arc<super::store_admin::AdminState>>,
     Json(body): Json<Value>,
 ) -> Response {
-    let (Some(kv), Some(account), Some(hash), Some(ttl)) = (
-        ready_store(&state),
+    let Some(kv) = ready_store(&state) else {
+        return unavailable();
+    };
+    let (Some(account), Some(hash), Some(ttl)) = (
         account(&body),
         hash(&body),
         ttl(&body, "ttlSeconds", REUPLOAD_TTL_MAX),
@@ -218,6 +231,11 @@ async fn deleted(
     }
     if !br_origin_proven_non_br(&body) {
         return conflict("origem BR precisa ser comprovadamente falsa para marcar adrm");
+    }
+    // O flag é do chamador; o nome é o que o `markReuploadBlocked` do TS olha.
+    // Release com marca de origem BR no próprio nome nunca recebe `adrm`.
+    if name_has_br_mark(&body) {
+        return conflict("nome com marca de origem BR não pode receber adrm");
     }
     let mut value = json!({ "at": now_ms() });
     if let Some(name) = body
@@ -269,6 +287,12 @@ fn ttl(body: &Value, field: &str, max: i64) -> Option<i64> {
         .filter(|ttl| *ttl > 0 && *ttl <= max)
 }
 
+fn name_has_br_mark(body: &Value) -> bool {
+    body.get("name")
+        .and_then(Value::as_str)
+        .is_some_and(adom_core::br_origin_mark)
+}
+
 fn br_origin_proven_non_br(body: &Value) -> bool {
     body.get("brOrigin").and_then(Value::as_bool) == Some(false)
 }
@@ -317,6 +341,16 @@ fn write<T: serde::Serialize>(result: Result<T, String>) -> Response {
         Ok(value) => Json(json!({ "ok": true, "result": value })).into_response(),
         Err(err) => storage_error(err),
     }
+}
+
+/// Sem KV aberto o gateway não sabe nada da posse: 503, nunca 400 (o chamador
+/// não errou o corpo, o servidor é que não pode gravar).
+fn unavailable() -> Response {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({ "ok": false, "error": "ownership_store_unavailable" })),
+    )
+        .into_response()
 }
 
 fn bad_request(message: &str) -> Response {

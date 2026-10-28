@@ -29,7 +29,10 @@ pub struct RecheckInput {
     pub expired: bool,
     pub expired_facts: ExpiredFacts,
     pub remove_supported: bool,
-    pub remove_by_id_allowed: bool,
+    /// O status desse hash veio por id (`via === 'id'`), não por hash.
+    pub via_id: bool,
+    /// Knob `removeById`: só ele libera remover um torrent achado por id.
+    pub remove_by_id_enabled: bool,
     pub id_present: bool,
 }
 
@@ -88,7 +91,9 @@ pub fn recheck_step(input: &RecheckInput) -> RecheckAction {
         if !input.remove_supported || !input.id_present {
             return RecheckAction::ReleaseExpired;
         }
-        if input.remove_by_id_allowed && expired_removal_allowed(&input.expired_facts) {
+        // `policyOk` do TS: achado por hash remove sempre; por id, só com o knob.
+        let policy_ok = !input.via_id || input.remove_by_id_enabled;
+        if policy_ok && expired_removal_allowed(&input.expired_facts) {
             return RecheckAction::RemoveExpired;
         }
         return RecheckAction::SuppressExpired;

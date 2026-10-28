@@ -24,7 +24,8 @@ fn input() -> RecheckInput {
             in_snapshot: false,
         },
         remove_supported: true,
-        remove_by_id_allowed: true,
+        via_id: false,
+        remove_by_id_enabled: false,
         id_present: true,
     }
 }
@@ -147,10 +148,30 @@ fn expirar_alldebrid_exige_posse_snapshot_e_sem_protecao() {
     assert_eq!(
         recheck_step(&RecheckInput {
             expired: true,
-            remove_by_id_allowed: false,
+            via_id: true,
+            remove_by_id_enabled: false,
             ..input()
         }),
         RecheckAction::SuppressExpired
+    );
+    // Achado por hash remove mesmo com o knob desligado; por id, só com ele.
+    assert_eq!(
+        recheck_step(&RecheckInput {
+            expired: true,
+            via_id: false,
+            remove_by_id_enabled: false,
+            ..input()
+        }),
+        RecheckAction::RemoveExpired
+    );
+    assert_eq!(
+        recheck_step(&RecheckInput {
+            expired: true,
+            via_id: true,
+            remove_by_id_enabled: true,
+            ..input()
+        }),
+        RecheckAction::RemoveExpired
     );
     assert_eq!(
         recheck_step(&RecheckInput {

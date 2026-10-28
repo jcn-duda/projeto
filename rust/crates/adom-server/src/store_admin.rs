@@ -102,8 +102,8 @@ pub(crate) struct AdminState {
     /// Graça do SWR — o mesmo `STREAM_STALE_GRACE_SECONDS` da busca: o trace
     /// enxerga exatamente o que a busca enxergaria (inclusive stale).
     grace_seconds: u64,
-    /// Colhedor nativo; `None` = desligado (`HARVEST_ENABLED=false`), store
-    /// o contrato com `enabled:false`.
+    /// Colhedor nativo; `None` = desligado, store indisponível ou corte nativo
+    /// desligado: `/harvest*` responde o contrato com `enabled:false`.
     pub(crate) harvest: Option<HarvestHandle>,
     pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
 }
