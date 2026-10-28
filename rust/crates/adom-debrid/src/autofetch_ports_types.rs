@@ -47,8 +47,10 @@ pub struct Capabilities {
     /// `true` somente quando `check` tem como PROVAR `known:true`.
     pub cache_known: bool,
     pub remove: bool,
-    /// `false` nos cinco: nenhum adaptador apaga POR HASH (o delete é por id e
-    /// a posse/hold pertence ao dono do inventário).
+    /// `false` nos quatro: só a AllDebrid apaga POR HASH (lista `{id, hash}` e
+    /// o delete é por id, com `may_delete`), e mesmo ela só com a env própria
+    /// ligada. Nos outros, o delete é por id e a posse/hold pertence ao dono do
+    /// inventário.
     pub evict: bool,
     pub account: bool,
 }

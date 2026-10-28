@@ -22,7 +22,10 @@
 //!    (ausência no snapshot não é prova de morte — a janela de visibilidade é
 //!    do serviço). Só estado explícito condena.
 //! 3. Capacidade inexistente é desligada EXPLICITAMENTE (`PortError::
-//!    Unsupported`), nunca "sucesso vazio". `evict` está fora nos cinco.
+//!    Unsupported`), nunca "sucesso vazio". `evict` existe SÓ na AllDebrid
+//!    (a conta lista `{id, hash}` e o delete é por id, com a guarda
+//!    `may_delete`), atrás da env própria `DEBRID_AUTO_FETCH_EVICT_FALLBACK`;
+//!    os outros quatro seguem `Unsupported`.
 //! 4. Escrita incerta não é reenviada: o RD passa pelo `RealDebridAutofetch`
 //!    (intent durável + gate COMPARTILHADO injetado pelo chamador). Esta porta
 //!    NÃO cria executor novo — duas filas para a mesma conta fariam o AIMD
@@ -32,9 +35,9 @@
 //!
 //! Divisão dos arquivos: contrato de dados espelhado em
 //! `autofetch_ports_contract.rs`, tipos/erro em `autofetch_ports_types.rs`,
-//! `enqueue` + `check` + `remove` + `evict` + `account` em
-//! `autofetch_ports_inner.rs` e `status` em `autofetch_ports_status.rs`
-//! (catraca de 400 linhas).
+//! `enqueue` + `check` + `remove` + `account` em `autofetch_ports_inner.rs`,
+//! `evict` em `autofetch_ports_evict.rs` e `status` em
+//! `autofetch_ports_status.rs` (catraca de 400 linhas).
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
@@ -62,6 +65,8 @@ use crate::torbox::TorBox;
 mod types;
 pub use types::{scope_of, Capabilities, PortError, Service};
 
+#[path = "autofetch_ports_evict.rs"]
+mod evict;
 #[path = "autofetch_ports_inner.rs"]
 mod inner;
 #[path = "autofetch_ports_status.rs"]
@@ -209,7 +214,9 @@ impl AutofetchPorts {
             check: true,
             cache_known: self.cache_known(),
             remove: true,
-            evict: false,
+            // `evict` só existe onde há prova de `hash -> id` (AllDebrid) e com
+            // a env própria ligada; os outros quatro seguem desligados.
+            evict: matches!(self.backend, Backend::AllDebrid { .. }) && evict::evict_enabled(),
             account: !matches!(self.backend, Backend::DebridLink(_)),
         }
     }

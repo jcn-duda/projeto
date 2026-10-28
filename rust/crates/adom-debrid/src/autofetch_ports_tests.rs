@@ -294,3 +294,6 @@ async fn check_premiumize_prova_hit_e_nao_conta_miss_como_frio() {
 
 #[path = "autofetch_ports_tests_part2.rs"]
 mod part2;
+
+#[path = "autofetch_ports_evict_tests.rs"]
+mod evict;

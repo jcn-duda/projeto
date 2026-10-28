@@ -1,5 +1,6 @@
-//! Escritas e leituras de conta das portas: `enqueue`, `check`, `remove`,
-//! `evict` e `account`. `status` fica em `autofetch_ports_status.rs`.
+//! Escritas e leituras de conta das portas: `enqueue`, `check`, `remove` e
+//! `account`. `evict` fica em `autofetch_ports_evict.rs` (é o único serviço
+//! com prova de `hash -> id`) e `status` em `autofetch_ports_status.rs`.
 
 use adom_core::PlayHint;
 use serde_json::Value;
@@ -205,12 +206,6 @@ impl AutofetchPorts {
                 .remove_autofetch(&self.api_key, &Value::String(id.to_string()))
                 .await),
         }
-    }
-
-    pub(super) async fn evict_inner(&self, _hashes: &[String]) -> Result<Vec<String>, PortError> {
-        // Nenhum dos cinco apaga POR HASH. Lista vazia seria "nada a apagar";
-        // a capacidade está desligada e isso é dito.
-        Err(PortError::Unsupported("evict"))
     }
 
     pub(super) async fn account_inner(&self) -> Result<AccountEvidence, PortError> {

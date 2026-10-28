@@ -29,7 +29,7 @@ mod cascade;
 mod debrid;
 mod dispatch;
 mod drain;
-mod evict;
+pub mod evict;
 mod obra;
 mod obra_reservation;
 mod probe;

@@ -100,3 +100,29 @@ fn leitura_do_painel_promove_orfao_a_failed() {
     assert_eq!(ProbeState::Capped.as_str(), "capped");
     assert_eq!(ProbeState::parse("off"), None);
 }
+
+/// O JSON do registro é contrato de FIO com o `br-probe.ts`: o Node lê
+/// `leaseUntil` e o estado em minúsculas. Renomear um campo aqui faz o painel
+/// ver um `pending` eterno.
+#[test]
+fn json_do_registro_e_o_mesmo_do_node() {
+    let pending = ProbeRecord::pending(1_000);
+    let encoded = serde_json::to_value(pending).expect("serializa");
+    assert_eq!(encoded["state"], serde_json::json!("pending"));
+    assert_eq!(encoded["at"], serde_json::json!(1_000));
+    assert_eq!(
+        encoded["leaseUntil"],
+        serde_json::json!(1_000 + PROBE_PENDING_LEASE_MS)
+    );
+    let decoded: ProbeRecord = serde_json::from_value(encoded).expect("desserializa");
+    assert_eq!(decoded, pending);
+
+    // Registro terminal não carrega lease (o `Number(undefined) > now` do TS
+    // já é falso, então omitir é compatível).
+    let found = serde_json::to_value(ProbeRecord::new(ProbeState::Found, 5)).expect("serializa");
+    assert!(found.get("leaseUntil").is_none());
+    // Registro escrito pelo Node (com estado desconhecido) não desserializa:
+    // quem lê trata como ausência, nunca como estado inventado.
+    let lixo = serde_json::json!({ "state": "pending_", "at": 1 });
+    assert!(serde_json::from_value::<ProbeRecord>(lixo).is_err());
+}

@@ -2,8 +2,10 @@
 //!
 //! A checagem de cache é um `/magnet/upload` real — largar a espera não
 //! cancela o GET (`abort_safe`). Inventário ausente não apaga ninguém.
-//! Fora: varredura, reconcile, reupload, evict, autofetch, inventário
-//! sqlite e hold persistente. Sem log de chave, magnet ou corpo.
+//! Fora: varredura, reconcile, reupload, inventário sqlite e hold persistente.
+//! A evicção por hash das portas do autofetch usa os PRIMITIVOS daqui
+//! (`magnet_index` + `remove_torrent`); a decisão está em
+//! `autofetch_ports_evict.rs`. Sem log de chave, magnet ou corpo.
 
 use std::time::Duration;
 

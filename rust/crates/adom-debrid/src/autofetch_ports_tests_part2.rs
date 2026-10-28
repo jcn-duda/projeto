@@ -16,9 +16,9 @@ const RD_HASH: &str = "0123456789abcdef0123456789abcdef01234567";
 
 /// Store de intent do chamador. `owns` é a prova de posse que o RD exige.
 #[derive(Default)]
-struct StoreSpy {
-    owns: bool,
-    intents: Mutex<HashSet<String>>,
+pub(super) struct StoreSpy {
+    pub(super) owns: bool,
+    pub(super) intents: Mutex<HashSet<String>>,
 }
 
 impl RdUncertainStore for StoreSpy {
@@ -42,7 +42,7 @@ impl RdUncertainStore for StoreSpy {
 
 /// Gate do teste: sem gap entre escritas (`min_gap_ms: 0`), como no teste do
 /// primitivo. Em produção o executor vem do play nativo.
-fn gate() -> RdGateExecutor {
+pub(super) fn gate() -> RdGateExecutor {
     RdGateExecutor::new(RdSchedulerConfig {
         min_gap_ms: 0.0,
         max_gap_ms: 0.0,
@@ -53,7 +53,7 @@ fn gate() -> RdGateExecutor {
     })
 }
 
-fn realdebrid(addr: SocketAddr) -> Arc<RealDebrid> {
+pub(super) fn realdebrid(addr: SocketAddr) -> Arc<RealDebrid> {
     Arc::new(with_env("REALDEBRID_API_BASE", &base(addr), || {
         RealDebrid::new(HttpClient::new().unwrap())
     }))

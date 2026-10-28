@@ -35,6 +35,23 @@ impl AllDebrid {
         Ok(rows.iter().filter_map(parse_magnet).collect())
     }
 
+    /// Lista a conta para a evicção por hash (`hash -> id`).
+    ///
+    /// Diferente de [`Self::sweep_magnet_list`], corpo sem `magnets` é **falha**
+    /// e não lista vazia: quem apaga por hash não pode concluir "nada a apagar"
+    /// a partir de uma leitura que não aconteceu.
+    pub async fn magnet_index(&self, api_key: &str) -> Result<Vec<SweepMagnet>, DebridError> {
+        let data = self
+            .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
+            .await?;
+        let Some(rows) = data.get("magnets").and_then(Value::as_array) else {
+            return Err(DebridError::other(
+                "alldebrid: /magnet/status sem lista de magnets",
+            ));
+        };
+        Ok(rows.iter().filter_map(parse_magnet).collect())
+    }
+
     /// Lê a árvore de UM magnet pronto. O chamador escolhe os ids a consultar;
     /// magnet ausente, não pronto ou sem `files` devolve lista vazia.
     pub async fn sweep_magnet_files(

@@ -3,6 +3,11 @@
 //! Espelha `br-probe.ts` sem rede: o pedido ao colhedor é do executor; aqui
 //! ficam o registro persistido (`state`/`at`/`leaseUntil`), a leitura que
 //! promove `pending` órfão a `failed` e a decisão de agendar ou pular.
+//!
+//! [`ProbeRecord`] tem o MESMO JSON do TS (`{state, at, leaseUntil}`): o Node lê
+//! o registro pela ponte (`readBrProbeNative`) e o worker nativo grava pela
+//! mesma chave (`autofetch:v3:probe:<sha256>`), então a serialização é
+//! contrato de fio, não detalhe interno.
 
 /// Lease do `pending`: crash/restart não deixa seeds bloqueados para sempre.
 /// Maior que os 60s com que a lista que só tem o aviso é cacheada, para o aviso
@@ -12,7 +17,8 @@ pub const PROBE_PENDING_LEASE_MS: i64 = 10 * 60_000;
 /// Retry curto de `failed`/`capped`: não martela a fila e libera os seeds.
 pub const PROBE_RETRY_MS: i64 = 5 * 60_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ProbeState {
     Pending,
     Found,
@@ -45,10 +51,15 @@ impl ProbeState {
 }
 
 /// Registro persistido. `lease_until` só existe em `pending`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `camelCase` porque o JSON é lido/escrito pelos DOIS lados: o `leaseUntil`
+/// do `br-probe.ts` e o `lease_until` daqui são o mesmo campo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProbeRecord {
     pub state: ProbeState,
     pub at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lease_until: Option<i64>,
 }
 
