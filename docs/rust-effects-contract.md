@@ -55,20 +55,40 @@ Sem `AUTOFETCH_WORKER=on` o cofre **não existe** — nesse caso `autofetch_batc
 passando `None`, mas `boot::spawn_at` monta a fábrica de PRODUÇÃO
 (`autofetch/build.rs`) quando `AUTOFETCH_WORKER=on` e o cofre do processo
 existe; o `docker-compose.yml` liga a trava. Logo `enabled = worker_enabled()
-&& debrid.is_some()` pode ser verdadeiro e o lote `autofetch_batch` passa a ser
-consumido no gateway. `br_probe` e `season_key` seguem SEM ramo no laço (ver
-"Destino do `Job` por kind", abaixo): o canal os aceita e o lote é recusado
-depois. `rd_warmer` já é nativo de verdade (o sink aceita o efeito e a
-chave sai do cofre): sem escopo derivável o efeito volta ao Node na hora; se o
-escopo foi aprendido mas a chave expirou entre a oferta e a drenagem, o lote é
-descartado com `dropped_no_key` — não volta ao Node, porque já foi consumido.
+&& debrid.is_some()` pode ser verdadeiro e os TRÊS kinds do Chupim são
+consumidos no gateway (ver "Destino do `Job` por kind", abaixo).
+`worker_enabled()` aceita só o literal `on` (`autofetch/mod.rs:127-129`):
+ausente, vazio, `1` ou `true` mantêm `prepared` e o efeito volta ao Node.
+`rd_warmer` já é nativo de verdade (o sink aceita o efeito e a chave sai do
+cofre): sem escopo derivável o efeito volta ao Node na hora; se o escopo foi
+aprendido mas a chave expirou entre a oferta e a drenagem, o lote é descartado
+com `dropped_no_key` — não volta ao Node, porque já foi consumido.
 
 ## Destino do `Job` por kind — leva C1 (2026-10-28)
 
 O canal é um só (`mpsc` de `serve::CHANNEL_CAPACITY`, 64) e os três kinds do
-Chupim entram nele como `Job { scope, payload }`, com `scope` =
-`adapter:sha256(chave)` — derivado do payload (`season_key`) ou do cofre
-(`autofetch_batch`, `br_probe`).
+Chupim entram nele como `Job { kind, scope, payload }`
+(`autofetch/enqueue.rs:46-57`), com `scope` = `adapter:sha256(chave)` —
+derivado do payload (`season_key`) ou do cofre (`autofetch_batch`, `br_probe`).
+
+**O `kind` viaja no canal porque o laço despacha por ele**
+(`tail_effects::NativeWorkQueue::submit`, `tail_effects.rs:63-70`): sem ele,
+sonda e season cairiam em `enqueue::run` e seriam recusadas como `empty-batch`
+— o trabalho sumiria sem chegar ao passo nem voltar ao Node. O despacho é
+`serve_jobs.rs::Engine::batch` (`:57-64`):
+
+| `Job.kind` | Passo | Recusa |
+|---|---|---|
+| `AUTOFETCH_BATCH` | `enqueue_batch` → `enqueue::run` → `recheck::schedule` | — |
+| `BR_PROBE` | `probe` → `probe_job::run` → `probe_step::{plan,execute}` | sem colhedor montado o `submit` devolve `false` (`mod.rs:99-101`): o efeito **volta ao Node** |
+| `SEASON_KEY` | `season` → `season_step::{plan,execute}` | — |
+| outro | — | `Skip("unknown-kind")`: aceito e descartado NO gateway |
+
+`br_probe` sem colhedor é recusado no `submit`, não no passo
+(`autofetch/mod.rs:84-101`): o passo precisa do `HarvestHandle` para enfileirar
+a obra, e marcar `Native` para morrer na fila do worker seria trabalho
+silencioso. Com colhedor montado, o passo roda e a recusa posterior
+(`no-harvester`, `queue-full`, `paused`) fica no gateway.
 
 **Aceite não tem volta.** `Deferred` só existe ANTES do `submit`: sem escopo
 derivável, canal desligado (`prepared`) ou `try_send` cheio, o efeito volta ao
@@ -80,7 +100,7 @@ diferença entre "o Node não recebeu" e "o gateway recebeu e desistiu".
 
 | Item | Como é |
 |---|---|
-| Consome | `autofetch/serve.rs::Engine::batch` → `enqueue::run` (escritor único da fila v3) → `recheck::schedule`; o dreno do lote terminal é `enqueue_drain::drain_one` |
+| Consome | `serve_jobs.rs::Engine::batch` → `enqueue_batch` → `enqueue::run` (escritor único da fila v3) → `recheck::schedule`; o dreno do lote terminal é `enqueue_drain::drain_one` |
 | Payload | `{ items[], cached[], known, season, episode, imdbId, searchKey }` — detalhe na seção "`autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)", abaixo |
 | Lê do lote | `searchKey`, `known` e `items` (`enqueue_items::parse_items`); o resto é contexto |
 | `prepared` | sem canal (`enabled=false`): `Deferred` ao Node |
@@ -88,31 +108,41 @@ diferença entre "o Node não recebeu" e "o gateway recebeu e desistiu".
 | Fila cheia | dois sentidos: canal (`try_send` falha → `Deferred`) e fila v3 persistida, cortada pelo `queueDepth` do `LivePolicy` no `write_queue` — o adiado nunca se perde |
 | Volta ao Node | só antes do `submit`. Depois, `refused` do lote (`no-search-key`, `empty-batch`, `unknown-cache`, `in-flight`) e `no-credential` do passo ficam no gateway: a fila já gravada espera no KV |
 
-### `br_probe` — sonda dirigida (passo pronto, sem chamador)
+### `br_probe` — sonda dirigida (consumido)
 
 | Item | Como é |
 |---|---|
-| Consome | **ninguém ainda**: `probe_step::plan`/`execute`/`settle` existe atrás de `#[allow(dead_code)]` (`autofetch/mod.rs`) e nenhum ramo do laço o chama |
+| Consome | `serve_jobs.rs::Engine::probe` (`:68-86`) → `probe_job::run` → `probe_step::{plan,execute}`. O estado FINAL (`found`/`empty`/`failed`/`capped`) é do colhedor (`harvest/settle.rs`), não do worker |
 | Payload | `{ imdbId, type: "movie"\|"series", season?, episode?, mode: "evidence"\|"upgrade" }` (`orchestrator/index_effects.rs::effect_entries`) |
 | Lê do lote | `imdbId` (tem que ser `tt…`), `type`, `season`, `episode`; `mode` NÃO é lido — a sonda sai como `br-gap` dirigido |
 | Alvo e estado | index-only ∩ pt-BR menos os isentos da busca viva (`ProbeStepConfig::indexers`); registro em `autofetch:v3:probe:<sha256>` (`probe_key`), com `pending` só depois de a fila do colhedor confirmar a entrada com `brProbe` |
-| `prepared` | `Deferred` ao Node (o caminho do TS, `br-probe.ts`) |
+| TTL | `ProbeStepConfig::from_env` lê `BR_PROBE_TTL_S` (default `43 200`, piso `60`) a cada job (`probe_job.rs:41-56`); o `pending` tem piso próprio de 10 min (`PENDING_LEASE_MS`, `adom-harvest/src/probe.rs:43`) |
+| Teto de fila | `queue_len >= HARVEST_QUEUE_MAX` → `Skip("queue-full")`, sem tocar o KV (o `enqueue` do colhedor recusaria por `Capacity` e evictaria a cauda) |
+| `prepared` | `Deferred` ao Node (aí sim o caminho do TS, `br-probe.ts`) |
 | Pausado | `Skip("paused")` — o mesmo `Control::paused`; nada é escrito no KV |
-| Fila cheia | `queue_len >= HARVEST_QUEUE_MAX` → `Skip("queue-full")`, sem tocar o KV (o `enqueue` do colhedor ainda recusaria por `Capacity` e evictaria a cauda) |
-| Volta ao Node | só antes do `submit`. **Pendência**: com o canal ligado o `Job` é aceito e recusado depois por `no-search-key` no `enqueue::run` — nesse ponto não existe `Deferred` |
+| Volta ao Node | só antes do `submit`: sem colhedor, `AutofetchHandle::submit` devolve `false`. Depois do aceite, `Skip` do passo (`paused`, `queue-full`, `release-index-off`, `disabled`, `no-intersection`, `pending`, `found`) NÃO volta ao Node |
 
-### `season_key` — Season Pack Fill (passo pronto, sem chamador)
+O teto horário do colhedor que corta alvos planejados grava `capped` — não
+`empty`; a ordem de decisão está em `harvest-native-contract.md`.
+
+**Divergência conhecida (`AUTOFETCH_BR_PROBE`):** o passo lê o toggle com
+`trim()` (`probe_job.rs:104`), enquanto a régua do pool (`enqueue_gates.rs:109-117`)
+e o `String(env || 'true') === 'true'` do Node não fazem `trim` —
+`" true "` LIGA a sonda e DESLIGA o pool dublado.
+
+### `season_key` — Season Pack Fill (consumido)
 
 | Item | Como é |
 |---|---|
-| Consome | **ninguém ainda**: `season_step::plan` (efeito → registro), `plan_fill` (pack pronto preenche o buraco declarado), `execute` (grava a busca) e `take` (invalida) estão prontos, sem chamador no laço |
+| Consome | `serve_jobs.rs::Engine::season` (`:89-103`) → `season_step::{plan,execute}` (registro no KV); o preenchimento é `season_fill.rs`, chamado na passagem quando o pack fica pronto |
 | Payload | `{ adapter_id, account, imdb, season, cache_key }`; `account` já É o digest (não se re-hasheia) |
 | Lê do lote | os cinco campos; `account == "none"`, `imdb` sem `tt`, `season <= 0` ou texto vazio → `Skip("invalid")` |
-| KV | `autofetch:v3:season:<adapter>:<conta>:<imdb>:<temporada>` (`season_step::SEASON_PREFIX`) guarda as `cache_key`s da temporada; `take` devolve e apaga quando o pack fica pronto |
+| KV | `autofetch:v3:season:<adapter>:<conta>:<imdb>:<temporada>` (`season_step::SEASON_PREFIX`) guarda as `cache_key`s da temporada |
+| Consumo do índice | ordem `peek` → `sink` → `take` (`season_fill.rs`): o índice só é apagado DEPOIS de a invalidação do `streams.db` confirmar. Sem sink registrado o registro fica vivo e a passagem seguinte tenta de novo |
 | `prepared` | `Deferred` ao Node |
 | Pausado | `Skip("paused")` no registro E no preenchimento |
 | Fila cheia | não existe para este kind; o que existe é toggle/teto: `DEBRID_AUTO_FETCH_SEASON_FILL` off → `fill-off`, `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX=0` → `index-off` |
-| Volta ao Node | só antes do `submit`; mesma pendência do `br_probe` (`no-search-key` depois do aceite) |
+| Volta ao Node | só antes do `submit`; aceito, a recusa (`invalid`, `paused`, `fill-off`, `index-off`, `not-pack`) fica no gateway |
 
 Os motivos de `Skip` mantêm os nomes que o painel do Node já conta (`invalid`,
 `paused`, `queue-full`, `index-off`, `fill-off`, `pending`, `found`, `empty`,
@@ -292,19 +322,22 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
   obra, conta bloqueada, orçamento, fila, `protectBr`).
 - Seleção Rust: `list_builder/effects.rs::autofetch_items`; fio:
   `orchestrator/effects.rs::autofetch_batch`.
-- **Worker nativo no gateway (desligado por padrão, `d51f53c0`/`d50a7bdd`).**
+- **Worker nativo no gateway (fiado; liga com `AUTOFETCH_WORKER=on`).**
   Com `AUTOFETCH_WORKER=on` **e** a fábrica por conta presente, o lote vira um
-  `Job { scope, payload }` no canal do worker (`autofetch::{enqueue,recheck,serve}`)
-  e não atravessa mais o HTTP; o `scope` vem do cofre. Hoje a fábrica é `None`
-  no boot (`autofetch::spawn`), então o worker fica `prepared` e o caminho real
-  continua sendo o handler Node abaixo.
+  `Job { kind, scope, payload }` no canal do worker (`autofetch/{serve,serve_jobs,enqueue,recheck}`)
+  e não atravessa mais o HTTP; o `scope` vem do cofre. `boot::production_factory`
+  (`autofetch/boot.rs:42-59`) monta a fábrica de PRODUÇÃO no boot; sem a trava,
+  sem cofre ou sem cliente HTTP (`build.rs:66-79`) o worker fica `prepared` e o
+  caminho é o handler Node abaixo — boot nunca quebra.
 - Kill-switches (Node, inalterados): `autoFetchBr`, pausa do painel,
   `classifyEnqueue`, orçamento/janela ociosa e `config.debrid` do operador.
   `EFFECTS_RUST=off` desliga a emissão; não há outro emissor do `/stream` — o
   Node só executa as filas.
-- O que **não** vai no lote e continua no Node: sonda BR (`br_probe`), purga da
-  fila seeds, contadores de skip, trace do Chupim, `releaseIndex`/banco de
-  magnets (usados pela seleção), inventário da conta e o `debrid.enqueue` em si.
+- O que **não** vai no lote e continua no Node: `harvester_enqueue`, a purga da
+  fila seeds, contadores de skip do painel, `releaseIndex`/banco de magnets
+  (usados pela seleção), inventário da conta e o `debrid.enqueue` em si. A
+  sonda, a Season Pack Fill e o dreno da represa **saíram** desta lista: já são
+  passos do laço (os três kinds acima).
 - **Divergência conhecida**: conta `unusable` (auth/quota) não emite o lote —
   o Rust trata como os demais efeitos. No Node, o `applyDebrid` ainda roda a
   seleção antes de sair e libera os holds; a sonda/fila que ela gravaria nesse
@@ -325,9 +358,15 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
 | Execução nativa do `rd_warmer` | `rust/crates/adom-server/src/rd_warmer.rs`, `rd_warmer_rd.rs`, `rd_warmer_probe.rs` |
 | Worker nativo do Chupim | `rust/crates/adom-server/src/autofetch/{mod,vault,enqueue,recheck,serve,ports,build,worker}.rs` |
 | Fábrica de produção (5 serviços, gate RD único) | `rust/crates/adom-server/src/autofetch/build.rs` |
-| Passo `br_probe` | `rust/crates/adom-server/src/autofetch/probe_step.rs` |
-| Passo `season_key` (Season Pack Fill) | `rust/crates/adom-server/src/autofetch/season_step.rs` |
+| Passo `br_probe` (régua + lease) | `rust/crates/adom-server/src/autofetch/probe_step.rs` |
+| Passo `br_probe` (produção: config por job) | `rust/crates/adom-server/src/autofetch/probe_job.rs` |
+| Passo `season_key` (registro no KV) | `rust/crates/adom-server/src/autofetch/season_step.rs` |
+| Season Pack Fill (execução + invalidação) | `rust/crates/adom-server/src/autofetch/season_fill.rs` |
 | Evicção F6 (política + executor) | `rust/crates/adom-server/src/autofetch/evict_step.rs` |
+| Evicção F6 (produção: fatos + `adrm`) | `rust/crates/adom-server/src/autofetch/evict_job.rs` |
+| Despacho do canal por `kind` | `rust/crates/adom-server/src/autofetch/serve_jobs.rs` |
+| Goldens de contrato dos quatro passos | `rust/golden/autofetch-{probe,season,evict,suppressed}-step.{jsonl,manifest.json}` |
+| Gerador dos goldens (manual) | `scripts/golden/contract-autofetch-steps.mjs` |
 | Dreno da represa `sup:` | `rust/crates/adom-server/src/autofetch/suppressed_step.rs` |
 | Porta `evict` (só AllDebrid) | `rust/crates/adom-debrid/src/autofetch_ports_evict.rs` |
 | Rotas do painel do worker | `rust/crates/adom-server/src/autofetch/routes.rs` |

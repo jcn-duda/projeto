@@ -1,13 +1,14 @@
 # Gate de credencial do worker nativo do Chupim (T3-L5/L6)
 
-**Status (2026-10-28, branch `rust` @ `47e475fb` + leva C1):** a **opção (2) —
-cofre em memória por conta — está IMPLEMENTADA** (`d51f53c0`, refinada por
-`d50a7bdd` e `4e0617e6`), a **fábrica de produção dos cinco serviços também**
-(`0159b9f2`, `autofetch/build.rs`) e o `docker-compose.yml` liga
-`AUTOFETCH_WORKER=on`. O que falta não é mais credencial nem fábrica: é o
-**flip B4** — o TS do Chupim continua dono do que o worker ainda não consome
-(sonda, Season Pack Fill, dreno da represa) e só sai depois que o substituto
-estiver fiado (fim deste documento).
+**Status (2026-10-28, branch `rust` + leva C1):** a **opção (2) — cofre em
+memória por conta — está IMPLEMENTADA** (`d51f53c0`, refinada por `d50a7bdd` e
+`4e0617e6`), a **fábrica de produção dos cinco serviços também** (`0159b9f2`,
+`autofetch/build.rs`) e o `docker-compose.yml` liga `AUTOFETCH_WORKER=on`. O
+gate deixou de ser o bloqueio: os TRÊS kinds do Chupim são despachados pelo laço
+(`autofetch/serve_jobs.rs:57-64`), a represa drena com a fábrica registrada no
+boot e a evicção F6 roda no ciclo com kill-switch próprio. O que falta é o
+**flip B4** — apagar o TS do Chupim — e ele depende dos FATOS que só o Node
+produz (fim deste documento).
 
 **O bloqueio original:** o dreno/recheck do Chupim rodava no Node dentro do
 `RuntimeContext` da requisição e a chave do debrid vinha de
@@ -132,16 +133,22 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
    decisões puras com `may_delete` fail-closed. Mas a listagem nativa não prova
    posse (`adsub`), retenção (`adprot`) nem a fila `sup:` — fatos do `cache.db`
    do Node —, então `DEBRID_AL_CLEANUP=on` fica em `ReadOnly`
-   (`native::ROW_PROOFS_COMPLETE`) e a gravação do `adrm` continua sem fio.
-4. **Flip B4** — a trava já está `on` no compose (`94268f0a`), então o que
-   falta é a bateria de aceitação com duas contas de serviços diferentes e o
-   **flip do TS**: sonda, Season Pack Fill e dreno da represa só saem do Node
-   quando o laço nativo consumir os passos (abaixo).
+   (`native::ROW_PROOFS_COMPLETE`). **Correção da leva C1:** a gravação do
+   `adrm` da EVICÇÃO não está mais sem fio — `evict_job::mark_removed`
+   (`autofetch/evict_job.rs:352-378`) grava `{"at":now}` e nunca poda marca, gated
+   por `DEBRID_REUPLOAD_BLOCK` e com o TTL de `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`.
+   Sem fio continua só o `adrm` das VARREDURAS (`al_sweeps`, `ReadOnly`).
+4. **Flip B4 — pendente, e menor do que era.** A trava já está `on` no compose
+   (`94268f0a`) e o laço já consome os passos. Falta a bateria de aceitação com
+   duas contas de serviços diferentes e o **flip do TS**. O que ainda prende o
+   TS ao Node não é mais "passo sem chamador": são os fatos que nascem lá
+   (marker com `obra`, registro F2 `autofetch:v3:o:<digest>`, `adsub`/`adprot`,
+   `pf:`) e o `harvester_enqueue`.
 
 Com a fábrica e o boot fiados, o gate deixou de ser o bloqueio do worker: quem
 ainda decide o destino de um efeito é o seam do tail (escopo derivável ou não,
 canal aceitando ou não) e, depois do aceite, o próprio passo. O que continua no
-Node é o que o laço não consome — ver a seção seguinte.
+Node é o que depende de FATOS que o gateway não produz — ver a seção seguinte.
 
 ---
 
@@ -182,8 +189,28 @@ Kill-switches que continuam valendo na credencial:
 - Season Pack Fill: `DEBRID_AUTO_FETCH_SEASON_FILL` e
   `DEBRID_AUTO_FETCH_SEASON_INDEX_MAX` (`0` desliga só o índice).
 
-O que ainda depende de fiação (uma linha em cada, sem credencial nova):
-`register_factory` do dreno da represa não é chamado em `boot::spawn_at`; com
-isso a rota `POST /autofetch/suppressed-drain` responde `factory-unavailable`
-mesmo com a trava ligada. E `evict_step` ainda não está declarado em
-`autofetch/mod.rs` (`mod evict_step;`), logo não entra no binário.
+O que ainda depende de FATOS do Node (não é fiação do gateway): o marker com
+`obra` e o registro F2 `autofetch:v3:o:<digest>` nascem na ponte napi
+(`adom-napi/src/autofetch/state_v3.rs`), e o `enqueue` nativo grava marker SEM
+meta (`enqueue.rs:331`); `adsub`/`adprot` e `pf:` também. Sem eles a evicção é
+fail-closed (`evict-no-marker`/`evict-no-record`). As duas pendências de fiação
+da leva anterior **fecharam**: `suppressed_step::register_factory` é chamado em
+`boot::spawn_at` (`autofetch/boot.rs:110-112`) e `mod evict_step;` está
+declarado em `autofetch/mod.rs:55-56`.
+
+## A trava `AUTOFETCH_WORKER` (default conservador)
+
+| Item | Contrato |
+|---|---|
+| Valor que liga | só o literal `on` (`autofetch/mod.rs:127-129`: `var("AUTOFETCH_WORKER").map(\|v\| v == "on") == Ok(true)`) |
+| Ausente / vazio / `1` / `true` | `prepared`: canal desligado, efeito volta ao Node |
+| Sem trava | `boot::production_factory` devolve `None` antes de qualquer I/O (`boot.rs:44-51`) e `shared_vault()` não cria cofre (`vault.rs:235-242`) |
+| Trava ligada, sem cofre | `production_factory` devolve `None` + log "worker fica prepared" (`boot.rs:52-55`) |
+| Trava ligada, sem cliente HTTP | `Build::new` devolve `None` (`build.rs:66-79`): `prepared` |
+| Trava ligada, sem KV | `open_kv` falha ⇒ `spawn_at` devolve `None` (`boot.rs:102`) |
+
+**Ausência de chave nunca derruba o boot.** Chave ausente é escopo sem cofre: o
+passo é pulado com `no-credential` (`serve_jobs.rs:107-110`), a fila persistida
+espera no KV e nada vira erro de processo. O mesmo vale para `br_probe` sem
+colhedor: o `submit` devolve `false` e o efeito volta ao Node
+(`mod.rs:99-101`) — recusa de trabalho, não falha de boot.

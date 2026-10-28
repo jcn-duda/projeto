@@ -795,9 +795,9 @@ Pendências de validação (não bloqueiam a fase C):
 ## Leva C1 — worker nativo do Chupim (2026-10-28)
 
 Esta leva fecha as lacunas P1 do worker nativo do Chupim **sem** cumprir o flip
-B4: os passos existem e compilam, mas o laço ainda não os chama e o TS do
-Chupim continua dono desses fluxos. Base: `47e475fb` + a leva C1 (working tree
-da branch `rust`).
+B4: os passos existem, o laço OS DESPACHA por `Job.kind` e o TS do Chupim
+continua dono dos FATOS que só ele produz. Base: `47e475fb` + a leva C1
+(working tree da branch `rust`).
 
 ### O que foi fiado
 
@@ -805,30 +805,61 @@ da branch `rust`).
 |---|---|---|
 | Represa `sup:` | `suppressed_step` (drain, `DrainReport`, `register_factory`, `last`) e a rota `POST /autofetch/suppressed-drain` rodando o passo de verdade; o `GET /autofetch` publica `suppressed`, `suppressedSource` e `lastSuppressedDrain` | `autofetch/suppressed_step.rs`, `autofetch/routes.rs` |
 | Porta `evict` | evicção por hash SÓ na AllDebrid (`/magnet/status` → `remove(id)`), guarda `may_delete` reutilizada, kill-switch duplo e teto por chamada | `adom-debrid/src/autofetch_ports_evict.rs` |
-| Evicção F6 | política pura (`plan`, com veto final `may_delete`) + executor (`execute`, para no primeiro erro) sobre a régua do crate | `autofetch/evict_step.rs` (ainda fora do `mod.rs`) |
-| Sonda `br_probe` | `plan`/`execute`/`settle`, `ProbeStepConfig`, `ProbeSkipReason`, lease `pending` e KV `autofetch:v3:probe:<sha256>` | `autofetch/probe_step.rs` |
-| Season Pack Fill | `plan`/`plan_fill`/`execute`/`take`, `SEASON_PREFIX`, índice em KV com a chave lógica do TS | `autofetch/season_step.rs` |
+| Evicção F6 | política pura (`plan`, com veto final `may_delete`) + executor (`execute`, para no primeiro erro) sobre a régua do crate, e a produção que lê os fatos e grava o `adrm` | `autofetch/evict_step.rs` + `autofetch/evict_job.rs` |
+| Sonda `br_probe` | `plan`/`execute`/`settle`, `ProbeStepConfig`, `ProbeSkipReason`, lease `pending` e KV `autofetch:v3:probe:<sha256>` | `autofetch/probe_step.rs` + `autofetch/probe_job.rs` |
+| Season Pack Fill | `plan`/`plan_fill`/`execute`/`take`, `SEASON_PREFIX`, índice em KV com a chave lógica do TS | `autofetch/season_step.rs` + `autofetch/season_fill.rs` |
+| Despacho do canal | `Engine::batch` roteia `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`; `Job.kind` viaja no canal | `autofetch/serve_jobs.rs`, `autofetch/enqueue.rs` |
+| Goldens de contrato | `autofetch-{probe,season,evict,suppressed}-step.{jsonl,manifest.json}`, `kind: "contract"`, `oracle: null` | `rust/golden/`, gerador `scripts/golden/contract-autofetch-steps.mjs` |
 | Crate | `v3::evict::execute`/`EvictReport`/`EvictStop` e as decisões puras de sonda e temporada | `adom-autofetch/src/v3/{evict,probe,season}.rs` |
+
+### O que foi fiado no ciclo
+
+- **Despacho por `kind`** — `serve_jobs.rs::Engine::batch` (`:57-64`) manda
+  `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH` para `probe`/`season`/`enqueue_batch`,
+  e `Job.kind` viaja pelo canal (`enqueue.rs:46-57`, `tail_effects.rs:63-70`).
+  Sem esse despacho, sonda e season cairiam em `enqueue::run` e virariam
+  `empty-batch`. `br_probe` sem colhedor é recusado no `submit`
+  (`autofetch/mod.rs:99-101`) e volta ao Node.
+- **Evicção F6 no ciclo** — `evict_step` declarado em `autofetch/mod.rs:55-56`;
+  `serve.rs::timers` lê `evict_job::EvictConfig::from_env()` e corta por RODADA
+  (`evict_left = gates.max_per_run`, `:149-152`). Kill-switch próprio
+  (`DEBRID_AUTO_FETCH_EVICT_FALLBACK`, default OFF), `may_delete` em duas
+  camadas (plano e porta) e `adrm` gravado pelo Rust
+  (`evict_job::mark_removed`: `{"at":now}`, nunca poda).
+- **Sonda dirigida** — `probe_job::ProbeStepConfig::from_env` lê
+  `RELEASE_INDEX`/`AUTOFETCH_BR_PROBE`/`BR_PROBE_TTL_S` a cada job; o lease
+  `pending` tem piso de 10 min e quem finaliza o estado é o colhedor
+  (`harvest/settle.rs`), na ordem `found > capped > empty > failed`.
+- **Season Pack Fill** — `season_fill.rs` consome o índice da temporada só
+  DEPOIS de invalidar o `streams.db` (`peek` → `sink` → `take`); sem sink o
+  índice fica vivo para a passagem seguinte.
+- **Represa** — `suppressed_step::register_factory` chamado no `boot::spawn_at`
+  (`boot.rs:110-112`).
 
 ### O que ficou pendente
 
-1. **`evict_step` fora do binário.** O arquivo existe (com testes próprios), mas
-   `autofetch/mod.rs` ainda não o declara: falta `mod evict_step;`. A fiação
-   prevista é `serve.rs::timers`, depois de o recheck provar o ready BR.
-2. **`probe_step` e `season_step` sem chamador.** Estão declarados com
-   `#[allow(dead_code)]` e nenhum ramo do laço os chama. Como o canal JÁ aceita
-   os dois kinds, o lote entra e é recusado por `enqueue::run` com
-   `no-search-key` — e, depois do aceite, **não volta ao Node** (`Deferred` só
-   existe antes do `submit`). Enquanto o ramo não existir, a sonda e o Season
-   Pack Fill de produção continuam sendo os do TS.
-3. **Fábrica do dreno não registrada.** `suppressed_step::register_factory` não
-   é chamado no `boot::spawn_at`, então a rota responde `factory-unavailable`
-   mesmo com `AUTOFETCH_WORKER=on`. É uma linha no boot.
-4. **Flip B4 não feito.** O TS do Chupim (`src/providers/autofetch*.ts`,
-   `src/debrid/alldebrid-fallback-evict.ts`) segue dono de sonda, Season Pack
-   Fill, evicção de fallbacks, dreno no ciclo, `pf:`/`obra:` e
-   `harvester_enqueue`. Regra: **não apagar o TS antes de fiar o substituto** —
-   passo escrito não é passo consumido.
+1. **Flip B4.** O TS do Chupim (`src/providers/autofetch*.ts`,
+   `src/debrid/alldebrid-fallback-evict.ts`) segue dono dos FATOS que o nativo
+   não produz: marker com `obra` e registro F2 `autofetch:v3:o:<digest>`
+   (ponte napi, `enqueue.rs:331` grava marker SEM meta), `adsub`/`adprot`,
+   `pf:`; somam-se `harvester_enqueue` e o agendamento das varreduras da
+   AllDebrid (`ReadOnly` até as provas por linha). Regra: **não apagar o TS
+   antes de fiar o substituto** — passo escrito não é passo consumido.
+2. **Divergência conhecida (fill, RD).** `cache_check_honest` é estático e
+   responde `false` para `realdebrid` (`season_fill.rs:114`), enquanto o Node
+   consulta `cacheCheck` dinâmico (`src/debrid/registry.ts:66`): lote de RD não
+   preenche no nativo — falha fechada, cobertura menor que a do TS.
+3. **Divergência conhecida (`readded`).** O skip existe só na porta
+   (`adom-debrid/src/autofetch_ports_evict.rs:332`, par do
+   `alldebrid-fallback-evict.ts:114`); `evict_step::plan` (`evict_step.rs:175`)
+   e o veto `may_delete` (`:63-73`) não o conhecem — a porta continua barrando a
+   remoção, mas o contador do painel não vê o motivo.
+4. **Divergência conhecida (knobs inertes).** `DEBRID_AUTO_FETCH_SETTLE_MS` e
+   `DEBRID_AUTO_FETCH_STALL_STREAK` são lidos por `Policy::from_env` e não têm
+   consumidor: `recheck.rs` usa `recheck_interval_ms` no `due_at` (`:192-195`,
+   par do `armRecheck` do Node em `src/providers/autofetch-recheck.ts:38`) e a
+   constante `STALL_THRESHOLD = 3` (`:37`, aplicada em `:272`, par de
+   `src/config/debrid.ts:236`).
 5. **Aceitação em produção** com duas contas de serviços diferentes, incluindo
    uma passagem de evicção com o kill-switch ligado e o dreno da represa pelo
    painel.

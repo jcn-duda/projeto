@@ -74,6 +74,27 @@ O namespace `harvest` é **RUST_OWNED** no Node (`RUST_OWNED_PREFIXES` em
 `src/utils/cache-keys.ts`): o Node não carrega no L1, não grava no SQLite e não
 poda. `clear-cache` não zera o balde horário (seria burlar o teto).
 
+### Lease da sonda (`pending`) e TTL
+
+A sonda grava `autofetch:v3:probe:<sha256(type:imdb:season:episode)>` no MESMO
+`cache.db` (`probe_key`, crate `adom-harvest`).
+
+| Regra | Valor | Onde |
+|---|---|---|
+| Lease do `pending` | `PENDING_LEASE_MS` = **10 min** | `adom-harvest/src/probe.rs:41-43` |
+| TTL do registro | `max(BR_PROBE_TTL_S, 10 min)` — o piso é o lease | `probe.rs:149-152` (`write_pending`) |
+| Retry de `failed`/`capped` | `RETRY_MS` = **5 min** | `probe.rs:45-46` |
+| TTL lido pelo colhedor | `br_probe_ttl_seconds()` = `BR_PROBE_TTL_S` (default `43 200`, clamp) | `harvest/config.rs:88-93` |
+| Quem usa | `Settler::new(br_probe_ttl_seconds())` | `harvest/serve.rs:91-93` |
+
+Piso de 10 min não é folga: é o lease. Antes ele só existia no crate de origem;
+com `BR_PROBE_TTL_S` menor que o lease o registro nasceria vencido e o
+`pending` nunca seria lido. Quem FINALIZA o estado é o colhedor
+(`settle.rs` → `BrProbe::finalize`); `probe_step::finish` existe no worker
+(ainda com `#[allow(dead_code)]`) e não é o caminho de produção — constante
+fixa no loop divergia do `BR_PROBE_TTL_S` que `probe_job.rs:49-50` lê a cada
+job, e o `brProbeTtl` do Node lia um prazo diferente do que o gateway escrevia.
+
 ## Contrato HTTP (admin 8711)
 
 Token: `X-Indexer-Test-Token` (`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`
@@ -143,9 +164,40 @@ o ajuste vale no próximo restart. Teto de fila menor não corta a fila atual.
 Sem índice nativo o drain falha com 0 consultas (não anuncia sucesso
 descartado). Sem metadados nativos ou sem Jackett configurado a obra falha.
 
+## Corte do teto (`truncated` → `capped`)
+
+`DrainOutcome` carrega `truncated: bool` ao lado de `ok`/`queries`
+(`adom-harvest/src/worker_types.rs:64-96`, construtor `with_truncated`): `true`
+significa que o teto horário cortou alvos **planejados** — a passada não
+consultou tudo o que a régua pediu.
+
+- `drain.rs:309-313` calcula `truncated = batch.remaining_targets > 0` sobre
+  `SourceBatch` (`drain_sources.rs:29-33`: `attempted`/`answered`/
+  `remaining_targets`); `jackett_complete = !truncated &&
+  jackett_targets_complete(...)`, então corte também marca o registro como
+  parcial.
+- `harvest/serve.rs:223-229` monta `Settlement { ..., capped: outcome.truncated }`.
+- `settle.rs:99-107` finaliza o registro da sonda na ordem
+  `found` > `capped` > `empty` > `failed`.
+
+| Desfecho | Estado final | Por quê |
+|---|---|---|
+| `br_found` | `found` | achado é prova |
+| `capped` (teto cortou alvo) | `capped` | ausência NÃO foi provada |
+| `ok` (todos os alvos respondidos) | `empty` | ausência provada |
+| falha sem corte | `failed` | a falha segue visível em `last`/contadores |
+
+**Nunca `empty` depois de corte.** `empty` diz "já procurei, não existe" e é
+lido como prova por até 12 h: gravar isso depois de um teto que cortou alvos
+escondia a obra por 12 h. `capped` e `failed` usam `RETRY_MS` (5 min) e liberam
+os seeds, mantendo a obra elegível. O contrato está coberto por
+`harvest/capped_tests.rs`.
+
 ## Desfecho (`settle`) e FULL ↔ sonda
 
-`Settlement { intent, ok, br_found }` captura o slot **antes** do `finish`.
+`Settlement { intent, ok, br_found, capped }` captura o slot **antes** do
+`finish`; `capped` é o `DrainOutcome::truncated` daquela obra (ver a seção
+anterior).
 
 | Execução | Resultado | Retorno |
 |---|---|---|
@@ -165,6 +217,12 @@ descartado). Sem metadados nativos ou sem Jackett configurado a obra falha.
   aplica o teto (BR-first = cauda priorizada; senão o mais antigo por
   `enqueued_at`). Reduzir o teto por config não corta a fila atual.
 
+Estado final da sonda (só quando `entry.br_probe` ou o intent é sonda): ordem
+`found` > `capped` > `empty` > `failed`, decidida em `settle.rs:92-107` e
+gravada com `finalize`. `capped` vence `failed` porque a falha de fonte já
+aparece no `last`/contadores do status — o que o registro precisa dizer é que o
+plano ficou incompleto.
+
 A chave do contador é `entry_identity`. Falha interrompe o budget do
 `POST /harvest/drain`. O contador de tentativas é **volátil** (memória): restart
 depois do save reconstrói a fila, não o número de falhas.
@@ -180,6 +238,10 @@ depois do save reconstrói a fila, não o número de falhas.
 `JACKETT_LIVE_EXEMPT_INDEXERS` (default `apachetorrent-cardigann`) define os
 isentos retirados do subset da sonda; é lida em `drain_shape.rs`, fora do
 `HarvestConfig`.
+
+`BR_PROBE_TTL_S` (default `43 200` s) é o TTL do registro da sonda, lido pelos
+dois lados: `probe_job.rs:49-50` no worker e `br_probe_ttl_seconds()` no
+colhedor. O `pending` nunca nasce com prazo menor que o lease de 10 min.
 
 `CACHE_PERSIST=false` põe o raw do BLUDV em memória, mas a fila do colhedor
 continua no `CACHE_DB_PATH` — desligar o colhedor é `HARVEST_ENABLED=false`.
@@ -214,7 +276,7 @@ Gateway — `rust/crates/adom-server/src/harvest/`:
 | `drain_record.rs` | filtro → escrita → delta Found → invalidação da obra |
 | `drain_shape.rs` | conversões puras: isentos, `MetaQuery`, `RelevanceItem`, `jackett_complete` |
 | `evidence.rs` | `EvidenceSnapshot` para prioridade/preview/evicção |
-| `settle.rs` | `Settler`/`Settlement`: FULL remanescente, 3 reinserções, 4ª falha |
+| `settle.rs` | `Settler`/`Settlement`: FULL remanescente, 3 reinserções, 4ª falha, `capped` |
 | `enqueue.rs` | enqueue com dedupe 12 h (só grava `seen` no aceite) |
 | `routes.rs` | rotas administrativas no `store_admin` |
 | `status.rs` | snapshot `HarvestStatus`/`HarvestCounters` (não segura o lock da fila) |
@@ -224,6 +286,7 @@ Gateway — `rust/crates/adom-server/src/harvest/`:
 | `network_tests.rs` | `NetworkDrain` real contra stubs locais |
 | `worker_tests.rs` | tick/teto/enqueue sem rede |
 | `settle_tests.rs` | desfecho, sem rede |
+| `capped_tests.rs` | teto que corta alvo grava `capped`; todos respondidos grava `empty` |
 
 Crate — `rust/crates/adom-harvest/src/`:
 
@@ -247,6 +310,8 @@ Os que fixam este contrato no gateway (`cargo test -p adom-server harvest::`):
 - `network_tests.rs`: `NetworkDrain` real contra metadados/Jackett/BLUDV
   locais — alvos, índice, parcialidade, retry e invalidação da obra.
 - `settle_intent_tests.rs` / `settle_tests.rs`: FULL ↔ sonda, 4ª falha, reset.
+- `capped_tests.rs`: `DrainOutcome::truncated` → `capped` (e `empty` só com
+  todos os alvos respondidos).
 - Ponte Node (`test/harvest-native.test.ts`, `test/harvester-panel.test.ts`):
   config sem restart, pausa, `nativeApplied:false` quando a ponte cai, reset
   para defaults, pending e preview sem `fullIntent`.
