@@ -159,7 +159,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
   adsub: 'v1',
   // Anti-reenchimento do AllDebrid (`adrm:v1:<account>:<hash>`, registro
   // `{ at, name? }`, Fase 8 item 8.14): hash que a limpeza INTENCIONAL
-  // (sweepUndubbed, catálogo/painel) apagou não volta a ser enviado ao
+  // (varredura de não-dublados, catálogo/painel) apagou não volta a ser enviado ao
   // /magnet/upload — que é a própria checagem de cache. Sem escopo de adapter
   // de propósito: só o AllDebrid marca, e a leitura por outras contas/keys
   // simplesmente não encontra registro.

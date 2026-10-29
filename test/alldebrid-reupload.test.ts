@@ -273,66 +273,10 @@ test('8.14: deleteMagnets retorna removedIds; falha de delete não vira removido
   }
 });
 
-// --- sweepUndubbed marca SÓ deleção intencional bem-sucedida ----------------
-
-const velhoSec = Math.floor(Date.now() / 1000) - 10 * 24 * 3600;
-const SETE_DIAS = 7 * 24 * 3600 * 1000;
-const ACERVO_FALHA = 'b1'.repeat(20);
-
-test('8.14: sweepUndubbed bem-sucedida marca o hash apagado', async () => {
-  const CHAVE = 'chave-adrm-sweep-ok';
-  const CONTA = accountScope(CHAVE);
-  const ACERVO = 'a1'.repeat(20);
-  const LIXO_HASH = 'a2'.repeat(20);
-  // Só o acervo no primeiro snapshot; o lixo entra depois (simula upload do
-  // addon pós-snapshot) — é o que o torna candidato à varredura.
-  const api = mockAd({
-    account: [
-      { id: 1, hash: ACERVO, status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
-    ],
-  });
-  metrics.reset();
-  try {
-    await alldebrid.warmInventory(CHAVE);
-    await settle();
-    api.account.push(
-      { id: 2, hash: LIXO_HASH, status: 'Ready', filename: LIXO, uploadDate: velhoSec },
-    );
-    const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
-    assert.equal(r.varridos, 1);
-    assert.deepEqual([...api.deleted], [2], 'só o lixo estrangeiro sai');
-    assert.equal(reuploadBlocked(CONTA, LIXO_HASH), true, 'o que saiu fica marcado');
-    assert.equal(reuploadBlocked(CONTA, ACERVO), false, 'o acervo não é marcado');
-  } finally {
-    api.restore();
-    kvForget(adrmKey(CONTA, LIXO_HASH));
-    metrics.reset();
-  }
-});
-
-test('8.14: sweepUndubbed com delete recusado NÃO marca (o magnet continua lá)', async () => {
-  const CHAVE = 'chave-adrm-sweep-falha';
-  const CONTA = accountScope(CHAVE);
-  const LIXO_HASH = 'b2'.repeat(20);
-  const api = mockAd({
-    failDelete: true,
-    account: [
-      { id: 1, hash: ACERVO_FALHA, status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
-    ],
-  });
-  try {
-    await alldebrid.warmInventory(CHAVE);
-    await settle();
-    api.account.push(
-      { id: 2, hash: LIXO_HASH, status: 'Ready', filename: LIXO, uploadDate: velhoSec },
-    );
-    await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
-    assert.ok(api.deleted.includes(2), 'houve tentativa de delete');
-    assert.equal(reuploadBlocked(CONTA, LIXO_HASH), false, 'falha de delete não marca');
-  } finally {
-    api.restore();
-  }
-});
+// A marca `adrm` de uma varredura bem-sucedida (e a ausência dela quando o
+// delete é recusado) não é mais medida aqui: as varreduras da AllDebrid são
+// NATIVAS (`al_sweeps`) e a cobertura dessa gravação vive no lado Rust. O que
+// sobra no Node é a higiene da checagem — o teste abaixo.
 
 test('8.14: dropReady/dropUncached da checagem NÃO marcam (higiene ≠ decisão)', async () => {
   const CHAVE = 'chave-adrm-drop-nao-marca';

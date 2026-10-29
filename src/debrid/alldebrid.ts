@@ -8,7 +8,7 @@
  *
  *   - `alldebrid-api.ts`        base HTTP (`call`), tipos, visões de conta;
  *   - `alldebrid-inventory.ts`  DONO do estado `knownBefore`/`submitted`;
- *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets, varreduras;
+ *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets;
  *   - `alldebrid-check.ts`      checagem de cache (upload) + dropReady/dropUncached;
  *   - `alldebrid-play.ts`       resolveLink, enqueue, torrentStatus, removeTorrent.
  *
@@ -31,7 +31,7 @@ export {
 } from './alldebrid-api.js';
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
 export { warmInventory, preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
-export { deleteMagnets, sweepDead, sweepUndubbed } from './alldebrid-cleanup.js';
+export { deleteMagnets } from './alldebrid-cleanup.js';
 export { checkCached } from './alldebrid-check.js';
 export { resolveLink, enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 

@@ -1,8 +1,8 @@
 // Anti-reenchimento da conta AllDebrid (Fase 8, item 8.14).
 //
 // A checagem de cache da AllDebrid É um /magnet/upload. A limpeza intencional
-// (sweepUndubbed, catálogo/painel) apaga um gringo e, 15 minutos depois, a
-// busca seguinte re-sobe o MESMO hash só de perguntar se ele está em cache —
+// (varredura de não-dublados, catálogo/painel) apaga um gringo e, 15 minutos
+// depois, a busca seguinte re-sobe o MESMO hash só de perguntar se ele está em cache —
 // a limpeza vira esteira eterna (o davail positivo dura 900s; o interesse de
 // busca dura dias). O registro durável "apagado de propósito, não re-subir"
 // fecha isso SEM tocar o ⚡: ele não é davail=1, não mente quando a AllDebrid
@@ -66,10 +66,12 @@ function reuploadBlocked(account: string, hash: string): boolean {
 }
 
 /**
- * Marca o hash como "apagado de propósito, não re-subir". Só chamado de
- * pontos de deleção INTENCIONAL (sweepUndubbed, evict, reconcile, catálogo/
- * painel) e só com o hash que saiu de verdade da conta — falha de delete não
- * marca (o magnet continua lá, e o marcador o esconderia da checagem à toa).
+ * Marca o hash como "apagado de propósito, não re-subir". Os chamadores do TS
+ * são os pontos de deleção INTENCIONAL (catálogo/painel); as quatro varreduras
+ * (mortos, não-dublados, reconcile e represados) são NATIVAS e gravam o mesmo
+ * registro pelo `DurablePeek` do gateway. Só o hash que saiu de verdade da
+ * conta — falha de delete não marca (o magnet continua lá, e o marcador o
+ * esconderia da checagem à toa).
  * Idempotente: remarcar renova o TTL. Devolve true quando o registro foi
  * gravado — false nos no-ops (kill-switch, hash vazio) e na blindagem de
  * origem BR.

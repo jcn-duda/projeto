@@ -10,9 +10,6 @@ import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmi
 import { skipCleanup, deleteMagnets as dropMagnets } from './alldebrid-cleanup.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
-import { scheduleEvict } from './alldebrid-evict.js';
-import { scheduleReconcile } from './alldebrid-reconcile.js';
-import { scheduleSuppressedRevalidate } from './alldebrid-suppressed-revalidate.js';
 import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 
 /**
@@ -60,11 +57,6 @@ export async function checkCached(
   // posse (`forgetSubmitted`) precisa do hash que o id representa.
   const readyHashById = new Map<string, string>();
   const downloadHashById = new Map<string, string>();
-  // 8.16 — hashes que ESTA busca realmente consultou: o ECO do /magnet/upload
-  // é o que prova o que trafegou (lote que estourou o prazo não ecoa). Alimenta
-  // o alvo da evicção, a exclusão do que a própria busca acabou de subir e o
-  // reconcile.
-  const consultados = new Set<string>();
   const account = accountScope(apiKey);
   const hadInventory = preexisting.has(account);
   // `knownBefore` já dispara o refresh quando o snapshot vence e devolve null
@@ -123,7 +115,6 @@ export async function checkCached(
     const ready: string[] = [];
     for (const magnet of data?.magnets || []) {
       const hash = String(magnet.hash || '').toLowerCase();
-      if (hash) consultados.add(hash);
       rememberSubmitted(account, hash);
       if (magnet.ready) {
         ready.push(hash);
@@ -210,9 +201,9 @@ export async function checkCached(
   };
   // Cadeia ÚNICA leitura→limpeza: o `finally` acopla a limpeza ao FIM da
   // leitura (sucesso OU falha) e nenhuma promise derivada fica sem consumidor.
-  // A espera limitada, porém, só é AWAITADA depois de evicção/reconcile
-  // agendados (abaixo): a limpeza efetiva nunca começa antes de quem depende
-  // do estado da conta estar agendado.
+  // Não há mais nada agendado antes disto: evicção, reconcile e as varreduras
+  // saíram do Node no corte (são NATIVAS, `al_sweeps`) — a higiene da checagem
+  // (`dropReady`/`dropDownload`) é o que resta aqui.
   //
   // A leitura não é abortável (cancelar depois do upload perderia os ids). O
   // limite da ESPERA chega como `fileWaitTimeoutMs` — orçamento dinâmico da
@@ -245,22 +236,6 @@ export async function checkCached(
   // Destravados pelo inventário entram no Set de cache SEM upload: o pronto é
   // prova da própria conta, e o eco do upload os teria omitido de propósito.
   for (const hash of desbloqueados) result.cached.add(hash);
-  // 8.16 — evicção por busca, irmã de dropReady/dropUncached: fire-and-forget
-  // DEPOIS da checagem, zero await da seleção/rede no prazo da resposta. O
-  // guard do knob mora aqui (custo zero quando OFF) e de novo dentro do módulo
-  // (a função é pública); escopo B-2 e anti-reentrada são do módulo.
-  if (config.debrid.evictPerSearch) scheduleEvict(apiKey, consultados);
-  // Reconcile da posse (adsub × conta real), irmão do evictor e também
-  // fire-and-forget DEPOIS dele: a checagem é o gatilho natural porque é ela
-  // que deposita e que limpa. Os guards (knob, escopo B-2, intervalo mínimo,
-  // anti-reentrada, dependência de drop ativo) moram todos no módulo — o
-  // chamador paga só uma chamada síncrona.
-  scheduleReconcile(apiKey, consultados);
-  // Item 1b — represados da conta BYO: a próxima busca da MESMA instalação
-  // reavalia em fundo o que a heurística de progresso adiou, com a apiKey
-  // corrente e sem chave persistida. AllDebrid-only; fail-safe e coalescido no
-  // módulo. Fire-and-forget, como o reconcile.
-  scheduleSuppressedRevalidate(apiKey);
   if (espera) {
     try {
       if ((await espera) === 'prazo') {

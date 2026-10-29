@@ -1,8 +1,6 @@
 import { list, num } from './helpers.js';
 import { autofetchSeeds } from './debrid-autofetch-seeds.js';
-import { reconcile } from './debrid-reconcile.js';
 import { evictFallback } from './debrid-evict.js';
-import { suppressedRevalidate } from './debrid-suppressed.js';
 import { normalizeRustServices } from './debrid-rust.js';
 
 export { normalizeRustServices } from './debrid-rust.js';
@@ -20,8 +18,8 @@ export const debrid = () => ({
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
   // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk
-  // (runtime.ts); as features de operador (catálogo, varreduras, painel,
-  // warmer) usam `envOperatorAccount` abaixo, que é o OU com o flag próprio.
+  // (runtime.ts); as features de operador (catálogo, painel, warmer) usam
+  // `envOperatorAccount` abaixo, que é o OU com o flag próprio.
   allowEnvKey: String(process.env.DEBRID_ALLOW_ENV_KEY || 'true') === 'true',
   // Features de operador sobre a conta do .env SEM herdar a chave para
   // installs: instância pública com ALLOW_ENV_KEY=false + OPERATOR_ENV_ACCOUNT
@@ -149,45 +147,11 @@ export const debrid = () => ({
   // busca) sem eternizar o bloqueio sobre um hash que pode voltar a ser útil.
   // 0 desliga a gravação E a leitura (rollback de uma linha).
   alldebridReuploadBlockTtlMs: Math.max(0, num(process.env.ALLDEBRID_REUPLOAD_BLOCK_TTL_MS, 3 * 24 * 3600 * 1000)),
-  // Evicção por busca (Fase 8, item 8.16): a busca que deposita ~23 magnets no
-  // AllDebrid remove os mais antigos PROVADAMENTE estrangeiros, tornando a
-  // ocupação estacionária em vez de monotônica. É limpeza destrutiva disparada
-  // pelo caminho quente — default OFF e o rollback é uma linha. Escopo B-2:
-  // só a conta do OPERADOR (envOperatorAccount + a chave exata do .env);
-  // chave de usuário (BYO) nunca sofre evicção.
-  evictPerSearch: String(process.env.DEBRID_EVICT_PER_SEARCH || 'false') === 'true',
-  // Teto de remoções por busca, na ordem do que UMA busca deposita; nunca
-  // ilimitado. Clamp 0..25; 0 desliga a evicção mesmo com o knob acima ligado.
-  harvestEvictMaxPerSearch: Math.min(25, Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_MAX_PER_SEARCH, 25)))),
-  // Piso de ocupação: só evicta acima disso. Conta folgada não apaga nada —
-  // sem o piso, o addon corroeria o acervo em uso normal.
-  harvestEvictFloor: Math.max(0, Math.trunc(num(process.env.HARVEST_EVICT_FLOOR, 600))),
-  // Bloco do reconcile da posse (adsub × conta real): src/config/debrid-reconcile.ts.
-  ...reconcile(),
-  ...evictFallback(),
-  ...suppressedRevalidate(),
-  // Varredura dos magnets em estado terminal ("No peer after 30 minutes",
-  // "Expired", "File not available"). A limpeza por busca só alcança hashes
-  // que estão na consulta do momento; um torrent que morreu e nunca mais é
-  // pesquisado fica ocupando vaga para sempre — medido: 183 mortos numa conta
-  // no teto, e conta no teto faz a AllDebrid recusar /magnet/delete com 503.
-  // Ao contrário do dropReady, NÃO poupa o inventário do usuário: magnet em
-  // estado terminal não é escolha de ninguém, é lixo que consome quota.
-  sweepDead: String(process.env.DEBRID_SWEEP_DEAD || 'true') === 'true',
-  sweepDeadIntervalMs: num(process.env.DEBRID_SWEEP_DEAD_INTERVAL_MS, 6 * 3600 * 1000),
-  // Margem antes de considerar terminal definitivo (evita varrer recém-marcado).
+  // Margem antes de considerar terminal definitivo na varredura do adaptador
+  // Premiumize (`sweepDead`, método do adaptador). As varreduras da AllDebrid
+  // são NATIVAS (`al_sweeps`) e não leem este knob.
   sweepDeadMinAgeMs: num(process.env.DEBRID_SWEEP_DEAD_MIN_AGE_MS, 30 * 60 * 1000),
-  // Varredura dos magnets ANTIGOS sem áudio PT (balde `lixo` do audioBucket):
-  // legendado/estrangeiro que o autofetch acumulou antes do filtro de áudio.
-  // Destrutiva sobre conteúdo tocável — as travas andam juntas: idade mínima,
-  // `held`, inventário conhecido (frio = rodada pulada). false desliga tudo
-  // (rollback de uma linha).
-  sweepUndubbed: String(process.env.DEBRID_SWEEP_UNDUBBED || 'true') === 'true',
-  sweepUndubbedIntervalMs: num(process.env.DEBRID_SWEEP_UNDUBBED_INTERVAL_MS, 6 * 3600 * 1000),
-  // Idade mínima: só magnet mais antigo que isso entra na varredura (7 dias).
-  sweepUndubbedMinAgeMs: num(process.env.DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS, 7 * 24 * 3600 * 1000),
-  // Teto por rodada; os mais antigos saem primeiro.
-  sweepUndubbedMax: Math.max(0, Math.trunc(num(process.env.DEBRID_SWEEP_UNDUBBED_MAX, 100))),
+  ...evictFallback(),
   timeout: num(process.env.DEBRID_TIMEOUT_MS, 6000),
   // Sem fonte BR dublada em cache, manda o serviço baixar a melhor. O TTL vale
   // pra duas coisas: não reenviar o mesmo torrent a cada busca e por quanto

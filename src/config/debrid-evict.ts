@@ -2,7 +2,7 @@ import { num } from './helpers.js';
 
 // Bloco da evicção dirigida dos fallbacks da mesma obra (Fase 6 do Chupim 2.0),
 // extraído de `src/config/debrid.ts` para a catraca de 400 linhas — o mesmo
-// padrão de `debrid-reconcile.ts` e `debrid-autofetch-seeds.ts`. As chaves são
+// padrão de `debrid-autofetch-seeds.ts`. As chaves são
 // espalhadas no compositor com `...evictFallback()`; nenhum default muda.
 export const evictFallback = () => ({
   // Quando um BR dublado aceito pelo Chupim fica ready, remove da conta

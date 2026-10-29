@@ -6,7 +6,7 @@
 //   cache-check.ts     checagem de cache (davail, nonAbortable, unusable)
 //   account-status.ts  saúde da conta para o verificador/painel
 //   inventory.ts       inventário da conta como fonte (memo dinv)
-//   env-ops.ts         warmup/varreduras da conta do OPERADOR (.env)
+//   env-ops.ts         warmup da conta do OPERADOR (.env)
 //   actions.ts         resolveLink/enqueue/knownInstant (play e autofetch)
 //   catalog-env.ts     catálogo durável + limpador BR da conta do operador
 //
@@ -39,9 +39,6 @@ export default {
   inventoryPeek: inventory.inventoryPeek,
   refreshInventory: inventory.refreshInventory,
   warmupEnv: envOps.warmupEnv,
-  sweepDeadEnv: envOps.sweepDeadEnv,
-  sweepUndubbedEnv: envOps.sweepUndubbedEnv,
-  sweepDeadCurrent: envOps.sweepDeadCurrent,
   knownInstant: actions.knownInstant,
   catalogScanEnv: catalogEnv.catalogScanEnv,
   catalogListEnv: catalogEnv.catalogListEnv,

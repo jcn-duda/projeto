@@ -9,16 +9,14 @@
 //     devolve a árvore de arquivos prontos;
 //   - deleteMagnets: remove com backoff exponencial + reenfileiramento, para a
 //     rajada de 503 (medida: 13 de 45 deletes paralelos) não deixar magnet
-//     para sempre;
-//   - sweepUndubbed: inventário frio é AGUARDADO (não pula mais a rodada),
-//     estados ativos nunca são alvo, e o "lixo" agora só é o estrangeiro
-//     PROVADO (`foreignVerdict === 'condena'`) — ausência de PT nunca mais
-//     apaga.
+//     para sempre.
+//
+// A varredura `sweepUndubbed` da AllDebrid saiu do Node (é NATIVA, `al_sweeps`):
+// os testes dela moraram aqui e foram removidos no corte; a cobertura de alvo,
+// `held` e inventário frio é nativa.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as alldebrid from '../src/debrid/alldebrid.js';
-import * as held from '../src/debrid/protected.js';
-import { accountScope } from '../src/utils/request-key.js';
 
 // As esperas (backoff, AbortSignal) mantêm o loop vivo mesmo com o fetch dublé
 // resolvendo em microtask; o keepAlive impede o node --test de abortar testes
@@ -28,8 +26,6 @@ before(() => {
   keepAlive = setInterval(() => {}, 1000);
 });
 after(() => clearInterval(keepAlive));
-
-const velhoSec = Math.floor(Date.now() / 1000) - 10 * 24 * 3600;
 
 // --- magnetList -----------------------------------------------------------
 
@@ -194,143 +190,6 @@ test('deleteMagnets: 503 sempre cai em falhas depois das duas rodadas', async ()
     assert.equal(r.falhas.length, 1, 'reenfileirado na segunda rodada, falhou de verdade');
     assert.equal(api.calls.get(55), 6, '3 tentativas da rodada 1 + 3 da rodada 2');
   } finally {
-    api.restore();
-  }
-});
-
-// --- sweepUndubbed ----------------------------------------------------------
-
-/**
- * Conta com chamada de inventário cronometrada e lista MUTÁVEL. A primeira
- * chamada sem id é o snapshot que o sweepUndubbed AGUARDA; as seguintes são a
- * leitura da própria rodada. `onWarm(list)` roda quando o snapshot resolve —
- * é onde o teste injeta o magnet que a rodada deve achar (depois do snapshot,
- * então ele NÃO vira preexistente).
- */
-function mockAccount(preexistentes: any[], onWarm: (list: any[]) => void, { inventoryDelayMs = 50 }: { inventoryDelayMs?: number } = {}) {
-  const list = [...preexistentes];
-  const deleted: number[] = [];
-  let statusCalls = 0;
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
-    if (url.pathname.endsWith('/magnet/status')) {
-      const id = url.searchParams.get('id');
-      if (id == null) {
-        // A PRIMEIRA chamada sem id é o snapshot que o sweepUndubbed AGUARDA:
-        // devolve SÓ o que já estava na conta (preexistente). A SEGUNDA é a
-        // leitura da rodada — é nela que `onWarm` injeta o magnet novo, que não
-        // fazia parte do snapshot e portanto NÃO vira preexistente.
-        statusCalls += 1;
-        if (statusCalls === 1) {
-          await new Promise((resolve) => setTimeout(resolve, inventoryDelayMs));
-        } else {
-          onWarm(list);
-        }
-        return body({ magnets: [...list] });
-      }
-      const magnet = list.find((m: any) => String(m.id) === id);
-      return body({ magnets: magnet ? [magnet] : [] });
-    }
-    if (url.pathname.endsWith('/magnet/delete')) {
-      deleted.push(Number(url.searchParams.get('id')));
-      return body({ message: 'deleted' });
-    }
-    throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-
-  return {
-    deleted,
-    list,
-    restore() {
-      globalThis.fetch = realFetch;
-      AbortSignal.timeout = realTimeout;
-    },
-  };
-}
-
-test('sweepUndubbed: inventário frio é AGUARDADO, a rodada NÃO é pulada', async () => {
-  // O bug documentado: com snapshot frio, `knownBefore` devolve null e a
-  // rodada inteira pulava ('inventário frio') — a guarda de 5min do TTL contra
-  // o timer de 6h é por isso a conta chegou a 812. Como a varredura é em
-  // fundo, deve AGUARDAR o inventário (que chega aqui em ~50ms) e limpar.
-  const api = mockAccount(
-    [{ id: 1, hash: 'aa'.repeat(20), status: 'Ready', filename: 'Acervo Dublado', uploadDate: velhoSec }],
-    (list) => {
-      list.push({ id: 2, hash: 'bb'.repeat(20), status: 'Ready', filename: 'Movie.2024.TRUEFRENCH.1080p.x264', uploadDate: velhoSec });
-    },
-    { inventoryDelayMs: 30 },
-  );
-  try {
-    const r = await alldebrid.sweepUndubbed('chave-sweep-frio', { minAgeMs: 24 * 3600 * 1000 });
-    assert.equal(r.pulado, undefined, 'inventário frio aguardado: não deve pular');
-    assert.deepEqual(api.deleted, [2], 'o estrangeiro PROVADO e velho é removido');
-    assert.equal(r.varridos, 1);
-  } finally {
-    api.restore();
-  }
-});
-
-test('sweepUndubbed: estado ativo NUNCA é alvo, mesmo com título condenável', async () => {
-  const api = mockAccount(
-    [{ id: 1, hash: 'cc'.repeat(20), status: 'Ready', filename: 'Acervo Dublado', uploadDate: velhoSec }],
-    (list) => {
-      // Baixando agora: download em curso não é lixo.
-      list.push({ id: 2, hash: 'cd'.repeat(20), status: 'Downloading', filename: 'Movie.2024.TRUEFRENCH.1080p.x264', uploadDate: velhoSec });
-    },
-    { inventoryDelayMs: 5 },
-  );
-  try {
-    const r = await alldebrid.sweepUndubbed('chave-sweep-ativo', { minAgeMs: 24 * 3600 * 1000 });
-    assert.deepEqual(api.deleted, [], 'estado ativo não é alvo');
-    assert.equal(r.varridos, 0);
-  } finally {
-    api.restore();
-  }
-});
-
-test('sweepUndubbed: estrangeiro PROVADO é alvo; ambíguo e PT nunca são', async () => {
-  const api = mockAccount(
-    [{ id: 1, hash: 'ee'.repeat(20), status: 'Ready', filename: 'Acervo Dublado', uploadDate: velhoSec }],
-    (list) => {
-      list.push(
-        { id: 11, hash: 'ef'.repeat(20), status: 'Ready', filename: 'Movie.2024.TRUEFRENCH.1080p.x264', uploadDate: velhoSec },
-        { id: 12, hash: 'ac'.repeat(20), status: 'Ready', filename: 'Vingadores Ultimato 2019 1080p', uploadDate: velhoSec },
-        { id: 13, hash: 'ad'.repeat(20), status: 'Ready', filename: 'Filme Dublado', uploadDate: velhoSec },
-      );
-    },
-    { inventoryDelayMs: 5 },
-  );
-  try {
-    const r = await alldebrid.sweepUndubbed('chave-sweep-verdicts', { minAgeMs: 24 * 3600 * 1000 });
-    assert.deepEqual(api.deleted, [11], 'só o estrangeiro PROVADO sai');
-    assert.equal(r.varridos, 1);
-  } finally {
-    api.restore();
-  }
-});
-
-test('sweepUndubbed: protegido (held) continua fora mesmo título condenável', async () => {
-  const CHAVE_HELD = 'chave-sweep-held';
-  const CONTA_HELD = accountScope(CHAVE_HELD);
-  const api = mockAccount(
-    [{ id: 1, hash: 'ff'.repeat(20), status: 'Ready', filename: 'Acervo Dublado', uploadDate: velhoSec }],
-    (list) => {
-      list.push({ id: 14, hash: '14'.repeat(20), status: 'Ready', filename: 'Movie.2024.TRUEFRENCH.1080p.x264', uploadDate: velhoSec });
-    },
-    { inventoryDelayMs: 5 },
-  );
-  held.hold('14'.repeat(20), 3600, CONTA_HELD);
-  try {
-    const r = await alldebrid.sweepUndubbed(CHAVE_HELD, { minAgeMs: 24 * 3600 * 1000 });
-    assert.deepEqual(api.deleted, [], 'held sobrevive à varredura');
-    assert.equal(r.varridos, 0);
-  } finally {
-    held.release('14'.repeat(20), CONTA_HELD);
     api.restore();
   }
 });

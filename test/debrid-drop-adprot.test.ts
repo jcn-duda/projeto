@@ -78,52 +78,6 @@ function mockAllDebrid({ ready = [], statusOf = () => 'Ready', files = [] }: { r
   };
 }
 
-function mockAccountMutable(magnets: any[]) {
-  const deleted: number[] = [];
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
-    if (url.pathname.endsWith('/magnet/status')) return body({ magnets: [...magnets] });
-    if (url.pathname.endsWith('/magnet/delete')) {
-      const id = Number(url.searchParams.get('id'));
-      deleted.push(id);
-      return body({ message: 'deleted' });
-    }
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-  return { deleted, magnets, restore() { globalThis.fetch = realFetch; AbortSignal.timeout = realTimeout; } };
-}
-
-function mockAccountStates(magnets: any) {
-  const deleted: number[] = [];
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-  const byId = new Map(magnets.map((m: any) => [m.id, m]));
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    const body = (data: any) => ({ ok: true, async json() { return { status: 'success', data }; } });
-    if (url.pathname.endsWith('/magnet/status')) return body({ magnets: [...byId.values()] });
-    if (url.pathname.endsWith('/magnet/delete')) {
-      const id = Number(url.searchParams.get('id'));
-      deleted.push(id);
-      byId.delete(id);
-      return body({ message: 'deleted' });
-    }
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-  return { deleted, restore() { globalThis.fetch = realFetch; AbortSignal.timeout = realTimeout; } };
-}
-
-const antigo = Math.floor(Date.now() / 1000) - 3 * 3600;
-const velhoSec = Math.floor(Date.now() / 1000) - 10 * 24 * 3600;
-const SETE_DIAS = 7 * 24 * 3600 * 1000;
-
 // --- Proteção DURÁVEL (`adprot:v1`) no adaptador -----------------------------
 
 test('proteção durável sem hold pula dropUncached e dropReady, e conta protectedBrSkipped', async () => {
@@ -179,54 +133,11 @@ test('resolveLink NÃO apaga BR retido pela proteção durável (mesmo sem hold)
   }
 });
 
-test('varredura undubbed pula o BR retido pela proteção durável', async () => {
-  const CHAVE = 'chave-varredura-adprot';
-  const ACCOUNT_ADPROT = accountScope(CHAVE);
-  const BR_RETIDO = 'ab'.repeat(20);
-  const LIXO = 'ac'.repeat(20);
-  const api = mockAccountMutable([
-    { id: 1, hash: 'ad'.repeat(20), status: 'Ready', filename: 'Acervo Dublado do Usuário', uploadDate: velhoSec },
-  ]);
-  held.protectBr('alldebrid', ACCOUNT_ADPROT, BR_RETIDO);
-  try {
-    await alldebrid.warmInventory(CHAVE);
-    await settle();
-
-    api.magnets.push(
-      { id: 2, hash: BR_RETIDO, status: 'Ready', filename: 'Foreign Old Movie 2009 720p WEBRip', uploadDate: velhoSec },
-      { id: 3, hash: LIXO, status: 'Ready', filename: 'Another Foreign Movie 2010 TrueFrench BRRip', uploadDate: velhoSec },
-    );
-
-    const r = await alldebrid.sweepUndubbed(CHAVE, { minAgeMs: SETE_DIAS });
-    assert.deepEqual(api.deleted, [3], 'o BR retido (durável) sobrevive; só o lixo solto sai');
-    assert.equal(r.varridos, 1);
-  } finally {
-    held.unprotect('alldebrid', ACCOUNT_ADPROT, BR_RETIDO);
-    api.restore();
-  }
-});
-
-test('varredura dead remove o BR retido e limpa a proteção durável', async () => {
-  const CHAVE = 'chave-varredura-adprot-dead';
-  const ACCOUNT_ADPROT = accountScope(CHAVE);
-  const M0RTO = 'ae'.repeat(20);
-  const api = mockAccountStates([
-    { id: 60, hash: M0RTO, status: 'No peer after 30 minutes', uploadDate: antigo },
-  ]);
-  held.protectBr('alldebrid', ACCOUNT_ADPROT, M0RTO);
-  metrics.reset();
-  try {
-    assert.equal(held.isDurablyProtected('alldebrid', ACCOUNT_ADPROT, M0RTO), true, 'precondição: retido');
-
-    await alldebrid.sweepDead(CHAVE);
-    assert.deepEqual(api.deleted, [60], 'estado terminal é lixo, não acervo: remove mesmo durável');
-    assert.equal(held.isDurablyProtected('alldebrid', ACCOUNT_ADPROT, M0RTO), false, 'o dead destrava a proteção');
-  } finally {
-    held.unprotect('alldebrid', ACCOUNT_ADPROT, M0RTO);
-    metrics.reset();
-    api.restore();
-  }
-});
+// As varreduras que apagavam da conta (`sweepUndubbed`/`sweepDead`) são NATIVAS
+// agora (`al_sweeps`): os dois testes que mediam a sobrevivência do `adprot` a
+// elas saíram no corte — a cobertura dessas travas é do lado Rust. O `adprot`
+// continua sendo medido aqui na higiene da checagem (dropUncached/dropReady) e
+// no `resolveLink`.
 
 test('proteção durável é por conta: a mesma hash em outra conta continua sendo limpa', async () => {
   const OUTRA = 'chave-de-teste-b';

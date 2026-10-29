@@ -12,7 +12,7 @@ import { BY_ID } from './registry.js';
 // Catálogo durável + limpador BR da conta do OPERADOR (AllDebrid)
 // ---------------------------------------------------------------------------
 //
-// Mesmo padrão do `sweepUndubbedEnv`: adapter vem de `config.debrid.service`
+// Mesmo padrão do `warmupEnv`: adapter vem de `config.debrid.service`
 // via BY_ID, chave de `config.debrid.apiKey` com o gate de operador
 // (`envOperatorAccount`). NUNCA lançam —
 // devolvem `{ ok:false, reason }` e capturam erro com log.warn, para a rota

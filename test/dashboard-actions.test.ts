@@ -33,7 +33,6 @@ before(async () => {
   saved.debridService = config.debrid.service;
   saved.debridApiKey = config.debrid.apiKey;
   saved.allowEnvKey = config.debrid.allowEnvKey;
-  saved.sweepDead = config.debrid.sweepDead;
   saved.resolveSecret = config.debrid.resolveSecret;
 
   config.jackett.testToken = '';
@@ -42,7 +41,6 @@ before(async () => {
   config.debrid.apiKey = '';
   config.debrid.resolveSecret = '';
   config.debrid.allowEnvKey = true;
-  config.debrid.sweepDead = true;
 
   debrid.BY_ID.set(SWEEP_ADAPTER.id, SWEEP_ADAPTER);
   server = await createTestServer(createApp().app);
@@ -56,7 +54,6 @@ after(async () => {
   config.debrid.service = saved.debridService;
   config.debrid.apiKey = saved.debridApiKey;
   config.debrid.allowEnvKey = saved.allowEnvKey;
-  config.debrid.sweepDead = saved.sweepDead;
   config.debrid.resolveSecret = saved.resolveSecret;
 });
 

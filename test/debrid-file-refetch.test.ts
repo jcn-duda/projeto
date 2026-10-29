@@ -114,8 +114,8 @@ test('o orçamento dinâmico chega como fileWaitTimeoutMs, nunca como timeoutMs 
 test('leitura de pack pode ultrapassar o prazo sem cancelar e sem antecipar a limpeza', async () => {
   // A espera da leitura fica dentro do `timeoutMs` da checagem (fail-open), mas
   // a leitura NÃO é cancelada e a limpeza só corre no FIM dela — nunca antes,
-  // e nunca depois do scheduleEvict/scheduleReconcile (agendados sincronamente
-  // na volta da checagem, antes do await da espera).
+  // e nunca depois: com os agendadores e as varreduras fora do Node, nada mais
+  // é disparado na volta da checagem (as varreduras são NATIVAS, `al_sweeps`).
   clearFileSizes();
   const KEY = `chave-leitura-prazo-${process.pid}`;
   const ACCOUNT = accountScope(KEY);
@@ -155,7 +155,7 @@ test('leitura de pack pode ultrapassar o prazo sem cancelar e sem antecipar a li
     }
     throw new Error(`URL inesperada: ${url.pathname}`);
   }) as unknown as typeof globalThis.fetch;
-  const restaurarConfig = withDebrid({ dropReady: true, dropUncached: true, evictPerSearch: false });
+  const restaurarConfig = withDebrid({ dropReady: true, dropUncached: true });
   inventario(ACCOUNT, []); // autoridade para o dropReady (e hadInventory → sem skipReadyDrop)
   try {
     metrics.reset();

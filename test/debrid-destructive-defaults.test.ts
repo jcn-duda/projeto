@@ -38,15 +38,9 @@ function defaultsDe () {
 
 test('Convenção: knobs que apagam da conta nascem DESLIGADOS', () => {
   const d = defaultsDe();
-  assert.equal(
-    d.evictPerSearch, false,
-    'DEBRID_EVICT_PER_SEARCH (8.16): evicção por busca apaga magnets a cada checagem; nasce OFF',
-  );
-  assert.equal(
-    d.reconcile, false,
-    'DEBRID_RECONCILE (8.17): apagar posse órfã "pronta" sem eco da busca é destrutivo; ' +
-    'nasce OFF (incidente bdf00ea→d6442b1) e liga só após janela de observação',
-  );
+  // `evictPerSearch` e `reconcile` saíram do Node no corte das varreduras: a
+  // evicção por busca foi substituída pela F6 (`autoFetchEvictFallback`) e o
+  // reconcile da posse é NATIVO (`al_sweeps`, read-only atrás do gate).
   assert.equal(
     d.autoFetchEvictFallback, false,
     'DEBRID_AUTO_FETCH_EVICT_FALLBACK (F6): remover fallbacks any/seeds da mesma obra na ' +
@@ -69,16 +63,9 @@ test('Exceção declarada: limpezas ON por design — cada uma conserte um vazam
     '(medido: 2300 magnets em 4 dias até estourar o teto). Apagar o pronto é seguro: ' +
     'o cache é do SERVIÇO, não da conta',
   );
-  assert.equal(
-    d.sweepDead, true,
-    'sweepDead: estado terminal não é escolha de ninguém — NÃO poupa o inventário do ' +
-    'usuário de propósito. Sem ela, mortos ocupam vaga até o /magnet/delete virar 503',
-  );
-  assert.equal(
-    d.sweepUndubbed, true,
-    'sweepUndubbed: legenda/estrangeiro que o autofetch acumulou, com travas próprias ' +
-    '(idade mínima, held, inventário frio pula a rodada)',
-  );
+  // `sweepDead`/`sweepUndubbed` não são mais knobs do Node: as quatro varreduras
+  // destrutivas da AllDebrid são NATIVAS (`al_sweeps`) e nascem read-only atrás
+  // do gate `DEBRID_AL_SWEEP_APPLY` (default do código OFF, compose ON).
 });
 
 test('Protetivos: o flip para OFF é o lado destrutivo — nascem LIGADOS', () => {
@@ -100,13 +87,9 @@ test('A convenção é sobre o DEFAULT: o operador continua podendo ligar por en
     if (key.startsWith('DEBRID_')) delete process.env[key];
   }
   try {
-    process.env.DEBRID_RECONCILE = 'true';
-    assert.equal(debrid().reconcile, true, 'override explícito do operador vale');
-    delete process.env.DEBRID_RECONCILE;
-    process.env.DEBRID_EVICT_PER_SEARCH = 'true';
-    assert.equal(debrid().evictPerSearch, true, 'override explícito do operador vale');
+    process.env.DEBRID_AUTO_FETCH_EVICT_FALLBACK = 'true';
+    assert.equal(debrid().autoFetchEvictFallback, true, 'override explícito do operador vale');
   } finally {
-    delete process.env.DEBRID_RECONCILE;
-    delete process.env.DEBRID_EVICT_PER_SEARCH;
+    delete process.env.DEBRID_AUTO_FETCH_EVICT_FALLBACK;
   }
 });

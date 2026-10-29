@@ -295,7 +295,9 @@ const stallSeenAt = new Map<string, number>();
  * Existe porque o recheck só alcança o que está num lote vivo: `recheckLots`
  * é de memória e o restart o zera, então transferência enfileirada por um
  * processo anterior fica parada para sempre, ocupando vaga da conta e nunca
- * sendo reavaliada por ninguém. Roda no boot e a cada `sweepDeadIntervalMs`.
+ * sendo reavaliada por ninguém. Não há mais agendador no Node: as varreduras
+ * periódicas da conta do operador são NATIVAS (`al_sweeps`, AllDebrid); este
+ * método segue chamável por diagnóstico/teste.
  */
 async function sweepDead(apiKey: string, { minAgeMs = config.debrid.sweepDeadMinAgeMs } = {}) {
   const account = accountScope(apiKey);

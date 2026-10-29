@@ -1,20 +1,15 @@
-// Dublê da API v4.1 da AllDebrid e utilidades de tempo compartilhadas pelos
-// testes do 8.16 (evicção por busca) e do gate B-4 de deleção.
+// Dublê da API v4.1 da AllDebrid compartilhado pelos testes da checagem/limpeza
+// do Node (higiene do dropReady/dropDownload, `adrm`/`adsub` e gate B-4).
 //
 // O /magnet/upload é a própria checagem de cache (o eco prova o que trafegou),
-// o /magnet/status alimenta inventário/varredura/evicção e o /magnet/delete é
-// o ponto de deleção. `uploaded`/`deleted`/`ordem` são a prova do que de fato
-// trafegou — `deleted` só ganha id BEM-sucedido, `ordem` registra o INÍCIO de
-// cada tentativa (é o que expõe sobreposição entre chamadas concorrentes).
+// o /magnet/status alimenta o inventário e a conferência de prontos, e o
+// /magnet/delete é o ponto de deleção. `uploaded`/`deleted`/`ordem` são a prova
+// do que de fato trafegou — `deleted` só ganha id BEM-sucedido, `ordem` registra
+// o INÍCIO de cada tentativa (é o que expõe sobreposição entre chamadas
+// concorrentes).
 import config from '../../src/config.js';
 import { prefix } from '../../src/utils/cache-keys.js';
-import { kvForget } from '../../src/utils/native-kv.js';
 import * as metrics from '../../src/utils/metrics.js';
-import * as cache from '../../src/utils/cache.js';
-import * as autofetch from '../../src/providers/autofetch.js';
-import * as suppressed from '../../src/providers/autofetch-suppressed.js';
-import { scheduleSuppressedRevalidate } from '../../src/debrid/alldebrid-suppressed-revalidate.js';
-import { accountScope } from '../../src/utils/request-key.js';
 import { preexisting } from '../../src/debrid/alldebrid-inventory.js';
 import { assertSafeTestDb } from './db-guard.js';
 
@@ -35,9 +30,6 @@ export interface MagRow {
   status: string;
   uploadDate: number;
 }
-
-export const mag = (id: number, hash: string, filename: string, uploadDate: number, status = 'Ready'): MagRow =>
-  ({ id, hash, filename, status, uploadDate });
 
 export interface MockOpts {
   /** Hashes que o /magnet/upload devolve prontos. */
@@ -129,89 +121,5 @@ export const inventario = (account: string, hashes: string[]) => {
 
 export const soltaInventario = (account: string) => preexisting.delete(account);
 
-/** Tempo para a rodada de fundo (status → seleção → delete) assentar. */
+/** Tempo para a rodada assíncrona (status → seleção → delete) assentar. */
 export const assenta = () => new Promise((resolve) => setTimeout(resolve, 50));
-
-/** Espera uma métrica aparecer (deleções com backoff real levam segundos). */
-export async function esperaMetrica(nome: string, tetoMs = 15000) {
-  const inicio = Date.now();
-  while (Date.now() - inicio < tetoMs) {
-    if (counter(nome) > 0) return;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error(`métrica ${nome} não apareceu em ${tetoMs}ms`);
-}
-
-/** Portão de duas fases para segurar uma chamada da API no meio. */
-export const gate = () => {
-  let liberar!: () => void;
-  const promise = new Promise<void>((r) => { liberar = r; });
-  return { promise, liberar };
-};
-
-// --- Item 1b: revalidação de fundo dos represados da AllDebrid (conta BYO) ---
-
-// Chave de OPERADOR no `.env` diferente da chave da instalação: é o que torna a
-// conta "BYO" para o gate do módulo (a do operador fica com o sweepDead).
-export const BYO_1B_PATCH = {
-  apiKey: 'operador-1b',
-  allowEnvKey: true,
-  operatorEnvAccount: false,
-  suppressedTtl: 2_592_000,
-  // Knob destrutivo do 1b: os testes exercitam ON; o teste de default-OFF prova
-  // que sem ele o módulo é zero rede.
-  suppressedRevalidate: true,
-  // Idade mínima 0 para o terminal de teste (uploadDate=1) passar o piso.
-  suppressedRevalidateMinAgeMs: 0,
-};
-
-export interface Revalidate1BOpts {
-  /** Chave da instalação (o `accountScope` sai dela). */
-  key: string;
-  /** Semente do hash (repetida 20x). */
-  seed: string;
-  /** Id do magnet no /magnet/status e alvo do delete. */
-  id: number;
-  filename?: string;
-  status?: string;
-  uploadDate?: number;
-  /** Overrides sobre `BYO_1B_PATCH`. */
-  patch?: Record<string, unknown>;
-  /** Estado extra do dublê (failStatus, statusGate, …). */
-  mockOpts?: MockOpts;
-  /** Semeia estado ANTES do noteSuppressed (adsub, blacklist, …). */
-  before?: (ctx: { account: string; hash: string }) => void;
-}
-
-/**
- * Cenário padrão do 1b: monta o dublê e o patch BYO, registra o represado e
- * agenda a rodada (2 `assenta`). Devolve `api`/`account`/`hash` para as
- * asserções e o `cleanup` que restaura tudo (chamado no finally do teste).
- */
-export async function runSuppressed1b(opts: Revalidate1BOpts) {
-  const account = accountScope(opts.key);
-  const hash = opts.seed.repeat(20);
-  const api = mockAd({
-    ...(opts.mockOpts || {}),
-    account: [mag(opts.id, hash, opts.filename ?? 'X.2024.1080p', opts.uploadDate ?? 1, opts.status ?? 'Downloading')],
-  });
-  const restore = withDebrid({ ...BYO_1B_PATCH, ...(opts.patch || {}) });
-  opts.before?.({ account, hash });
-  suppressed.noteSuppressed('alldebrid', account, hash, String(opts.id));
-  scheduleSuppressedRevalidate(opts.key);
-  await assenta();
-  await assenta();
-  return {
-    api,
-    account,
-    hash,
-    cleanup: () => {
-      restore();
-      api.restore();
-      suppressed.forgetSuppressed('alldebrid', account, hash);
-      kvForget(`${prefix('adsub')}${account}:${hash}`);
-      kvForget(autofetch.deadKey('alldebrid', account, hash));
-      metrics.reset();
-    },
-  };
-}

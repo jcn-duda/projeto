@@ -131,8 +131,8 @@ function noteReady(adapterId: string, account: string, hash: string) {
  *   de magnets inativos. Segurar o registro negaria vaga sem entregar ⚡.
  *
  * Roda na conta de QUALQUER busca (a de uma instalação de usuário inclusive):
- * a varredura agendada (`sweepDead`) só existe para a conta do operador, então
- * este é o único reaper que a conta de um usuário vê.
+ * a varredura agendada da AllDebrid (`al_sweeps`, NATIVA) só existe para a
+ * conta do operador, então este é o único reaper que a conta de um usuário vê.
  */
 function reconcile(adapterId: string, account: string, hash: string) {
   if (!enabled(adapterId)) return;
