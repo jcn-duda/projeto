@@ -26,7 +26,10 @@ import { createTestServer, decodeConfig, encodeConfig, fakeResponse } from './e2
 import { stubFetch } from './helpers/stub.js';
 
 const URL_BASE = 'http://127.0.0.1:8711';
+/** Token de DIAGNÓSTICO (`JACKETT_TEST_TOKEN`): abre a superfície, não apaga. */
 const TOKEN = 'token-da-ponte';
+/** Credencial DESTRUTIVA (`STREAM_STORE_ADMIN_TOKEN`): a única que apaga. */
+const DESTRUCTIVE = 'token-destrutivo';
 
 type Saved = typeof config.streamStore;
 
@@ -37,7 +40,10 @@ beforeEach(() => {
   savedConfig = { ...config.streamStore };
   savedToken = config.jackett.testToken;
   config.streamStore.url = URL_BASE;
-  config.streamStore.token = '';
+  // O painel/play rodam com a credencial destrutiva configurada (é o que a
+  // ponte usa no `clear`); o token de diagnóstico fica no `JACKETT_TEST_TOKEN`,
+  // como na VPS. Quem quiser provar a recusa zera `streamStore.token`.
+  config.streamStore.token = DESTRUCTIVE;
   config.streamStore.timeoutMs = 500;
   config.streamStore.backoffMs = 30_000;
   config.jackett.testToken = TOKEN;
@@ -66,7 +72,9 @@ test('invalida a obra: POST /streams/invalidate com imdbId, token e flush', asyn
     const [call] = stub.calls;
     assert.equal(call.url, `${URL_BASE}/streams/invalidate`);
     assert.equal(call.options?.method, 'POST');
-    assert.equal(headerOf(call, 'x-indexer-test-token'), TOKEN);
+    // O caminho quente NÃO pede `confirm` nem a credencial destrutiva: apaga
+    // UMA obra e o próximo `stream` reconstrói.
+    assert.equal(headerOf(call, 'x-indexer-test-token'), DESTRUCTIVE);
     assert.deepEqual(JSON.parse(String(call.options?.body)), { imdbId: 'tt123' });
   } finally {
     stub.restore();
@@ -81,31 +89,6 @@ test('imdbId fora do contrato ou hash curto não chamam a ponte', async () => {
     invalidateNativeStreamsForObra('tt123:1:2');
     await flushNativeStreamStores();
     assert.equal(stub.calls.length, 0);
-  } finally {
-    stub.restore();
-  }
-});
-
-test('clear global manda corpo vazio e devolve a contagem do nativo', async () => {
-  const stub = stubFetch(() => fakeResponse({ ok: true, removed: 7, entries: 0 }));
-  try {
-    const result = await clearNativeStreams();
-    assert.deepEqual(result, { attempted: true, ok: true, removed: 7 });
-    assert.equal(stub.calls.length, 1);
-    assert.equal(stub.calls[0].url, `${URL_BASE}/streams/clear`);
-    assert.deepEqual(JSON.parse(String(stub.calls[0].options?.body)), {});
-  } finally {
-    stub.restore();
-  }
-});
-
-test('clear com escopo de instalação manda o sufixo do segmento', async () => {
-  const stub = stubFetch(() => fakeResponse({ ok: true, removed: 3, entries: 9 }));
-  try {
-    const suffix = ':{"m":2}:account:abc';
-    const result = await clearNativeStreams({ suffix });
-    assert.deepEqual(result, { attempted: true, ok: true, removed: 3 });
-    assert.deepEqual(JSON.parse(String(stub.calls[0].options?.body)), { suffix });
   } finally {
     stub.restore();
   }
@@ -181,7 +164,7 @@ test('trace: lê o ledger nativo pela chave exata e devolve found', async () => 
     assert.equal(url.searchParams.get('type'), 'movie');
     assert.equal(url.searchParams.get('id'), 'tt9');
     assert.equal(url.searchParams.get('key'), key);
-    assert.equal(headerOf(stub.calls[0], 'x-indexer-test-token'), TOKEN);
+    assert.equal(headerOf(stub.calls[0], 'x-indexer-test-token'), DESTRUCTIVE);
   } finally {
     stub.restore();
   }

@@ -39,8 +39,27 @@ export type NativeClearResult = {
 
 const SEQUENTIAL_FAILURES_BEFORE_BACKOFF = 2;
 
+/**
+ * Recusa HTTP da ponte, com o status e o `error` do corpo. Serve para separar
+ * RECUSA (403/409: credencial ou `confirm` faltando) de falha de TRANSPORTE:
+ * a primeira é configuração e não pode pôr a ponte em backoff — senão um
+ * `clear` sem credencial derrubaria junto a invalidação por obra do `/resolve`.
+ */
+class NativeHttpError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(status: number, code: string) {
+    super(code ? `HTTP ${status} ${code}` : `HTTP ${status}`);
+    this.name = 'NativeHttpError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 let failures = 0;
 let blockedUntil = 0;
+let warnedMissingDestructive = false;
 const pending = new Set<Promise<unknown>>();
 
 function settings() {
@@ -58,6 +77,16 @@ function baseUrl(): string {
 
 function token(): string {
   return settings().token || config.jackett.testToken || '';
+}
+
+/**
+ * Credencial DESTRUTIVA — a MESMA precedência de `src/config/stream-store.ts`:
+ * `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`. O `JACKETT_TEST_TOKEN`
+ * fica FORA de propósito: é o token de diagnóstico (o de `/metrics.json`) e o
+ * gateway recusa com ele o que apaga (`403 streams_token_insufficient`).
+ */
+function destructiveToken(): string {
+  return settings().token || '';
 }
 
 function noteFailure(where: string, err: unknown): void {
@@ -85,10 +114,15 @@ function noteSuccess(): void {
 }
 
 /** Um fetch curto com token; devolve o JSON ou lança (quem chama decide). */
-async function request(path: string, init: { method?: string; body?: unknown } = {}): Promise<unknown> {
+async function request(
+  path: string,
+  init: { method?: string; body?: unknown; destructive?: boolean } = {},
+): Promise<unknown> {
   const opts = settings();
   const headers: Record<string, string> = {
-    'x-indexer-test-token': token(),
+    // Rota destrutiva: só a credencial que apaga. As outras seguem com o token
+    // da superfície (que cai para o de diagnóstico).
+    'x-indexer-test-token': init.destructive ? destructiveToken() : token(),
     accept: 'application/json',
   };
   if (init.body !== undefined) headers['content-type'] = 'application/json';
@@ -102,7 +136,16 @@ async function request(path: string, init: { method?: string; body?: unknown } =
     signal,
   });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    // O `error` do corpo é o motivo do gateway (`confirmation_required`, …):
+    // vai para o painel em vez de um "HTTP 409" sem explicação.
+    let code = '';
+    try {
+      const body = (await res.json()) as { error?: unknown } | null;
+      code = typeof body?.error === 'string' ? body.error : '';
+    } catch {
+      code = ''; // corpo não-JSON: o status já basta
+    }
+    throw new NativeHttpError(res.status || 0, code);
   }
   return res.json();
 }
@@ -148,21 +191,47 @@ export function invalidateNativeStreamsForObra(imdbId: string): boolean {
 /**
  * Limpa o store nativo: tudo (escopo global) ou só o escopo de uma instalação
  * (`suffix` = `:<streamsCacheScope>`, o MESMO sufixo das chaves nativas).
- * Devolve o resultado para o painel relatar; nunca lança.
+ *
+ * A rota que zera o namespace exige as duas guardas do gateway: a credencial
+ * DESTRUTIVA e `{"confirm":true}` — este módulo manda as duas, porque é o
+ * código do operador, não uma requisição de terceiro. Sem a credencial não há
+ * nem requisição (o gateway responderia 409) e o motivo volta no `error` do
+ * painel. Nunca lança.
  */
 export async function clearNativeStreams(options: { suffix?: string } = {}): Promise<NativeClearResult> {
   if (!available()) {
     return { attempted: false, ok: false, removed: 0, error: 'ponte em backoff após falhas' };
   }
+  if (!destructiveToken()) {
+    if (!warnedMissingDestructive) {
+      warnedMissingDestructive = true;
+      log.warn(
+        '[stream-store] clear do streams.db sem credencial destrutiva ' +
+        '(STREAM_STORE_ADMIN_TOKEN/DEBRID_INTERNAL_TOKEN); o token de diagnóstico não apaga',
+      );
+    }
+    return {
+      attempted: false,
+      ok: false,
+      removed: 0,
+      error: 'sem credencial destrutiva (STREAM_STORE_ADMIN_TOKEN/DEBRID_INTERNAL_TOKEN)',
+    };
+  }
   try {
-    const body = options.suffix ? { suffix: options.suffix } : {};
-    const json = (await request('/streams/clear', { body })) as { removed?: unknown; entries?: unknown };
+    const body = { confirm: true, ...(options.suffix ? { suffix: options.suffix } : {}) };
+    const json = (await request('/streams/clear', { body, destructive: true })) as {
+      removed?: unknown;
+      entries?: unknown;
+    };
     noteSuccess();
     const removed = Number(json?.removed);
     if (Number.isFinite(removed) && removed > 0) metrics.count('stream.store.cleared', removed);
     return { attempted: true, ok: true, removed: Number.isFinite(removed) ? removed : 0 };
   } catch (err) {
-    noteFailure('clear', err);
+    // 403/409 são recusa de credencial/`confirm`, não queda do gateway: ficam
+    // FORA do backoff para não congelar a invalidação por obra do `/resolve`.
+    const refusal = err instanceof NativeHttpError && err.status < 500;
+    if (!refusal) noteFailure('clear', err);
     const error = log.errorMessage(err);
     log.warn(`[stream-store] clear do streams.db falhou: ${error}`);
     return { attempted: true, ok: false, removed: 0, error };
@@ -221,5 +290,6 @@ export function nativeStreamStoreStatus(): { available: boolean; failures: numbe
 export function resetNativeStreamStore(): void {
   failures = 0;
   blockedUntil = 0;
+  warnedMissingDestructive = false;
   pending.clear();
 }

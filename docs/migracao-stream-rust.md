@@ -595,17 +595,23 @@ O F4.4a fechou os itens 1–3 com uma API administrativa do store nativo
 
 1. **`/resolve` alcança o `streams.db`.** `invalidateStreamsForObra`
    (`src/utils/br-gap.ts`) continua limpando o L1 do Node e passa a enfileirar
-   `POST /streams/invalidate {"imdbId"}`; os ramos de erro do `/resolve`
+   `POST /streams/invalidate {"imdbId"}` com a credencial de superfície (sem
+   `confirm`: é caminho quente); os ramos de erro do `/resolve`
    (`NoVideoError`/`DubLieError`/`EpisodePickError` e o caminho `rustServices`)
    fazem `flush` antes de responder, então a reabertura imediata já reconstrói.
    O 451 (`invalidateStreamsOnBlocked`) limpa o nativo em best-effort, atrás do
-   mesmo cooldown. Há também `{"hash"}` para o item resolvido (a URL relativa
-   de `/resolve/<hash>` é o que sobra na entrada).
+   mesmo cooldown — esse usa `POST /streams/clear {"confirm":true}` com a
+   credencial destrutiva. Há também `{"hash"}` para o item resolvido (a URL
+   relativa de `/resolve/<hash>` é o que sobra na entrada).
 2. **`clear-cache` do painel limpa o nativo.** Escopo global → namespace todo;
    `{namespace:"streams"}` → idem; `{installation:true}` → chaves com o MESMO
-   sufixo `:<streamsCacheScope>`; qualquer outro namespace não toca o nativo. A
-   resposta ganhou o campo `native` (`{attempted, ok, removed, error?}`) para o
-   operador ver o que aconteceu de fato.
+   sufixo `:<streamsCacheScope>`; qualquer outro namespace não toca o nativo. O
+   pedido sai com `{"confirm":true}` e a credencial destrutiva; a rota responde
+   `409 streams_requires_admin_token` sem ela, `403 streams_token_insufficient`
+   se o header trouxer só o `JACKETT_TEST_TOKEN` e `409 confirmation_required`
+   sem o `confirm`. A resposta ganhou o campo `native`
+   (`{attempted, ok, removed, error?}`) para o operador ver o que aconteceu de
+   fato.
 3. **`/stream-trace.json` lê o ledger nativo.** Quando o L1 do Node não tem a
    obra (o caso do corte), a rota chama `GET /streams/trace?type=&id=[&key=]` e
    devolve o MESMO contrato (`origin:'cached'`, `cache.remainingS/partial/
@@ -630,22 +636,54 @@ O F4.4a fechou os itens 1–3 com uma API administrativa do store nativo
    [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 
 **Contrato da API administrativa (`STREAM_STORE_ADMIN_LISTEN`, default
-`127.0.0.1:8711`)** — token `X-Indexer-Test-Token`
-(`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN`;
-sem token, 503). Ela é montada SÓ no processo `adom-server` com
-`ROUTES_RUST` contendo `stream` (fixo no compose desde o R8), nunca na 7000
-pública (o gateway recusa `/internal/*`) e nunca por Caddy.
+`127.0.0.1:8711`)** — token `X-Indexer-Test-Token`, sempre no header
+(`?token=` nunca autentica). **Duas credenciais**, mesmo header, valores
+diferentes:
 
-| rota | efeito |
-|---|---|
-| `POST /streams/invalidate` `{"imdbId":"tt…"}` | apaga as chaves da obra |
-| `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que citam o hash |
-| `POST /streams/clear` `{}` / `{"suffix":":…"}` | limpa tudo / só o escopo da instalação |
-| `GET /streams/trace?type=&id=[&key=]` | ledger + estado da entrada da obra |
-| `GET /streams/stats` | ocupação/cota (diagnóstico) |
-| `GET /indexers/status` | última consulta medida de cada indexer + foto do circuito (`store_admin.rs:362-373`) |
-| `GET /harvest` + `POST /harvest/{enqueue,pause,config,drain,clear}` + `GET /harvest/pending` | painel e controle do colhedor nativo (`harvest/routes.rs:34-40`; mesmos loopback e token, sem segundo servidor) |
-| `GET /autofetch` + `POST /autofetch/{config,pause,drain,suppressed-drain}` | painel e controle do worker nativo do Chupim (`autofetch/routes.rs:17-21`); a resposta do `GET` vem envelopada em `{"ok":true,"status":{…}}` |
+- **superfície** (`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` →
+  `JACKETT_TEST_TOKEN`) — abre tudo que só LÊ (`/streams/trace`,
+  `/streams/stats`, `/indexers/status`, `/harvest`, `/autofetch`) e as rotas de
+  leitura de painel;
+- **destrutiva** (`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`, **sem**
+  o `JACKETT_TEST_TOKEN`) — é a única que APAGA namespace/dado do operador
+  (`POST /streams/clear`, `POST /sweeps/run` em modo que apaga).
+
+Guardas das rotas destrutivas, na ordem: credencial destrutiva ausente →
+`409 streams_requires_admin_token` (`reason:no_destructive_token`); header com
+só o token de diagnóstico → `403 streams_token_insufficient`
+(`reason:diagnostic_token`); e, só então, `{"confirm":true}` ausente →
+`409 confirmation_required`. Sem token configurado no processo, 503. Ela é
+montada SÓ no processo `adom-server` com `ROUTES_RUST` contendo `stream` (fixo
+no compose desde o R8), nunca na 7000 pública (o gateway recusa `/internal/*`) e
+nunca por Caddy.
+
+| rota | efeito | credencial |
+|---|---|---|
+| `POST /streams/invalidate` `{"imdbId":"tt…"}` | apaga as chaves da obra | superfície (caminho quente: **sem** `confirm`) |
+| `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que citam o hash | superfície (idem) |
+| `POST /streams/clear` `{"confirm":true}` / `{"confirm":true,"suffix":":…"}` | limpa o namespace todo / só o escopo da instalação | **destrutiva + `confirm:true`** |
+| `GET /streams/trace?type=&id=[&key=]` | ledger + estado da entrada da obra | superfície |
+| `GET /streams/stats` | ocupação/cota (diagnóstico) | superfície |
+| `GET /indexers/status` | última consulta medida de cada indexer + foto do circuito (`store_admin.rs:362-373`) | superfície |
+| `GET /harvest` + `POST /harvest/{enqueue,pause,config,drain,clear}` + `GET /harvest/pending` | painel e controle do colhedor nativo (`harvest/routes.rs:34-40`; mesmos loopback e token, sem segundo servidor) | superfície |
+| `GET /autofetch` + `POST /autofetch/{config,pause,drain,suppressed-drain}` | painel e controle do worker nativo do Chupim (`autofetch/routes.rs:17-21`); a resposta do `GET` vem envelopada em `{"ok":true,"status":{…}}` | superfície |
+
+**Por que o `invalidate` não pede `confirm` nem a destrutiva:** ele é o reparo
+do caminho quente. O `/resolve` o dispara em `NoVideoError`/`DubLieError`/
+`EpisodePickError` e no 451, e o sidecar de crawl (`adom-crawl`,
+`ingest/native.rs`) invalida a página que acabou de ingerir — os dois processos
+moram fora do Node e só têm o token da superfície. Exigir `confirm`
+transformaria cada play numa recusa 409 até o próximo deploy do chamador, e
+levar a credencial destrutiva para eles amplia o alcance do que apaga. O dano do
+`invalidate` é UMA obra (ou as entradas que citam um hash), idempotente e
+reconstruído no `stream` seguinte; quem zera o namespace é o `/streams/clear`,
+e esse exige as duas guardas.
+
+**Chamador Node:** `src/utils/streams-store-native.ts` usa a credencial
+destrutiva só no `clear` (`{confirm:true}` sempre) e a de superfície no
+`invalidate`/`trace`. Sem credencial destrutiva configurada, o `clear` vira
+`{attempted:false, ok:false}` com motivo legível e **não** entra em backoff (o
+backoff congelaria também a invalidação por obra).
 
 **Rollback (histórico):** as flags `STREAM_STORE_RUST`/`STREAM_BAD_RUST` não
 existem mais (R2/R4): o store admin é incondicional no corte e a poda

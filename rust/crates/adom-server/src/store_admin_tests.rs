@@ -62,11 +62,20 @@ fn now_ms() -> u64 {
 }
 
 async fn spawn(store: Arc<StreamsStore>, token: &str) -> std::net::SocketAddr {
+    // Sem a segunda credencial: é a config de quem só tem o token de diagnóstico.
+    spawn_with(store, token, None).await
+}
+
+/// Sobe o roteador com as DUAS credenciais (a destrutiva pode ser `None`).
+async fn spawn_with(
+    store: Arc<StreamsStore>,
+    token: &str,
+    destructive: Option<&str>,
+) -> std::net::SocketAddr {
     let cfg = AdminConfig {
         listen: DEFAULT_LISTEN.parse().unwrap(),
         token: token.to_string(),
-        // Estas rotas não são destrutivas: a segunda credencial nasce ausente.
-        destructive_token: None,
+        destructive_token: destructive.map(str::to_string),
     };
     let app = router(&cfg, store, 300, None);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -184,11 +193,15 @@ async fn clear_limpa_tudo_ou_so_o_sufixo() {
             .set(key, &entry_with_trace("aa", 1.0), 600, 0)
             .unwrap();
     }
-    let addr = spawn(store.clone(), TOKEN).await;
+    let addr = spawn_with(store.clone(), TOKEN, Some(TOKEN)).await;
 
     let (status, body) = call(
         addr,
-        post_json("/streams/clear", json!({ "suffix": ":account:aaa" }), TOKEN),
+        post_json(
+            "/streams/clear",
+            json!({ "suffix": ":account:aaa", "confirm": true }),
+            TOKEN,
+        ),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -196,12 +209,21 @@ async fn clear_limpa_tudo_ou_so_o_sufixo() {
     assert_eq!(body["scope"], "suffix");
     assert_eq!(store.len().unwrap(), 1);
 
-    let (status, body) = call(addr, post_json("/streams/clear", json!({}), TOKEN)).await;
+    let (status, body) = call(
+        addr,
+        post_json("/streams/clear", json!({ "confirm": true }), TOKEN),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["removed"], 1);
     assert_eq!(body["scope"], "all");
     assert_eq!(store.len().unwrap(), 0);
 }
+
+/// Guardas das rotas destrutivas (409 sem `confirm`, 403 com o token de
+/// diagnóstico, 409 sem credencial) e a ausência delas no caminho quente.
+#[path = "store_admin_tests_clear.rs"]
+mod clear;
 
 #[tokio::test]
 async fn trace_devolve_ledger_e_hashes_sem_vazar_url() {

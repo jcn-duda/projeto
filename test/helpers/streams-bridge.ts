@@ -28,8 +28,11 @@ export type BridgeEntry = {
 export type StreamsBridgeOptions = {
   entries?: BridgeEntry[];
   /**
-   * Token efetivo da ponte E do gate de diagnóstico — em produção os dois
-   * leem o mesmo `JACKETT_TEST_TOKEN` quando o token próprio está vazio.
+   * Token efetivo da ponte E do gate de diagnóstico — em produção o token
+   * próprio (`STREAM_STORE_ADMIN_TOKEN`) abre as rotas que apagam e o de
+   * diagnóstico (`JACKETT_TEST_TOKEN`) só as de leitura. O dublê entrega o
+   * MESMO valor nos dois porque nenhum dos chamadores aqui testa a recusa
+   * por credencial (isso vive em `streams-store-clear-guard.test.ts`).
    */
   token?: string;
   /**
@@ -85,7 +88,9 @@ export function createStreamsBridge(options: StreamsBridgeOptions = {}): Streams
   for (const entry of options.entries || []) store.set(entryKey(entry), entry);
 
   config.streamStore.url = URL_BASE;
-  config.streamStore.token = '';
+  // Token próprio preenchido: é dele que sai a credencial DESTRUTIVA do
+  // `/streams/clear` (precedência `STREAM_STORE_ADMIN_TOKEN`).
+  config.streamStore.token = token;
   config.streamStore.timeoutMs = 500;
   config.streamStore.backoffMs = 0;
   config.jackett.testToken = token;

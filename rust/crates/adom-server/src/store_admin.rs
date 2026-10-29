@@ -11,18 +11,21 @@
 //! roteador da 7000 (o gateway recusa `/internal/*` antes do proxy). Sem token
 //! configurado responde 503 — mesmo contrato da API interna de debrid.
 //!
-//! DUAS credenciais: o token daqui abre a superfície, mas `POST /sweeps/run` (o
-//! único DELETE na conta do operador) exige ainda o `destructive_token`
-//! (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`), nunca o de diagnóstico.
+//! DUAS credenciais: o token daqui abre a superfície, mas o que APAGA exige
+//! ainda o `destructive_token` (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`),
+//! nunca o de diagnóstico: `POST /sweeps/run` (o DELETE na conta do operador) e
+//! `POST /streams/clear` (o namespace de listas inteiro) recusam sem ele,
+//! `409 streams_requires_admin_token`/`403 streams_token_insufficient`, e só
+//! depois olham o `{"confirm":true}`.
 //!
 //! Rotas:
 //!
 //! | rota | efeito |
 //! |---|---|
-//! | `POST /streams/invalidate` `{"imdbId":"tt…"}` | apaga as chaves da obra (`invalidateStreamsForObra`) |
-//! | `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que mencionam o hash |
-//! | `POST /streams/clear` `{}` | limpa o namespace todo (`clear-cache` global) |
-//! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) |
+//! | `POST /streams/invalidate` `{"imdbId":"tt…"}` | apaga as chaves da obra (`invalidateStreamsForObra`) — token da superfície |
+//! | `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que mencionam o hash — token da superfície |
+//! | `POST /streams/clear` `{}` | limpa o namespace todo (`clear-cache` global) — DESTRUTIVA + `confirm` |
+//! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) — DESTRUTIVA + `confirm` |
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) |
 //! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
@@ -168,7 +171,9 @@ pub(crate) fn router_with_ownership(
     });
     Router::new()
         .route("/streams/invalidate", post(invalidate))
-        .route("/streams/clear", post(clear))
+        // O handler mora no `util`: as duas guardas desta rota não cabiam aqui
+        // sem estourar a catraca de 400 linhas.
+        .route("/streams/clear", post(util::clear))
         .route("/streams/trace", get(trace))
         .route("/streams/stats", get(stats))
         .route("/indexers/status", get(indexer_status))
@@ -242,6 +247,16 @@ async fn auth(
     next.run(req).await
 }
 
+/// `POST /streams/invalidate` — apaga o cache de UMA obra (ou de um hash).
+///
+/// De propósito NÃO exige `confirm` nem a credencial destrutiva: é o reparo do
+/// caminho quente. O `/resolve` pede a obra quando o play prova
+/// `NoVideoError`/`DubLieError`/`EpisodePickError`/451 e o sidecar do crawl
+/// invalida a página que acabou de ingerir (`adom-crawl::ingest`). Um `confirm`
+/// aqui deixaria o play sem reconstrução (ou cada página raspada em 409) e a
+/// credencial destrutiva teria de morar em mais dois processos para apagar UMA
+/// obra — o dano é limitado (o próximo `stream` reconstrói) e não alcança outra
+/// obra. Quem zera o namespace é o `/streams/clear`, esse sim com as duas.
 async fn invalidate(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) -> Response {
     let imdb = body.get("imdbId").and_then(Value::as_str).unwrap_or("");
     let hash = body.get("hash").and_then(Value::as_str).unwrap_or("");
@@ -263,28 +278,6 @@ async fn invalidate(State(state): State<Arc<AdminState>>, Json(body): Json<Value
         }
         Err(err) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "ok": false, "error": err })),
-        )
-            .into_response(),
-    }
-}
-
-async fn clear(State(state): State<Arc<AdminState>>, body: Option<Json<Value>>) -> Response {
-    let suffix = body
-        .as_ref()
-        .and_then(|Json(value)| value.get("suffix"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    match state.store.clear_by_suffix(suffix) {
-        Ok(removed) => Json(json!({
-            "ok": true,
-            "removed": removed,
-            "entries": state.store.len().unwrap_or(0),
-            "scope": if suffix.is_empty() { "all" } else { "suffix" },
-        }))
-        .into_response(),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "ok": false, "error": err })),
         )
             .into_response(),

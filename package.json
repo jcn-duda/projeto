@@ -366,6 +366,7 @@
     "test/stream-trace-recompute.test.js",
     "test/stream-trace-route.test.js",
     "test/stream-trace.test.js",
+    "test/streams-store-clear-guard.test.js",
     "test/streams-store-native.test.js",
     "test/sweeps-native.test.js",
     "test/title-acronyms.test.js",
