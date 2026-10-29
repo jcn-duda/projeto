@@ -8,6 +8,9 @@ import { crawlBlock } from './dashboard-crawl-block.js';
 import { harvestBlock } from './dashboard-harvest-block.js';
 // Bloco `autofetch`: ponte da admin do Chupim nativo, Node como fallback.
 import { autofetchBlock } from './dashboard-autofetch-block.js';
+// Bloco `debrid` (inclui a foto das varreduras nativas da AllDebrid): extraído
+// pela catraca, o arquivo estava exatamente no teto de 400 linhas.
+import { debridBlock } from './dashboard-debrid-block.js';
 import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
 
 export const ALL_BLOCKS = [
@@ -252,16 +255,9 @@ export async function computeStatusPayload(
     };
   }
 
-  // Bloco: debrid
+  // Bloco: debrid — `sweeps` é a foto síncrona das varreduras NATIVAS.
   if (isReq('debrid')) {
-    const account = await getAccount();
-    const accounts = await services.debrid.dashboardAccounts(account);
-    out.debrid = {
-      active: services.debrid.current()?.id || null,
-      account,
-      accounts,
-      services: services.debrid.SERVICES,
-    };
+    out.debrid = await debridBlock(services, await getAccount());
   }
 
   // Bloco: autofetch — a ponte da admin decide a fonte (`source`).

@@ -9,6 +9,7 @@ import debrid from './debrid/index.js';
 import { createApp } from './app.js';
 import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.js';
 import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
+import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
@@ -62,24 +63,9 @@ jackettCatalog.startAutoRefresh();
 // Antes do primeiro /magnet/upload, para a conta do operador não classificar
 // os uploads da primeira busca como magnets que já eram do usuário.
 debrid.warmupEnv();
-// Lixo que a limpeza por busca nunca alcança: magnet morto que ninguém mais
-// pesquisa. unref() para a varredura periódica não segurar o processo aberto
-// no shutdown.
-if (config.debrid.sweepDead) {
-  debrid.sweepDeadEnv();
-  setInterval(() => { debrid.sweepDeadEnv(); }, config.debrid.sweepDeadIntervalMs).unref();
-}
-// O outro lixo que a limpeza por busca nunca alcança: magnet antigo sem áudio
-// PT que o autofetch acumulou — pronto, só inútil para este addon.
-// Defasado do sweepDead: os dois têm o mesmo intervalo default e disparar os
-// dois no boot é rajada de deletes concorrentes — a AllDebrid responde 503.
-if (config.debrid.sweepUndubbed) {
-  const undubbedDelay = Math.max(60_000, Math.floor(config.debrid.sweepUndubbedIntervalMs / 2));
-  setTimeout(() => {
-    debrid.sweepUndubbedEnv();
-    setInterval(() => { debrid.sweepUndubbedEnv(); }, config.debrid.sweepUndubbedIntervalMs).unref();
-  }, undubbedDelay).unref();
-}
+// As varreduras destrutivas da AllDebrid (mortos, não-dublados, reconcile da
+// posse e revalidação de represados) saíram daqui: o agendador é o NATIVO do
+// gateway (`al_sweeps`, gate `DEBRID_AL_SWEEP_APPLY`), dono único das quatro.
 
 const server = app.listen(config.port, config.host, () => {
   const local = `http://127.0.0.1:${config.port}/manifest.json`;
@@ -108,6 +94,9 @@ const server = app.listen(config.port, config.host, () => {
   startHarvestPolling();
   // Status dos indexadores medido pelo gateway (painel e alerta de BR offline).
   startIndexerStatusPolling();
+  // Varreduras NATIVAS da AllDebrid: o Node só espelha o status do gateway
+  // (modo, último tick, contadores) para o painel — quem varre é o `al_sweeps`.
+  startSweepsPolling();
   rdWarmer.start();
   brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
@@ -129,6 +118,7 @@ function shutdown(signal: string) {
   // não deve sobreviver ao desarme).
   stopHarvestPolling();
   stopIndexerStatusPolling();
+  stopSweepsPolling();
   server.closeIdleConnections?.();
   const force = setTimeout(() => process.exit(0), 5000);
   force.unref();

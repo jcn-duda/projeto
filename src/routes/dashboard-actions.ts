@@ -17,6 +17,9 @@ import { maxFromBody } from './dashboard-actions-shared.js';
 // Ações do colhedor NATIVO (pausa/drenagem/limpeza): a fila, o worker e o
 // balde horário vivem no gateway Rust e o Node só repassa pela ponte.
 import { harvestPause, harvestDrain, harvestClearQueue, harvestConfigSet, harvestConfigReset } from './dashboard-actions-harvest.js';
+// Varredura de mortos: ponte nativa da AllDebrid + ramo legado dos outros
+// serviços (extraído pela catraca de 400 linhas).
+import { sweepDead } from './dashboard-actions-sweep.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -52,16 +55,9 @@ const MAX_TEST_KEY_LENGTH = 512;
 const ACTIONS: Record<string, ActionHandler> = {
   'clear-cache': clearCache,
 
-  'sweep-dead': async ({ services, res, action }) => {
-    const result = (await services.debrid.sweepDeadCurrent()) ?? (await services.debrid.sweepDeadEnv());
-    services.metrics.count('dashboard.sweep-dead');
-    return res.json({
-      ok: result != null,
-      action,
-      result,
-      error: result == null ? 'varredura indisponível: o debrid ativo não implementa varredura, ou ela está desligada' : undefined,
-    });
-  },
+  // Varredura de mortos: AllDebrid do operador → varredura NATIVA no gateway;
+  // AllDebrid BYO → erro explícito; demais serviços → adaptador legado.
+  'sweep-dead': sweepDead,
 
   // Colhedor NATIVO: handlers em dashboard-actions-harvest.js (`ok:false` com
   // "colhedor nativo indisponível" quando a ponte não confirma o efeito).

@@ -12,12 +12,16 @@ import {
   dedupGroupViews,
   limpezaHeader,
   nextCatalogState,
+  sweepToast,
   type DedupPlanView,
   type DedupRowView,
 } from './limpeza-model.js';
 import { CatalogNav } from './limpeza/view-catalogo.js';
 import { CleanupMaintenance } from './limpeza/view-manutencao.js';
 import { WorkVersionsCard } from './limpeza/view-versoes.js';
+// Cartão das varreduras NATIVAS da AllDebrid: lê `debrid.sweeps` (foto síncrona
+// do gateway) e nunca o dispara — pedir varredura é o botão destrutivo abaixo.
+import { SweepsCard } from './limpeza/view-sweeps.js';
 
 // Reexport: os testes e qualquer consumidor antigo importam os helpers daqui.
 export {
@@ -59,6 +63,7 @@ export type {
 export { CatalogNav } from './limpeza/view-catalogo.js';
 export { CleanupMaintenance } from './limpeza/view-manutencao.js';
 export { WorkVersionsCard } from './limpeza/view-versoes.js';
+export { SweepsCard } from './limpeza/view-sweeps.js';
 
 export interface ViewLimpezaProps {
   catalog?: Record<string, any>;
@@ -186,12 +191,8 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
         confirmLabel: 'Varrer e limpar',
       },
       poll: ['conta', 'debrid', 'magnetdb'],
-      successToast: (data) => {
-        const result = data.result || {};
-        const varridos = Number(result.varridos || 0);
-        const falhas = Number(result.falhas || 0);
-        return `Varredura concluída: ${varridos} removido(s)${falhas ? ` · ${falhas} falha(s)` : ''}`;
-      },
+      // Três desfechos (leitura, em voo, aplicado) no helper testável.
+      successToast: (data) => sweepToast(data.result),
     });
     if (outcome.ok) {
       setFeedback(null);
@@ -356,6 +357,8 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
               </button>
             </div>
           </div>
+
+          <${SweepsCard} sweeps=${debrid?.sweeps} />
         </${Card}>
       </div>
 

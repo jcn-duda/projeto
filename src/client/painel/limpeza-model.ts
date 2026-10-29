@@ -84,6 +84,37 @@ export function catalogSummary(data: Record<string, any> | null | undefined): Ca
   };
 }
 
+/** Contagem medida ou "?" — varredura que não rodou não removeu zero, não removeu nada. */
+function sweepCount(value: unknown): string {
+  const n = Number(value);
+  return value != null && Number.isFinite(n) ? String(n) : '?';
+}
+
+/**
+ * Toast do `sweep-dead` (rota NATIVA da AllDebrid ou adaptador legado). Três
+ * desfechos que o operador precisa distinguir:
+ *
+ *  - `applied === false` → o gateway PLANEJOU e não removeu nada (modo leitura);
+ *  - `pending`/`timedOut` → a varredura continua no gateway depois do prazo da
+ *    ponte; o cartão de status acompanha até o próximo poll;
+ *  - caso contrário → concluída, com removidos e falhas.
+ *
+ * `result` nulo/estranho cai nas contagens ausentes, que viram "?" em vez de
+ * anunciar uma remoção que ninguém mediu.
+ */
+export function sweepToast(result: Record<string, any> | null | undefined): string {
+  const r = result || {};
+  if (r.pending === true || r.timedOut === true) {
+    return 'Varredura em andamento; acompanhe o status nativo';
+  }
+  if (r.applied === false) {
+    return `Plano: ${sweepCount(r.planned ?? r.varridos)} alvo(s) · modo leitura, nada removido`;
+  }
+  const falhas = Number(r.falhas ?? r.failed);
+  const suffix = Number.isFinite(falhas) && falhas > 0 ? ` · ${falhas} falha(s)` : '';
+  return `Varredura concluída: ${sweepCount(r.varridos ?? r.swept)} removido(s)${suffix}`;
+}
+
 /**
  * Próximo estado de `catalogData` a partir do resultado de uma tentativa.
  * Falha de TRANSPORTE (HTTP 401/429/503 ou rede) NUNCA pode deixar o painel

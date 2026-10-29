@@ -88,6 +88,7 @@ const CLIENT_ASSETS = [
   'client/painel/limpeza/view-manutencao.js',
   'client/painel/limpeza/versoes-model.js',
   'client/painel/limpeza/view-versoes.js',
+  'client/painel/limpeza/view-sweeps.js',
 ];
 
 function makePublicHandlers(services: AppServices) {

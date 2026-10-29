@@ -12,6 +12,10 @@ export const streamStore = () => {
   const timeoutMs = Number(process.env.STREAM_STORE_ADMIN_TIMEOUT_MS);
   const backoffMs = Number(process.env.STREAM_STORE_RUST_BACKOFF_MS);
   const drainTimeoutMs = Number(process.env.HARVEST_DRAIN_BRIDGE_TIMEOUT_MS);
+  // A varredura manual da AllDebrid (`POST /sweeps/run`) também só responde
+  // depois de varrer a conta inteira. Prazo próprio e longo; o GET do status
+  // continua no `timeoutMs` curto.
+  const sweepTimeoutMs = Number(process.env.SWEEP_RUN_BRIDGE_TIMEOUT_MS);
   return {
     url: (process.env.STREAM_STORE_ADMIN_URL || 'http://127.0.0.1:8711').trim(),
     // Token próprio; sem ele, os mesmos fallbacks do lado Rust
@@ -26,5 +30,7 @@ export const streamStore = () => {
     // outras rotas o botão "Drenar" nunca respondia. Fica abaixo dos 300 s do
     // `requestTimeout` do servidor HTTP do Node, que cortaria a ação antes.
     drainTimeoutMs: Number.isFinite(drainTimeoutMs) && drainTimeoutMs > 0 ? drainTimeoutMs : 270_000,
+    // Fica também abaixo dos 300 s do `requestTimeout` do servidor HTTP do Node.
+    sweepTimeoutMs: Number.isFinite(sweepTimeoutMs) && sweepTimeoutMs > 0 ? sweepTimeoutMs : 120_000,
   };
 };
