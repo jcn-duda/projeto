@@ -300,6 +300,7 @@
     "test/magnet-bank-backfill.test.js",
     "test/magnet-bank-lifecycle.test.js",
     "test/magnet-bank-memory-lru.test.js",
+    "test/magnet-bank-native.test.js",
     "test/magnet-bank-search.test.js",
     "test/magnet-bank-status.test.js",
     "test/magnet-bank-transfer.test.js",

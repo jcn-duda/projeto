@@ -44,7 +44,7 @@ pub use adom_index::{
     ReleaseIndexStore, IDX_NAMESPACE,
 };
 pub use integrity::{open_quarantined, OpenReport};
-pub use magnet_bank::{magnet_db_path, MagnetBankStore, WorkCtx};
+pub use magnet_bank::{magnet_db_path, ImportCounter, ImportReport, MagnetBankStore, WorkCtx};
 pub use magnet_db::{
     default_cache_db_path as default_magnet_db_cache_path, mag_prefix, mark_key, MagnetDbStore,
 };

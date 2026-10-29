@@ -95,6 +95,10 @@ export const magnetBank = () => {
     // teto não é memória: é o limite de um upload que ninguém pediu. 2 GiB
     // cabe um acervo ~20× o da VPS medido em 2026-09-29 (90 MB).
     importMaxBytes: Math.max(1024, num(process.env.MAGNET_BANK_IMPORT_MAX_BYTES, 2 * 1024 ** 3)),
+    // Prazo da mescla nativa do import (admin do gateway, `POST /magnet-bank/import`).
+    // A mescla de um acervo grande leva minutos; o default de 30 min cobre o pior
+    // caso medido, e o piso de 10 s só impede um valor que zeraria a espera.
+    importTimeoutMs: Math.max(10_000, num(process.env.MAGNET_BANK_IMPORT_TIMEOUT_MS, 1_800_000)),
     // Resposta instantânea (Onda): quando a foto do acervo é confiável pela
     // janela adaptativa, a abertura sai do banco e a coleta ao vivo inteira roda
     // no tail. Kill-switch explícito; os tetos de itens são os mesmos do fallback

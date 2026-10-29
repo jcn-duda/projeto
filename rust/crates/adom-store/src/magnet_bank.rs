@@ -34,7 +34,14 @@ mod capture;
 // SQL do upsert das três tabelas (também separado pela catraca).
 #[path = "magnet_bank_upsert.rs"]
 mod upsert;
+// Import do NDJSON e backfill de classificação (catraca: o arquivo passaria de 400).
+#[path = "magnet_bank_import.rs"]
+mod import;
+#[cfg(test)]
+#[path = "magnet_bank_import_tests.rs"]
+mod import_tests;
 
+pub use import::{ImportCounter, ImportReport};
 pub use write::WorkCtx;
 
 const SCHEMA: &str = "

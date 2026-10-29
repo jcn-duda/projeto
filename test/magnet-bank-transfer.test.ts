@@ -17,7 +17,7 @@ import type { MagnetRow, SourceRow, WorkRow } from '../src/utils/magnet-bank-row
 import {
   TRANSFER_FORMAT, exportLines, importLines, mergeMagnetRows, mergeWorkRows, readMagnet, readWork,
 } from '../src/utils/magnet-bank-transfer.js';
-import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
+import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 const DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'bank-xfer-'));
 const H = (c: string) => c.repeat(40);
@@ -155,10 +155,19 @@ describe('magnet-bank-transfer: arquivo', () => {
 describe('magnet-bank-transfer: rotas HTTP', () => {
   let server: any;
   const saved: Record<string, any> = {};
+  // O import é do gateway: nos testes a admin é um dublê (`withMockFetch`). O
+  // `fetch` real fica guardado para deixar passar as chamadas ao próprio servidor.
+  const realFetch = globalThis.fetch;
+  const STORE_TOKEN = 'tok-admin-destrutivo-teste';
+  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
+    status, headers: { 'content-type': 'application/json' },
+  });
 
   before(async () => {
     saved.token = config.jackett.testToken;
+    saved.storeToken = config.streamStore.token;
     config.jackett.testToken = TOKEN;
+    config.streamStore.token = STORE_TOKEN;
     freshBank();
     engine().writeBatch({ magnets: [magnet(H('e'))], sources: [source(H('e'), 'nerdfilmes')], works: [work(H('e'), 'tt0000009')] });
     server = await createTestServer(createApp().app);
@@ -166,6 +175,7 @@ describe('magnet-bank-transfer: rotas HTTP', () => {
   after(async () => {
     await server.close();
     config.jackett.testToken = saved.token;
+    config.streamStore.token = saved.storeToken;
     bank.resetForTests();
   });
 
@@ -182,24 +192,77 @@ describe('magnet-bank-transfer: rotas HTTP', () => {
     const text = zlib.gunzipSync(gz).toString('utf8');
     assert.match(text.split('\n')[0], /"format":"adom-magnet-bank"/);
 
-    const imp = await fetch(`${server.baseUrl}/magnet-bank-import`, {
+    // Dublê da admin: confere que o spool chegou DESCOMPACTADO (o gzip não é mais
+    // problema do gateway) e devolve a mescla que o gateway faria.
+    const seen: { path?: string; text?: string } = {};
+    const imp = await withMockFetch([
+      {
+        match: /\/magnet-bank\/import$/,
+        handler: (_u: string, init?: RequestInit) => {
+          const sent = JSON.parse(String(init?.body));
+          seen.path = sent.path;
+          seen.text = fs.readFileSync(sent.path, 'utf8');
+          return json(200, { ok: true, lines: 2, rejected: 0, magnets: { read: 1, inserted: 0, merged: 1 } });
+        },
+      },
+      { match: (u: string) => u.startsWith(server.baseUrl), handler: (u: string, init?: RequestInit) => realFetch(u, init) },
+    ], () => fetch(`${server.baseUrl}/magnet-bank-import`, {
       method: 'POST',
       headers: { 'X-Indexer-Test-Token': TOKEN, 'Content-Type': 'application/gzip' },
       body: gz,
-    });
+    }));
     const report = await imp.json();
     assert.equal(imp.status, 200);
     assert.deepEqual(report.magnets, { read: 1, inserted: 0, merged: 1 });
+    assert.match(String(seen.path), /adom-magnets-import-.*\.ndjson$/);
+    assert.ok(path.isAbsolute(String(seen.path)));
+    assert.match(String(seen.text).split('\n')[0], /"format":"adom-magnet-bank"/);
   });
 
-  test('arquivo que não é export é 400, com o motivo', async () => {
-    const imp = await fetch(`${server.baseUrl}/magnet-bank-import`, {
+  test('arquivo que o gateway recusa volta com o status e o motivo dele', async () => {
+    const imp = await withMockFetch([
+      { match: /\/magnet-bank\/import$/, handler: () => json(400, { ok: false, error: 'arquivo sem cabeçalho do banco de magnets' }) },
+      { match: (u: string) => u.startsWith(server.baseUrl), handler: (u: string, init?: RequestInit) => realFetch(u, init) },
+    ], () => fetch(`${server.baseUrl}/magnet-bank-import`, {
       method: 'POST',
       headers: { 'X-Indexer-Test-Token': TOKEN, 'Content-Type': 'application/x-ndjson' },
       body: '{"qualquer":"coisa"}\n',
-    });
+    }));
     assert.equal(imp.status, 400);
     assert.match(String((await imp.json()).error), /cabeçalho/);
+  });
+
+  test('admin do gateway fora: import é 503 native-unavailable, sem gravar pelo Node', async () => {
+    const before = engine().countMagnets();
+    config.streamStore.token = '';
+    try {
+      const imp = await fetch(`${server.baseUrl}/magnet-bank-import`, {
+        method: 'POST',
+        headers: { 'X-Indexer-Test-Token': TOKEN, 'Content-Type': 'application/x-ndjson' },
+        body: [JSON.stringify({ t: 'meta', format: TRANSFER_FORMAT, v: 1 })].join('\n'),
+      });
+      const body = await imp.json();
+      assert.equal(imp.status, 503);
+      assert.equal(body.reason, 'native-unavailable');
+      assert.equal(engine().countMagnets(), before);
+    } finally {
+      config.streamStore.token = STORE_TOKEN;
+    }
+  });
+
+  test('MAGNET_BANK=false recusa o import antes de chamar a admin', async () => {
+    config.magnetBank.enabled = false;
+    try {
+      const imp = await fetch(`${server.baseUrl}/magnet-bank-import`, {
+        method: 'POST',
+        headers: { 'X-Indexer-Test-Token': TOKEN, 'Content-Type': 'application/x-ndjson' },
+        body: JSON.stringify({ t: 'meta', format: TRANSFER_FORMAT, v: 1 }),
+      });
+      assert.equal(imp.status, 409);
+      assert.match(String((await imp.json()).error), /MAGNET_BANK=false/);
+    } finally {
+      config.magnetBank.enabled = true;
+    }
   });
 
   test('arquivo acima do teto (MAGNET_BANK_IMPORT_MAX_BYTES) é 400 com o motivo', async () => {

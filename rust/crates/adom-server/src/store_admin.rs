@@ -183,6 +183,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::harvest::admin_router())
         .merge(crate::al_sweeps::admin_router())
         .merge(crate::rd_warmer::admin_router())
+        .merge(crate::magnet_bank_admin::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -378,7 +379,6 @@ async fn stats(State(state): State<Arc<AdminState>>) -> Response {
     }))
     .into_response()
 }
-
 /// `GET /indexers/status` — última consulta medida de cada indexer nas buscas
 /// vivas + a foto do circuito (`adom_sources::jackett::status_board`). O Node
 /// traduz para o `indexer-status.ts`; sem isto o painel ficava "desconhecido".

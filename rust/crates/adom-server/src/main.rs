@@ -9,6 +9,8 @@ mod dub_audit;
 mod dub_audit_writes;
 /// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
 mod harvest;
+/// Rotas do banco de magnets (import no boot/admin) — ver o módulo.
+mod magnet_bank_admin;
 mod ownership_admin;
 mod proxy;
 /// Aquecimento do Real-Debrid (T3-L7b): fila em RAM + sonda com gate AIMD.

@@ -212,6 +212,8 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
         }
     }
     if cfg.magnet_bank_enabled {
+        // Backfill de classificação, uma vez por boot (esta fiação roda 1 vez).
+        crate::magnet_bank_admin::spawn_boot_backfill();
         match adom_store::MagnetBankStore::from_env() {
             Ok(store) => {
                 eprintln!("[gateway] banco de magnets nativo (magnets.db)");

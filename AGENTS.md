@@ -313,6 +313,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   **Banco VIVO** (`magnet-bank*`, `data/magnets.db`): acervo permanente por hash
   do que o Jackett devolveu; alimenta a URI rica do play e o fallback 📦 quando
   um indexer falha. Captura é assíncrona e a busca nunca espera o disco.
+  **O Node não grava no `magnets.db`**: o import do painel descompacta o
+  upload num spool (`/tmp/adom-magnets-import-*.ndjson`) e o gateway mescla
+  (`POST /magnet-bank/import` na admin 8711, credencial destrutiva + `confirm`;
+  `adom-store::magnet_bank_import*`); o backfill de `dubbed`/`quality` roda no
+  boot do gateway. `importLines`/`backfillClassification` TS ficam como régua.
   Os índices `magnet_last_seen` / `magnet_source_last_seen` seguram o `MAX` do
   status do painel: sem eles o poll travava o event loop por ~7 s. A via rápida
   do `/stream` é do orquestrador nativo (`adom-search/orchestrator/fast_path.rs`:

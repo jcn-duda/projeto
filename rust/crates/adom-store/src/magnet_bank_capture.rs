@@ -61,7 +61,7 @@ fn seeders_of(item: &RawItem) -> Option<i64> {
 /// `classifiedDubbed`: "dublado" pela PROMESSA do título — em site BR o rótulo
 /// de áudio (Dublado/Dual/Nacional); fora deles só PT explícito (DUAL de cena
 /// gringa não é dublagem).
-fn classified_dubbed(title: &str, is_br: bool) -> bool {
+pub(super) fn classified_dubbed(title: &str, is_br: bool) -> bool {
     if is_br {
         matches!(audio_from_title(title), "Dublado" | "Dual" | "Nacional")
     } else {
