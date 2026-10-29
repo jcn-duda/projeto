@@ -29,6 +29,10 @@ pub const TIMEOUT_ENV: &str = "RESOLVE_EFFECTS_TIMEOUT_MS";
 const DEFAULT_TIMEOUT_MS: u64 = 2_000;
 const FACTS_PATH: &str = "/internal/resolve/facts";
 const EFFECTS_PATH: &str = "/internal/resolve/effects";
+/// Prazo de ociosidade do pool da ponte. O http server do Node fecha a conexão
+/// ociosa em 5 s (default) e o pool do reqwest guardaria 90 s: um play depois de
+/// uma pausa cairia numa conexão morta. Abrir outra em loopback é mais barato.
+const POOL_IDLE: Duration = Duration::from_secs(2);
 
 pub type BridgeFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -80,7 +84,7 @@ pub fn from_env() -> Arc<dyn PlayBridge> {
             .filter(|ms| *ms > 0)
             .unwrap_or(DEFAULT_TIMEOUT_MS),
     );
-    match (token, HttpClient::new()) {
+    match (token, HttpClient::with_pool_idle(Some(POOL_IDLE))) {
         (Some(token), Ok(http)) if is_loopback_base(&base) => Arc::new(NodeBridge {
             http,
             base: base.trim_end_matches('/').to_string(),

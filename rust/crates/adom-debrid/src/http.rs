@@ -28,8 +28,22 @@ pub struct Call {
 
 impl HttpClient {
     pub fn new() -> Result<Self, DebridError> {
-        let inner = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
+        Self::with_pool_idle(None)
+    }
+
+    /// Cliente com prazo de ociosidade do pool escolhido pelo chamador.
+    ///
+    /// O default (sem prazo) serve às APIs do debrid, onde o handshake TLS é
+    /// caro e o keep-alive do servidor é longo. As rotas INTERNAS em loopback
+    /// passam um prazo curto: o http server do Node fecha a conexão ociosa em
+    /// 5 s e o pool do reqwest guardaria 90 s — o POST seguinte cairia numa
+    /// conexão morta, como o 502 do proxy reverso do painel.
+    pub fn with_pool_idle(idle: Option<Duration>) -> Result<Self, DebridError> {
+        let mut builder = reqwest::Client::builder().user_agent(USER_AGENT);
+        if let Some(idle) = idle {
+            builder = builder.pool_idle_timeout(idle);
+        }
+        let inner = builder
             .build()
             .map_err(|err| DebridError::other(format!("cliente http: {err}")))?;
         Ok(Self { inner })
