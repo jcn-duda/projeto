@@ -211,7 +211,21 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // ela. `davail`, `mag`, `adsub`, `adprot` e `adrm` entram TAMBÉM em
 // `RUST_OWNED_PREFIXES` (logo abaixo) porque é o prefixo, e não o nome do
 // namespace, que bloqueia `get`/`peek` no L1.
-const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm', 'adhold']);
+//
+// `harvest` (Fase 5) entra pelo namespace INTEIRO: fila (`harvest:v1:q`), balde
+// horário, dedupe de 12h, journal do run e outbox são do `adom-harvest`
+// (`rust/crates/adom-harvest/src/store.rs`, `journal.rs`, `outbox.rs`) e o
+// painel lê o estado por HTTP admin (`harvest-native.ts`) — o Node não tem
+// escritor NEM leitor do namespace. Segue também em `RUST_OWNED_PREFIXES`
+// porque a LEITURA é que depende do prefixo.
+//
+// A Definição de Pronto da migração (§9 do plano de fechamento) cobra `mag_meta`
+// e `autofetch` inteiros nesta lista. Os dois seguem FORA por falta de dono do
+// lado Rust — o motivo medido está no bloco "AINDA FORA" abaixo e o teste
+// `test/cache-keys-debrid-owned.test.ts` prende a justificativa.
+const RUST_OWNED = Object.freeze([
+  'idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
+]);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
 //
@@ -272,6 +286,16 @@ const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw', 'davail', 'mag', 'ads
 //      em `autofetch-suppressed.ts`): marcar o prefixo faria a escrita virar
 //      no-op silencioso. `pf:` (prefetch) segue fora pelo mesmo desenho, e hoje
 //      só tem o construtor de chave (`prefetchKey`), sem escritor em produção.
+//      É por isso que o namespace `autofetch` também não entra INTEIRO em
+//      `RUST_OWNED`: só depois de `sup:` migrar para a ponte.
+//   `mag_meta` — namespace do NODE, apesar do nome vizinho de `mag`: o agregado
+//      do MagnetDB (`mag_meta:v1:counts`) é escrito por `cache.set`
+//      (`magnetdb-persist.ts`) e lido por `cache.peek`. O Rust tem apenas o
+//      construtor de chave (`adom-core/src/cache_keys.rs`) e `mag_meta:v1:` na
+//      lista de escrita do `Store` de TESTE (`adom-debrid/src/store.rs`, que em
+//      produção abre o cache.db read-only). Entrar em `RUST_OWNED`/prefixos
+//      hoje deixaria o agregado sem escritor: o `set` viraria no-op e todo boot
+//      cairia no rebuild pela ponte (`adoptRebuild`).
 // `autofetch-worker:v1:` é namespace separado do `cfg:v1:autofetch` do painel:
 // o gateway persiste aqui apenas pausa/intervalo, sem qualquer credencial.
 const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
