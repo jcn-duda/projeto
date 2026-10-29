@@ -5,6 +5,7 @@ import * as brCoverage from '../utils/br-coverage.js';
 import { unavailable, makeStreamTraceHandler } from './stream-trace.js';
 import { computeStatusPayload, accountTimeout } from './dashboard-status-blocks.js';
 import { pullMetrics, RustWriteError } from '../debrid/rust-remote.js';
+import { nativeWarmStatus } from '../utils/rd-warm-native.js';
 
 function makeDiagnosticHandlers(services: AppServices) {
   // Último probe de cada resolvedor (/test-resolver.json), SÓ em memória e
@@ -131,7 +132,7 @@ function makeDiagnosticHandlers(services: AppServices) {
             torrentio: Boolean(services.config.debrid.rdOracle.torrentio),
           },
           gate: services.rdGate.status(),
-          warm: services.rdWarmer.status(),
+          warm: nativeWarmStatus(services),
         };
         return res.json({ ...status, rd });
       }

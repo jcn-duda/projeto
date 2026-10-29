@@ -12,31 +12,42 @@
 //! 2. `enqueue`: descarta o que o ledger `rdc:v2` já conhece (`hit`/`blocked`),
 //!    deduplica a fila e respeita `DEBRID_RD_WARM_QUEUE_MAX`;
 //! 3. `processBatch`: sonda em lotes de `DEBRID_RD_WARM_BATCH`, com teto por
-//!    hora civil (`DEBRID_RD_WARM_MAX_HOUR`), e registra `noteHit`/`noteMiss`/
-//!    `noteBlocked` no ledger — a ÚNICA fonte do ⚡ do RD no veredito nativo;
+//!    hora civil (`DEBRID_RD_WARM_MAX_HOUR`), pulando hash `bad` do magnetdb e
+//!    registrando `noteHit`/`noteMiss`/`noteBlocked` no ledger — a ÚNICA fonte
+//!    do ⚡ do RD no veredito nativo;
 //! 4. rate limit/quota NÃO ganham backoff paralelo: cooldown e quarentena são
 //!    do `RdGateExecutor` (`adom-debrid`) e o lote para no primeiro sinal.
 //!
-//! # Limites atuais
+//! # Fase 1: estado durável e dono único
 //!
-//! Fila e quota horária ainda são voláteis; timer ocioso e integrações do
-//! `magnetdb` continuam dependendo do Node.
+//! Fila e quota usam as MESMAS chaves do Node (`rdq:v1:wq`, `rdq:v1:hour`), então
+//! o primeiro boot lê o que o Node deixou — sem migração. O intent passou a ser
+//! durável (`rdq:v1:uncertain:`), a drenagem só acontece na janela ociosa de
+//! `DEBRID_RD_WARM_IDLE_WINDOW_MS` e o gate AIMD é o MESMO do autofetch.
 //!
-//! A drenagem é fire-and-forget: [`Warmer::offer`] só empurra para a fila em RAM
-//! e devolve; quem publica nunca espera HTTP.
+//! A drenagem é fire-and-forget: [`Warmer::offer`] só empurra para a fila e
+//! devolve; quem publica nunca espera HTTP.
 
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
 
 #[path = "rd_warmer_sink.rs"]
 mod sink;
-use sink::{is_rd_scope, FlightGuard};
+use sink::is_rd_scope;
 
-pub(crate) use rd::{register, WarmConfig};
+#[path = "rd_warmer_store.rs"]
+mod store;
+#[allow(unused_imports)]
+pub(crate) use store::{NativeQueue, RamQueue, WarmIntentStore, WarmItem, WarmQueue};
+
+#[path = "rd_warmer_magnet.rs"]
+mod magnet;
+pub(crate) use magnet::{NoMagnet, WarmMagnet};
 
 /// Kind que este módulo consome.
 pub(crate) const RD_WARMER: &str = "rd_warmer";
@@ -85,16 +96,21 @@ pub(crate) trait WarmPort: Send + Sync {
     fn warm<'a>(&'a self, api_key: &'a str, hashes: &'a [String]) -> WarmFuture<'a>;
 }
 
-/// Chave da conta, lida do cofre (`autofetch::shared_vault` + `Vault::key`) no
-/// momento do uso. NUNCA vem do payload do efeito.
+/// Chave da conta, lida do cofre/operador no momento do uso. NUNCA vem do
+/// payload do efeito.
 pub(crate) trait WarmKey: Send + Sync {
     fn rd_key(&self, scope: &str, now_ms: i64) -> Option<String>;
-}
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct WarmItem {
-    hash: String,
-    scope: String,
+    /// Escopo do operador (`.env`/painel), adotado por entradas vindas do Node
+    /// — a fila antiga não guardava conta. `None` = sem conta de operador.
+    fn default_scope(&self, _now_ms: i64) -> Option<String> {
+        None
+    }
+
+    /// Origem da credencial para o painel: `panel`, `env`, `sessao` ou `none`.
+    fn account_source(&self, _now_ms: i64) -> &'static str {
+        "none"
+    }
 }
 
 /// Ledger `rdc:v2` (leitura para pular, escrita para o ⚡).
@@ -103,19 +119,10 @@ pub(crate) trait WarmLedger: Send + Sync {
     fn note(&self, hash: &str, signal: WarmSignal, now_ms: i64);
 }
 
-/// Contadores do processo (o painel lê; o teste prova).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Counters {
-    pub(crate) enqueued: u64,
-    pub(crate) skipped: u64,
-    pub(crate) dropped_full: u64,
-    pub(crate) dropped_no_key: u64,
-    pub(crate) probes: u64,
-    pub(crate) hits: u64,
-    pub(crate) misses: u64,
-    pub(crate) blocked: u64,
-    pub(crate) stopped: u64,
-}
+#[path = "rd_warmer_status.rs"]
+mod status;
+#[allow(unused_imports)]
+pub(crate) use status::{Counters, WarmStatus};
 
 #[derive(Default)]
 struct State {
@@ -131,30 +138,70 @@ struct Inner {
     key: Arc<dyn WarmKey>,
     port: Arc<dyn WarmPort>,
     ledger: Arc<dyn WarmLedger>,
+    magnet: Arc<dyn WarmMagnet>,
+    queue: Arc<dyn WarmQueue>,
+    traffic: Option<crate::harvest::StreamTraffic>,
     state: Mutex<State>,
+    paused: AtomicBool,
+    last_tick_at: AtomicI64,
+    ticker_started: AtomicBool,
 }
 
-/// Fila em RAM + dedupe + teto. Barato de publicar, caro só na drenagem.
+/// Peças de produção injetadas no boot (e trocadas por duplos no teste).
+pub(crate) struct WarmDeps {
+    pub(crate) config: WarmConfig,
+    pub(crate) key: Arc<dyn WarmKey>,
+    pub(crate) port: Arc<dyn WarmPort>,
+    pub(crate) ledger: Arc<dyn WarmLedger>,
+    pub(crate) magnet: Arc<dyn WarmMagnet>,
+    pub(crate) queue: Arc<dyn WarmQueue>,
+    pub(crate) traffic: Option<crate::harvest::StreamTraffic>,
+}
+
+/// Fila em RAM + dedupe + teto + persistência. Barato de publicar, caro só na
+/// drenagem.
 pub(crate) struct Warmer {
     inner: Arc<Inner>,
 }
 
 impl Warmer {
+    /// Construtor dos testes antigos: sem persistência, magnetdb ou freio.
+    #[allow(dead_code)]
     pub(crate) fn new(
         config: WarmConfig,
         key: Arc<dyn WarmKey>,
         port: Arc<dyn WarmPort>,
         ledger: Arc<dyn WarmLedger>,
     ) -> Arc<Self> {
-        Arc::new(Self {
-            inner: Arc::new(Inner {
-                config,
-                key,
-                port,
-                ledger,
-                state: Mutex::new(State::default()),
-            }),
+        Self::with_deps(WarmDeps {
+            config,
+            key,
+            port,
+            ledger,
+            magnet: Arc::new(NoMagnet),
+            queue: Arc::new(RamQueue),
+            traffic: None,
         })
+    }
+
+    pub(crate) fn with_deps(deps: WarmDeps) -> Arc<Self> {
+        let warmer = Arc::new(Self {
+            inner: Arc::new(Inner {
+                config: deps.config,
+                key: deps.key,
+                port: deps.port,
+                ledger: deps.ledger,
+                magnet: deps.magnet,
+                queue: deps.queue,
+                traffic: deps.traffic,
+                state: Mutex::new(State::default()),
+                paused: AtomicBool::new(false),
+                last_tick_at: AtomicI64::new(0),
+                ticker_started: AtomicBool::new(false),
+            }),
+        });
+        warmer.hydrate();
+        warmer
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -164,8 +211,6 @@ impl Warmer {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Hashes na fila (o teste e o painel leem).
-    #[allow(dead_code)]
     pub(crate) fn pending(&self) -> usize {
         self.lock().queue.len()
     }
@@ -173,6 +218,14 @@ impl Warmer {
     #[allow(dead_code)]
     pub(crate) fn counters(&self) -> Counters {
         self.lock().counters
+    }
+
+    pub(crate) fn set_paused(&self, paused: bool) {
+        self.inner.paused.store(paused, Ordering::SeqCst);
+    }
+
+    pub(crate) fn is_paused(&self) -> bool {
+        self.inner.paused.load(Ordering::SeqCst)
     }
 
     /// A régua do `enqueue` do Node: score, dedupe, corte, ledger, teto.
@@ -221,12 +274,23 @@ impl Warmer {
         let now = adom_sources::now_ms();
         let mut added = 0;
         let mut state = self.lock();
-        for (hash, _) in picks {
-            if state
-                .queue
-                .iter()
-                .any(|known| known.hash == hash && known.scope == scope)
-            {
+        for (hash, score) in picks {
+            // Entrada herdada do Node (sem conta) é ADOTADA pelo escopo atual
+            // em vez de duplicar o hash. Duas contas explícitas continuam
+            // podendo ter o mesmo hash cada uma com sua linha.
+            let existing = state.queue.iter().position(|known| {
+                known.hash == hash
+                    && (known.scope.as_str() == scope || known.scope.is_empty() || scope.is_empty())
+            });
+            if let Some(index) = existing {
+                if state.queue[index].scope.is_empty() && !scope.is_empty() {
+                    state.queue[index].scope = scope.to_string();
+                }
+                // O Node guarda o MAIOR score do hash entre efeitos; sem isso
+                // um item que chegou como "resto" nunca sobe para BR+dublado.
+                if score > state.queue[index].score {
+                    state.queue[index].score = score;
+                }
                 continue;
             }
             // O ledger é a fonte da verdade: hit/blocked não gastam sonda.
@@ -241,14 +305,28 @@ impl Warmer {
             state.queue.push_back(WarmItem {
                 hash,
                 scope: scope.to_string(),
+                score,
+                enqueued_at: now,
             });
             state.counters.enqueued += 1;
             added += 1;
         }
+        // A fila do Node é global e ordenada por score/chegada; a nossa é
+        // por escopo, mas a ORDEM dentro de cada escopo segue a mesma régua.
+        state.queue.make_contiguous().sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then(a.enqueued_at.cmp(&b.enqueued_at))
+        });
+        drop(state);
+        // O Node persiste em todo `enqueue` (inclusive score renovado); o custo
+        // é uma escrita JSON por efeito, não por hash.
+        self.persist_queue();
         added
     }
 
-    /// Enfileira e agenda a drenagem (nunca espera HTTP).
+    /// Enfileira e agenda a drenagem (nunca espera HTTP). A drenagem só roda
+    /// fora da janela de tráfego — quem publica não bloqueia o usuário.
     pub(crate) fn publish(&self, payload: &Value, scope: &str) -> usize {
         let added = self.enqueue(payload, scope);
         if added > 0 {
@@ -257,143 +335,31 @@ impl Warmer {
         added
     }
 
-    fn schedule(&self) {
-        if tokio::runtime::Handle::try_current().is_err() {
-            return;
+    /// Reparo idempotente dos `bad` que o ramo antigo do warmer gravou: hash
+    /// que o RD recusou por lei (451) não é magnet quebrado. Roda no boot.
+    pub(crate) fn scan_blocked_bads(&self) -> usize {
+        let now = adom_sources::now_ms();
+        let cleared = self
+            .inner
+            .magnet
+            .scan_blocked_bads(self.inner.ledger.as_ref(), now);
+        if cleared > 0 {
+            eprintln!("[warmer] {cleared} bad(s) de recusa legal recuperado(s)");
         }
-        let warmer = Self {
-            inner: self.inner.clone(),
-        };
-        tokio::spawn(async move {
-            warmer.drain().await;
-        });
-    }
-
-    /// Drena a fila em lotes. Um drain por vez (`in_flight`), como o `DubAudit`.
-    /// Devolve quantos hashes foram sondados.
-    pub(crate) async fn drain(&self) -> usize {
-        {
-            let mut state = self.lock();
-            if state.in_flight || state.queue.is_empty() {
-                return 0;
-            }
-            state.in_flight = true;
-        }
-        let _flight = FlightGuard {
-            inner: self.inner.clone(),
-        };
-        let mut warmed = 0;
-        loop {
-            let now = adom_sources::now_ms();
-            let batch = self.take_batch(now);
-            if batch.is_empty() {
-                break;
-            }
-            let scope = batch[0].scope.clone();
-            let Some(api_key) = self.inner.key.rd_key(&scope, now) else {
-                // A credencial pode expirar entre enqueue e drain. Mantém o
-                // trabalho ligado à conta; nunca tenta outra chave/conta.
-                self.restore_unattempted(batch);
-                break;
-            };
-            let hashes: Vec<String> = batch.iter().map(|item| item.hash.clone()).collect();
-            let report = self.inner.port.warm(&api_key, &hashes).await;
-            self.apply(&report, now);
-            warmed += batch.len();
-            if report.stopped {
-                // O que o gate não sondou volta para a frente: trabalho não se
-                // perde por cooldown.
-                let mut batch = batch;
-                let back = batch.split_off(report.attempted.min(batch.len()));
-                self.push_front(back);
-                break;
-            }
-        }
-        warmed
-    }
-
-    /// Tira até `batch` hashes respeitando o teto da hora civil.
-    fn take_batch(&self, now: i64) -> Vec<WarmItem> {
-        let mut state = self.lock();
-        let hour = now.div_euclid(HOUR_MS);
-        if state.hour != hour {
-            state.hour = hour;
-            state.per_hour = 0;
-        }
-        let room = (self.inner.config.max_per_hour - state.per_hour).max(0) as usize;
-        if room == 0 {
-            if !state.queue.is_empty() {
-                state.counters.stopped += 1;
-                eprintln!(
-                    "[warmer] teto de {} sonda(s)/hora atingido; fila parada",
-                    self.inner.config.max_per_hour
-                );
-            }
-            return Vec::new();
-        }
-        let Some(scope) = state.queue.front().map(|item| item.scope.clone()) else {
-            return Vec::new();
-        };
-        // Uma chamada de rede sempre usa uma credencial só. Itens de outras
-        // contas ficam na fila para o próximo drain.
-        let same_scope = state
-            .queue
-            .iter()
-            .take_while(|item| item.scope == scope)
-            .count();
-        let take = self.inner.config.batch.min(room).min(same_scope);
-        let batch: Vec<WarmItem> = state.queue.drain(..take).collect();
-        state.per_hour += batch.len() as i64;
-        state.counters.probes += batch.len() as u64;
-        batch
-    }
-
-    fn push_front(&self, back: Vec<WarmItem>) {
-        if back.is_empty() {
-            return;
-        }
-        let mut state = self.lock();
-        for item in back.into_iter().rev() {
-            state.queue.push_front(item);
-        }
-    }
-
-    /// A ausência transitória de chave não conta como sonda nem consome teto.
-    fn restore_unattempted(&self, batch: Vec<WarmItem>) {
-        if batch.is_empty() {
-            return;
-        }
-        let count = batch.len() as i64;
-        let mut state = self.lock();
-        for item in batch.into_iter().rev() {
-            state.queue.push_front(item);
-        }
-        state.per_hour = (state.per_hour - count).max(0);
-        state.counters.probes = state.counters.probes.saturating_sub(count as u64);
-    }
-
-    fn apply(&self, report: &WarmReport, now: i64) {
-        {
-            let mut state = self.lock();
-            for (_, signal) in &report.signals {
-                match signal {
-                    WarmSignal::Hit => state.counters.hits += 1,
-                    WarmSignal::Miss => state.counters.misses += 1,
-                    WarmSignal::Blocked => state.counters.blocked += 1,
-                }
-            }
-            if report.stopped {
-                state.counters.stopped += 1;
-            }
-        }
-        for (hash, signal) in &report.signals {
-            self.inner.ledger.note(hash, *signal, now);
-        }
+        cleared
     }
 }
 
+#[path = "rd_warmer_drain.rs"]
+mod drain;
+
+#[path = "rd_warmer_admin.rs"]
+mod admin;
+pub(crate) use admin::router as admin_router;
+
 #[path = "rd_warmer_rd.rs"]
 mod rd;
+pub(crate) use rd::{register, WarmConfig};
 
 #[cfg(test)]
 #[path = "rd_warmer_tests.rs"]

@@ -16,6 +16,10 @@ export const streamStore = () => {
   // depois de varrer a conta inteira. Prazo próprio e longo; o GET do status
   // continua no `timeoutMs` curto.
   const sweepTimeoutMs = Number(process.env.SWEEP_RUN_BRIDGE_TIMEOUT_MS);
+  // A drenagem manual do warmer do RD (`POST /rd-warm/drain`) também só responde
+  // depois de sondar a conta inteira. Prazo próprio e longo; o GET do status
+  // continua no `timeoutMs` curto.
+  const rdWarmDrainTimeoutMs = Number(process.env.RD_WARM_DRAIN_BRIDGE_TIMEOUT_MS);
   return {
     url: (process.env.STREAM_STORE_ADMIN_URL || 'http://127.0.0.1:8711').trim(),
     // Token próprio; sem ele, os mesmos fallbacks do lado Rust
@@ -32,5 +36,8 @@ export const streamStore = () => {
     drainTimeoutMs: Number.isFinite(drainTimeoutMs) && drainTimeoutMs > 0 ? drainTimeoutMs : 270_000,
     // Fica também abaixo dos 300 s do `requestTimeout` do servidor HTTP do Node.
     sweepTimeoutMs: Number.isFinite(sweepTimeoutMs) && sweepTimeoutMs > 0 ? sweepTimeoutMs : 120_000,
+    // O drain sonda a fila item a item na API do RD: dezenas de segundos. Fica
+    // abaixo dos 300 s do `requestTimeout` do servidor HTTP do Node.
+    rdWarmDrainTimeoutMs: Number.isFinite(rdWarmDrainTimeoutMs) && rdWarmDrainTimeoutMs > 0 ? rdWarmDrainTimeoutMs : 90_000,
   };
 };

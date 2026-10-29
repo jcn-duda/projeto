@@ -38,6 +38,12 @@ pub enum RdRunError {
 }
 
 impl RdGateExecutor {
+    /// Duas handles apontam para o MESMO executor (mesmo `RdScheduler`). O
+    /// boot usa isto para provar que worker e warmer compartilham o gate.
+    pub fn same_instance(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+
     pub fn new(config: RdSchedulerConfig) -> Self {
         Self {
             inner: Arc::new(Inner {

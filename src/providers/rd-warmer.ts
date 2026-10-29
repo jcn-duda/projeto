@@ -4,9 +4,9 @@
 // o ledger durável aquecido sem atrasar a resposta do usuário e respeitando
 // a taxa de consultas (AIMD / rdGate / teto horário).
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import * as realdebrid from '../debrid/realdebrid.js';
 import * as held from '../debrid/protected.js';
@@ -20,12 +20,9 @@ import { accountScope } from '../utils/request-key.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import { isRateLimitError, isQuotaError } from '../debrid/common.js';
 import { clearNativeStreamsSoon } from '../utils/streams-store-native.js';
+import { probeNativeRdWarm } from '../utils/rd-warm-native.js';
 
-type WarmEntry = {
-  hash: string;
-  score: number;
-  enqueuedAt: number;
-};
+type WarmEntry = { hash: string; score: number; enqueuedAt: number };
 
 const QUEUE_KEY = `${prefix('rdq')}wq`;
 // Teto horário durável (≠ `wq`): restart não zera o teto na mesma hora civil.
@@ -34,6 +31,9 @@ const HOUR_KEY = `${prefix('rdq')}hour`;
 let queue: WarmEntry[] = [];
 let loaded = false;
 let started = false;
+// Geração do start: um `reset()` no meio da sonda nativa invalida o callback
+// pendente, senão ele religaria o timer de um warmer já resetado.
+let startGeneration = 0;
 let inFlight = false;
 let paused = false;
 let lastTickAt = 0;
@@ -46,7 +46,7 @@ function ensureQueueLoaded(): void {
 }
 
 function loadQueue(): void {
-  const stored = cache.get(QUEUE_KEY);
+  const stored = kvPeek(QUEUE_KEY);
   if (Array.isArray(stored)) {
     queue = stored
       .filter((e) => e && /^[a-f0-9]{40}$/i.test(String(e.hash)))
@@ -61,10 +61,10 @@ function loadQueue(): void {
 
 function persistQueue(): void {
   if (!queue.length) {
-    cache.forget(QUEUE_KEY);
+    kvForget(QUEUE_KEY);
     return;
   }
-  cache.set(QUEUE_KEY, queue.slice(0, config.debrid.rdWarm.queueMax), 30 * 24 * 3600);
+  kvSet(QUEUE_KEY, queue.slice(0, config.debrid.rdWarm.queueMax), 30 * 24 * 3600);
 }
 
 function queriesThisHour(): number {
@@ -72,9 +72,9 @@ function queriesThisHour(): number {
   for (const bucket of [...hourBuckets.keys()]) {
     if (bucket < hour) hourBuckets.delete(bucket);
   }
-  // Lazy: Map vazio pós-restart reidrata do L1/L2 se ainda for a hora corrente.
+  // Lazy: Map vazio pós-restart reidrata do KV nativo se ainda for a hora corrente.
   if (!hourBuckets.has(hour)) {
-    const stored = cache.get(HOUR_KEY) as { hour?: unknown; count?: unknown } | null;
+    const stored = kvPeek(HOUR_KEY) as { hour?: unknown; count?: unknown } | null;
     const n = stored && Number(stored.hour) === hour ? Number(stored.count) : NaN;
     if (Number.isFinite(n) && n > 0) hourBuckets.set(hour, n);
   }
@@ -89,7 +89,7 @@ function noteQueries(count: number): void {
   hourBuckets.set(hour, next);
   // TTL = resto da hora + 60s de folga (mín. 60): o balde some na virada.
   const ttl = Math.max(60, Math.ceil(((hour + 1) * 3_600_000 - Date.now()) / 1000) + 60);
-  cache.set(HOUR_KEY, { hour, count: next }, ttl);
+  kvSet(HOUR_KEY, { hour, count: next }, ttl);
 }
 
 /**
@@ -306,16 +306,13 @@ function scanBlockedRdBads(): number {
   }
   return cleared;
 }
-
 /**
- * Inicia o timer em background do warmer.
+ * Arranque LOCAL (timer do Node): só quando a sonda nativa falhou, senão dois
+ * timers sondariam a mesma conta. O reparo do dano antigo roda no boot mesmo
+ * com o warmer desativado (os bads do L2 não dependem do aquecimento).
  */
-function start(): void {
-  if (started) return;
-  started = true;
+function startLocal(): void {
   ensureQueueLoaded();
-  // Reparo do dano do ramo antigo roda no boot, mesmo com o warmer desativado
-  // (os bads persistem no L2 e não dependem de o aquecimento estar ligado).
   try {
     scanBlockedRdBads();
   } catch (err) {
@@ -325,13 +322,26 @@ function start(): void {
     log.info('[rd-warmer] desativado');
     return;
   }
-  if (queue.length) {
-    log.info(`[rd-warmer] fila recuperada: ${queue.length} hash(es)`);
-  }
+  if (queue.length) log.info(`[rd-warmer] fila recuperada: ${queue.length} hash(es)`);
   const timer = setInterval(() => {
     tick().catch((err) => log.warn('[rd-warmer] tick falhou:', (err as Error)?.message || err));
   }, config.debrid.rdWarm.intervalMs);
   timer.unref();
+}
+/** Inicia o warmer: se `/rd-warm` responde (inclusive `enabled:false`), o gateway é o dono e o timer do Node NÃO liga. */
+function start(): void {
+  if (started) return;
+  started = true;
+  const generation = ++startGeneration;
+  const settle = (native: boolean): void => {
+    if (generation !== startGeneration) return;
+    if (native) log.info('[rd-warmer] warmer nativo assume o RD; timer do Node desligado');
+    else startLocal();
+  };
+  void probeNativeRdWarm().then(settle).catch((err: unknown) => {
+    log.warn('[rd-warmer] sonda do warmer nativo falhou; timer local assume:', (err as Error)?.message || err);
+    settle(false);
+  });
 }
 
 /**
@@ -339,12 +349,8 @@ function start(): void {
  */
 async function drain(max = config.debrid.rdWarm.batch): Promise<{ processed: number; queueRemaining: number }> {
   ensureQueueLoaded();
-  if (paused || inFlight || !config.debrid.rdWarm.enabled) {
-    return { processed: 0, queueRemaining: queue.length };
-  }
-  if (activity.recentUserTraffic(config.debrid.rdWarm.idleWindowMs)) {
-    return { processed: 0, queueRemaining: queue.length };
-  }
+  if (paused || inFlight || !config.debrid.rdWarm.enabled) return { processed: 0, queueRemaining: queue.length };
+  if (activity.recentUserTraffic(config.debrid.rdWarm.idleWindowMs)) return { processed: 0, queueRemaining: queue.length };
   inFlight = true;
   lastTickAt = Date.now();
   let processed = 0;
@@ -378,13 +384,15 @@ function reset(): void {
   queue = [];
   loaded = false;
   started = false;
+  // Invalida sonda de `start()` em voo: sem isso ela religaria o timer depois.
+  startGeneration += 1;
   inFlight = false;
   paused = false;
   lastTickAt = 0;
   notedApiKey = '';
   hourBuckets.clear();
-  // Sem forget, reset deixaria o balde no cache e o próximo teste reidrataria.
-  cache.forget(HOUR_KEY);
+  // Sem forget, reset deixaria o balde no KV e o próximo teste reidrataria.
+  kvForget(HOUR_KEY);
 }
 
 export { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, rdInPlay };

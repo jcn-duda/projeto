@@ -13,10 +13,9 @@
 //!
 //! DUAS credenciais: o token daqui abre a superfície, mas o que APAGA exige
 //! ainda o `destructive_token` (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`),
-//! nunca o de diagnóstico: `POST /sweeps/run` (o DELETE na conta do operador) e
-//! `POST /streams/clear` (o namespace de listas inteiro) recusam sem ele,
-//! `409 streams_requires_admin_token`/`403 streams_token_insufficient`, e só
-//! depois olham o `{"confirm":true}`.
+//! nunca o de diagnóstico: `POST /sweeps/run` e `POST /streams/clear` recusam
+//! sem ele (`409 streams_requires_admin_token`/`403 streams_token_insufficient`)
+//! e só depois olham o `{"confirm":true}`.
 //!
 //! Rotas:
 //!
@@ -31,6 +30,7 @@
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
 //! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
 //! | `POST /sweeps/run` `{"kind":"sweepDead"}` | varredura manual de UM tipo (`crate::al_sweeps`) |
+//! | `GET /rd-warm` + `POST /rd-warm/pause|resume|drain` | fila, pausa e dreno do warmer RD (`crate::rd_warmer`) |
 //!
 //! O colhedor nativo monta as rotas `/harvest*` neste MESMO roteador —
 //! loopback e token são os mesmos, sem segundo servidor. Sem colhedor
@@ -40,8 +40,7 @@
 //! env. Desligá-la exigiria o Node voltar a ser o dono único de invalidação e o
 //! gateway a não injetar `bad`/`lie` — o que é imagem/commit anterior, não flag.
 
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State};
 use axum::http::{Request, StatusCode};
@@ -53,9 +52,7 @@ use serde_json::{json, Value};
 
 use adom_store::StreamsStore;
 
-use crate::al_sweeps::SweepAdmin;
-use crate::autofetch::AutofetchHandle;
-use crate::harvest::HarvestHandle;
+use crate::{al_sweeps::SweepAdmin, autofetch::AutofetchHandle, harvest::HarvestHandle};
 
 #[path = "store_admin_util.rs"]
 mod util;
@@ -140,12 +137,14 @@ pub(crate) struct AdminState {
     /// (`enabled:false` + `disabledReason:"not_wired"`), nunca 500.
     pub(crate) sweeps: Option<SweepAdmin>,
     pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
+    /// Warmer RD (fila/pausa/dreno); `None` = `DEBRID_RD_WARM` desligado.
+    pub(crate) warmer: Option<Arc<crate::rd_warmer::Warmer>>,
     /// Credencial das rotas DESTRUTIVAS; `None` = nenhuma configurada (409).
     pub(crate) destructive_token: Option<String>,
 }
 
 /// Roteador completo (auth + rotas); `pub(crate)` para os testes de rota.
-#[allow(clippy::too_many_arguments)] // um dono por eixo: store, graça, harvest, chupim, varreduras, posse
+#[allow(clippy::too_many_arguments)] // um dono por eixo: store, graça, harvest, chupim, varreduras, posse, warmer
 pub(crate) fn router_with_ownership(
     cfg: &AdminConfig,
     store: Arc<StreamsStore>,
@@ -155,6 +154,7 @@ pub(crate) fn router_with_ownership(
     sweeps: Option<SweepAdmin>,
     ownership: Router<Arc<AdminState>>,
     ownership_kv: Option<Arc<adom_index::NativeKv>>,
+    warmer: Option<Arc<crate::rd_warmer::Warmer>>,
 ) -> Router {
     if cfg.token.is_empty() {
         eprintln!("[gateway] streams admin sem token; responde 503");
@@ -167,6 +167,7 @@ pub(crate) fn router_with_ownership(
         autofetch,
         sweeps,
         ownership_kv,
+        warmer,
         destructive_token: cfg.destructive_token.clone(),
     });
     Router::new()
@@ -181,6 +182,7 @@ pub(crate) fn router_with_ownership(
         .merge(ownership)
         .merge(crate::harvest::admin_router())
         .merge(crate::al_sweeps::admin_router())
+        .merge(crate::rd_warmer::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -194,6 +196,7 @@ pub async fn serve(
     harvest: Option<HarvestHandle>,
     autofetch: Option<AutofetchHandle>,
     sweeps: Option<SweepAdmin>,
+    warmer: Option<Arc<crate::rd_warmer::Warmer>>,
 ) -> Result<(), String> {
     let listen = cfg.listen;
     let ownership = crate::ownership_admin::router();
@@ -207,6 +210,7 @@ pub async fn serve(
         sweeps,
         ownership,
         ownership_kv,
+        warmer,
     );
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -388,6 +392,9 @@ async fn indexer_status() -> Response {
     .into_response()
 }
 
+#[cfg(test)]
+#[path = "rd_warmer_admin_tests.rs"]
+mod rd_warmer_admin_tests;
 #[cfg(test)]
 #[path = "store_admin_tests.rs"]
 mod store_admin_tests;

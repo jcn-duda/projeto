@@ -10,6 +10,7 @@ import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvClearPrefix, kvPeek, kvSetForTest } from '../src/utils/native-kv.js';
 
 const HOUR_KEY = `${prefix('rdq')}hour`;
 const [H1, H2] = ['1', '2'].map((c) => c.repeat(40));
@@ -76,7 +77,7 @@ function mockProbeOk() {
 test.beforeEach(() => {
   restoreConfig();
   cache.clearNamespace('rdc');
-  cache.clearNamespace('rdq');
+  kvClearPrefix(prefix('rdq'));
   metrics.reset();
   rdLedger.reset();
   rdGate.reset();
@@ -107,15 +108,15 @@ test('rd-warmer: balde horário conta, persiste e sobrevive a clear do Map', asy
     assert.equal(res.processed, 2);
     assert.equal(rdWarmer.status().processedLastHour, 2);
 
-    const stored = cache.get(HOUR_KEY);
+    const stored = kvPeek(HOUR_KEY);
     assert.ok(stored && typeof stored === 'object');
     assert.equal(Number((stored as any).count), 2);
     assert.equal(Number((stored as any).hour), Math.floor(Date.now() / 3_600_000));
 
-    // Simula restart: reset limpa Map+chave; recolocamos só o balde (L2 intacto).
+    // Simula restart: reset limpa Map+chave; recolocamos só o balde (KV intacto).
     rdWarmer.reset();
-    cache.set(HOUR_KEY, stored, 3600);
-    assert.equal(rdWarmer.status().processedLastHour, 2, 'Map vazio reidrata do cache');
+    kvSetForTest(HOUR_KEY, stored, 3600);
+    assert.equal(rdWarmer.status().processedLastHour, 2, 'Map vazio reidrata do KV nativo');
   } finally {
     mock.restore();
   }
@@ -127,11 +128,11 @@ test('rd-warmer: reset limpa persistência do balde horário', async () => {
     rdWarmer.enqueue([H1], 10);
     await rdWarmer.drain(1);
     assert.equal(rdWarmer.status().processedLastHour, 1);
-    assert.ok(cache.get(HOUR_KEY), 'balde gravado no cache');
+    assert.ok(kvPeek(HOUR_KEY), 'balde gravado no KV nativo');
 
     rdWarmer.reset();
-    assert.equal(cache.get(HOUR_KEY), null, 'reset esquece a chave horária');
-    assert.equal(rdWarmer.status().processedLastHour, 0, 'Map e cache zerados');
+    assert.equal(kvPeek(HOUR_KEY), null, 'reset esquece a chave horária');
+    assert.equal(rdWarmer.status().processedLastHour, 0, 'Map e KV zerados');
   } finally {
     mock.restore();
   }

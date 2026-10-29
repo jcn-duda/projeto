@@ -230,9 +230,14 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // o formato segue provado no Rust (`v3::prefetch_key` + `v3_tests`). Sem nenhuma
 // chave viva do Node restante, o namespace fecha inteiro. Catraca:
 // `test/cache-keys-debrid-owned.test.ts`.
+//
+// `rdq` (Fase 1 do warmer RD) entra pelo namespace INTEIRO: a fila
+// (`rdq:v1:wq`) e o balde horário (`rdq:v1:hour`) agora são do warmer nativo e o
+// Node só os acessa pela ponte napi (`native-kv.ts`), sem L1 — segundo escritor
+// deixaria o disco incoerente com o handle do Rust.
 const RUST_OWNED = Object.freeze([
   'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
-  'autofetch',
+  'autofetch', 'rdq',
 ]);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
@@ -317,6 +322,9 @@ const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
 const RUST_OWNED_PREFIXES = Object.freeze([
   prefix('harvest'), 'autofetch-worker:v1:', prefix('davail'), prefix('mag'), prefix('mag_meta'),
   prefix('adsub'), prefix('adprot'), prefix('adrm'),
+  // Fila e quota do warmer RD: a leitura do Node também cai na ponte (`kvPeek`),
+  // nunca no L1 — o prefixo é o que fecha o `get`/`peek` do cache.
+  prefix('rdq'),
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 

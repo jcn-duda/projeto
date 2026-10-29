@@ -113,7 +113,10 @@ pub async fn run(config: Config) -> Result<(), String> {
     // do orquestrador porque o tail é construído junto com ele. Sem
     // `AUTOFETCH_WORKER=on` o handle é `prepared` e `RD_WARM` desligado devolve
     // `None` — nos dois casos o efeito segue ao Node, como antes.
-    let warmer = crate::rd_warmer::register();
+    // Freio do colhedor e do warmer: o `dispatch` marca AQUI (uma vez por
+    // requisição do `/stream` nativo); os dois leem via `TrafficSense`.
+    let stream_traffic = Arc::new(AtomicI64::new(0));
+    let warmer = crate::rd_warmer::register(Some(stream_traffic.clone()));
     let autofetch = crate::autofetch::spawn();
     // Varreduras da AllDebrid: o gateway é o DONO ÚNICO do spawn (o `main` não
     // monta mais nada). O runtime vive até o fim do `serve`; a admin 8711
@@ -123,11 +126,10 @@ pub async fn run(config: Config) -> Result<(), String> {
     // `main` loga e sai — nunca queda silenciosa para uma lista vazia.
     let orchestrator = stores
         .as_ref()
-        .map(|stores| stream::build_orchestrator_from(stores.clone(), autofetch.clone(), warmer))
+        .map(|stores| {
+            stream::build_orchestrator_from(stores.clone(), autofetch.clone(), warmer.clone())
+        })
         .transpose()?;
-    // Freio do colhedor: o `dispatch` marca AQUI (uma vez por requisição do
-    // `/stream` nativo); o worker lê via `TrafficSense`.
-    let stream_traffic = Arc::new(AtomicI64::new(0));
     // Colhedor nativo (Fase 5): só existe com o corte nativo e orquestrador.
     // `None` não impede o gateway — as rotas `/harvest*` respondem desligado.
     let harvest = orchestrator.as_ref().and_then(|orch| {
@@ -149,6 +151,7 @@ pub async fn run(config: Config) -> Result<(), String> {
             harvest,
             autofetch,
             Some(sweeps.admin.clone()),
+            warmer.clone(),
         );
     }
     let state = AppState {
@@ -177,15 +180,16 @@ pub async fn run(config: Config) -> Result<(), String> {
         .map_err(|err| format!("servidor encerrou: {err}"))
 }
 
-/// Sobe a API administrativa do `streams.db` e do colhedor (loopback + token)
-/// em segundo plano. Falha de bind é só log: o `/stream` não depende dela, e as
-/// chamadas do Node degradam para "sem efeito" (o Node loga e segue).
+/// Sobe a API administrativa do `streams.db`, do colhedor e do warmer (loopback
+/// + token) em segundo plano. Falha de bind é só log: o `/stream` não depende
+/// dela, e as chamadas do Node degradam para "sem efeito" (o Node loga e segue).
 fn spawn_store_admin(
     stores: &stream::StreamStores,
     grace_seconds: u64,
     harvest: Option<crate::harvest::HarvestHandle>,
     autofetch: Option<crate::autofetch::AutofetchHandle>,
     sweeps: Option<SweepAdmin>,
+    warmer: Option<Arc<crate::rd_warmer::Warmer>>,
 ) {
     let Some(streams) = stores.streams.clone() else {
         eprintln!("[gateway] streams admin sem store SQLite (memória); invalidação indisponível");
@@ -199,8 +203,16 @@ fn spawn_store_admin(
         }
     };
     tokio::spawn(async move {
-        if let Err(err) =
-            crate::store_admin::serve(cfg, streams, grace_seconds, harvest, autofetch, sweeps).await
+        if let Err(err) = crate::store_admin::serve(
+            cfg,
+            streams,
+            grace_seconds,
+            harvest,
+            autofetch,
+            sweeps,
+            warmer,
+        )
+        .await
         {
             eprintln!("[gateway] {err}");
         }

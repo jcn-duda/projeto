@@ -15,126 +15,43 @@
 //! UMA leitura de `/torrents` e classifica; `downloading`/`unknown` não mexem no
 //! ledger (⚡ falso é pior que ⚡ ausente). O `remove` devolve a conta ao estado
 //! anterior: o aquecimento não deixa magnet órfão.
+//!
+//! # Intent incerto
+//!
+//! `Quarantined` é o intent durável de uma escrita anterior: o hash NÃO é
+//! reenviado e o lote NÃO para — ele só sai da fila e espera o TTL do KV. Erro
+//! transitório (`TaskFailed`, rede) também deixa o intent de pé: reenviar às
+//! cegas é o que o intent existe para impedir. Só `Ok(None)` (transferência
+//! existe, mas não baixou) e recusa definitiva liberam a posse.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::Arc;
 use std::time::Duration;
 
 use adom_core::{account_scope, PlayHint};
 use adom_debrid::rd_gate_executor::RdGateExecutor;
+#[cfg(test)]
 use adom_debrid::rd_scheduler::RdSchedulerConfig;
 use adom_debrid::realdebrid::RealDebrid;
-use adom_debrid::realdebrid_autofetch::{
-    uncertain_key, RdAutofetchError, RdUncertainIntent, RdUncertainStore, RealDebridAutofetch,
-};
+use adom_debrid::realdebrid_autofetch::{RdAutofetchError, RealDebridAutofetch};
 use adom_debrid::{DebridError, HttpClient};
 use serde_json::Value;
 
-use super::{env_flag, env_num_f};
-use crate::rd_warmer::{WarmFuture, WarmPort, WarmReport, WarmSignal};
+use super::super::store::WarmIntentStore;
+use super::super::{WarmFuture, WarmPort, WarmReport, WarmSignal};
 
-/// Quarentena do intent em RAM: o worker durável usa KV; aqui a fila é volátil,
-/// então a posse expira em 5 min em vez de travar o hash até o restart.
-const INTENT_TTL_MS: i64 = 300_000;
-
-/// Produção: cliente HTTP do processo + gate com as réguas `DEBRID_RD_GATE*`.
-pub(crate) fn port(poll_ms: u64) -> Option<Arc<dyn WarmPort>> {
+/// Produção: cliente HTTP do processo + gate COMPARTILHADO do autofetch.
+pub(crate) fn port(
+    poll_ms: u64,
+    gate: RdGateExecutor,
+    store: Arc<WarmIntentStore>,
+) -> Option<Arc<dyn WarmPort>> {
     let rd = Arc::new(RealDebrid::new(HttpClient::new().ok()?));
-    Some(Arc::new(GateWarm::with_gate(
+    Some(Arc::new(GateWarm::with_store(
         rd,
-        gate_config(),
+        gate,
         Duration::from_millis(poll_ms),
+        store,
     )))
-}
-
-fn gate_config() -> RdSchedulerConfig {
-    RdSchedulerConfig {
-        min_gap_ms: env_num_f("DEBRID_RD_GATE_MIN_GAP_MS", 1_000.0),
-        max_gap_ms: env_num_f("DEBRID_RD_GATE_MAX_GAP_MS", 30_000.0),
-        cooldown_ms: env_num_f("DEBRID_RD_GATE_COOLDOWN_MS", 90_000.0),
-        play_max_wait_ms: env_num_f("DEBRID_RD_GATE_PLAY_MAX_WAIT_MS", 1_500.0),
-        success_threshold: 5,
-        enabled: env_flag("DEBRID_RD_GATE"),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Intent em RAM (`RdUncertainStore`): a escrita entra antes do HTTP e só sai
-// com prova (remoção confirmada, recusa definitiva ou TTL).
-// ---------------------------------------------------------------------------
-
-#[derive(Default)]
-struct StoreState {
-    intents: HashMap<String, i64>,
-    owned: HashMap<String, String>,
-}
-
-#[derive(Default)]
-pub(super) struct WarmStore {
-    inner: Mutex<StoreState>,
-}
-
-impl WarmStore {
-    fn lock(&self) -> MutexGuard<'_, StoreState> {
-        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Prova de posse que o `remove` exige (`owns_transfer`).
-    pub(super) fn own(&self, account: &str, hash: &str, id: &str) {
-        self.lock()
-            .owned
-            .insert(uncertain_key(account, hash), id.to_string());
-    }
-
-    /// O `enqueue` devolveu o id: o intent daquela escrita está resolvido, mas a
-    /// posse fica (o `remove` seguinte exige as duas coisas ao contrário).
-    pub(super) fn settle(&self, account: &str, hash: &str) {
-        self.lock().intents.remove(&uncertain_key(account, hash));
-    }
-
-    /// Libera intent e posse de um hash já resolvido.
-    pub(super) fn release(&self, account: &str, hash: &str) {
-        let key = uncertain_key(account, hash);
-        let mut state = self.lock();
-        state.intents.remove(&key);
-        state.owned.remove(&key);
-    }
-}
-
-impl RdUncertainStore for WarmStore {
-    fn has_intent(&self, key: &str) -> Result<bool, String> {
-        let now = adom_sources::now_ms();
-        let mut state = self.lock();
-        match state.intents.get(key) {
-            Some(created) if now - created < INTENT_TTL_MS => Ok(true),
-            Some(_) => {
-                state.intents.remove(key);
-                Ok(false)
-            }
-            None => Ok(false),
-        }
-    }
-
-    fn put_intent_if_absent(&self, key: &str, intent: &RdUncertainIntent) -> Result<bool, String> {
-        Ok(self
-            .lock()
-            .intents
-            .insert(key.to_string(), intent.created_at_ms)
-            .is_none())
-    }
-
-    fn clear_intent(&self, key: &str) -> Result<(), String> {
-        self.lock().intents.remove(key);
-        Ok(())
-    }
-
-    fn owns_transfer(&self, account: &str, hash: &str, id: &str) -> Result<bool, String> {
-        Ok(self
-            .lock()
-            .owned
-            .get(&uncertain_key(account, hash))
-            .is_some_and(|known| known == id))
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,23 +61,38 @@ impl RdUncertainStore for WarmStore {
 pub(crate) struct GateWarm {
     rd: Arc<RealDebrid>,
     autofetch: RealDebridAutofetch,
-    store: Arc<WarmStore>,
+    store: Arc<WarmIntentStore>,
     poll: Duration,
 }
 
 impl GateWarm {
-    pub(crate) fn with_gate(rd: Arc<RealDebrid>, gate: RdSchedulerConfig, poll: Duration) -> Self {
-        let store = Arc::new(WarmStore::default());
-        let autofetch = RealDebridAutofetch::new(
-            RdGateExecutor::new(gate),
-            Arc::clone(&store) as Arc<dyn RdUncertainStore>,
-        );
+    pub(crate) fn with_store(
+        rd: Arc<RealDebrid>,
+        gate: RdGateExecutor,
+        poll: Duration,
+        store: Arc<WarmIntentStore>,
+    ) -> Self {
+        let autofetch = RealDebridAutofetch::new(gate, store.clone());
         Self {
             rd,
             autofetch,
             store,
             poll,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_gate(
+        rd: Arc<RealDebrid>,
+        config: RdSchedulerConfig,
+        poll: Duration,
+    ) -> Self {
+        Self::with_store(
+            rd,
+            RdGateExecutor::new(config),
+            poll,
+            Arc::new(WarmIntentStore::memory()),
+        )
     }
 
     /// Classifica o que o `enqueue` deixou pronto e devolve a conta ao estado
@@ -229,7 +161,15 @@ impl WarmPort for GateWarm {
                         self.store.release(&account, hash);
                         report.signals.push((hash.clone(), WarmSignal::Miss));
                     }
-                    Err(RdAutofetchError::Cooldown) | Err(RdAutofetchError::Quarantined) => {
+                    // Intent durável de uma escrita anterior: NÃO reenvia e NÃO
+                    // para o lote; o hash sai da fila e espera o TTL do KV.
+                    Err(RdAutofetchError::Quarantined) => {}
+                    Err(RdAutofetchError::Cooldown) => {
+                        report.stopped = true;
+                        break;
+                    }
+                    // Store quebrado fecha o caminho: nenhuma escrita sem intent.
+                    Err(RdAutofetchError::StoreUnavailable) => {
                         report.stopped = true;
                         break;
                     }
@@ -242,8 +182,8 @@ impl WarmPort for GateWarm {
                     Err(RdAutofetchError::Debrid(DebridError::Blocked(_))) => {
                         report.signals.push((hash.clone(), WarmSignal::Blocked));
                     }
-                    // Hash ruim ou falha local: um hash não derruba o lote.
-                    Err(_) => self.store.release(&account, hash),
+                    // Falha local/transitória: o intent fica de pé (quarentena).
+                    Err(_) => {}
                 }
             }
             if !pending.is_empty() {

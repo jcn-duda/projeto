@@ -331,3 +331,13 @@ async fn fila_mantem_escopos_e_nunca_mistura_contas_no_mesmo_lote() {
 
 #[path = "rd_warmer_http_tests.rs"]
 mod http_tests;
+
+// Fase 1: estado durável, banco de magnets e freio/gate do dreno.
+#[path = "rd_warmer_store_tests.rs"]
+mod store_tests;
+
+#[path = "rd_warmer_magnet_tests.rs"]
+mod magnet_tests;
+
+#[path = "rd_warmer_drain_tests.rs"]
+mod drain_tests;

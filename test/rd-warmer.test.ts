@@ -12,6 +12,7 @@ import { rdGate } from '../src/debrid/rd-gate.js';
 import * as activity from '../src/providers/activity.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
 import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
+import { kvClearPrefix } from '../src/utils/native-kv.js';
 import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
 
@@ -59,7 +60,8 @@ function jsonOk(body: any, status = 200) {
 test.beforeEach(() => {
   restoreConfig();
   cache.clearNamespace('rdc');
-  cache.clearNamespace('rdq');
+  // A fila e o balde horário (`rdq`) são do KV nativo: o clear do L1 não os alcança.
+  kvClearPrefix(cachePrefix('rdq'));
   metrics.reset();
   rdLedger.reset();
   rdGate.reset();

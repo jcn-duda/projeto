@@ -21,7 +21,7 @@
 //!   `unknown-cache` em vez de chutar ⚡ (ver `docs` do `check` da porta).
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use adom_debrid::alldebrid::{AllDebrid, Provenance};
 use adom_debrid::alldebrid_cleanup::known_before;
@@ -73,7 +73,7 @@ impl Build {
             http,
             kv,
             cache_db,
-            gate_config(),
+            shared_gate(),
             rd_store::ledger_enabled(),
         ))
     }
@@ -82,17 +82,23 @@ impl Build {
         http: HttpClient,
         kv: Arc<NativeKv>,
         cache_db: &Path,
-        config: RdSchedulerConfig,
+        gate: RdGateExecutor,
         ledger: bool,
     ) -> Self {
         Self {
             http,
-            gate: new_gate(config),
+            gate,
             store: Arc::new(RdKvStore::new(Arc::clone(&kv))),
             kv,
             cache_db: cache_db.to_path_buf(),
             ledger,
         }
+    }
+
+    /// Só teste: prova que a fábrica de produção usa o gate do processo.
+    #[cfg(test)]
+    pub(crate) fn gate_instance(&self) -> RdGateExecutor {
+        self.gate.clone()
     }
 
     /// Fábrica por conta: o laço chama isto a cada passo e a chave vem do
@@ -150,6 +156,15 @@ impl Build {
             provenance: Provenance::Unavailable,
         }
     }
+}
+
+/// Gate AIMD do PROCESSO. O worker e o warmer compartilham ESTA instância: o
+/// `RdScheduler` é o da conta, e dois executores fariam o AIMD mentir sobre
+/// gap/cooldown (o contrato está no `adom-debrid`).
+static SHARED_GATE: OnceLock<RdGateExecutor> = OnceLock::new();
+
+pub(crate) fn shared_gate() -> RdGateExecutor {
+    SHARED_GATE.get_or_init(|| new_gate(gate_config())).clone()
 }
 
 /// Réguas do gate AIMD — os MESMOS nomes/defaults do warmer, para um `.env` só
@@ -230,7 +245,13 @@ pub(crate) fn fixture(kv: Arc<NativeKv>, cache_db: &Path) -> Arc<Build> {
 #[cfg(test)]
 pub(crate) fn fixture_with(kv: Arc<NativeKv>, cache_db: &Path, ledger: bool) -> Arc<Build> {
     let http = HttpClient::new().expect("cliente HTTP de fixture");
-    Arc::new(Build::assemble(http, kv, cache_db, gate_fixture(), ledger))
+    Arc::new(Build::assemble(
+        http,
+        kv,
+        cache_db,
+        new_gate(gate_fixture()),
+        ledger,
+    ))
 }
 
 #[cfg(test)]

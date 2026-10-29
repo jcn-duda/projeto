@@ -10,6 +10,7 @@ import { createApp } from './app.js';
 import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.js';
 import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
 import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js';
+import { startRdWarmPolling, stopRdWarmPolling } from './utils/rd-warm-native.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
@@ -97,6 +98,9 @@ const server = app.listen(config.port, config.host, () => {
   // Varreduras NATIVAS da AllDebrid: o Node só espelha o status do gateway
   // (modo, último tick, contadores) para o painel — quem varre é o `al_sweeps`.
   startSweepsPolling();
+  // Warmer NATIVO do RD: o Node só espelha o status do gateway para o painel e
+  // o `rdWarmer.start()` desiste do timer local quando `/rd-warm` responde.
+  startRdWarmPolling();
   rdWarmer.start();
   brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
@@ -119,6 +123,7 @@ function shutdown(signal: string) {
   stopHarvestPolling();
   stopIndexerStatusPolling();
   stopSweepsPolling();
+  stopRdWarmPolling();
   server.closeIdleConnections?.();
   const force = setTimeout(() => process.exit(0), 5000);
   force.unref();

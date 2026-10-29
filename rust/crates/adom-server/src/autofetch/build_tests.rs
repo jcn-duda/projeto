@@ -121,3 +121,22 @@ fn ledger_rd_liga_a_prova_de_cache() {
             .cache_known
     );
 }
+
+#[test]
+fn build_de_producao_usa_o_gate_do_processo() {
+    let _guard = test_lock();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("cache.db");
+    let kv = Arc::new(NativeKv::open(&path).expect("cache.db de fixture"));
+    // Construtor de PRODUÇÃO (não a fixture): é ele que o boot chama.
+    let build = Build::new(kv, &path).expect("fábrica de produção");
+
+    // `shared_gate` é global e pode já ter sido inicializada por outro teste:
+    // a prova é a INSTÂNCIA (mesmo executor), nunca a contagem de gates.
+    assert!(
+        build
+            .gate_instance()
+            .same_instance(&crate::autofetch::shared_gate()),
+        "a fábrica de produção e o warmer compartilham UM gate AIMD"
+    );
+}

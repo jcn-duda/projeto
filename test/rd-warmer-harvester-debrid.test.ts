@@ -14,6 +14,8 @@ import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { rdGate } from '../src/debrid/rd-gate.js';
 import * as harvesterDebrid from '../src/utils/harvester-debrid-live.js';
 import rdWarmer from '../src/providers/rd-warmer.js';
+import { prefix } from '../src/utils/cache-keys.js';
+import { kvClearPrefix } from '../src/utils/native-kv.js';
 
 const H = 'a'.repeat(40);
 
@@ -66,7 +68,8 @@ function jsonOk(body: any, status = 200) {
 beforeEach(() => {
   restoreConfig();
   cache.clearNamespace('rdc');
-  cache.clearNamespace('rdq');
+  // A fila/balde do warmer (`rdq`) é do KV nativo desde a Fase 1 da ponte.
+  kvClearPrefix(prefix('rdq'));
   metrics.reset();
   rdLedger.reset();
   rdGate.reset();

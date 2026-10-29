@@ -75,6 +75,7 @@ mod suppressed_step;
 mod vault;
 mod worker;
 
+pub(crate) use build::shared_gate;
 pub(crate) use routes::router as admin_router;
 pub(crate) use vault::{shared as shared_vault, Vault};
 pub(crate) use worker::{spawn, AutofetchHandle};
