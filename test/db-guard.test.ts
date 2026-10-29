@@ -110,12 +110,15 @@ function walkTs(dir: string, out: string[] = []): string[] {
  * importam com `../../../src/...`, e exigir a aspa colada deixaria os três
  * fora da varredura (verde por omissão).
  *
- * Os quatro últimos não são clientes do KV por acaso: `protected` e
- * `alldebrid-reupload` gravam posse/anti-reenchimento por `kvSet`/`kvForget`,
- * `autofetch-obra` grava o registro da obra por `cache.set` e
+ * Os três últimos não são clientes do KV por acaso: `protected` e
+ * `alldebrid-reupload` gravam posse/anti-reenchimento por `kvSet`/`kvForget` e
  * `debrid-state-native` abre o handle napi de `davail`/`mag` no MESMO
  * `cache.db`. Sem eles na lista, um helper que só importa `protected.ts`
  * escapava da varredura e ia ao acervo real sem aviso.
+ *
+ * `autofetch-obra` saiu da lista na leva 6e (2026-10-29): o registro da obra
+ * passou a ser gravado só pelo commit nativo (`enqueue_obra.rs`), e o módulo
+ * do Node ficou com o prefixo `autofetch:v3:o:` — sem `cache.set`.
  */
 const DB_OWNERS = [
   'src/utils/cache.js',
@@ -124,7 +127,6 @@ const DB_OWNERS = [
   'src/utils/magnet-bank.js',
   'src/utils/debrid-state-native.js',
   'src/providers/autofetch.js',
-  'src/providers/autofetch-obra.js',
   'src/debrid/protected.js',
   'src/debrid/alldebrid-reupload.js',
   'node:sqlite',

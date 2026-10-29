@@ -1,17 +1,19 @@
 // Resumo por OBRA do teto do Chupim (Fase 7 do Chupim 2.0) — leitura quiet.
 //
-// O teto por obra (F2, `autofetch-obra.ts`) guarda um registro persistido por
-// digest de obra, com os pools aceitos (`br`/`any`/`seeds`). O painel não tinha
-// como enxergar esse estado: só o `obraStatus()` volátil (works/reserved). Este
+// O teto por obra (F2) guarda um registro persistido por digest de obra, com os
+// pools aceitos (`br`/`any`/`seeds`). O painel não tinha
+// como enxergar esse estado: só o `obraStatus()` volátil (works/reserved), que
+// morreu com o corpo TS do teto na leva 6e. Este
 // módulo varre o namespace `autofetch:v3:o:` e resume, por obra, o que o teto
 // tem — sem identificar a obra: digest de 12 chars, contagem por pool, a prova
 // durável de BR-ready (Fase 6) e a idade da entrada mais recente.
 //
 // Contrato de leitura:
-// - QUIET: `keysMatching` (L1) + `peek`, como o painel de magnets. NÃO usa o
-//   `readRecord` interno do autofetch-obra porque ele passa por `cache.get`,
-//   que promove LRU e conta `cache.hit` — um diagnóstico não pode reordenar o
-//   cache nem inflar o hit-rate que ele mesmo mostra.
+// - QUIET: `keysMatching` (L1) + `peek`, como o painel de magnets. NÃO usa
+//   `cache.get` (que promove LRU e conta `cache.hit`) — um diagnóstico não pode
+//   reordenar o cache nem inflar o hit-rate que ele mesmo mostra. A leitura
+//   canônica do registro é a do nativo (`readObraNative`, ponte): desde a leva
+//   6e (2026-10-29) não existe mais leitor TS do registro por obra.
 // - Ausência de dado nunca autoriza afirmação: só entra obra com ao menos uma
 //   entrada dentro da janela (`autoFetchTtl`); o resto é ruído expirado.
 // - Payload limitado às N mais recentes (`OBRA_SUMMARY_MAX`) para o teto de

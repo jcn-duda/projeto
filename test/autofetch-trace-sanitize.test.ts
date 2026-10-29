@@ -7,10 +7,11 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
+import { createHash } from 'node:crypto';
+
 import config from '../src/config.js';
 import * as autofetchTrace from '../src/utils/autofetch-trace.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { obraKey } from '../src/providers/autofetch-obra.js';
 import { obraSummaries } from '../src/providers/autofetch-obra-summary.js';
 import { kvForget } from '../src/utils/native-kv.js';
 import { commitObraNative, noteBrReadyNative } from '../src/utils/autofetch-state-native.js';
@@ -109,12 +110,14 @@ test('resumo do Chupim no trace: magnet/hash fora e teto de unidades', () => {
 // pools, brReady, idade) e a higiene (sem imdbId, conta, chave ou hash cru) são
 // as do painel que fica com `autofetch-obra-summary`.
 test('obras no painel: digest curto, pools contados e prova BR-ready sem vazar identidade', () => {
-  const identity = { adapterId: 'premiumize', account: 'conta-secreta-f7', imdbId: 'tt7654321', season: 1, episode: 2 };
-  const key = obraKey(identity);
+  // A régua de identidade saiu do TS na leva 6e (vive em `adom-core::autofetch_obra`):
+  // o painel NÃO calcula chave de obra, só enumera o namespace `o:` e trunca o
+  // digest. Qualquer sha256 de 64 hex é uma obra válida para o resumo.
+  const digest = createHash('sha256').update('conta-secreta-f7:tt7654321:1:2').digest('hex');
   const now = Date.now();
   // `o:` e `er:` são RUST_OWNED: a semente vai pela ponte.
   const obraPrefix = `${prefix('autofetch')}o:`;
-  const digest = key.slice(obraPrefix.length);
+  const key = `${obraPrefix}${digest}`;
   try {
     assert.equal(
       obraSummaries().some((item) => item.digest === digest.slice(0, 12)),
@@ -122,7 +125,7 @@ test('obras no painel: digest curto, pools contados e prova BR-ready sem vazar i
       'obra não semeada não aparece',
     );
 
-    // Semeia pela MESMA porta do commit real: `obraKey` → KV nativo.
+    // Semeia pela MESMA porta do commit real: chave `autofetch:v3:o:<digest>` → KV nativo.
     const entryBr = { hash: H1, pool: 'br', acceptedAt: now, br: true, dubbed: true };
     const entrySeeds = { hash: H2, pool: 'seeds', acceptedAt: now - 1000 };
     const entryExotico = { hash: 'c'.repeat(40), pool: 'exotico', acceptedAt: now - 500 };

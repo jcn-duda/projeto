@@ -91,7 +91,7 @@ const FROZEN_GOLDENS = ['policy', 'progress', 'fallback', 'expired', 'gates', 's
  */
 const LIVE_BOUNDARY: { file: string; role: string }[] = [
   { file: 'src/providers/autofetch.ts', role: 'reindexação no boot, markerActive do rd-warmer e isDeadQuiet do trace' },
-  { file: 'src/providers/autofetch-obra.ts', role: 'teto por OBRA (registro F2 `autofetch:v3:o:` que o nativo só lê)' },
+  { file: 'src/providers/autofetch-obra.ts', role: 'prefixo `autofetch:v3:o:` do registro F2 (teto, reserva e registro são nativos desde a leva 6e)' },
   { file: 'src/providers/autofetch-obra-summary.ts', role: 'leitura quieta do registro por obra para o painel' },
   { file: 'src/providers/autofetch-marker.ts', role: 'chave e valor do marker no KV nativo' },
   { file: 'src/providers/autofetch-gate.ts', role: 'gate de ocupação da conta (memo + snapshot)' },
