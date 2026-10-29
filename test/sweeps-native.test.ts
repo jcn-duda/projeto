@@ -340,3 +340,46 @@ test('polling: arma uma vez, busca na hora e para no stop', async () => {
     stub.restore();
   }
 });
+
+// --- segunda credencial: token de diagnóstico não apaga magnet -------------
+
+test('run sem o token destrutivo: nenhum fetch, nenhum backoff', async () => {
+  // `config.streamStore.token` é `STREAM_STORE_ADMIN_TOKEN || DEBRID_INTERNAL_TOKEN`:
+  // vazio = o gateway não tem credencial para apagar magnet. O token de
+  // diagnóstico abaixo NÃO serve para o POST (só para o `GET /sweeps`).
+  const savedJackett = config.jackett.testToken;
+  config.streamStore.token = '';
+  config.jackett.testToken = 'tok-diagnostico';
+  const stub = stubFetch(() => json({ ok: true }));
+  try {
+    const run = await runNativeSweep('sweepDead');
+    assert.equal(run.ok, false);
+    assert.equal(run.reason, 'missing_admin_token');
+    assert.match(String(run.error), /STREAM_STORE_ADMIN_TOKEN/);
+    assert.equal(run.varridos, null, 'recusa não vira zero removido');
+    assert.equal(stub.calls.length, 0, 'config ausente não vai à rede');
+    // Nada de backoff: o próximo pedido também explica a credencial, sem fetch.
+    const outra = await runNativeSweep('sweepDead');
+    assert.equal(outra.reason, 'missing_admin_token');
+    assert.equal(stub.calls.length, 0);
+  } finally {
+    stub.restore();
+    config.jackett.testToken = savedJackett;
+  }
+});
+
+test('status: sem token próprio o GET cai no token de DIAGNÓSTICO', async () => {
+  const savedJackett = config.jackett.testToken;
+  config.streamStore.token = '';
+  config.jackett.testToken = 'tok-diagnostico';
+  const stub = stubFetch(() => json(statusBody()));
+  try {
+    const snap = await refreshSweepsStatus();
+    assert.equal(stub.calls.length, 1);
+    assert.equal((stub.calls[0].options as any)?.headers['x-indexer-test-token'], 'tok-diagnostico');
+    assert.equal(snap?.ok, true);
+  } finally {
+    stub.restore();
+    config.jackett.testToken = savedJackett;
+  }
+});

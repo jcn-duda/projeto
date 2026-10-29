@@ -11,6 +11,10 @@
 //! roteador da 7000 (o gateway recusa `/internal/*` antes do proxy). Sem token
 //! configurado responde 503 — mesmo contrato da API interna de debrid.
 //!
+//! DUAS credenciais: o token daqui abre a superfície, mas `POST /sweeps/run` (o
+//! único DELETE na conta do operador) exige ainda o `destructive_token`
+//! (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`), nunca o de diagnóstico.
+//!
 //! Rotas:
 //!
 //! | rota | efeito |
@@ -52,6 +56,8 @@ use crate::harvest::HarvestHandle;
 
 #[path = "store_admin_util.rs"]
 mod util;
+// Reexportada: `auth` e a rota DESTRUTIVA comparam tokens pela MESMA função.
+pub(crate) use util::tokens_match;
 use util::{now_ms, stream_hash};
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
@@ -66,6 +72,8 @@ pub const DEFAULT_LISTEN: &str = "127.0.0.1:8711";
 pub struct AdminConfig {
     pub listen: SocketAddr,
     pub token: String,
+    /// Segunda credencial, só para as rotas destrutivas; `None` = não configurada.
+    pub destructive_token: Option<String>,
 }
 
 /// Endereço + token. A superfície sobe sempre; só `Err` (endereço inválido ou
@@ -86,6 +94,7 @@ pub fn config_from_env() -> Result<AdminConfig, String> {
     Ok(AdminConfig {
         listen: addr,
         token,
+        destructive_token: destructive_token_from_env(),
     })
 }
 
@@ -104,6 +113,15 @@ pub fn token_from_env() -> String {
     String::new()
 }
 
+/// Token DESTRUTIVO: `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`.
+/// `JACKETT_TEST_TOKEN` fica FORA de propósito (diagnóstico não apaga magnet).
+pub fn destructive_token_from_env() -> Option<String> {
+    [TOKEN_ENV, "DEBRID_INTERNAL_TOKEN"].iter().find_map(|key| {
+        let value = std::env::var(key).ok()?.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    })
+}
+
 pub(crate) struct AdminState {
     token: String,
     store: Arc<StreamsStore>,
@@ -119,6 +137,8 @@ pub(crate) struct AdminState {
     /// (`enabled:false` + `disabledReason:"not_wired"`), nunca 500.
     pub(crate) sweeps: Option<SweepAdmin>,
     pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
+    /// Credencial das rotas DESTRUTIVAS; `None` = nenhuma configurada (409).
+    pub(crate) destructive_token: Option<String>,
 }
 
 /// Roteador completo (auth + rotas); `pub(crate)` para os testes de rota.
@@ -144,6 +164,7 @@ pub(crate) fn router_with_ownership(
         autofetch,
         sweeps,
         ownership_kv,
+        destructive_token: cfg.destructive_token.clone(),
     });
     Router::new()
         .route("/streams/invalidate", post(invalidate))
@@ -219,20 +240,6 @@ async fn auth(
             .into_response();
     }
     next.run(req).await
-}
-
-/// Comparação em tempo constante (sem dependência nova): só o TAMANHO vaza, e
-/// o tamanho de um token não é segredo.
-fn tokens_match(expected: &str, got: &str) -> bool {
-    let (expected, got) = (expected.as_bytes(), got.as_bytes());
-    if expected.len() != got.len() {
-        return false;
-    }
-    let mut diff = 0u8;
-    for (a, b) in expected.iter().zip(got) {
-        diff |= a ^ b;
-    }
-    diff == 0
 }
 
 async fn invalidate(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) -> Response {

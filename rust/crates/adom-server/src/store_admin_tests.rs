@@ -65,6 +65,8 @@ async fn spawn(store: Arc<StreamsStore>, token: &str) -> std::net::SocketAddr {
     let cfg = AdminConfig {
         listen: DEFAULT_LISTEN.parse().unwrap(),
         token: token.to_string(),
+        // Estas rotas não são destrutivas: a segunda credencial nasce ausente.
+        destructive_token: None,
     };
     let app = router(&cfg, store, 300, None);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

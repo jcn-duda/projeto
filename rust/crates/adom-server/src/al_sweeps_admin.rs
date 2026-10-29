@@ -9,11 +9,19 @@
 //! mesmo desligado (`enabled:false` + `disabledReason`). O `POST` executa UM
 //! tipo pelo `Sweeper` compartilhado, com o mesmo guard de anti-reentrada do
 //! tick agendado: o corpo nunca eleva o modo e nunca traz credencial.
+//!
+//! DUAS credenciais de propósito: o token do `auth` global é o MESMO de
+//! `/metrics.json`, `/dashboard-status.json` e dos scripts — qualquer ferramenta
+//! de diagnóstico o conhece, então ele NÃO pode apagar magnet. O `POST` exige a
+//! segunda credencial do `store_admin` (`STREAM_STORE_ADMIN_TOKEN` →
+//! `DEBRID_INTERNAL_TOKEN`): ausente ⇒ 409 `sweeps_requires_admin_token`; token
+//! de diagnóstico ⇒ 403 `sweeps_token_insufficient`. O `GET /sweeps` segue só
+//! com o `auth` global.
 
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -21,7 +29,7 @@ use serde_json::{json, Map, Value};
 
 use adom_debrid::alldebrid_sweeps::{SweepKind, SweepMode};
 
-use crate::store_admin::AdminState;
+use crate::store_admin::{tokens_match, AdminState};
 
 use super::env::SweepAdmin;
 use super::{OutcomeSummary, TickReport};
@@ -52,9 +60,13 @@ async fn status(State(state): State<Arc<AdminState>>) -> Response {
     Json(Value::Object(body)).into_response()
 }
 
-/// `POST /sweeps/run` (§3.2): campos proibidos → `kind` → runtime → `confirm` →
-/// execução. Um `kind` por chamada; não existe `all`.
-async fn run(State(state): State<Arc<AdminState>>, body: Option<Json<Value>>) -> Response {
+/// `POST /sweeps/run` (§3.2): campos proibidos → `kind` → runtime → credencial
+/// DESTRUTIVA → `confirm` → execução. Um `kind` por chamada; não existe `all`.
+async fn run(
+    State(state): State<Arc<AdminState>>,
+    headers: HeaderMap,
+    body: Option<Json<Value>>,
+) -> Response {
     let body = body.map(|Json(value)| value).unwrap_or(Value::Null);
     let has_credential = FORBIDDEN
         .iter()
@@ -73,6 +85,22 @@ async fn run(State(state): State<Arc<AdminState>>, body: Option<Json<Value>>) ->
     let Some(sweeper) = admin.sweeper.clone() else {
         return unavailable(&admin);
     };
+    // A credencial de DIAGNÓSTICO (a que abre este agente, `/metrics.json` e os
+    // scripts) não apaga magnet: o pedido destrutivo exige a segunda credencial.
+    let Some(expected) = state.destructive_token.as_deref() else {
+        return fail(
+            StatusCode::CONFLICT,
+            "sweeps_requires_admin_token",
+            Some("no_destructive_token"),
+        );
+    };
+    if !tokens_match(expected, header_token(&headers)) {
+        return fail(
+            StatusCode::FORBIDDEN,
+            "sweeps_token_insufficient",
+            Some("diagnostic_token"),
+        );
+    }
     // `confirm` só existe para o destruidor: em ReadOnly o campo é ignorado.
     if admin.mode.deletes() && body.get("confirm").and_then(Value::as_bool) != Some(true) {
         return fail(StatusCode::CONFLICT, "confirmation_required", None);
@@ -95,6 +123,15 @@ async fn run(State(state): State<Arc<AdminState>>, body: Option<Json<Value>>) ->
         Ok(report) => Json(ran_json(kind, admin.mode, &report, at)).into_response(),
         Err(_) => fail(StatusCode::INTERNAL_SERVER_ERROR, "sweep_failed", None),
     }
+}
+
+/// Token do header (`X-Indexer-Test-Token`); ausente/lixo ⇒ vazio, que nunca
+/// casa com a credencial esperada.
+fn header_token(headers: &HeaderMap) -> &str {
+    headers
+        .get("x-indexer-test-token")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
 }
 
 /// Runtime ausente: 503 para conta/cliente (não é configuração corrigível no

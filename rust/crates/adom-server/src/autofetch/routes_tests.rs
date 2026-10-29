@@ -76,6 +76,8 @@ impl Admin {
         let cfg = crate::store_admin::AdminConfig {
             listen: crate::store_admin::DEFAULT_LISTEN.parse().unwrap(),
             token: TOKEN.to_string(),
+            // Rotas não destrutivas: a segunda credencial fica ausente.
+            destructive_token: None,
         };
         let store = Arc::new(adom_store::StreamsStore::open_memory_with_quota(8).unwrap());
         let app = crate::store_admin::router_with_ownership(

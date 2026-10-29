@@ -6,6 +6,12 @@
 // (`GET /sweeps`) e pedir UMA varredura fora do relógio (`POST /sweeps/run`).
 // Nada aqui agenda varredura nem toca a conta.
 //
+// DUAS credenciais, de propósito: o `GET` aceita o token próprio ou, sem ele, o
+// de DIAGNÓSTICO (`JACKETT_TEST_TOKEN`, o mesmo de `/metrics.json` e dos
+// scripts); o `POST` destrutivo usa SÓ o próprio (`STREAM_STORE_ADMIN_TOKEN` →
+// `DEBRID_INTERNAL_TOKEN`). Sem ele a ponte nem vai à rede: token de diagnóstico
+// não apaga magnet da conta do operador.
+//
 // Contrato BEST-EFFORT do `harvest-native.ts` (o padrão de ponte desta casa),
 // SEM compartilhar estado com ele: falha de rede vira "sem efeito" + backoff
 // curto e nada pode derrubar busca, play ou boot. O bloco do
@@ -23,18 +29,14 @@ export type NativeSweepMode = 'off' | 'read_only' | 'apply';
 
 export const NATIVE_SWEEP_KINDS: readonly NativeSweepKind[] = ['sweepDead', 'sweepUndubbed', 'reconcile', 'revalidate'];
 
-export type NativeSweepKindCounters = {
-  runs: number; planned: number; swept: number; failed: number; blocked: number; calls: number;
-};
+export type NativeSweepKindCounters = { runs: number; planned: number; swept: number; failed: number; blocked: number; calls: number };
 
 export type NativeSweepCounters = {
-  runs: number; manualRuns: number; reentered: number; notDue: number; missing: number;
-  planned: number; swept: number;
+  runs: number; manualRuns: number; reentered: number; notDue: number; missing: number; planned: number; swept: number;
   /** Atalho de `byKind.sweepUndubbed.swept`. */
   sweptUndubbed: number;
   failed: number; blocked: number; calls: number;
-  byKind: Record<NativeSweepKind, NativeSweepKindCounters>;
-  reasons: Record<string, number>;
+  byKind: Record<NativeSweepKind, NativeSweepKindCounters>; reasons: Record<string, number>;
 };
 
 export type NativeSweepOutcome = {
@@ -92,7 +94,10 @@ function settings() { return config.streamStore; }
 
 function available(now = Date.now()): boolean { return now >= blockedUntil; }
 function baseUrl(): string { return String(settings().url || '').replace(/\/+$/, ''); }
-function token(): string { return settings().token || config.jackett.testToken || ''; }
+/** `GET`: o token próprio e, sem ele, o de diagnóstico (o gateway aceita os dois). */
+function statusToken(): string { return settings().token || config.jackett.testToken || ''; }
+/** `POST`: SÓ o token destrutivo — o de diagnóstico nunca apaga magnet. */
+function destructiveToken(): string { return settings().token || ''; }
 
 function noteFailure(where: string): void {
   failures += 1;
@@ -117,11 +122,11 @@ type RawResponse = { status: number; body: unknown };
 
 async function request(
   path: string,
-  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+  init: { method?: string; body?: unknown; timeoutMs?: number; token?: string } = {},
 ): Promise<RawResponse> {
   const opts = settings();
   const headers: Record<string, string> = {
-    'x-indexer-test-token': token(),
+    'x-indexer-test-token': init.token ?? statusToken(),
     accept: 'application/json',
   };
   if (init.body !== undefined) headers['content-type'] = 'application/json';
@@ -173,10 +178,7 @@ function reasonsOf(value: unknown): Record<string, number> {
 
 function kindCounters(raw: unknown): NativeSweepKindCounters {
   const e = asRecord(raw);
-  return {
-    runs: num(e.runs), planned: num(e.planned), swept: num(e.swept),
-    failed: num(e.failed), blocked: num(e.blocked), calls: num(e.calls),
-  };
+  return { runs: num(e.runs), planned: num(e.planned), swept: num(e.swept), failed: num(e.failed), blocked: num(e.blocked), calls: num(e.calls) };
 }
 
 /**
@@ -191,12 +193,11 @@ function countersOf(raw: unknown): NativeSweepCounters {
     NATIVE_SWEEP_KINDS.map((kind) => [kind, kindCounters(rawByKind[kind])]),
   ) as Record<NativeSweepKind, NativeSweepKindCounters>;
   return {
-    runs: num(e.runs), manualRuns: num(e.manualRuns), reentered: num(e.reentered),
-    notDue: num(e.notDue), missing: num(e.missing), planned: num(e.planned), swept: num(e.swept),
+    runs: num(e.runs), manualRuns: num(e.manualRuns), reentered: num(e.reentered), notDue: num(e.notDue), missing: num(e.missing),
+    planned: num(e.planned), swept: num(e.swept),
     // Atalho do contrato: quando ausente, é o mesmo valor medido em `byKind`.
     sweptUndubbed: e.sweptUndubbed === undefined ? byKind.sweepUndubbed.swept : num(e.sweptUndubbed),
-    failed: num(e.failed), blocked: num(e.blocked), calls: num(e.calls),
-    byKind, reasons: reasonsOf(e.reasons),
+    failed: num(e.failed), blocked: num(e.blocked), calls: num(e.calls), byKind, reasons: reasonsOf(e.reasons),
   };
 }
 
@@ -267,8 +268,7 @@ function isTimeout(err: unknown): boolean {
 function emptyRun(kind: NativeSweepKind, over: Partial<NativeSweepRun> = {}): NativeSweepRun {
   const blank: NativeSweepRun = {
     ok: false, ran: false, kind, mode: null, applied: null, planned: null, swept: null,
-    varridos: null, falhas: null, failed: null, blocked: null, calls: null, stopped: null,
-    reasons: {}, at: null,
+    varridos: null, falhas: null, failed: null, blocked: null, calls: null, stopped: null, reasons: {}, at: null,
   };
   return { ...blank, ...over };
 }
@@ -282,11 +282,9 @@ function runOf(kind: NativeSweepKind, body: Record<string, unknown>): NativeSwee
   return {
     ok: true, ran: body.ran !== false, kind: normalizeSweepKind(body.kind) || kind,
     mode: body.mode == null ? null : modeOf(body.mode), applied: body.applied === true,
-    planned: optionalNum(body.planned), swept,
-    varridos: optionalNum(body.varridos) ?? swept, falhas: optionalNum(body.falhas) ?? failed, failed,
-    blocked: optionalNum(body.blocked), calls: optionalNum(body.calls),
-    stopped: body.stopped == null ? null : String(body.stopped),
-    reasons: reasonsOf(body.reasons), at: optionalNum(body.at),
+    planned: optionalNum(body.planned), swept, varridos: optionalNum(body.varridos) ?? swept,
+    falhas: optionalNum(body.falhas) ?? failed, failed, blocked: optionalNum(body.blocked), calls: optionalNum(body.calls),
+    stopped: body.stopped == null ? null : String(body.stopped), reasons: reasonsOf(body.reasons), at: optionalNum(body.at),
   };
 }
 
@@ -294,7 +292,8 @@ function runOf(kind: NativeSweepKind, body: Record<string, unknown>): NativeSwee
  * Pedido de UMA varredura fora do relógio. O `kind` é validado AQUI (tipo
  * desconhecido não sai para a rede) e o prazo é o long das varreduras: a rota só
  * responde depois de varrer, e os 2 s das rotas curtas cortariam o pedido no
- * meio — vencê-lo não pausa a ponte, porque a varredura segue no gateway.
+ * meio — vencê-lo não pausa a ponte, porque a varredura segue no gateway. A
+ * credencial é a DESTRUTIVA: sem ela não há pedido (nem backoff).
  */
 export function runNativeSweep(kind: NativeSweepKind | string): Promise<NativeSweepRun> {
   const target = normalizeSweepKind(kind);
@@ -302,16 +301,23 @@ export function runNativeSweep(kind: NativeSweepKind | string): Promise<NativeSw
     metrics.count('sweeps.bridge.invalid_kind');
     return Promise.resolve(emptyRun('sweepDead', { reason: 'invalid_kind', error: 'tipo de varredura inválido' }));
   }
-  if (!available()) {
+  if (!destructiveToken()) {
+    // Configuração ausente: nada de fetch e nada de backoff (não é falha de rede).
+    metrics.count('sweeps.bridge.no_admin_token');
     return Promise.resolve(emptyRun(target, {
-      reason: 'bridge-backoff', error: 'ponte com as varreduras nativas em espera depois de falhas seguidas',
+      reason: 'missing_admin_token',
+      error: 'varredura destrutiva exige STREAM_STORE_ADMIN_TOKEN no gateway: o token de diagnóstico não apaga magnet',
     }));
+  }
+  if (!available()) {
+    return Promise.resolve(emptyRun(target, { reason: 'bridge-backoff', error: 'ponte com as varreduras nativas em espera depois de falhas seguidas' }));
   }
   return track((async () => {
     try {
       const res = await request('/sweeps/run', {
         body: { kind: target, confirm: true },
         timeoutMs: settings().sweepTimeoutMs,
+        token: destructiveToken(),
       });
       const body = asRecord(res.body);
       const reason = String(body.reason || '');
@@ -326,23 +332,17 @@ export function runNativeSweep(kind: NativeSweepKind | string): Promise<NativeSw
         noteSuccess();
         if (reason === 'reentered' || body.running === true) {
           metrics.count('sweeps.bridge.busy');
-          return emptyRun(target, {
-            busy: true, reason: 'reentered', error: 'outra varredura nativa está em voo; acompanhe o status',
-          });
+          return emptyRun(target, { busy: true, reason: 'reentered', error: 'outra varredura nativa está em voo; acompanhe o status' });
         }
         metrics.count(`sweeps.bridge.disabled.${reason || 'unknown'}`);
-        return emptyRun(target, {
-          reason: reason || 'sweeps_disabled', error: String(body.error || 'varreduras nativas desligadas no gateway'),
-        });
+        return emptyRun(target, { reason: reason || 'sweeps_disabled', error: String(body.error || 'varreduras nativas desligadas no gateway') });
       }
       if (res.status === 503) {
         // Sem conta do operador ou sem cliente HTTP no gateway: a ponte fica
         // doente de verdade (não é recusa de modo).
         noteFailure('run');
         metrics.count('sweeps.bridge.unavailable');
-        return emptyRun(target, {
-          reason: reason || 'sweeps_unavailable', error: String(body.error || 'varreduras nativas indisponíveis no gateway'),
-        });
+        return emptyRun(target, { reason: reason || 'sweeps_unavailable', error: String(body.error || 'varreduras nativas indisponíveis no gateway') });
       }
       metrics.count('sweeps.bridge.rejected');
       log.warn(`[sweeps] varredura nativa recusada: HTTP ${res.status} (${reason || 'sem motivo'})`);
@@ -358,9 +358,7 @@ export function runNativeSweep(kind: NativeSweepKind | string): Promise<NativeSw
       }
       noteFailure('run');
       log.warn(`[sweeps] varredura nativa falhou: ${log.errorMessage(err)}`);
-      return emptyRun(target, {
-        reason: 'bridge-error', error: 'falha de rede falando com as varreduras nativas do gateway',
-      });
+      return emptyRun(target, { reason: 'bridge-error', error: 'falha de rede falando com as varreduras nativas do gateway' });
     }
   })());
 }
