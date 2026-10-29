@@ -1179,7 +1179,9 @@ sustentam isso:
   voo é preemptado. A sonda delega o cooldown ao gate. Motivo: o RD tem teto de
   250 req/min e bruteforce = bloqueio por tempo indefinido — é o serviço onde
   rajada de escrita é mais cara. Kill-switch: `DEBRID_RD_GATE=false` restaura o
-  fluxo anterior (inclusive gap/cooldown locais da sonda).
+  fluxo anterior (inclusive gap/cooldown locais da sonda). **Fase 2 fatia 2**:
+  este arquivo sai do TS e o gate nativo (`RdGateExecutor`, o mesmo do warmer e
+  do autofetch) assume — ver o registro do warmer RD.
 - **`rd-ledger.ts` — ledger global e durável, sem escopo de conta.** O CDN do
   RD pertence ao SERVIÇO, não à conta que observou o resultado, então a chave
   `rdc:v2:<hash>` não leva `apiKey` nem `accountScope` — uma confirmação de uma
@@ -1231,6 +1233,50 @@ ledger cobriu o top-N (`debridKnown: true`), `streamsNeedRevalidation` devolve
 cada reabertura. Os três kill-switches juntos (`DEBRID_RD_GATE` /
 `DEBRID_RD_LEDGER` / `DEBRID_RD_ORACLE`) derrubam a paridade e devolvem o RD ao
 comportamento honesto de "não sei".
+
+**Warmer do Real-Debrid: o dono é o gateway (Fase 1, `4b640cbb`; fatia 1 da
+Fase 2, `b5b2fb8e`, 2026-10-29).** `src/providers/rd-warmer.ts` e
+`harvest-warmer.ts` saíram; `rdWarmer.start()`/timer local não existem e o kind
+`rd_warmer` é `nativeOnly` em `internal-search-effects.ts` (aceito na forma,
+somado em `nativeOnly`, sem executor; o lote sai com um `warn`). Quem aquece é
+`rust/crates/adom-server/src/rd_warmer*.rs`: a régua do enqueue (score 80/40/5,
+melhor score por hash, top-10 por efeito, descarte pelo ledger `rdc:v2`, teto
+`DEBRID_RD_WARM_QUEUE_MAX`), a fila `rdq:v1:wq` e a quota `rdq:v1:hour` no
+`NativeKv` (relidas no boot), o intent/posse duráveis
+`rdq:v1:uncertain:<conta>:<hash>`/`rdq:v1:owned:<conta>:<hash>`, o tick ocioso,
+a sonda e o magnetdb (`mag:v1`: pula `bad`, `mark_alive` no hit e
+`scanBlockedRdBads` no boot — `bad` de recusa legal 451 não é magnet quebrado).
+O tick só trabalha fora do tráfego: o `stream_traffic` é o `AtomicI64` escrito
+pelo `dispatch` do `/stream`, com `DEBRID_RD_WARM_IDLE_WINDOW_MS` e
+`DEBRID_RD_WARM_INTERVAL_MS`. O gate AIMD é o `RdGateExecutor` de
+`autofetch::shared_gate()` — a MESMA instância do worker do Chupim (dois
+serializadores fariam o AIMD mentir sobre gap/cooldown); `DEBRID_RD_GATE*` é
+lido pelo Rust.
+
+**Contrato da admin (`127.0.0.1:8711`, token no header).** `GET /rd-warm`:
+fila, quota, pausa, `accountSource` e contadores; responde **200** mesmo
+desligado (`enabled:false` + `reason:"disabled"`) e nunca faz I/O na conta.
+`POST /rd-warm/pause|resume|drain`: exige a credencial DESTRUTIVA
+(`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`) — sem ela 409, com a de
+diagnóstico 403, warmer desligado 409 — e o dreno ainda exige
+`{"confirm":true}` (`max` 1..500 é o teto da rodada; a resposta é
+`{ok, processed, queueRemaining}`). **Credencial do operador**: cofre em RAM por
+escopo (TTL 6 h), painel (`cfg:v1:harvesterDebrid`, selo aberto por
+`adom_core::unseal_dk` com `RESOLVE_SECRET`; painel com outro serviço DESLIGA o
+warm e não cai no `.env`) ou `.env`
+(`DEBRID_ALLOW_ENV_KEY`/`DEBRID_OPERATOR_ENV_ACCOUNT`). A chave nunca vai a log
+nem ao status.
+
+**O que ficou no Node.** Só a ponte `src/utils/rd-warm-native.ts`: `GET` aceita
+o token próprio ou o de diagnóstico, `POST` só o destrutivo, poll de 30 s e
+espelho síncrono para o painel (`warm-pause`/`warm-resume`/`warm-drain` em
+`dashboard-actions.ts`) e o `/debrid-status.json` (`rd.warm` com
+`source:'rust'`). Sem snapshot as ações devolvem `reason:'native-unavailable'`
+— não há fallback local, porque dois donos da mesma fila sondariam a mesma
+conta. **`rd-ledger.ts` fica** por enquanto (efeito do play, cobertura BR e o
+`checkCached` do diagnóstico). A **Fase 2 fatia 2** é o corte de `rd-gate.ts` e
+`realdebrid-play.ts`: play, checagem e conta do RD são nativos, e os testes TS
+do assunto vão para o oráculo `E:/adom-esm`.
 
 Resolução acontece **só no play** (rota `/resolve`), nunca na listagem: é uma
 sequência de chamadas por torrent e não caberia no orçamento de busca. A
@@ -1902,10 +1948,11 @@ AllDebrid (`alldebrid-fallback-evict.ts`) saíram de `src/`;
 de `alldebrid.ts`. O método opcional do `DebridAdapter` fica **sem
 implementação de propósito**: `autofetch-evict.ts` lê a ausência e não tenta
 outra via, então nada é apagado por omissão. A ponte
-`/internal/search/effects` ficou com dois kinds EXECUTADOS, `rd_warmer` e
-`harvester_enqueue`; os três de trabalho (`autofetch_batch`, `br_probe`,
-`season_key`) são aceitos na forma e somados em `nativeOnly`, sem executor do
-outro lado (`internal-search-effects.ts:50-52`, `:148-151`).
+`/internal/search/effects` ficou com UM kind EXECUTADO, `harvester_enqueue`
+(`rd_warmer` foi para o gateway na fatia 1 da Fase 2); `rd_warmer` e os três de
+trabalho (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e
+somados em `nativeOnly`, sem executor do outro lado
+(`internal-search-effects.ts:51-53`, `:147-149`).
 
 Por que o corte pôde ser feito: o `docker-compose.yml` traz
 `AUTOFETCH_WORKER: "${AUTOFETCH_WORKER:-on}"` (o `.env` da VPS vence) e o laço nativo despacha os três
@@ -2007,6 +2054,9 @@ com o cache por título do Torrentio (`rdc:v1:trt:...`) e com a fila do warmer
 - **`rdq:v1:wq`, fila persistente do warmer.** Uma única chave que carrega o
   array de trabalho pendente. Isolado do ledger porque a fila não é histórico
   reconstructivo — é estado vivo; o bump do `rdc` tem que sobreviver ao contrário.
+  Desde a Fase 1 (`4b640cbb`) o namespace `rdq` inteiro é `RUST_OWNED` e ganhou
+  irmãs: `rdq:v1:hour` é a quota e `rdq:v1:uncertain|owned` são o intent/posse
+  duráveis do warmer nativo — ver o registro na seção de debrid.
 
 O bump de `rdc` v1→v2 (via `cache-keys.ts`, `NAMESPACE_VERSIONS`) executa uma
 limpeza **one-shot e idempotente** no boot: descarrega, numa única passada,
@@ -3249,7 +3299,7 @@ fire-and-forget) continua.
 | ~~`src/providers/magnet-bank-instant.ts`~~ | **Removido no R4.** Instantânea/reserva 📦 e a leitura do índice são nativas (`adom-search/orchestrator/fast_path.rs`, `index_source.rs`, `native_index.rs`) |
 | `test/helpers/pipeline-oracle/{debrid-instant-steps,episode-size,debrid-apply-types}.ts` | Etapas de debrid do pipeline congelado (complemento de ⚡ sem `cacheCheck`, anotação de tamanho, tipos do `applyDebrid`) — saíram de `src/providers/` em 2026-10-28: só o oráculo as consome desde a B4. O `dub-audit.ts` de produção saiu na T3-L7a (nativo em `adom-server/src/dub_audit.rs`) |
 | ~~`search-cache`/`search-orchestrator`/`stream-builder*`/`debrid-pipeline*`~~ | **Removidos no F4.4.** `applyDebrid`/`play-guard` vivem em `test/helpers/pipeline-oracle/` como oráculo congelado; a decisão de produção é do núcleo Rust |
-| ~~`src/providers/autofetch-{runner,candidates,batch,drain,recheck,settle,expired,terminal,index,lot-state,progress,season-index,seeds-pool,policy,gates,fallback}.ts`~~ | **Removidos na B4.** Cascata, fila, recheck, settle, pools, portões e sonda são do worker nativo (`adom-server/src/autofetch/`); a ponte `/internal/search/effects` ficou com `rd_warmer` e `harvester_enqueue`. Ver "Corte do TS do Chupim" |
+| ~~`src/providers/autofetch-{runner,candidates,batch,drain,recheck,settle,expired,terminal,index,lot-state,progress,season-index,seeds-pool,policy,gates,fallback}.ts`~~ | **Removidos na B4.** Cascata, fila, recheck, settle, pools, portões e sonda são do worker nativo (`adom-server/src/autofetch/`); a ponte `/internal/search/effects` ficou só com `harvester_enqueue` (o `rd_warmer` foi para o gateway na Fase 2 fatia 1). Ver "Corte do TS do Chupim" |
 | ~~`src/providers/br-probe.ts`~~ / ~~`src/debrid/alldebrid-fallback-evict.ts`~~ | **Removidos na B4.** A sonda é `autofetch/probe_job.rs` (`Job.kind = br_probe`) e a evicção de fallback é o passo nativo `evict_job.rs` |
 | `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
 | `src/providers/autofetch-evict.ts` | **Só leitura da prova** BR-ready (`autofetch:v3:er:<digest>`), via `hasBrReady`, para o painel. A política e o executor saíram na B4 (passo nativo `evict_job.rs` + régua `evict_step.rs`, com os testes em `evict_job_tests*.rs`); o `adapter.evictFallbacks` ficou sem implementação de propósito, nada é apagado por omissão |

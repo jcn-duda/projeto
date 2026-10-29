@@ -226,7 +226,7 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
-painel/config e as pontes do Chupim (os efeitos ficaram só com `rd_warmer` e
+painel/config e as pontes do Chupim (os efeitos ficaram só com
 `harvester_enqueue`; o crawl é do sidecar).
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
@@ -330,9 +330,28 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   o `audioForChip` do `toStremioStream`); o título sozinho é `dub_claim`.
   Série no Rust tem o fallback de pack e o pack tardio do TS
   (`orchestrator/pack.rs`, `SEARCH_PACK_TAIL`): fonte BR só publica pack.
-- **Real-Debrid**: `rd-gate` (escrita serial, AIMD), `rd-ledger` (`rdc:v2`,
-  global, miss nunca condena), `rd-oracle` (StremThru/Torrentio opt-in). Três
-  kill-switches `DEBRID_RD_GATE/LEDGER/ORACLE`.
+- **Real-Debrid**: `rd-ledger` (`rdc:v2`, global, miss nunca condena),
+  `rd-oracle` (StremThru/Torrentio opt-in). O gate AIMD de escrita é NATIVO
+  (`RdGateExecutor`, `DEBRID_RD_GATE*` lidos pelo Rust) e é o MESMO do
+  autofetch (`shared_gate`). "Fase 2 fatia 2" é o corte de
+  `rd-gate`/`realdebrid-play` no TS (play, checagem e conta do RD nativos), e
+  `rd-ledger` fica no Node por enquanto. Kill-switches
+  `DEBRID_RD_GATE/LEDGER/ORACLE`.
+- **Warmer RD é NATIVO** (`4b640cbb`, Fase 1): quem aquece é o gateway
+  (`rust/crates/adom-server/src/rd_warmer*`). Fila/quota em `rdq:v1:wq`/
+  `rdq:v1:hour` (namespace `rdq` `RUST_OWNED`, relido no boot) e intent/posse
+  duráveis em `rdq:v1:uncertain|owned`; o tick respeita
+  `DEBRID_RD_WARM_INTERVAL_MS`/`_IDLE_WINDOW_MS` e o `stream_traffic` do
+  `/stream`; o gate é o `shared_gate` do autofetch; o magnetdb nativo pula
+  `bad`, marca `alive` e desfaz o `bad` de recusa legal (451). Credencial do
+  operador: `.env` (`DEBRID_ALLOW_ENV_KEY`/`DEBRID_OPERATOR_ENV_ACCOUNT`) ou
+  painel (`cfg:v1:harvesterDebrid`, selado com `RESOLVE_SECRET`,
+  `adom_core::unseal_dk`). Admin `127.0.0.1:8711`: `GET /rd-warm` e
+  `POST /rd-warm/pause|resume|drain` (token destrutivo; dreno com `confirm`).
+  Desde `b5b2fb8e` (Fase 2 fatia 1) o Node só tem a ponte
+  `src/utils/rd-warm-native.ts` (painel e `/debrid-status.json`): sem snapshot
+  `rd.warm` é `null` e as ações devolvem `native-unavailable` — não há warmer
+  local nem `rdWarmer.start()`.
 - **Autofetch (Chupim)**: baixa dublado BR quando nada tocável está em cache;
   pools `br > any > seeds`, cobertura por qualidade-alvo, teto por obra,
   recheck com detecção de torrent morto, fila persistente, sonda dirigida
@@ -370,8 +389,8 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   Kind desconhecido vira `Skip("unknown-kind")` — não volta ao Node.
 - **O corpo TS do Chupim SAIU** (leva B4, 2026-10-28), como antes o dos
   resolvers e o do raspador. Em `src/providers/` o assunto virou **ponte e
-  painel**: `autofetch.ts` (encolhido — reindexação no boot, `markerActive` do
-  `rd-warmer`, `isDeadQuiet` do trace), `autofetch-obra*` (registro F2: o aceite
+  painel**: `autofetch.ts` (encolhido — reindexação no boot, `markerActive` de
+  `autofetch-marker.ts`, `isDeadQuiet` do trace), `autofetch-obra*` (registro F2: o aceite
   NATIVO grava e o Node lê no resumo do painel), `autofetch-marker.ts` (chave,
   valor e `forget` do marker — a gravação de produção é do aceite nativo),
   `autofetch-gate.ts`,
@@ -382,8 +401,8 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   desde o corte**: os dois anéis ficam vazios, os números do laço vêm do
   worker nativo pela admin 8711) e
   as pontes (`utils/autofetch-native.ts`, `autofetch-state-native.ts`,
-  `rust-autofetch.ts`). A rota `/internal/search/effects` ficou com **dois**
-  kinds executados, `rd_warmer` e `harvester_enqueue`; os três de trabalho
+  `rust-autofetch.ts`). A rota `/internal/search/effects` ficou com **um** kind
+  executado, `harvester_enqueue`; `rd_warmer` e os três de trabalho
   (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e somados
   em `nativeOnly`, sem executor do outro lado.
 - **Ainda é do Node**: `adsub`/`adprot` (marcas de posse e de retenção que o
@@ -418,7 +437,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   namespace inteiro (o escritor TS do Jackett saiu; `cache.clear()` e
   `clearNamespace('raw')` chamam o Rust) e o `harvest` segue por prefixo; o Node
   lê o `raw` pela ponte napi (`raw-store-native.ts`, diagnóstico) e o `harvest`
-  pela admin do gateway.
+  pela admin do gateway. O `rdq` (fila/quota do warmer RD) entrou inteiro no
+  `RUST_OWNED` na Fase 1 do warmer: `rdq:v1:wq`/`rdq:v1:hour` e o intent
+  `rdq:v1:uncertain|owned` são do Rust, e o Node não grava `rdq` no L1/SQLite.
 - **`idx:v14` tem um dono só (o Rust).** O Node acessa por `IdxStore` (napi síncrono, `src/utils/release-index-store.ts`) e não grava o `idx:` no L1 nem no SQLite. O boot não carrega nem apaga linhas `idx`; `cache.clear()` e `clearNamespace('idx')` chamam o Rust. Não há `INDEX_OWNER=node`: rollback = commit/imagem anterior. Diagnóstico de chave exata: `idxHasKey` (no TS) e `hasKey` (napi).
 - **KV de estado Rust-owned: `NativeKv`** (tabela `cache` do mesmo
   `data/cache.db`): store em `rust/crates/adom-index/src/kv.rs`, binding napi na
@@ -597,7 +618,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
-| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710) |
+| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
