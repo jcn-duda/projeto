@@ -6,12 +6,14 @@
 
 mod davail_state;
 pub mod kv;
+mod magnet_meta;
 mod magnet_state;
 mod raw;
 mod release_index;
 
 pub use davail_state::{davail_key, DavailAnswer, DavailStore, DavailSweep};
 pub use kv::NativeKv;
+pub use magnet_meta::{MagMetaCounts, MagMetaSums, MagMetaTotals, MAG_META_VERSION};
 pub use magnet_state::{
     magnet_key, MagCount, MagEntry, MagPage, MagSweep, MagnetMark, MagnetState, MagnetStateStore,
 };

@@ -38,10 +38,6 @@ function queueKey(searchKey: string) {
   return queueCore().autofetchV3QueueKey(String(searchKey || ''));
 }
 
-function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
-  // Sem escritor em produção: só `test/autofetch-queue.test.ts` chama (E+1 aposentado na B4).
-  return `${prefix('autofetch')}pf:${account}:${id}:${s}:${e}`;
-}
 
 /** Trava só enquanto a API responde: gravar antes do aceite dava 6h de falso positivo. */
 function acquire(key: string) {
@@ -386,7 +382,7 @@ function snapshot() {
 }
 
 export {
-  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker, deadKey, queueKey, prefetchKey,
+  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker, deadKey, queueKey,
   acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
   isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
   checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,

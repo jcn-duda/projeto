@@ -6,8 +6,14 @@
 //
 // O dono das linhas `mag:v1` é o núcleo Rust: escrita e leitura vão pela ponte
 // (`debrid-state-native.ts`), então nem a gravação nem a poda passam pelo cache
-// do Node. O que sobra para cá é o AGREGADO — o único dado que este processo
-// ainda é dono — e o decremento, que a varredura nativa devolve por lado.
+// do Node. O AGREGADO (`mag_meta:v1:counts`) seguiu o mesmo caminho nesta leva:
+// ele é DERIVADO do acervo, e enquanto o Node o gravava por `cache.set` havia
+// dois escritores de opinião sobre o mesmo dado — com uma janela extra, porque o
+// `cache.set` só despeja no SQLite no `setImmediate` seguinte. Hoje quem grava e
+// lê é o `MagnetStateStore` (`counts`/`putCounts`), no mesmo handle e na mesma
+// tabela `cache` do `cache.db`. O que sobra para cá é a POLÍTICA: quando
+// reconstruir, quando restaurar e o decremento que a varredura nativa devolve
+// por lado.
 //
 // `ttlRemainingBasis` resolve uma ambiguidade do diagnóstico: a soma de TTL
 // restante pode vir de dois lugares com precisão diferente. O rebuild pela
@@ -17,12 +23,17 @@
 // mostrando para não chamar de precisa uma média que envelhece.
 import config from '../config.js';
 import * as cache from './cache.js';
-import { magMetaCountsKey } from './cache-keys.js';
 import { QUOTAS } from './cache-quotas.js';
-import { davailState, magnetState, type MagCount, type MagnetSide } from './debrid-state-native.js';
+import {
+  davailState, magnetState, type MagCount, type MagMetaPayload, type MagnetSide,
+} from './debrid-state-native.js';
 import { emptyAdapterTotals, type AdapterTotals } from './magnetdb-counts.js';
 
-export type PersistentCountsPayload = { version: 1; updatedAt: number; adapters: Record<string, AdapterTotals> };
+/**
+ * Forma do valor em `mag_meta:v1:counts` — a MESMA que o núcleo grava. O alias
+ * fica porque o nome descreve o PAPEL (payload persistido), não o transporte.
+ */
+export type PersistentCountsPayload = MagMetaPayload;
 
 /**
  * Procedência da soma de TTL restante exposta no status:
@@ -67,8 +78,10 @@ export function savePersistentCounts() {
       adapters[id] = { alive: totals.alive, bad: totals.bad, lie: totals.lie, ttlRemainingSums: { ...totals.ttlRemainingSums } };
     }
   }
-  const payload: PersistentCountsPayload = { version: 1, updatedAt: Date.now(), adapters };
-  cache.set(magMetaCountsKey(), payload, Math.max(config.magnetDb.aliveTtl, 7 * 86400));
+  // Gravação SÍNCRONA pelo dono do acervo, no MESMO `cache.db`: o núcleo carimba
+  // `updatedAt` com o `Date.now()` recebido e mantém `ttlRemainingSums` por lado.
+  // Nada de `cache.set` aqui — seria o segundo escritor que esta leva removeu.
+  magnetState().putCounts(adapters, Math.max(config.magnetDb.aliveTtl, 7 * 86400), Date.now());
 }
 
 export function schedulePersistentSave() {
@@ -152,7 +165,10 @@ function adoptRebuild() {
 export function loadPersistentCounts() {
   const l1Entries = magnetState().liveCount(Date.now());
   if (l1Entries === 0) { adapterCounts.clear(); return; }
-  const raw = cache.peek(magMetaCountsKey()) as PersistentCountsPayload | null;
+  // Leitura pela ponte: o núcleo devolve `null` para ausente, vencido, versão
+  // desconhecida ou estrutura torta — o fail-closed mora lá. O guarda de forma
+  // continua porque o handle pode ser um dublê injetado por teste.
+  const raw = magnetState().counts(Date.now()) as PersistentCountsPayload | null;
   adapterCounts.clear();
   // Versão/estrutura estranha conta como agregado ausente: com o namespace
   // cheio o dado verdadeiro está nas linhas, não num payload que este processo

@@ -132,13 +132,6 @@ test('canAutoFetchBr aceita tanto cacheCheck quanto autofetchSource (RD/DL)', ()
   assert.equal(canAutoFetchBr({ autoFetchBr: false }, mockRealDebrid), false);
 });
 
-test('prefetchKey formata chave única por conta, imdbId, temporada e episódio', () => {
-  const k1 = autofetch.prefetchKey('user_acc', 'tt0903747', 1, 2);
-  const k2 = autofetch.prefetchKey('user_acc', 'tt0903747', 1, 3);
-  assert.equal(k1.startsWith('autofetch:v3:pf:user_acc:tt0903747:1:2'), true);
-  assert.notEqual(k1, k2);
-});
-
 test('gate de ocupação: fail-open, memo, trava anti-duplicação e flag 0', async () => {
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const originalRefreshMs = config.debrid.autoFetchPauseRefreshMs;

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import { isSupportedHash } from '../src/utils/magnetdb-counts.js';
 import {
-  NAMESPACE_VERSIONS, RUST_OWNED, RUST_OWNED_PREFIXES, isForeignKey, isRustOwned, prefix,
+  AUTOFETCH_NATIVE_PREFIXES, NAMESPACE_VERSIONS, RUST_OWNED, RUST_OWNED_PREFIXES, isForeignKey, isRustOwned, prefix,
 } from '../src/utils/cache-keys.js';
 
 let hasNodeSqlite = true;
@@ -39,14 +39,16 @@ const root = fs.existsSync(path.join(here, '..', 'src', 'utils', 'cache.ts'))
   : path.join(here, '..', '..');
 
 test('RUST_OWNED cobre os namespaces da Definição de Pronto (núcleo dono único)', () => {
-  // §9 do plano de fechamento: `idx`, `streams`, `raw`, `davail`, `mag`, `adsub`,
-  // `adrm`, `adprot`, `harvest` — a lista é a fonte, o teste é a catraca.
-  // Fora ficam `mag_meta` e `autofetch`, presos no teste de lacunas abaixo.
-  for (const ns of ['idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adrm', 'adprot', 'harvest']) {
+  // §9 do plano de fechamento: `idx`, `streams`, `raw`, `davail`, `mag`,
+  // `mag_meta`, `adsub`, `adrm`, `adprot`, `harvest`, `autofetch` — a lista é a
+  // fonte, o teste é a catraca. `autofetch` fechou na L6 (ver o caso do fim).
+  for (const ns of [
+    'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adrm', 'adprot', 'harvest', 'autofetch',
+  ]) {
     assert.ok(RUST_OWNED.includes(ns), `${ns} é dono único do núcleo`);
     assert.equal(isRustOwned(ns), true, `isRustOwned reconhece ${ns}`);
   }
-  for (const owned of [prefix('harvest'), prefix('davail'), prefix('mag')]) {
+  for (const owned of [prefix('harvest'), prefix('davail'), prefix('mag'), prefix('mag_meta')]) {
     assert.ok(
       RUST_OWNED_PREFIXES.includes(owned),
       `${owned} bloqueia a leitura do L1 (sem o prefixo, o get devolveria o L1 vazio em vez da ponte)`,
@@ -173,28 +175,38 @@ test('guarda genérica: nenhum namespace de RUST_OWNED aceita escrita do Node no
   }
 });
 
-// Lacunas da Definição de Pronto, DECLARADAS e não esquecidas. Cada `assert`
-// abaixo é um freio: quem for marcar o namespace tem que fechar a origem no Rust
-// (e apagar/atualizar o caso), não só editar a lista.
-test('lacunas da Definição de Pronto: mag_meta e autofetch estão fora por falta de dono Rust', async () => {
-  // `mag_meta`: o agregado do MagnetDB só tem escritor TS (`magnetdb-persist.ts`
-  // grava `mag_meta:v1:counts` por `cache.set` e lê por `cache.peek`). Marcar
-  // aqui faria o `set` virar no-op e o agregado morreria em silêncio.
-  assert.equal(RUST_OWNED.includes('mag_meta'), false, 'mag_meta só entra com escritor no núcleo');
-  assert.equal(RUST_OWNED_PREFIXES.includes(prefix('mag_meta')), false, 'mag_meta ainda é lido do L1 pelo Node');
-  // `autofetch`: `sup:` tem escritor VIVO no Node (`cache.set` em
-  // `autofetch-suppressed.ts`, espelho do KV nativo). O namespace inteiro só
-  // entra em `RUST_OWNED` depois de `sup:` migrar para a ponte.
-  assert.equal(RUST_OWNED.includes('autofetch'), false, 'autofetch inteiro exige migrar sup:/pf: para a ponte');
+// Definição de Pronto FECHADA (L6): `autofetch` entrou pelo namespace INTEIRO.
+// Quem for tirar isso precisa fechar antes a origem nativa do sub-namespace,
+// não só editar a lista.
+test('autofetch inteiro é do núcleo: pf: e probe: também são estrangeiros no L1', async () => {
+  // `mag_meta` FECHOU (L6): o agregado do MagnetDB é gravado e lido pelo
+  // `MagnetStateStore` (`putCounts`/`counts` em `magnet_meta.rs`) e o Node só
+  // chega lá pela ponte.
+  // `autofetch` FECHOU (L6) pelos dois últimos resíduos: `probe:` (a sonda é
+  // 100% nativa desde a B4, `probe_step.rs`) e `pf:` (prefetch aposentado; o
+  // construtor `prefetchKey` saiu do TS e o formato segue provado em
+  // `v3::prefetch_key` + `v3_tests`). `sup:` já estava nos prefixos nativos.
+  assert.equal(RUST_OWNED.includes('autofetch'), true, 'autofetch inteiro é do núcleo');
+  assert.equal(isRustOwned('autofetch'), true, 'isRustOwned reconhece autofetch');
+  const supPrefix = `${prefix('autofetch')}sup:`;
+  assert.ok(AUTOFETCH_NATIVE_PREFIXES.includes(supPrefix), 'sup: segue nos prefixos nativos');
+  assert.equal(isForeignKey(`${supPrefix}alldebrid:conta:${'a'.repeat(40)}`), true, 'sup: bloqueia L1');
 
   const savedPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
-    const cache = await openCache('owned-supp');
-    const supKey = `${prefix('autofetch')}sup:alldebrid:conta:${'a'.repeat(40)}`;
-    cache.set(supKey, { id: '1', at: 1, fails: 0, nextAt: 0 }, 600);
-    assert.equal(cache.has(supKey), true, 'sup: continua no L1 do Node — marcá-lo deixaria a escrita no-op');
-    cache.forget(supKey);
+    const cache = await openCache('owned-autofetch');
+    const chaves = [
+      `${supPrefix}alldebrid:conta:${'a'.repeat(40)}`,
+      `${prefix('autofetch')}pf:conta:tt0903747:1:2`,
+      `${prefix('autofetch')}probe:${'b'.repeat(64)}`,
+    ];
+    for (const chave of chaves) {
+      cache.set(chave, { id: '1', at: 1 }, 600);
+      assert.equal(cache.has(chave), false, `${chave}: não nasce no L1 — a escrita é do núcleo`);
+      assert.equal(cache.peek(chave), null, `${chave}: nem a leitura quieta o enxerga`);
+      cache.forget(chave);
+    }
   } finally {
     if (savedPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = savedPersist;

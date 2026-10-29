@@ -335,7 +335,8 @@ test('cache.set de chave de obra (o:) não entra no L1: o registro é do KV nati
     const cache = await freshCache();
     const obraPrefix = `${prefix('autofetch')}o:`;
     const key = `${obraPrefix}${'a'.repeat(64)}`;
-    // O registro F2 nasce na ponte (`autofetch-obra-state.ts`). `o:` entrou em
+    // O registro F2 nasce no núcleo (`enqueue_obra.rs`; a família TS `obra`
+    // saiu na L6). `o:` entrou em
     // `AUTOFETCH_NATIVE_PREFIXES` porque o Node gravava a MESMA linha no L1 e o
     // `forget` dele podia apagar a linha fresca do nativo: quem lê (a evicção)
     // podia ver registro mais velho que o commit nativo. Dono único = nativo.

@@ -313,7 +313,8 @@ export const debrid = () => ({
     queueMax: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_QUEUE_MAX, 5000))),
   },
   // Prefetch do próximo episódio (E+1) APOSENTADO na B4: o knob não tinha leitor
-  // algum (nem TS, nem Rust) e `prefetchKey` só tem chamador de teste. Não
+  // algum (nem TS, nem Rust) e o construtor de chave `prefetchKey` saiu do Node
+  // na L6 (o formato segue provado em `adom-autofetch::v3::prefetch_key`). Não
   // reintroduzir `DEBRID_PREFETCH_NEXT_EP`/`DEBRID_PREFETCH_TTL` sem escritor.
   // A conta como fonte de busca: o que já está pronto no debrid entra com ⚡
   // sem depender de indexer — inclusive pack de franquia que o casamento

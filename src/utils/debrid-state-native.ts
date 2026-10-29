@@ -1,9 +1,16 @@
 /**
  * Handles do ESTADO de debrid no núcleo Rust (`adom-index`): o ⚡ de
- * disponibilidade por hash (`davail:v1:<adapter>:<conta>:<hash>`, valor `1`/`0`)
- * e o banco de magnets (`mag:v1:<alive|bad|lie>:<adapter>:<conta>:<hash>`).
- * Os dois moram no MESMO `data/cache.db` que o Node e o gateway usam — aqui só
+ * disponibilidade por hash (`davail:v1:<adapter>:<conta>:<hash>`, valor `1`/`0`),
+ * o banco de magnets (`mag:v1:<alive|bad|lie>:<adapter>:<conta>:<hash>`) e o
+ * AGREGADO durável desse banco (`mag_meta:v1:counts`, `counts`/`putCounts`).
+ * Os três moram no MESMO `data/cache.db` que o Node e o gateway usam — aqui só
  * se abre o handle, como no `raw-store-native.ts`.
+ *
+ * O agregado entrou nesta ponte porque é DERIVADO do acervo: enquanto o Node o
+ * gravava por `cache.set`, o mesmo dado tinha dois escritores de opinião (e uma
+ * janela de desencontro, já que o `cache.set` só despeja no SQLite no
+ * `setImmediate` seguinte). Agora escrita e leitura passam pelo MESMO handle que
+ * grava as linhas contadas.
  *
  * A regra é do Rust: TTL (positivo e negativo têm janelas próprias; `ttlSeconds
  * <= 0` DESLIGA a janela e o store NÃO grava nada — a mesma regra do
@@ -68,6 +75,43 @@ export type SweepRemoval = {
 /** O que a varredura removeu do `davail` (sem contadores por lado). */
 export type DavailSweep = { expired: number; evicted: number };
 
+/** Soma dos segundos restantes por lado (`ttlRemainingSums` do agregado). */
+export type MagMetaSums = { alive: number; bad: number; lie: number };
+
+/** Contagem + TTL restante somado de um adapter no agregado. */
+export type MagMetaTotals = {
+  alive: number;
+  bad: number;
+  lie: number;
+  ttlRemainingSums: MagMetaSums;
+};
+
+/**
+ * `mag_meta:v1:counts` como o núcleo grava: a MESMA forma que o Node lia (o
+ * `cache.db` herdado continua valendo). `version` só existe como 1 — payload de
+ * outra versão o núcleo devolve como ausente, não como dado parcial.
+ */
+export type MagMetaPayload = {
+  version: 1;
+  /** Carimbo da gravação (`updatedAt`): base do envelhecimento da soma de TTL. */
+  updatedAt: number;
+  adapters: Record<string, MagMetaTotals>;
+};
+
+/** Linha do agregado na fronteira napi: uma por adapter, sem aninhar objeto. */
+type MagMetaRow = {
+  adapter: string;
+  alive: number;
+  bad: number;
+  lie: number;
+  ttlAlive: number;
+  ttlBad: number;
+  ttlLie: number;
+};
+
+/** O agregado cru como o `.node` devolve (`adapters` em array, não Record). */
+type MagMetaRaw = { version: number; updatedAt: number; adapters: MagMetaRow[] };
+
 export type DavailStateHandle = {
   /** `true`/`false` = evidência medida; `null` = ausente (não é "frio"). */
   get(adapter: string, apiKey: string, hash: string, nowMs: number): boolean | null;
@@ -118,6 +162,28 @@ export type MagnetStateHandle = {
   clear(): number;
   /** Apaga vencidas e, acima de `maxEntries`, as mais antigas por escrita. */
   sweep(maxEntries: number, nowMs: number): SweepRemoval;
+  /**
+   * Agregado durável (`mag_meta:v1:counts`); `null` = ausente, vencido ou
+   * ilegível. Quem lê reconta o acervo (`summary`) — nunca inventa contagem.
+   */
+  counts(nowMs: number): MagMetaPayload | null;
+  /**
+   * Grava o agregado com `updatedAt = nowMs` (o núcleo não aceita carimbo do
+   * chamador). `ttlSeconds <= 0` = sem expiração.
+   */
+  putCounts(adapters: Record<string, MagMetaTotals>, ttlSeconds: number, nowMs: number): void;
+  /** Apaga SÓ o agregado; `true` = havia o que apagar (idempotente). */
+  forgetCounts(): boolean;
+};
+
+/**
+ * O que o `.node` expõe antes da normalização: `counts` devolve `adapters` em
+ * ARRAY e `putCounts` recebe array — a forma plana da fronteira. O resto da
+ * classe é idêntico (a tipagem estrutural não sabe onde o método foi gerado).
+ */
+type MagnetStateNapi = Omit<MagnetStateHandle, 'counts' | 'putCounts'> & {
+  counts(nowMs: number): MagMetaRaw | null;
+  putCounts(adapters: MagMetaRow[], ttlSeconds: number, nowMs: number): void;
 };
 
 /** Construtor exportado pelo `.node`; todas as classes nativas abrem por caminho. */
@@ -130,7 +196,7 @@ type NativeClass<T> = new (dbPath: string) => T;
  */
 type DebridStateCore = {
   DavailState?: NativeClass<DavailStateHandle>;
-  MagnetStateStore?: NativeClass<MagnetStateHandle>;
+  MagnetStateStore?: NativeClass<MagnetStateNapi>;
 };
 
 const MISSING_HINT = 'recarregue o .node (cargo build -p adom-napi --release em rust/ e npm run build)';
@@ -150,7 +216,7 @@ function missing(className: string): Error {
  * ponte promete `null`. Sem isto, `stateSnapshot` de um hash sem marca devolveria
  * `{ hash }` e quem compara com `null` leria a evidência como ausente por acaso.
  */
-function normalizarMagnet(bruto: MagnetStateHandle): MagnetStateHandle {
+function normalizarMagnet(bruto: MagnetStateNapi): MagnetStateHandle {
   return {
     markAlive: (adapter, apiKey, hashes, ttlSeconds, nowMs) =>
       bruto.markAlive(adapter, apiKey, hashes, ttlSeconds, nowMs),
@@ -188,6 +254,35 @@ function normalizarMagnet(bruto: MagnetStateHandle): MagnetStateHandle {
     liveLies: (hashes, nowMs) => bruto.liveLies(hashes, nowMs),
     clear: () => bruto.clear(),
     sweep: (maxEntries, nowMs) => bruto.sweep(maxEntries, nowMs),
+    // Agregado: o Record do contrato volta a ser montado aqui (a fronteira
+    // plana existe só para o napi não aninhar `#[napi(object)]`).
+    counts: (nowMs) => {
+      const payload = bruto.counts(nowMs);
+      if (!payload) return null;
+      const adapters: Record<string, MagMetaTotals> = Object.create(null);
+      for (const row of payload.adapters) {
+        adapters[row.adapter] = {
+          alive: row.alive, bad: row.bad, lie: row.lie,
+          ttlRemainingSums: { alive: row.ttlAlive, bad: row.ttlBad, lie: row.ttlLie },
+        };
+      }
+      // O núcleo só devolve payload versão 1: versão estranha vira `null`.
+      return { version: 1, updatedAt: payload.updatedAt, adapters };
+    },
+    putCounts: (adapters, ttlSeconds, nowMs) => bruto.putCounts(
+      Object.entries(adapters).map(([adapter, totals]) => ({
+        adapter,
+        alive: totals.alive,
+        bad: totals.bad,
+        lie: totals.lie,
+        ttlAlive: totals.ttlRemainingSums.alive,
+        ttlBad: totals.ttlRemainingSums.bad,
+        ttlLie: totals.ttlRemainingSums.lie,
+      })),
+      ttlSeconds,
+      nowMs,
+    ),
+    forgetCounts: () => bruto.forgetCounts(),
   };
 }
 

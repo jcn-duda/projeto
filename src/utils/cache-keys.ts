@@ -201,6 +201,10 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 //               debrid sai de `debrid-state-native.ts`, não do L1;
 //   `mag`     — MagnetStateStore do `adom-index` (T2-L5b): banco de magnets,
 //               histórico e a enumeração do painel são da ponte;
+//   `mag_meta`— agregado do MagnetDB (L6): `counts`/`putCounts` do mesmo store
+//               (`magnet_meta.rs`). É DERIVADO do acervo; enquanto o Node o
+//               gravava por `cache.set` havia um segundo escritor de opinião
+//               sobre o mesmo dado (e a janela do `setImmediate` do flush);
 //   `adrm`    — KV durável do anti-reenchimento (T2-L7): o gateway lê a marca
 //               no mesmo `cache.db` para tirar o hash do `/magnet/upload`.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
@@ -219,12 +223,16 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // escritor NEM leitor do namespace. Segue também em `RUST_OWNED_PREFIXES`
 // porque a LEITURA é que depende do prefixo.
 //
-// A Definição de Pronto da migração (§9 do plano de fechamento) cobra `mag_meta`
-// e `autofetch` inteiros nesta lista. Os dois seguem FORA por falta de dono do
-// lado Rust — o motivo medido está no bloco "AINDA FORA" abaixo e o teste
-// `test/cache-keys-debrid-owned.test.ts` prende a justificativa.
+// `autofetch` (L6) entrou pela Definição de Pronto (§9) com o namespace INTEIRO:
+// a fila (`q:`), o marker (`m:`), a blacklist (`dead:`), a evidência (`er:`), o
+// snapshot (`lot:`), o registro por obra (`o:`) e a represa (`sup:`) já eram da
+// ponte, e `pf:` (prefetch E+1, aposentado na B4) perdeu o construtor TS na L6 —
+// o formato segue provado no Rust (`v3::prefetch_key` + `v3_tests`). Sem nenhuma
+// chave viva do Node restante, o namespace fecha inteiro. Catraca:
+// `test/cache-keys-debrid-owned.test.ts`.
 const RUST_OWNED = Object.freeze([
-  'idx', 'streams', 'raw', 'davail', 'mag', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
+  'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
+  'autofetch',
 ]);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
@@ -260,51 +268,55 @@ const RUST_OWNED = Object.freeze([
 // (`autofetch-state-native.ts`), então valem o mesmo bloqueio.
 //
 // `o:` (registro F2 por obra) entrou depois: o registro já era escrito pela
-// ponte (`autofetch-obra-state.ts`), mas o Node TAMBÉM gravava a mesma linha no
-// L1 (`autofetch-obra.ts`) — dois escritores, e o `cache.forget` do Node podia
-// apagar a linha fresca do nativo. Quem lê (`evict_job.rs`, teto por obra) passava
-// a poder ver um registro mais velho que o commit nativo. Com o prefixo marcado,
-// a escrita do Node vira fallback (só sem ponte) e o boot deixa de hidratar `o:`
-// no L1 — o painel enumera pela ponte (`listObraKeysNative`). Os seeds de teste
-// que moravam no L1 migraram para `kvSet`.
+// ponte, mas o Node TAMBÉM gravava a mesma linha no L1 (`autofetch-obra.ts`) —
+// dois escritores, e o `cache.forget` do Node podia apagar a linha fresca do
+// nativo. Quem lê (`evict_job.rs`, teto por obra) passava a poder ver um
+// registro mais velho que o commit nativo. Com o prefixo marcado, a escrita do
+// Node virou fallback (só sem ponte) e o boot deixou de hidratar `o:` no L1 — o
+// painel enumera pela ponte (`listObraKeysNative`). Na L6 a família `obra` do
+// Node saiu de vez (`autofetch-obra-state.ts` e `-overflow.ts` apagados;
+// `autofetch-obra.ts` ficou só com o prefixo): teto, reserva e commit são do
+// núcleo (`enqueue_obra.rs`). Os seeds de teste migraram para `kvSet`.
 //
-// AINDA FORA, cada um por um motivo concreto:
-//   `probe:` — a sonda é 100% nativa: `probe_step.rs` grava
-//      `autofetch:v3:probe:<sha256>` e o `br-probe.ts` do Node saiu na B4. O Node
-//      não tem leitor NEM escritor do sub-namespace (confirmado por grep em
-//      `src/`): as pontes `brProbeNativeKey`/`readBrProbeNative`/
-//      `writeBrProbeNative` também saíram na B4 (superfície morta, sem
-//      chamador) — o que existe é a porta napi `autofetchV3Probe*` de
-//      `rust-autofetch.ts`, que é do worker e passa longe do `cache.get`/`peek`.
-//      Marcar o prefixo não conserta leitura velha nenhuma (não há leitura) e
-//      muda dois comportamentos: o `loadFromDisk` deixa de subir as linhas
-//      `probe:` legadas para o balde `autofetch`, e o `clearAutofetchNative`
-//      passa a apagar o estado nativo da sonda por `kvClearPrefix`. Resíduo real
-//      de deixar fora: cota — linha legada de sonda no disco ocupa o balde sem
-//      nunca ser servida.
-//   `sup:` — o Node ainda grava e enumera no L1 (`cache.set` + `cache.keysMatching`
-//      em `autofetch-suppressed.ts`): marcar o prefixo faria a escrita virar
-//      no-op silencioso. `pf:` (prefetch) segue fora pelo mesmo desenho, e hoje
-//      só tem o construtor de chave (`prefetchKey`), sem escritor em produção.
-//      É por isso que o namespace `autofetch` também não entra INTEIRO em
-//      `RUST_OWNED`: só depois de `sup:` migrar para a ponte.
-//   `mag_meta` — namespace do NODE, apesar do nome vizinho de `mag`: o agregado
-//      do MagnetDB (`mag_meta:v1:counts`) é escrito por `cache.set`
-//      (`magnetdb-persist.ts`) e lido por `cache.peek`. O Rust tem apenas o
-//      construtor de chave (`adom-core/src/cache_keys.rs`) e `mag_meta:v1:` na
-//      lista de escrita do `Store` de TESTE (`adom-debrid/src/store.rs`, que em
-//      produção abre o cache.db read-only). Entrar em `RUST_OWNED`/prefixos
-//      hoje deixaria o agregado sem escritor: o `set` viraria no-op e todo boot
-//      cairia no rebuild pela ponte (`adoptRebuild`).
+// `sup:` (represa de remoções) fechou do MESMO jeito: era o último prefixo do
+// Chupim com escrita L1 viva (`cache.set` em `autofetch-suppressed.ts`) espelhando
+// o registro do KV nativo, e o `cache.forget` do Node era um DELETE na MESMA
+// tabela `cache` que o worker lê (`suppressed_step.rs`, `recheck_expire.rs`) —
+// podia apagar a linha fresca do nativo entre a gravação dele e a leitura. Sem o
+// espelho, `note`/`forget`/`retry` são só da ponte (`autofetch-state-native.ts`) e
+// a enumeração do painel vem de `listSuppressedKeysNative`.
+//
+// FECHADO no L6: os dois sub-namespaces que ainda eram do Node saíram.
+//   `probe:` — a sonda é 100% nativa desde a B4 (`probe_step.rs` grava
+//      `autofetch:v3:probe:<sha256>`). O Node não tem leitor NEM escritor: as
+//      pontes `brProbeNativeKey`/`readBrProbeNative`/`writeBrProbeNative`
+//      saíram por falta de chamador, e o que existe é a porta napi
+//      `autofetchV3Probe*` de `rust-autofetch.ts`, que é do worker e passa longe
+//      do `cache.get`/`peek`.
+//   `pf:` — prefetch E+1 aposentado na B4; sobreviveu só o CONSTRUTOR de chave
+//      (`prefetchKey`), sem escritor, leitor ou TTL. Ele saiu na L6 e o formato
+//      continua provado do lado nativo (`v3::prefetch_key` + `v3_tests`).
+// Com o namespace inteiro em `RUST_OWNED`, os dois prefixos são estrangeiros no
+// L1 por `isRustOwned` e não precisam de entrada própria aqui.
 // `autofetch-worker:v1:` é namespace separado do `cfg:v1:autofetch` do painel:
 // o gateway persiste aqui apenas pausa/intervalo, sem qualquer credencial.
+// `autofetch:v3` é estrangeiro no L1 pelo namespace INTEIRO desde o L6 (ver
+// `RUST_OWNED`). A lista abaixo sobrevive como a relação dos sub-namespaces que
+// um dia tiveram escrita L1 e cuja migração para a ponte foi medida — é o mapa
+// que o teste e o `clearNamespace('autofetch')` documentam, não mais o que
+// bloqueia a leitura (isso cabe a `isRustOwned`).
 const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
   `${prefix('autofetch')}q:`, `${prefix('autofetch')}m:`, `${prefix('autofetch')}dead:`,
   `${prefix('autofetch')}er:`, `${prefix('autofetch')}lot:`, `${prefix('autofetch')}o:`,
+  // Represa de remoções: escrita/remoção/leitura só pela ponte (a ordem importa
+  // — marcar o prefixo ANTES de tirar o `cache.set`/`cache.forget` do provedor
+  // deixaria a escrita em no-op silencioso).
+  `${prefix('autofetch')}sup:`,
 ]);
 
 const RUST_OWNED_PREFIXES = Object.freeze([
-  prefix('harvest'), 'autofetch-worker:v1:', prefix('davail'), prefix('mag'), prefix('adsub'), prefix('adprot'), prefix('adrm'),
+  prefix('harvest'), 'autofetch-worker:v1:', prefix('davail'), prefix('mag'), prefix('mag_meta'),
+  prefix('adsub'), prefix('adprot'), prefix('adrm'),
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 

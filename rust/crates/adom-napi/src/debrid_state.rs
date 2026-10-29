@@ -10,7 +10,8 @@
 //! `dbPath`, `apiKey`, `ttlSeconds`, `nowMs`, `markAlive`, `markBad`,
 //! `markLie`, `forgetBad`, `stateSnapshot`, `getMany`, `putMany`, `entries`,
 //! `summary`, `liveCount`, `liveLies`, `remaining`, `forgetBadOf`, `clear`,
-//! `sweep`. Os objetos de retorno moram no irmão `debrid_state_types`.
+//! `sweep` e, do agregado, `counts`, `putCounts`, `forgetCounts`. Os objetos de
+//! retorno moram no irmão `debrid_state_types`.
 
 use std::path::Path;
 
@@ -25,6 +26,13 @@ use napi_derive::napi;
 #[path = "debrid_state_types.rs"]
 mod debrid_state_types;
 pub use debrid_state_types::{DavailSweep, MagCount, MagEntry, MagPage, MagSweep};
+
+// Agregado `mag_meta:v1:counts`: um SEGUNDO `#[napi] impl` da MESMA classe, num
+// irmão por teto de linhas. O `register_class` do napi-rs acumula as props por
+// nome de classe, então os métodos se somam aos daqui em vez de substituí-los.
+#[path = "magnet_meta_api.rs"]
+mod magnet_meta_api;
+pub use magnet_meta_api::{MagMetaAdapter, MagMetaCounts};
 
 fn erro(err: String) -> Error {
     Error::from_reason(err)

@@ -18,7 +18,7 @@ import {
   namespaceFor, quotaFor, incrementNamespace as bumpNamespace, removeFromStore as dropFromStore, quotaOverflow,
 } from './cache-quotas.js';
 import { createPersistence } from './cache-db.js';
-import { isRustOwned, isForeignKey, prefix, AUTOFETCH_NATIVE_PREFIXES } from './cache-keys.js';
+import { isRustOwned, isForeignKey, prefix } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
 import { clearRawStore } from './raw-store-native.js';
 import { davailState, magnetState } from './debrid-state-native.js';
@@ -313,8 +313,8 @@ function clear() {
   // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
   // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa os namespaces
   // RUST_OWNED também — `davail`/`mag`/`adsub`/`adprot`/`adrm` e o estado do
-  // Chupim (fila, marker, dead) só existem lá. `pf:`/`sup:` seguem no L1/L2 do
-  // Node e o truncate acima já os leva.
+  // Chupim (namespace `autofetch` inteiro: fila, marker, dead, represa `sup:`,
+  // obra, vestígios de `pf:`/`probe:`) só existem lá.
   clearIdxStore();
   clearRawStore();
   davailState().clear();
@@ -326,8 +326,8 @@ function clear() {
   clearAutofetchNative();
 }
 
-/** Fila, marker e dead do Chupim no KV nativo (o L1 não os alcança). */
-const clearAutofetchNative = () => AUTOFETCH_NATIVE_PREFIXES.reduce((n, p) => n + kvClearPrefix(p), 0);
+/** Estado do Chupim no KV nativo (o L1 não o alcança). */
+const clearAutofetchNative = () => kvClearPrefix(prefix('autofetch'));
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
@@ -335,9 +335,9 @@ function clearNamespace(namespace: string) {
   if (!wanted) return 0;
   // RUST_OWNED não passa pelo L1: `idx`/`raw`/`davail`/`mag`/`adsub`/`adprot`/
   // `adrm` têm handle nativo sobre o MESMO cache.db — o clear é no núcleo.
-  // `autofetch` é MISTO: só `q:`/`m:`/`dead:` vão pela ponte; `pf:` (hoje sem
-  // escritor: só o construtor de chave) e `sup:` continuam no L1/L2 e saem pelo
-  // `clearWhere` abaixo (o retorno soma os dois).
+  // `autofetch` também é do núcleo pelo namespace INTEIRO (L6): fila, marker,
+  // dead, evidência, snapshot, obra e represa saem por `kvClearPrefix`, e o
+  // `clearWhere` abaixo não encontra mais nada vivo deste lado.
   const fromRust = wanted === 'idx' ? clearIdxStore()
     : wanted === 'raw' ? clearRawStore()
       : wanted === 'davail' ? davailState().clear()
