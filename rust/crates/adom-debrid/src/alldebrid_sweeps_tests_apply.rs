@@ -293,6 +293,30 @@ async fn guarda_viva_ilegivel_e_fail_closed() {
 }
 
 #[tokio::test]
+async fn guarda_viva_default_nao_vira_veto() {
+    // O dublê NÃO sobrescreve `guard_live`: o default do trait precisa ser
+    // `Some(true)`. Um `None` acidental (fail-closed) travaria TODO delete em
+    // silêncio — e a varredura viraria plano eterno sem remoção.
+    let http = FakeHttp::default();
+    assert_eq!(http.guard_live(&hash_of('a')).await, Some(true));
+    let rows = [dead_row('a')];
+    let facts = Facts::loaded();
+    let plan = plan_sweep_dead(&rows, &facts.view(), &config());
+    let outcome = apply_plan(
+        &plan,
+        &rows,
+        &facts.view(),
+        &config(),
+        SweepMode::Apply,
+        &http,
+    )
+    .await;
+    assert_eq!(outcome.removed, vec!["id-a".to_string()]);
+    assert!(outcome.blocked.is_empty(), "o default não veta nada");
+    assert_eq!(outcome.calls, 1);
+}
+
+#[tokio::test]
 async fn parada_por_quota_interrompe_a_rodada() {
     let rows = [dead_row('a'), dead_row('b'), dead_row('c')];
     let facts = Facts::loaded();

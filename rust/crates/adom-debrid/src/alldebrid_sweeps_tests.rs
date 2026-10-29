@@ -362,3 +362,9 @@ fn kind_parse_aceita_o_vocabulario_do_painel() {
     assert_eq!(SweepKind::parse("all"), None);
     assert_eq!(SweepKind::parse("dead"), None, "nome curto não é canônico");
 }
+
+/// Segunda fatia (idade do `sweepUndubbed`, retenção BR no `sweepDead`, posse
+/// e máquina de estados do `reconcile`). Divide o arquivo para caber na
+/// catraca de 400 linhas e reusa os fixtures daqui por `super`.
+#[path = "alldebrid_sweeps_tests_part2.rs"]
+mod part2;
