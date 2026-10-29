@@ -1,29 +1,22 @@
 import type express from 'express';
 import type { AppServices } from './types.js';
-import { maxFromBody } from './dashboard-actions-shared.js';
-import { autofetchEffectApplied, drainSuppressedAutofetch } from '../utils/autofetch-native.js';
+import { autofetchEffectApplied, drainSuppressedAutofetch, type AutofetchResult } from '../utils/autofetch-native.js';
 
 /**
  * Ações da fila de remoções represadas (autofetch-suppressed.ts) — a porta
- * SUPERVISIONADA do operador, que não exige ligar o knob global
- * `DEBRID_REMOVE_BY_ID`: o drain automático do recheck continua gateado
- * (caminho de cima respeita o freio de rollout), o painel drena com
- * `force: true` sob confirmação explícita.
+ * SUPERVISIONADA do operador, sob confirmação explícita.
  *
  * Os registros são chaveados por `adapterId:accountScope`, e a conta que o
  * processo sabe abrir é a do OPERADOR (`harvesterDebrid.resolveQuota()`:
- * painel > `.env` com gate). O drain age SÓ nela — o agregado do snapshot
- * cobre também contas de instalações de usuário, e por isso a resposta
- * devolve `elegiveis`/`restantes` para a diferença ficar visível, não
- * escondida. Nada de credencial, hash de conta ou infoHash no payload.
+ * painel > `.env` com gate). A leitura age SÓ nela — o agregado do snapshot
+ * cobre também contas de instalações de usuário. Nada de credencial, hash de
+ * conta ou infoHash no payload.
  *
- * Fase B: o dreno tenta a admin do gateway primeiro (`POST
- * /autofetch/suppressed-drain`). Enquanto o worker nativo estiver desligado ele
- * responde `effect:'none'` e o caminho da conta do operador continua sendo o
- * que age; quando o worker aplicar de fato, ele é o dono e a conta deixa de ser
- * pré-requisito (o número por conta não existe lá, então `elegiveis`/
- * `restantes` vão `null` em vez de um zero inventado). A LEITURA (`-get`) segue
- * só no Node: a admin não publica a fila represada.
+ * O dreno é SÓ da admin do gateway (`POST /autofetch/suppressed-drain`): o
+ * worker nativo é o dono e a conta do operador não é pré-requisito (o número
+ * por conta não existe lá, então `elegiveis`/`restantes` vão `null` em vez de
+ * um zero inventado). A LEITURA (`-get`) segue só no Node: a admin não publica
+ * a fila represada.
  */
 
 type ActionDeps = {
@@ -67,29 +60,35 @@ export const autofetchSuppressedGet: SuppressedAction = ({ services, res, action
   });
 };
 
-/** Dreno sob comando: DESTRUTIVA (confirm checado pelo despacho) e limitada. */
-export const autofetchSuppressedDrain: SuppressedAction = async ({ services, req, res, action }) => {
+// Motivos do `press_skipped` da admin: o passo NÃO rodou. Os demais `effect:
+// 'none'` (`empty`, `nothing-eligible`) são passagem real que não achou o que
+// apagar — sucesso com zero, não falha.
+const DRAIN_SKIPPED = new Set(['worker-disabled', 'kv-unavailable', 'factory-unavailable', 'drain-failed']);
+
+function drainRan(native: AutofetchResult | null): boolean {
+  if (autofetchEffectApplied(native)) return true;
+  return native?.ok === true && !DRAIN_SKIPPED.has(String(native.reason || ''));
+}
+
+/**
+ * Dreno sob comando: DESTRUTIVA (confirm checado pelo despacho). Só o worker
+ * nativo drena — sem efeito aplicado a ação reporta a falha em vez de cair num
+ * dreno local: o Node apagando na conta era segundo dono da represa e, no
+ * Real-Debrid, escrita fora do `shared_gate`.
+ */
+export const autofetchSuppressedDrain: SuppressedAction = async ({ services, res, action }) => {
   const native = await drainSuppressedAutofetch();
-  if (autofetchEffectApplied(native)) {
-    const removidas = native?.drained ?? 0;
-    services.metrics.count('dashboard.autofetch.suppressed.drain', removidas);
-    services.log.info(`[dashboard] fila represada drenada pelo worker nativo: ${removidas} transferência(s) apagada(s)`);
-    return res.json({ ok: true, action, elegiveis: null, removidas, restantes: null, source: 'gateway', gateway: native });
+  if (!drainRan(native)) {
+    return res.json({
+      ok: false,
+      action,
+      reason: 'native-unavailable',
+      error: 'o worker nativo do Chupim não aplicou o dreno (gateway fora ou AUTOFETCH_WORKER desligado)',
+      gateway: native ?? null,
+    });
   }
-  const resolved = services.harvesterDebrid.resolveQuota();
-  if (!resolved) return semContaOperador(res, action);
-  const account = services.accountScope(resolved.apiKey);
-  const elegiveis = services.autofetchSuppressed.listSuppressed(resolved.adapter.id, account).length;
-  // `force` abre a porta do painel sem o knob global; `max` do corpo vence o
-  // teto por passagem (default suppressedDrainMax) — rajada controlada.
-  const removidas = await services.autofetchSuppressed.drainSuppressed(resolved.adapter, resolved.apiKey, account, {
-    force: true,
-    max: maxFromBody(req),
-  });
-  const restantes = services.autofetchSuppressed.countSuppressed(resolved.adapter.id, account);
+  const removidas = native?.drained ?? 0;
   services.metrics.count('dashboard.autofetch.suppressed.drain', removidas);
-  services.log.info(
-    `[dashboard] fila represada drenada (${resolved.adapter.id}): ${removidas} transferência(s) apagada(s), ${restantes} restante(s) na conta do operador`,
-  );
-  return res.json({ ok: true, action, elegiveis, removidas, restantes, source: 'node', gateway: native ?? null });
+  services.log.info(`[dashboard] fila represada drenada pelo worker nativo: ${removidas} transferência(s) apagada(s)`);
+  return res.json({ ok: true, action, elegiveis: null, removidas, restantes: null, source: 'gateway', gateway: native });
 };

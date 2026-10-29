@@ -110,7 +110,7 @@ async fn drain(State(state): State<Arc<AdminState>>) -> Response {
     .into_response()
 }
 
-/// Dreno da represa (`autofetch:v3:sup:`) — o `drainSuppressed` do Node.
+/// Dreno da represa (`autofetch:v3:sup:`) — porte do `drainSuppressed` do Node, hoje o único dreno.
 ///
 /// A rota é a ação do OPERADOR e é DESTRUTIVA (apaga transferência na conta do
 /// usuário pelo `remove(id)` do adaptador). Por isso ela carrega as DUAS
@@ -128,14 +128,13 @@ async fn drain(State(state): State<Arc<AdminState>>) -> Response {
 ///    `{confirm:true}` em `autofetch-native.ts`), não um no-op silencioso.
 ///
 /// Com as duas, o passo roda AQUI com `force:true` (o dreno do operador não
-/// depende do knob global, como no Node) e devolve contadores reais: `drained`
+/// depende do knob global) e devolve contadores reais: `drained`
 /// é a contagem de remoções confirmadas no serviço (o painel pinta isso em
 /// "removidas"). O knob `DEBRID_REMOVE_BY_ID` continua governando só o passo
 /// AUTOMÁTICO do laço. Sem worker (`enabled:false`), sem KV ou sem a fábrica do
 /// ciclo, responde `drained:0` + `reason` — nunca 500: painel quebrado é pior
-/// que dreno adiado, e é o motivo que mantém o Node como dono enquanto os dois
-/// existirem (`autofetchEffectApplied` só liga com `effect:"applied"`, que
-/// exige chamada de serviço).
+/// que dreno adiado. O Node não tem mais dreno local: o painel trata esses
+/// motivos como "não rodou" e `empty`/`nothing-eligible` como sucesso com zero.
 async fn suppressed_drain(
     State(state): State<Arc<AdminState>>,
     headers: HeaderMap,
@@ -149,7 +148,7 @@ async fn suppressed_drain(
     let status = handle.status();
     let depth = press_depth(&state);
     if !status.enabled {
-        // Worker `prepared`: não há fábrica nem laço — quem drena é o Node.
+        // Worker `prepared`: não há fábrica nem laço — ninguém drena.
         return press_skipped(&status, "worker-disabled", depth);
     }
     // Credencial DESTRUTIVA antes de qualquer varredura da represa ou chamada
@@ -249,7 +248,7 @@ fn refuse(status: StatusCode, error: &'static str, reason: Option<&'static str>)
 }
 
 /// Resposta do passo que NÃO executou: `drained:0`, `effect:"none"` e o motivo
-/// em texto (o painel mostra; o Node continua dono do dreno).
+/// em texto (o painel mostra a falha; não há dreno no Node).
 fn press_skipped(status: &AutofetchStatus, reason: &str, depth: Option<usize>) -> Response {
     Json(json!({
         "ok": true,

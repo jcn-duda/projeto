@@ -14,6 +14,7 @@ import * as cache from '../src/utils/cache.js';
 import { kvClearPrefix, kvForget, kvPeek, kvSetForTest } from '../src/utils/native-kv.js';
 import { readSuppressedNative, remainingNative } from '../src/utils/autofetch-state-native.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
+import { drainSuppressed } from './helpers/pipeline-oracle/autofetch-suppressed-drain.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 const GIVENUP = 'autofetch.suppressed.givenup';
@@ -68,12 +69,12 @@ test('drain respeita o teto por passagem e o resto sobra para a próxima', async
     suppressed.noteSuppressed('draft', account, '2'.repeat(40), 'id-2');
     suppressed.noteSuppressed('draft', account, '3'.repeat(40), 'id-3');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 2);
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 2);
     assert.deepEqual(removidos, ['id-1', 'id-2'], 'para no teto');
     assert.equal(suppressed.countSuppressed('draft', account), 1, 'o terceiro fica represado');
     assert.equal(suppressed.listSuppressed('draft', account).length, 1, 'e continua elegível');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 1, 'próxima passagem drena o resto');
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 1, 'próxima passagem drena o resto');
     assert.deepEqual(removidos, ['id-1', 'id-2', 'id-3']);
     assert.equal(suppressed.countSuppressed('draft', account), 0);
   } finally {
@@ -97,7 +98,7 @@ test('max no opts drena além do teto configurado (preparo para a ação do pain
     for (const h of ['1'.repeat(40), '2'.repeat(40), '3'.repeat(40)]) {
       suppressed.noteSuppressed('draft', account, h, `id-${h[0]}`);
     }
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account, { max: 10 }), 3);
+    assert.equal(await drainSuppressed(adapter, 'chave', account, { max: 10 }), 3);
     assert.equal(suppressed.countSuppressed('draft', account), 0);
   } finally {
     config.debrid.suppressedDrainMax = originalMax;
@@ -122,10 +123,10 @@ test('force: true drena com o knob desligado (ação de painel sem ligar o globa
     suppressed.noteSuppressed('draft', account, '1'.repeat(40), 'id-1');
     suppressed.noteSuppressed('draft', account, '2'.repeat(40), 'id-2');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0, 'sem force é no-op com o gate fechado');
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 0, 'sem force é no-op com o gate fechado');
     assert.deepEqual(removidos, [], 'nada é tocado no serviço');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account, { force: true }), 2, 'force abre a porta');
+    assert.equal(await drainSuppressed(adapter, 'chave', account, { force: true }), 2, 'force abre a porta');
     assert.deepEqual(removidos.sort(), ['id-1', 'id-2']);
     assert.equal(suppressed.countSuppressed('draft', account), 0, 'a fila esvazia');
   } finally {
@@ -151,7 +152,7 @@ test('falha agenda nextAt e o registro não é reentregue antes da hora', async 
     config.debrid.suppressedTtl = 3600;
     suppressed.noteSuppressed('draft', account, H, 'id-ruim');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0);
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 0);
     assert.equal(chamadas, 1);
     assert.equal(suppressed.countSuppressed('draft', account), 1, 'falha isolada não desiste');
 
@@ -159,7 +160,7 @@ test('falha agenda nextAt e o registro não é reentregue antes da hora', async 
     assert.equal(rec.fails, 1, 'a falha é contada');
     assert.ok(rec.nextAt > Date.now(), 'a próxima tentativa é agendada no futuro');
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0, 'passagem imediata');
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 0, 'passagem imediata');
     assert.equal(chamadas, 1, 'não toca no serviço antes do nextAt');
     assert.equal(suppressed.listSuppressed('draft', account).length, 0, 'fora da lista de elegíveis');
     assert.deepEqual(
@@ -188,7 +189,7 @@ test('reescrita por falha preserva a validade restante (não renova 30 dias)', a
     const antes = remaining(key);
     assert.ok(antes > 100);
 
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0);
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 0);
     const depois = remaining(key);
     assert.ok(depois < 3600, `nao renasce de 30 dias: depois ${depois}s`);
     assert.ok(depois <= antes, `e preserva a validade restante: antes ${antes}s, depois ${depois}s`);
@@ -219,7 +220,7 @@ test('cinco falhas esquecem o registro e contam givenup', async () => {
       // Simula o tempo passando: o recheck roda de novo depois do backoff.
       kvSetForTest(key, { id: 'id-fatal', at: Date.now() - 1000, fails, nextAt: 0 }, 60);
       fails += 1;
-      assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 0);
+      assert.equal(await drainSuppressed(adapter, 'chave', account), 0);
     }
     assert.equal(fails, 5, 'cinco falhas consecutivas até a desistência');
     assert.equal(givenupDelta() - antes, 1, 'uma desistência contada');
@@ -248,7 +249,7 @@ test('registro em formato antigo {id, at} continua drenável', async () => {
     kvSetForTest(key, { id: 'legado-1', at: Date.now() - 3600_000 }, 3600);
 
     assert.equal(suppressed.listSuppressed('draft', account).length, 1, 'legado nasce elegível');
-    assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 1);
+    assert.equal(await drainSuppressed(adapter, 'chave', account), 1);
     assert.deepEqual(removidos, ['legado-1']);
     assert.equal(suppressed.countSuppressed('draft', account), 0);
     assert.equal(kvPeek(key), null, 'o registro sai do KV nativo (não há cópia L1 a limpar)');
@@ -357,7 +358,7 @@ test('falha de drain sobre registro já liquidado não recria o registro', async
   try {
     config.debrid.removeById = true;
     suppressed.noteSuppressed('draft', account, H, 'id-corrida');
-    await suppressed.drainSuppressed(adapter, 'chave', account);
+    await drainSuppressed(adapter, 'chave', account);
     assert.equal(kvPeek(suppressed.suppressedKey('draft', account, H)), null, 'não ressuscitado');
     assert.equal(suppressed.countSuppressed('draft', account), 0);
   } finally {

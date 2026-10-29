@@ -413,7 +413,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `enqueue_obra.rs:294-295`).
 - **Dono por namespace**: fila (`autofetch:v3:q:`), marker (`m:`) e blacklist
   (`dead:`) são escritos pelo worker no KV nativo; a represa `sup:` é escrita e
-  drenada no Rust (`recheck_expire.rs` → `SuppressedV3`, `suppressed_step`).
+  drenada no Rust (`recheck_expire.rs` → `SuppressedV3`, `suppressed_step`);
+  o "drenar represa" do painel também é só nativo — sem o passo rodar ele
+  responde `native-unavailable`, não há dreno local no Node (era segundo dono
+  e, no RD, escrita fora do `shared_gate`).
   O registro da obra (`autofetch:v3:o:`) é gravado pelo commit nativo
   (`enqueue_obra.rs:294-295`) e LIDO pela evicção (`evict_job.rs:176-177`);
   `pf:` hoje só tem construtor de chave, sem escritor

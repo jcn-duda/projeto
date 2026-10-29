@@ -21,6 +21,7 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { pruneKnownBroken } from './helpers/pipeline-oracle/debrid-cache-steps.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
+import { drainSuppressed } from './helpers/pipeline-oracle/autofetch-suppressed-drain.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { brDubCandidate } from './helpers/autofetch-fixtures.js';
 
@@ -174,7 +175,7 @@ test('markerValue guarda o id e markerTransferId o devolve', () => {
  * está em `adom-autofetch::v3::recheck_tests.rs`. O que continua sendo do Node
  * — e o que estes testes medem — é o EFEITO observável: a blacklist que tira o
  * hash do lote antes da checagem e a fila de represados que o knob governa
- * (`drainSuppressed` é o único leitor de `removeById` que sobrou no TS).
+ * (o `drainSuppressed` do oráculo é o único leitor de `removeById` no TS).
  *
  * porque: a montagem abaixo reproduz o ESTADO que o colapso nativo deixa
  * (blacklist + represado), não o colapso — rodar o pipeline aqui mediria um
@@ -214,7 +215,7 @@ async function colapsaParado({ removeById, via, keepSuppressed = false }: {
     if (via === 'id') suppressed.noteSuppressed('premiumize', account, h, 99);
 
     // Porta AUTOMÁTICA do drain (sem `force`): é ela que respeita o knob.
-    const removed = via === 'id' ? await suppressed.drainSuppressed(pmAdapter, chave, account) : 0;
+    const removed = via === 'id' ? await drainSuppressed(pmAdapter, chave, account) : 0;
 
     // Prova de integração do efeito: o hash blacklistado sai do lote ANTES da
     // checagem, pelo MESMO filtro que o oráculo do pipeline chama.
@@ -286,7 +287,7 @@ test('suprimir REGISTRA a transferência, para a virada do knob ser retroativa',
       return true;
     };
     config.debrid.removeById = true;
-    assert.equal(await suppressed.drainSuppressed(pmAdapter, r.account, r.account), 1);
+    assert.equal(await drainSuppressed(pmAdapter, r.account, r.account), 1);
     assert.deepEqual(removidos, ['99'], 'a virada do knob cobra o id guardado');
   } finally {
     config.debrid.removeById = originalRemoveById;
@@ -319,12 +320,12 @@ test('drainSuppressed aplica o atraso quando o knob liga', async () => {
     assert.equal(suppressed.countSuppressed('premiumize', account), 1);
 
     config.debrid.removeById = false;
-    assert.equal(await suppressed.drainSuppressed(pmAdapter, 'chave', account), 0, 'desligado nao apaga');
+    assert.equal(await drainSuppressed(pmAdapter, 'chave', account), 0, 'desligado nao apaga');
     assert.equal(removidos.length, 0);
     assert.equal(suppressed.countSuppressed('premiumize', account), 1, 'e o registro sobrevive');
 
     config.debrid.removeById = true;
-    assert.equal(await suppressed.drainSuppressed(pmAdapter, 'chave', account), 1);
+    assert.equal(await drainSuppressed(pmAdapter, 'chave', account), 1);
     assert.deepEqual(removidos, ['transfer-42'], 'apaga pelo id guardado');
     assert.equal(suppressed.countSuppressed('premiumize', account), 0, 'e o registro sai da fila');
   } finally {
@@ -344,7 +345,7 @@ test('falha ao remover mantém o represado para a próxima passagem', async () =
     pmAdapter.removeTorrent = async () => false;
     config.debrid.removeById = true;
     suppressed.noteSuppressed('premiumize', account, h, 'transfer-ruim');
-    assert.equal(await suppressed.drainSuppressed(pmAdapter, 'chave', account), 0);
+    assert.equal(await drainSuppressed(pmAdapter, 'chave', account), 0);
     assert.equal(
       suppressed.countSuppressed('premiumize', account),
       1,

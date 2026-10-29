@@ -252,6 +252,40 @@ test('painel: autofetch-config-set manda ao worker só a pausa efetiva', async (
   }
 });
 
+test('painel: autofetch-suppressed-drain com o worker desligado não drena pelo Node', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    await withMockFetch([
+      { match: /\/autofetch\/suppressed-drain$/, handler: () => ({ ok: true, enabled: false, phase: 'prepared', operation: 'suppressed-drain', effect: 'none', drained: 0, reason: 'worker-disabled' }) },
+    ], async () => {
+      const res = await action('autofetch-suppressed-drain', { confirm: true });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.ok, false, 'effect none não vira dreno local');
+      assert.equal(res.json.reason, 'native-unavailable');
+      assert.equal(res.json.gateway?.effect, 'none');
+    });
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
+test('painel: autofetch-suppressed-drain com a represa vazia é sucesso com zero', async () => {
+  config.jackett.testToken = TOKEN;
+  try {
+    await withMockFetch([
+      { match: /\/autofetch\/suppressed-drain$/, handler: () => ({ ok: true, enabled: true, phase: 'running', operation: 'suppressed-drain', effect: 'none', drained: 0, reason: 'empty' }) },
+    ], async () => {
+      const res = await action('autofetch-suppressed-drain', { confirm: true });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.ok, true, 'passagem real sem o que apagar não é falha');
+      assert.equal(res.json.removidas, 0);
+      assert.equal(res.json.source, 'gateway');
+    });
+  } finally {
+    config.jackett.testToken = '';
+  }
+});
+
 test('painel: autofetch-suppressed-drain aplicado pela admin dispensa a conta do operador', async () => {
   config.jackett.testToken = TOKEN;
   try {

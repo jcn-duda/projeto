@@ -36,16 +36,12 @@
 // era segundo escritor da mesma linha, e o `cache.forget` (DELETE no SQLite do
 // Node) podia apagar a linha FRESCA do nativo no meio de uma passagem dele. Por
 // isso `sup:` está em `AUTOFETCH_NATIVE_PREFIXES` (`src/utils/cache-keys.ts`): o
-// L1 recusa escrita e remoção, e a leitura (painel/drain) cai na ponte.
+// L1 recusa escrita e remoção, e a leitura (painel) cai na ponte.
 //
-// O drain tem DUAS portas, e elas não são iguais:
-// - O `drainSuppressed` automático do `runRecheck` NÃO passa `force`: respeita
-//   o gate estático `config.debrid.removeById` e vira no-op com ele desligado
-//   (o default). É o caminho que cobra o atraso APÓS o operador ligar o knob.
-// - A ação do painel (destrutiva, com confirmação) passa `force: true` para
-//   drenar SEM ligar o knob global — o fluxo executável do operador. `force`
-//   só existe nesse chamador; nunca no automático. O `max` de FORA vence o
-//   `suppressedDrainMax`; sem `max`, vale o default do config.
+// O DRENO não mora aqui: o automático é do worker nativo e a ação do painel
+// fala só com a admin do gateway. Um dreno local seria segundo dono da represa
+// (e, no Real-Debrid, escrita na conta fora do `shared_gate`); a régua TS de
+// antes vive como oráculo em `test/helpers/pipeline-oracle/autofetch-suppressed-drain.ts`.
 //
 // O gate também cobre `expired-unready`: transferência identificada só por id
 // é represada aqui quando `DEBRID_REMOVE_BY_ID=false`, em vez de ser apagada
@@ -58,12 +54,9 @@ import {
   noteSuppressedNative,
   readSuppressedNative,
   remainingNative,
-  retrySuppressedNative,
 } from '../utils/autofetch-state-native.js';
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
-import * as log from '../utils/logger.js';
-import type { DebridAdapter } from '../../types/domain.js';
 
 const SUP_PREFIX = `${prefix('autofetch')}sup:`;
 
@@ -218,68 +211,6 @@ function countAllSuppressed(): number {
 }
 
 /**
- * Conta uma falha de remoção e agenda a próxima tentativa. Backoff e
- * desistência são do NATIVO (`SuppressedV3::retry`): ele relê o id ATUAL,
- * preserva o TTL restante e esquece o registro na 5ª falha. Aqui só se espelha
- * o efeito no índice de processo — recalcular `fails`/`nextAt` do lado Node
- * seria segundo escritor dos MESMOS campos pelo MESMO SQLite.
- */
-function scheduleRetry(adapterId: string, account: string, reg: SuppressedRead & { hash: string }, agora: number) {
-  const nativeRetry = retrySuppressedNative(adapterId, account, reg.hash, config.debrid.suppressedTtl, agora);
-  if (nativeRetry !== 'given-up') return;
-  knownSuppressed.delete(suppressedKey(adapterId, account, reg.hash));
-  metrics.count('autofetch.suppressed.givenup');
-}
-
-/**
- * Aplica o atraso: drena o que ficou para trás.
- *
- * Duas portas: o automático do `runRecheck` NÃO passa `force` e respeita o gate
- * estático (`removeById`) — vira no-op com o knob desligado. A ação do painel
- * passa `force: true` para drenar sem ligar o knob global (fluxo executável do
- * operador). Teto por passagem: `opts.max` (default `config.debrid.suppressedDrainMax`)
- * e só os registros JÁ elegíveis — o que sobra volta na próxima passagem.
- * Falha de remoção NÃO esquece o registro: `scheduleRetry` agenda o backoff, e
- * o id permanente ruim é aposentado pelo givenup, nunca pelo relógio.
- */
-type DrainSuppressedOpts = {
-  max?: number;
-  force?: boolean;
-};
-
-async function drainSuppressed(
-  adapter: DebridAdapter,
-  apiKey: string,
-  account: string,
-  opts?: DrainSuppressedOpts,
-) {
-  if (!config.debrid.removeById && !opts?.force) return 0;
-  if (typeof adapter.removeTorrent !== 'function') return 0;
-  const max = Math.max(
-    1,
-    Math.trunc(opts?.max && opts.max > 0 ? opts.max : config.debrid.suppressedDrainMax),
-  );
-  const agora = Date.now();
-  const pendentes = listSuppressed(adapter.id, account, agora);
-  if (pendentes.length === 0) return 0;
-  let apagados = 0;
-  for (const reg of pendentes.slice(0, max)) {
-    const ok = await adapter.removeTorrent(apiKey, reg.id).catch(() => false);
-    if (!ok) {
-      scheduleRetry(adapter.id, account, reg, agora);
-      continue;
-    }
-    forgetSuppressed(adapter.id, account, reg.hash);
-    metrics.count('autofetch.suppressed.drained');
-    apagados += 1;
-  }
-  if (apagados > 0) {
-    log.info(`[autofetch] remoção por id ligada: ${apagados} transferência(s) represada(s) apagada(s)`);
-  }
-  return apagados;
-}
-
-/**
  * Reconstrói o índice de processo no boot: enumera o KV nativo UMA vez (despesa
  * única) e espelha o que sobreviveu ao restart. Depois disso o conjunto só muda
  * pelas operações do próprio módulo — `countAllSuppressed` fica O(índice), não
@@ -308,7 +239,6 @@ export {
   forgetSuppressed,
   countSuppressed,
   countAllSuppressed,
-  drainSuppressed,
   suppressedKey,
   reindexSuppressed,
 };

@@ -1878,7 +1878,12 @@ canal: `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`. O corte do TS do Chupim foi
   quando houve chamada de serviço; o `GET /autofetch` publica `suppressed`,
   `suppressedSource` e `lastSuppressedDrain`. O id é RELIDO imediatamente antes
   do `remove` — o Node usava o id do começo da passagem, que outro ator pode ter
-  trocado.
+  trocado. Desde 2026-10-29 a ação do painel **não tem dreno local**: com
+  `worker-disabled`/`kv-unavailable`/`factory-unavailable`/`drain-failed` (ou
+  admin fora) ela responde `ok:false` + `native-unavailable`; `empty`/
+  `nothing-eligible` é sucesso com zero. O fallback antigo era segundo dono da
+  represa e, no RD, apagava fora do `shared_gate`. O `drainSuppressed` TS virou
+  oráculo (`test/helpers/pipeline-oracle/autofetch-suppressed-drain.ts`).
 - **Evicção F6** — `evict_step` (política pura: a régua do crate decide QUEM
   pode sair, com vetos fail-closed de `transfer_id`, nome autoritativo, retenção
   BR, marker de outra obra e `overflow`) + `evict_job.rs` (produção: lê os fatos

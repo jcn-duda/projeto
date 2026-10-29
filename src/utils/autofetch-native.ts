@@ -44,6 +44,8 @@ export type AutofetchResult = {
   phase?: string;
   operation?: string;
   drained?: number;
+  /** Por que o passo não removeu nada (`empty`, `worker-disabled`, …). */
+  reason?: string;
   /** Recusa do gateway (texto dele; nunca carrega credencial). */
   error?: string;
 };
@@ -171,6 +173,7 @@ async function command(path: string, body: unknown, where: string): Promise<Auto
     if (typeof payload.phase === 'string') out.phase = payload.phase;
     if (typeof payload.operation === 'string') out.operation = payload.operation;
     if (Number.isFinite(Number(payload.drained))) out.drained = Number(payload.drained);
+    if (typeof payload.reason === 'string') out.reason = payload.reason;
     if (out.ok === false) out.error = String(payload.error || 'admin_recusou');
     return out;
   } catch (err) {

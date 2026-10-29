@@ -281,14 +281,15 @@ test('autofetch.snapshot: _origem marca queues e deadBlacklist duravel', () => {
 
 // --- Fila de remoções represadas (autofetch-suppressed) --------------------
 
-test('autofetch-suppressed-get/drain sem conta de operador: 400 com o fix da aba do Colhedor', async () => {
+test('autofetch-suppressed-get sem conta de operador: 400 com o fix da aba do Colhedor', async () => {
   assert.ok(DESTRUCTIVE_ACTIONS.has('autofetch-suppressed-drain'), 'drain é destrutiva');
   assert.equal(DESTRUCTIVE_ACTIONS.has('autofetch-suppressed-get'), false, 'get é leitura');
   const st = debridState();
   config.jackett.testToken = TOKEN;
   try {
     st.close();
-    for (const action of ['autofetch-suppressed-get', 'autofetch-suppressed-drain']) {
+    // O dreno não pede conta: o dono é o worker nativo (ver o teste do dreno).
+    for (const action of ['autofetch-suppressed-get']) {
       const res = await server.request('POST', '/dashboard-action.json', {
         headers: { 'X-Indexer-Test-Token': TOKEN },
         body: { action, confirm: true },
@@ -350,14 +351,13 @@ test('autofetch-suppressed-get devolve pending/elegiveis/adapter sem ecoar crede
   }
 });
 
-test('autofetch-suppressed-drain exige confirm, honra max e drena sem ligar o knob', async () => {
+test('autofetch-suppressed-drain exige confirm e sem gateway não cai em dreno local', async () => {
   const removidos: Array<string | number> = [];
   SUP_ADAPTER.removeTorrent = async (_apiKey: string, id: string | number) => { removidos.push(id); return true; };
   const st = debridState();
   config.jackett.testToken = TOKEN;
   try {
     st.open();
-    config.debrid.removeById = false; // a porta do painel NÃO exige o knob global
     seedSuppressed(SUP_HASHES);
     const semConfirm = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -367,28 +367,21 @@ test('autofetch-suppressed-drain exige confirm, honra max e drena sem ligar o kn
     assert.equal(semConfirm.json.error, 'confirmation_required');
     assert.equal(removidos.length, 0, 'nada toca o serviço sem confirm');
 
-    const drenado = await server.request('POST', '/dashboard-action.json', {
+    // O dono do dreno é o worker nativo: sem admin do gateway a ação reporta a
+    // falha. O dreno local de antes era segundo dono da represa (e, no RD,
+    // escrita fora do `shared_gate`).
+    const semGateway = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'autofetch-suppressed-drain', confirm: true, max: 2 },
     });
-    assert.equal(drenado.status, 200);
-    assert.equal(drenado.json.ok, true);
-    assert.equal(drenado.json.elegiveis, 3, 'a fila inteira estava elegível');
-    assert.equal(drenado.json.removidas, 2, 'max do corpo vence o teto da passagem');
-    assert.equal(drenado.json.restantes, 1, 'o que sobrou fica declarado');
-    assert.equal(removidos.length, 2, 'removeTorrent chamou só pelo teto');
-    assert.equal(suppressed.countSuppressed('supfake', OPERATOR_ACCOUNT), 1);
-    const body = JSON.stringify(drenado.json);
+    assert.equal(semGateway.status, 200);
+    assert.equal(semGateway.json.ok, false, 'não finge que drenou');
+    assert.equal(semGateway.json.reason, 'native-unavailable');
+    assert.equal(removidos.length, 0, 'o Node não apaga na conta');
+    assert.equal(suppressed.countSuppressed('supfake', OPERATOR_ACCOUNT), SUP_HASHES.length, 'a represa fica intacta');
+    const body = JSON.stringify(semGateway.json);
     assert.equal(body.includes(OPERATOR_KEY), false, 'resposta não ecoa a chave');
     assert.equal(body.includes(OPERATOR_ACCOUNT), false, 'resposta não ecoa o hash da conta');
-
-    const segundo = await server.request('POST', '/dashboard-action.json', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'autofetch-suppressed-drain', confirm: true },
-    });
-    assert.equal(segundo.status, 200);
-    assert.equal(segundo.json.removidas, 1, 'segunda passagem drena o restante');
-    assert.equal(segundo.json.restantes, 0);
   } finally {
     cleanSuppressed(SUP_HASHES);
     st.restore();
