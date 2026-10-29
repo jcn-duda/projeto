@@ -26,6 +26,7 @@
 //!   no snapshot é `unknown`.
 //! - `via_id` diz que a identificação veio SÓ do id, não do hash.
 
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -68,6 +69,28 @@ pub struct AccountEvidence {
     /// Ocupação desconhecida permanece `None`, nunca zero inferido.
     pub used: Option<u64>,
     pub max: Option<u64>,
+}
+
+/// O que a porta de evicção devolveu, na forma do contrato
+/// (`adom_autofetch::v3::debrid::EvictOutcome`): o que SAIU e os motivos que a
+/// guarda PROVOU para não remover.
+///
+/// `readded` (upload posterior ao nosso carimbo + margem) barra o delete e
+/// precisa chegar ao passo: sem este mapa o painel não distingue "nada a
+/// apagar" de "a conta mudou de dono".
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EvictOutcome {
+    /// Só os hashes que o serviço confirmou removidos.
+    pub removed: Vec<String>,
+    /// Motivo da guarda → quantos hashes ele barrou.
+    pub vetoed: BTreeMap<String, usize>,
+}
+
+impl EvictOutcome {
+    /// Nada saiu (`true` mesmo com vetos: veto não é remoção).
+    pub fn is_empty(&self) -> bool {
+        self.removed.is_empty()
+    }
 }
 
 /// O mínimo que a porta precisa do `QueueCandidate` do worker: identidade

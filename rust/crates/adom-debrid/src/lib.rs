@@ -73,8 +73,8 @@ pub mod verdict;
 
 pub use autofetch_ports::{
     scope_of, AccountEvidence, AlldebridFacts, AutofetchPorts, CacheEvidence, Capabilities,
-    DebridFuture, EnqueueEvidence, PortCandidate, PortError, RdLedgerPeek, RdPorts, Service,
-    TorrentEvidence, TorrentProgress,
+    DebridFuture, EnqueueEvidence, EvictOutcome, PortCandidate, PortError, RdLedgerPeek, RdPorts,
+    Service, TorrentEvidence, TorrentProgress,
 };
 pub use enqueue_budget::EnqueueBudget;
 pub use error::DebridError;

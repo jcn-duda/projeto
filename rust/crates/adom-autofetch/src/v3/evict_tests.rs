@@ -9,7 +9,8 @@ use super::{
     EvictStop,
 };
 use crate::v3::debrid::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, TorrentEvidence,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
+    TorrentEvidence,
 };
 use crate::v3::QueueCandidate;
 
@@ -130,7 +131,7 @@ impl AutofetchDebrid for StubIo {
         })
     }
 
-    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, String> {
+    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
         Box::pin(async { Err("unsupported: evict".to_string()) })
     }
 

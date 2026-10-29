@@ -201,7 +201,7 @@ impl<'a> Engine<'a> {
             pass.rechecked += usize::from(report.ran);
             // Lado do PACK: o release que ficou pronto invalida as buscas da
             // temporada dele. Falha aqui não derruba a passagem nem o lote.
-            let fill = self.fill_ready(&lot, paused, &report.ready, now_ms);
+            let fill = self.fill_ready(&lot, paused, &report.ready, &debrid, now_ms);
             pass.filled += fill.filled;
             pass.invalidated += fill.invalidated;
             for (label, count) in &fill.skips {

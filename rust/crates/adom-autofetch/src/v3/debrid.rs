@@ -48,6 +48,29 @@ pub struct AccountEvidence {
     pub max: Option<u64>,
 }
 
+/// O que a porta de evicção devolveu: o que SAIU e os motivos que a guarda
+/// PROVOU para não remover.
+///
+/// A lista de removidos sozinha não conta a história: um `readded` (upload do
+/// usuário depois do nosso carimbo) barra a remoção e ficaria invisível para o
+/// painel — indistinguível de "não havia nada a apagar". O veto continua
+/// valendo (a guarda decide); aqui ele só deixa de ser silencioso.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EvictOutcome {
+    /// Só os hashes que o serviço confirmou removidos.
+    pub removed: Vec<String>,
+    /// Motivo provado pela guarda (`readded`, `no-stamp`, `protected`, …) →
+    /// quantos hashes ele barrou.
+    pub vetoed: BTreeMap<String, usize>,
+}
+
+impl EvictOutcome {
+    /// Nada saiu (o caso da passagem vetada) — `true` mesmo com vetos.
+    pub fn is_empty(&self) -> bool {
+        self.removed.is_empty()
+    }
+}
+
 /// Adaptador vinculado à conta pelo executor; o contrato não passa chave de
 /// API no payload nem permite interpretar ausência de resposta como morte.
 /// `remove`/`evict` só podem ser chamados após os gates de posse e proteção.
@@ -65,8 +88,18 @@ pub trait AutofetchDebrid: Send + Sync {
     ) -> DebridFuture<'a, BTreeMap<String, TorrentEvidence>, Self::Error>;
     fn check<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, CacheEvidence, Self::Error>;
     fn remove<'a>(&'a self, transfer_id: &'a str) -> DebridFuture<'a, bool, Self::Error>;
-    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, Self::Error>;
+    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, Self::Error>;
     fn account(&self) -> DebridFuture<'_, AccountEvidence, Self::Error>;
+
+    /// O adaptador PROVA o veredito de cache desta conta?
+    ///
+    /// `false` é o default fail-closed: adaptador que não declara nada não
+    /// autoriza ninguém a consumir um `known` que ele não produz. É o sinal
+    /// que falta ao `cacheCheck` estático — no Real-Debrid o veredito é
+    /// dinâmico (ledger + oráculo), e só a porta sabe se ele está ligado.
+    fn cache_known(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -103,8 +136,8 @@ mod tests {
         fn remove<'a>(&'a self, _: &'a str) -> DebridFuture<'a, bool, ()> {
             Box::pin(async { Ok(false) })
         }
-        fn evict<'a>(&'a self, _: &'a [String]) -> DebridFuture<'a, Vec<String>, ()> {
-            Box::pin(async { Ok(Vec::new()) })
+        fn evict<'a>(&'a self, _: &'a [String]) -> DebridFuture<'a, EvictOutcome, ()> {
+            Box::pin(async { Ok(EvictOutcome::default()) })
         }
         fn account(&self) -> DebridFuture<'_, AccountEvidence, ()> {
             Box::pin(async {

@@ -48,7 +48,7 @@ pub use cascade::{
     SeedsTrace,
 };
 pub use debrid::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
     TorrentEvidence, TorrentProgress,
 };
 pub use dispatch::{dispatch, DispatchDecision, DispatchInput};

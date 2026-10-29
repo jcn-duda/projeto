@@ -200,6 +200,12 @@ pub struct EvictSkipped {
 }
 
 /// O que a passagem fez. `stop` preenchido = o resto não foi tentado.
+///
+/// Este relatório é o da via COM âncora (`remove(transfer_id)`): ele conhece
+/// hashes, não a conta. Os motivos que só a PORTA prova — `readded` (upload do
+/// usuário depois do nosso carimbo), `no-stamp`, `no-upload-date` — chegam
+/// pelo [`EvictOutcome`](super::debrid::EvictOutcome) de `evict` e são
+/// absorvidos pelo passo (`evict_job`), nunca deduzidos aqui.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EvictReport {
     pub removed: Vec<Evicted>,

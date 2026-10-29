@@ -157,10 +157,11 @@ async fn hash_fora_da_lista_nao_e_reportado_como_removido() {
     let (_dir, db) = db_with(&[owned(&present)]);
     let _env = EvictEnv::new(addr, "on");
     let port = all_debrid(db);
-    let removed = port
+    let outcome = port
         .evict(&[present.clone(), absent.clone()])
         .await
         .unwrap();
+    let removed = outcome.removed;
     assert_eq!(removed, vec![present], "só o que tem id na lista sai");
     assert!(!removed.contains(&absent), "ausência não vira remoção");
     assert_eq!(paths(&scene), ["/magnet/status", "/magnet/delete"]);
@@ -227,10 +228,11 @@ async fn hash_protegido_nao_e_apagado() {
     let (_dir, db) = db_with(&[owned(&keep), owned(&br), owned(&free), retained(&keep)]);
     let _env = EvictEnv::new(addr, "on");
     let port = all_debrid(db);
-    let removed = port
+    let outcome = port
         .evict(&[keep.clone(), br.clone(), free.clone()])
         .await
         .unwrap();
+    let removed = outcome.removed;
     assert_eq!(removed, vec![free], "retenção BR e nome dublado preservam");
     assert!(!removed.contains(&keep));
     assert!(!removed.contains(&br));
@@ -255,7 +257,11 @@ async fn dois_hashes_do_mesmo_id_apagam_uma_vez() {
     let (_dir, db) = db_with(&[owned(&first), owned(&second)]);
     let _env = EvictEnv::new(addr, "on");
     let port = all_debrid(db);
-    let removed = port.evict(&[first.clone(), second.clone()]).await.unwrap();
+    let removed = port
+        .evict(&[first.clone(), second.clone()])
+        .await
+        .unwrap()
+        .removed;
     assert_eq!(removed, vec![first], "um id, uma remoção");
     assert_eq!(paths(&scene), ["/magnet/status", "/magnet/delete"]);
 }

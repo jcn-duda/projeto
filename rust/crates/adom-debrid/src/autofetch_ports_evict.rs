@@ -41,12 +41,15 @@
 //! 9. **Quem apaga não marca.** O `cache.db` é do Node e este crate só LÊ: o
 //!    `adrm` do hash removido e a purga do `adsub` são do chamador, com o que
 //!    voltar em `Ok` (o TS faz isso em `alldebrid-fallback-evict.ts:132-133`).
+//! 10. **O veto não é silencioso.** O `Ok` carrega `removed` (o que saiu) E
+//!     `vetoed` (motivo → quantos barrou). Sem o segundo o passo não distingue
+//!     "nada a apagar" de `readded` — a conta mudou de dono e o painel não via.
 
 use std::collections::{HashMap, HashSet};
 
 use adom_core::{br_origin_mark, may_delete, DeleteFacts};
 
-use super::{safe_id, wanted_hashes, AutofetchPorts, Backend, PortError};
+use super::{safe_id, wanted_hashes, AutofetchPorts, Backend, EvictOutcome, PortError};
 use crate::alldebrid::SweepMagnet;
 use crate::alldebrid_cleanup::{is_held, kill_switch_on, DurablePeek};
 use crate::error::{now_ms, DebridError};
@@ -121,10 +124,11 @@ pub(super) fn margin_from(raw: Option<&str>) -> i64 {
 }
 
 impl AutofetchPorts {
-    /// Evicção por hash. `Ok` traz APENAS os hashes que o serviço confirmou
-    /// removidos; tudo o que não saiu (fora da lista, vetado, falha de delete,
-    /// acima do teto) fica de fora — e a falha de listagem é `Err`.
-    pub(super) async fn evict_inner(&self, hashes: &[String]) -> Result<Vec<String>, PortError> {
+    /// Evicção por hash. `Ok` traz os hashes que o serviço confirmou
+    /// removidos E os motivos que a guarda provou para NÃO remover; tudo o que
+    /// não saiu por outro motivo (fora da lista, falha de delete, acima do
+    /// teto) fica de fora — e a falha de listagem é `Err`.
+    pub(super) async fn evict_inner(&self, hashes: &[String]) -> Result<EvictOutcome, PortError> {
         // Os outros quatro não apagam por hash: capacidade desligada, não
         // "sucesso vazio".
         let Backend::AllDebrid { service, facts } = &self.backend else {
@@ -135,7 +139,7 @@ impl AutofetchPorts {
         }
         let wanted = wanted_hashes(hashes);
         if wanted.is_empty() {
-            return Ok(Vec::new());
+            return Ok(EvictOutcome::default());
         }
         // Sem o banco do Node não há como provar `adsub` (posse) nem `adprot`
         // (retenção BR): a guarda fecharia com "proteção desconhecida = livre".
@@ -217,7 +221,15 @@ impl AutofetchPorts {
             let total: usize = vetoed.values().sum();
             eprintln!("[debrid] evict: {total} hash(es) vetado(s) pela guarda {vetoed:?}");
         }
-        Ok(removed)
+        // O motivo atravessa: o passo conta `readded` no painel em vez de
+        // mostrar apenas "nada removido".
+        Ok(EvictOutcome {
+            removed,
+            vetoed: vetoed
+                .into_iter()
+                .map(|(reason, count)| (reason.to_string(), count))
+                .collect(),
+        })
     }
 }
 

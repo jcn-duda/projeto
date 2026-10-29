@@ -14,6 +14,8 @@
 //! Nenhum teste toca rede nem env: as réguas entram como [`EvictConfig`] e o
 //! debrid como [`StubIo`] (herdados do módulo pai).
 
+use adom_autofetch::v3::EvictOutcome;
+
 use super::*;
 
 /// Fallback do pool `seeds` (o TS cobria os dois pools no mesmo caso).
@@ -68,7 +70,7 @@ async fn so_any_e_seeds_da_obra_saem_e_o_br_irmao_fica() {
         ],
     );
     prova(&kv, &[READY, FALLBACK, F_SEEDS, F_BR]);
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string(), F_SEEDS.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK, F_SEEDS])]);
     let ready = vec![READY.to_string()];
 
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
@@ -102,7 +104,7 @@ async fn reserva_de_overflow_do_c11_nao_sai() {
         ],
     );
     prova(&kv, &[READY, F_SEEDS, FALLBACK]);
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
     let ready = vec![READY.to_string()];
 
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
@@ -284,7 +286,7 @@ async fn br_ready_anterior_autoriza_o_fallback_que_ficou_pronto_depois() {
         NOW,
     )
     .expect("er:");
-    let io = StubIo::new(vec![Ok(vec![READY.to_string(), FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[READY, FALLBACK])]);
     let ready = vec![READY.to_string()];
 
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
@@ -298,4 +300,91 @@ async fn br_ready_anterior_autoriza_o_fallback_que_ficou_pronto_depois() {
         vec![vec![READY.to_string(), FALLBACK.to_string()]]
     );
     assert_eq!(report.skips.get("evict-no-br-proof"), None);
+}
+
+/// Tira (`present:false`) ou repõe (`true`) UM dos fatos do Node na cena.
+fn fact(kv: &NativeKv, name: &str, present: bool) {
+    match (name, present) {
+        ("ready-marker", true) => marker(kv, READY, Some(DIGEST)),
+        ("ready-marker", false) => marker(kv, READY, None),
+        ("obra-marker", true) => marker(kv, FALLBACK, Some(DIGEST)),
+        ("obra-marker", false) => marker(kv, FALLBACK, None),
+        ("registro-f2", true) => record(kv),
+        ("registro-f2", false) => forget_key(kv, &format!("{}{DIGEST}", obra_prefix())),
+        (_, true) => adsub(kv, FALLBACK),
+        (_, false) => forget_key(kv, &adsub_key(ACCOUNT, FALLBACK)),
+    }
+}
+
+fn forget_key(kv: &NativeKv, key: &str) {
+    kv.forget(key).expect("forget no KV");
+}
+
+/// (e) Um FATO do Node por vez: sem ele NADA é apagado e o motivo é o daquele
+/// fato; reposto, o gate abre. Os três juntos já são o caso do arquivo pai.
+#[tokio::test]
+async fn cada_fato_e_necessario_e_suficiente() {
+    for (fato, motivo) in [
+        ("ready-marker", "evict-no-marker"),
+        ("obra-marker", "evict-other-work"),
+        ("registro-f2", "evict-no-record"),
+        ("posse-adsub", "evict-no-ownership"),
+    ] {
+        let kv = kv();
+        let ready = completo(&kv);
+        fact(&kv, fato, false);
+        let io = StubIo::new(Vec::new());
+        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+        assert_eq!((report.requested, report.removed), (0, 0), "{fato} ausente");
+        assert_eq!(report.skips.get(motivo), Some(&1), "{fato}: motivo");
+        assert!(report.errors.is_empty(), "{fato}: ausência não é erro");
+        assert!(io.calls().is_empty(), "{fato}: nenhuma ida à conta");
+
+        fact(&kv, fato, true);
+        let io = StubIo::new(vec![done(&[FALLBACK])]);
+        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+        assert_eq!(report.requested, 1, "{fato} reposto: o gate abre");
+    }
+}
+
+/// `evict` roteirizado que a PORTA vetou: nada removido, motivo CONTADO.
+fn vetoed(reason: &str, count: usize) -> Result<EvictOutcome, String> {
+    let mut outcome = EvictOutcome::default();
+    outcome.vetoed.insert(reason.to_string(), count);
+    Ok(outcome)
+}
+
+/// `readded` provado pela PORTA (upload do usuário depois do nosso carimbo):
+/// o veto continua BARRANDO a remoção e agora o painel VÊ o motivo.
+#[tokio::test]
+async fn readded_barra_a_remocao_e_aparece_no_relatorio() {
+    let kv = kv();
+    let ready = completo(&kv);
+    let io = StubIo::new(vec![vetoed("readded", 1)]);
+
+    let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+
+    assert_eq!(report.requested, 1, "o plano autorizou o fallback");
+    assert_eq!(report.removed, 0, "`readded` continua barrando a remoção");
+    assert_eq!(report.marked, 0, "sem remoção não nasce `adrm`");
+    assert_eq!(
+        report.skips.get("evict-readded"),
+        Some(&1),
+        "o motivo tem de chegar ao painel: {:?}",
+        report.skips
+    );
+    assert_eq!(io.calls().len(), 1, "a porta foi consultada uma vez");
+}
+
+/// Sem veto da porta o rótulo nem existe (`None`, não um `0` disfarçado).
+#[tokio::test]
+async fn sem_readded_o_contador_fica_zerado() {
+    let kv = kv();
+    let ready = completo(&kv);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
+
+    let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
+
+    assert_eq!(report.removed, 1, "a prova completa remove");
+    assert_eq!(report.skips.get("evict-readded"), None);
 }

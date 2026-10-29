@@ -15,7 +15,7 @@ use super::*;
 async fn posse_desligada_zera_o_passo_e_nao_toca_a_conta() {
     let kv = kv();
     let ready = completo(&kv);
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
     let mut off = config();
     off.ownership = false;
 
@@ -39,7 +39,7 @@ async fn posse_desligada_zera_o_passo_e_nao_toca_a_conta() {
 async fn posse_ligada_abre_o_gate_e_remove() {
     let kv = kv();
     let ready = completo(&kv);
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
 
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
 

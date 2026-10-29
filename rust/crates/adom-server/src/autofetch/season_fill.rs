@@ -24,12 +24,15 @@
 //!   é o TÍTULO e o `is_pack` é derivado no preenchimento. Um lote escrito
 //!   pelo Node (sem `title`) é lido sem erro e cai em `not-pack`: falha
 //!   fechada, nunca aceite falso.
-//! - `cacheCheck` do Real-Debrid é DINÂMICO no Node (`debrid/registry.ts:66`:
-//!   ledger ligado + oráculo disponível). [`cache_check_honest`] é estático e
-//!   responde `false` para `realdebrid`, então lote de RD não preenche aqui —
-//!   de novo falha fechada. Fiar isso exige levar
-//!   `capabilities().cache_known` da fábrica até este passo; a porta
-//!   `DebridIo` (trait `AutofetchDebrid`) não o expõe.
+//! - `cacheCheck` RESOLVIDO (era a dívida do `false` estático do RD):
+//!   no Node o flag é DINÂMICO (`debrid/registry.ts:66`: ledger ligado +
+//!   oráculo disponível). [`cache_check_honest`] só conhece o booleano ESTÁTICO
+//!   do adaptador (e responde `false` para `realdebrid`), por isso o veredito
+//!   chega aqui como [`CacheProof`]: a prova viva vem do adaptador da conta
+//!   (`AutofetchDebrid::cache_known`, que em `autofetch/ports.rs` é
+//!   `capabilities().cache_known` — no RD, o ledger `rdc:v2` armado em
+//!   `build.rs`). Sem prova o passo NÃO preenche e o motivo vai ao relatório:
+//!   `known: false` nunca vira "não há cache".
 //!
 //! # Ordem à prova de falso aceite
 //!
@@ -42,7 +45,9 @@
 //! # Sem rede
 //!
 //! Este passo não fala com debrid nem com indexer: só KV e o cache de streams.
-//! A credencial já foi resolvida antes, porque `ready` só existe depois do poll.
+//! A credencial já foi resolvida antes, porque `ready` só existe depois do poll
+//! — e a prova de `cacheCheck` (um booleano do adaptador já construído) também
+//! chega pronta, sem I/O.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -94,24 +99,88 @@ impl FillReport {
     }
 }
 
+/// Prova VIVA do `cacheCheck` do serviço, trazida da fábrica até este passo.
+///
+/// O Registry do Node resolve o flag POR CONTA (no Real-Debrid: ledger
+/// `rdc:v2` + oráculo); [`cache_check_honest`] só repete o booleano exportado
+/// pelo adaptador. Sem esta prova a resposta honesta é `known: false` — e então
+/// o pack NÃO preenche.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CacheProof {
+    /// O adaptador desta conta prova o veredito (`AutofetchDebrid::cache_known`).
+    Proven,
+    /// Não se perguntou / não há prova viva; o motivo vai ao relatório.
+    Unproven(&'static str),
+}
+
+/// As TRÊS respostas do `cacheCheck` — nunca duas.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CacheCheck {
+    /// Há cache de streams com ⚡ para o pack invalidar.
+    HasCache,
+    /// O adaptador DECLARA `cacheCheck: false` (Debrid-Link): nada a invalidar.
+    DeclaredNone,
+    /// `known: false`: não se perguntou, então não há veredito.
+    Unknown(&'static str),
+}
+
+/// Único serviço cujo `cacheCheck` é dinâmico no Node (`debrid/registry.ts:66`).
+const DYNAMIC_CACHE_CHECK: &str = "realdebrid";
+
+/// Veredito do `cacheCheck` de UM serviço.
+///
+/// Estático fora do Real-Debrid (o adaptador é a palavra final) e provado pela
+/// fábrica dentro dele. Estático `false` num serviço dinâmico é AUSÊNCIA de
+/// prova, não prova de ausência — por isso `Unknown`, que rotula o skip.
+fn cache_verdict(adapter_id: &str, proof: CacheProof) -> CacheCheck {
+    match proof {
+        CacheProof::Proven => CacheCheck::HasCache,
+        CacheProof::Unproven(reason) => match (adapter_id, cache_check_honest(adapter_id)) {
+            (DYNAMIC_CACHE_CHECK, _) => CacheCheck::Unknown(reason),
+            (_, true) => CacheCheck::HasCache,
+            (_, false) => CacheCheck::DeclaredNone,
+        },
+    }
+}
+
 /// Um pack pronto → invalidação das buscas da temporada dele.
+///
+/// `cache` é o veredito do `cacheCheck` desta passagem ([`CacheProof`]): sem
+/// prova viva o pack não preenche, e o motivo entra em `skips`
+/// (`season-cache-unknown-<motivo>`).
 ///
 /// `ready` é o que o recheck viu ficar `ready` nesta passagem; o mesmo hash pode
 /// aparecer em passagens diferentes em lotes diferentes (outra busca), e o
 /// índice é por temporada, então repetir é idempotente.
+// Os 8 argumentos são fatos independentes do passo (KV, régua, sink, escopo,
+// prova de cache, lote, relógio); agrupá-los esconderia a origem de cada um.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn fill(
     kv: &NativeKv,
     config: &SeasonStepConfig,
     sink: Option<&SeasonFillSink>,
     adapter_id: &str,
     account: &str,
+    cache: CacheProof,
     ready: &[SeasonHint],
     now_ms: i64,
 ) -> FillReport {
     let mut report = FillReport::default();
     // `adapter.cacheCheck` do TS: só serviço que promete cache tem busca em
-    // cache para invalidar. `cache_check_honest` é a régua canônica do crate.
-    let cache_check = cache_check_honest(adapter_id);
+    // cache para invalidar. `cache_check_honest` é a régua estática; a prova
+    // viva (RD: ledger + oráculo) entra por `cache`.
+    let cache_check = match cache_verdict(adapter_id, cache) {
+        CacheCheck::HasCache => true,
+        CacheCheck::DeclaredNone => false,
+        CacheCheck::Unknown(reason) => {
+            // `known: false` NÃO é "nada em cache": sem pergunta o pack não
+            // preenche, e o motivo fica no relatório do passo.
+            for _ in ready {
+                report.skip(&format!("season-cache-unknown-{reason}"));
+            }
+            return report;
+        }
+    };
     for hint in ready {
         // `isPack` do TS, na ordem que a régua exige: sem temporada declarada
         // não há título a provar, e a resposta certa é `NoDeclaredSeason` (não

@@ -12,7 +12,7 @@ use adom_search::StreamsEntry;
 use adom_store::StreamsStore;
 
 use super::super::season_step::{self, SeasonRegister, SeasonStepConfig};
-use super::{fill, SeasonFillSink, SeasonHint};
+use super::{fill, CacheProof, SeasonFillSink, SeasonHint};
 
 const NOW: i64 = 1_700_000_000_000;
 const ADAPTER: &str = "alldebrid";
@@ -40,9 +40,15 @@ fn cached_key(name: &str) -> String {
 
 /// O efeito `season_key`: registra as buscas da temporada no índice do KV.
 fn register(kv: &NativeKv, season: i64, keys: &[String]) {
+    register_as(kv, ADAPTER, season, keys);
+}
+
+/// Idem com o SERVIÇO explícito: a chave do índice é POR adaptador, e o teste
+/// do veredito do Real-Debrid precisa registrar pela conta do RD.
+fn register_as(kv: &NativeKv, adapter: &str, season: i64, keys: &[String]) {
     for key in keys {
         let register = SeasonRegister {
-            adapter_id: ADAPTER.into(),
+            adapter_id: adapter.into(),
             account: ACCOUNT.into(),
             imdb_id: IMDB.into(),
             season,
@@ -84,7 +90,11 @@ fn hint(season: Option<i64>, title: &str) -> SeasonHint {
 }
 
 fn index_alive(kv: &NativeKv, season: i64) -> bool {
-    kv.get_json(&season_step::index_key(ADAPTER, ACCOUNT, IMDB, season), NOW)
+    index_alive_as(kv, ADAPTER, season)
+}
+
+fn index_alive_as(kv: &NativeKv, adapter: &str, season: i64) -> bool {
+    kv.get_json(&season_step::index_key(adapter, ACCOUNT, IMDB, season), NOW)
         .expect("lê índice")
         .is_some()
 }
@@ -103,6 +113,7 @@ fn pack_que_preenche_invalida_as_buscas_da_temporada() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -137,6 +148,7 @@ fn pack_de_outra_temporada_nao_apaga_nada() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), "Breaking Bad Season 3 Complete 1080p")],
         NOW,
     );
@@ -162,6 +174,7 @@ fn release_de_episodio_nao_preenche() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), "Breaking Bad S02E05 1080p Dublado")],
         NOW,
     );
@@ -185,6 +198,7 @@ fn sem_sink_o_indice_fica_intacto() {
         None,
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -212,6 +226,7 @@ fn falha_na_invalidacao_preserva_o_indice() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -236,6 +251,7 @@ fn temporada_sem_busca_registrada_nao_apaga_nada() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -267,6 +283,7 @@ fn toggle_desligado_nao_invalida() {
         Some(&sink),
         ADAPTER,
         ACCOUNT,
+        CacheProof::Proven,
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -277,8 +294,8 @@ fn toggle_desligado_nao_invalida() {
     assert!(index_alive(&kv, 2));
 }
 
-/// Serviço sem cache honesto (`cacheCheck: false` no TS) não invalida: não há
-/// cache de streams com ⚡ para derrubar.
+/// Serviço sem cache honesto (`cacheCheck: false` DECLARADO no adaptador) não
+/// invalida: não há cache de streams com ⚡ para derrubar.
 #[test]
 fn servico_sem_cache_honesto_nao_e_pack() {
     let kv = kv();
@@ -292,6 +309,7 @@ fn servico_sem_cache_honesto_nao_e_pack() {
         Some(&sink),
         "debridlink",
         ACCOUNT,
+        CacheProof::Unproven("adapter"),
         &[hint(Some(2), PACK_S2)],
         NOW,
     );
@@ -315,7 +333,16 @@ fn hint_no_formato_do_node_desserializa_e_nao_preenche() {
     let value: serde_json::Value = serde_json::from_str(raw).expect("json do Node");
     let hint: SeasonHint = serde_json::from_value(value).expect("formato do Node");
 
-    let report = fill(&kv, &config(), Some(&sink), ADAPTER, ACCOUNT, &[hint], NOW);
+    let report = fill(
+        &kv,
+        &config(),
+        Some(&sink),
+        ADAPTER,
+        ACCOUNT,
+        CacheProof::Proven,
+        &[hint],
+        NOW,
+    );
 
     assert_eq!(report.filled, 0);
     assert_eq!(report.skips.get("not-pack"), Some(&1));
@@ -325,3 +352,8 @@ fn hint_no_formato_do_node_desserializa_e_nao_preenche() {
     );
     assert!(index_alive(&kv, 2), "o índice fica para a próxima passagem");
 }
+
+/// O veredito do `cacheCheck` (prova viva x `known: false`) tem arquivo próprio
+/// para não estourar o teto de linhas.
+#[path = "season_fill_cache_tests.rs"]
+mod cache;

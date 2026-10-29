@@ -122,13 +122,38 @@ async fn posse_com_idade_e_sem_hold_apaga() {
     let removed = all_debrid(db)
         .evict(std::slice::from_ref(&hash))
         .await
-        .unwrap();
+        .unwrap()
+        .removed;
     assert_eq!(
         removed,
         vec![hash],
         "posse provada + idade + sem hold apaga"
     );
     assert_eq!(paths(&scene), ["/magnet/status", "/magnet/delete"]);
+}
+
+/// `readded` (upload do usuário DEPOIS do carimbo + margem): a guarda barra e o
+/// motivo ATRAVESSA no `Ok` — sem isso o passo só via “nada removido”.
+#[tokio::test]
+async fn upload_depois_do_carimbo_conta_readded_no_resultado() {
+    let hash = hash_of('r');
+    let now = now_ms() as i64;
+    // Upload de 1 min, posse de 1 h: o anti-re-add veta ANTES das idades.
+    let upload_s = (now - 60_000) / 1000;
+    let (addr, scene) = scene_ok(row_dated(55, &hash, "Duna.2021.1080p.mkv", upload_s)).await;
+    let (_dir, db) = db_with_at(&[owned(&hash)], now - 3_600_000);
+    let _env = EvictEnv::new(addr, "on");
+
+    let outcome = all_debrid(db).evict(&[hash]).await.unwrap();
+
+    assert!(outcome.removed.is_empty(), "`readded` barra a remoção");
+    assert_eq!(
+        outcome.vetoed.get("readded"),
+        Some(&1),
+        "o motivo tem de atravessar: {:?}",
+        outcome.vetoed
+    );
+    assert_eq!(paths(&scene), ["/magnet/status"], "nenhum delete tentado");
 }
 
 /// Prova mínima que PASSA: posse carimbada de 1 h, upload de 1 h.

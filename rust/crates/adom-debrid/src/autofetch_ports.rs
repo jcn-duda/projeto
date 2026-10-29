@@ -49,8 +49,8 @@ use serde_json::Value;
 #[path = "autofetch_ports_contract.rs"]
 mod contract;
 pub use contract::{
-    AccountEvidence, CacheEvidence, DebridFuture, EnqueueEvidence, PortCandidate, TorrentEvidence,
-    TorrentProgress,
+    AccountEvidence, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome, PortCandidate,
+    TorrentEvidence, TorrentProgress,
 };
 
 use crate::alldebrid::{AllDebrid, AutofetchState, Provenance};
@@ -277,7 +277,7 @@ impl AutofetchPorts {
         Box::pin(self.remove_inner(transfer_id))
     }
 
-    pub fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, PortError> {
+    pub fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, PortError> {
         Box::pin(self.evict_inner(hashes))
     }
 

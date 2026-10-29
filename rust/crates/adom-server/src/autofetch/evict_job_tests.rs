@@ -8,8 +8,8 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use adom_autofetch::v3::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, QueueCandidate,
-    TorrentEvidence,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
+    QueueCandidate, TorrentEvidence,
 };
 
 use super::*;
@@ -116,12 +116,21 @@ fn completo(kv: &NativeKv) -> Vec<String> {
 
 /// Duplo do debrid: `evict` roteirizado + as chamadas registradas.
 struct StubIo {
-    results: Mutex<VecDeque<Result<Vec<String>, String>>>,
+    results: Mutex<VecDeque<Result<EvictOutcome, String>>>,
     calls: Mutex<Vec<Vec<String>>>,
 }
 
+/// `evict` roteirizado: só os hashes que a conta confirmou removidos.
+fn done(hashes: &[&str]) -> Result<EvictOutcome, String> {
+    let removed = hashes.iter().map(|h| h.to_string()).collect();
+    Ok(EvictOutcome {
+        removed,
+        ..Default::default()
+    })
+}
+
 impl StubIo {
-    fn new(results: Vec<Result<Vec<String>, String>>) -> Self {
+    fn new(results: Vec<Result<EvictOutcome, String>>) -> Self {
         Self {
             results: Mutex::new(results.into()),
             calls: Mutex::new(Vec::new()),
@@ -164,14 +173,14 @@ impl AutofetchDebrid for StubIo {
         Box::pin(async { Err("evict por hash: sem âncora".to_string()) })
     }
 
-    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, String> {
+    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
         Box::pin(async move {
             self.calls.lock().expect("trava").push(hashes.to_vec());
             self.results
                 .lock()
                 .expect("trava")
                 .pop_front()
-                .unwrap_or_else(|| Ok(Vec::new()))
+                .unwrap_or_else(|| Ok(EvictOutcome::default()))
         })
     }
 
@@ -261,7 +270,7 @@ async fn com_adrm_nao_conta_posse() {
 async fn prova_completa_apaga_e_marca() {
     let kv = kv();
     let ready = completo(&kv);
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
 
     let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
 
@@ -280,51 +289,6 @@ async fn prova_completa_apaga_e_marca() {
         kv.get_json(&br_ready_key(DIGEST), NOW).unwrap().is_some(),
         "evidência de BR ready da obra (paridade com `noteBrReady`)"
     );
-}
-
-/// Tira (`present:false`) ou repõe (`true`) UM dos fatos do Node na cena.
-fn fact(kv: &NativeKv, name: &str, present: bool) {
-    match (name, present) {
-        ("ready-marker", true) => marker(kv, READY, Some(DIGEST)),
-        ("ready-marker", false) => marker(kv, READY, None),
-        ("obra-marker", true) => marker(kv, FALLBACK, Some(DIGEST)),
-        ("obra-marker", false) => marker(kv, FALLBACK, None),
-        ("registro-f2", true) => record(kv),
-        ("registro-f2", false) => forget_key(kv, &format!("{}{DIGEST}", obra_prefix())),
-        (_, true) => adsub(kv, FALLBACK),
-        (_, false) => forget_key(kv, &adsub_key(ACCOUNT, FALLBACK)),
-    }
-}
-
-fn forget_key(kv: &NativeKv, key: &str) {
-    kv.forget(key).expect("forget no KV");
-}
-
-/// (e) Um FATO do Node por vez: sem ele NADA é apagado e o motivo é o daquele
-/// fato; reposto, o gate abre. Os três juntos já são o caso (d).
-#[tokio::test]
-async fn cada_fato_e_necessario_e_suficiente() {
-    for (fato, motivo) in [
-        ("ready-marker", "evict-no-marker"),
-        ("obra-marker", "evict-other-work"),
-        ("registro-f2", "evict-no-record"),
-        ("posse-adsub", "evict-no-ownership"),
-    ] {
-        let kv = kv();
-        let ready = completo(&kv);
-        fact(&kv, fato, false);
-        let io = StubIo::new(Vec::new());
-        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
-        assert_eq!((report.requested, report.removed), (0, 0), "{fato} ausente");
-        assert_eq!(report.skips.get(motivo), Some(&1), "{fato}: motivo");
-        assert!(report.errors.is_empty(), "{fato}: ausência não é erro");
-        assert!(io.calls().is_empty(), "{fato}: nenhuma ida à conta");
-
-        fact(&kv, fato, true);
-        let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
-        let report = run(&kv, &io, &work(&ready), &config(), NOW).await;
-        assert_eq!(report.requested, 1, "{fato} reposto: o gate abre");
-    }
 }
 
 /// (f) Guarda ILEGÍVEL não é guarda vazia: valor fora do contrato não vira
@@ -383,7 +347,7 @@ async fn teto_da_rodada_limita_o_plano() {
     adsub(&kv, OTHER);
     let mut curto = config();
     curto.gates.max_per_run = 1;
-    let io = StubIo::new(vec![Ok(vec![FALLBACK.to_string()])]);
+    let io = StubIo::new(vec![done(&[FALLBACK])]);
 
     let report = run(&kv, &io, &work(&ready), &curto, NOW).await;
 

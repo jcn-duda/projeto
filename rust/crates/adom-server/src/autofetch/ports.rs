@@ -27,16 +27,16 @@
 //!    escopo sem chave viva (cofre expirado, serviço não atendido) e quem chama
 //!    PULA o passo; um escopo sem cofre não derruba o lote dos outros.
 //!
-//! `evict` segue desligado nos cinco serviços (a porta responde
-//! `unsupported: evict`): o `String` de erro é o que impede a lista vazia de
-//! virar "nada a apagar".
+//! `evict` só existe onde a porta prova `hash → id` (AllDebrid, com a env da
+//! evicção ligada); nos outros quatro ela responde `unsupported: evict`, e o
+//! `String` de erro é o que impede a lista vazia de virar "nada a apagar".
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use adom_autofetch::v3::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, QueueCandidate,
-    TorrentEvidence, TorrentProgress,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
+    QueueCandidate, TorrentEvidence, TorrentProgress,
 };
 use adom_debrid::autofetch_ports as ports;
 use adom_debrid::{Capabilities, PortCandidate, PortError, Service};
@@ -132,8 +132,14 @@ impl AutofetchDebrid for PortedDebrid {
         Box::pin(async move { self.ports.remove(transfer_id).await.map_err(error_of) })
     }
 
-    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, String> {
-        Box::pin(async move { self.ports.evict(hashes).await.map_err(error_of) })
+    fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
+        Box::pin(async move {
+            self.ports
+                .evict(hashes)
+                .await
+                .map(evict_outcome)
+                .map_err(error_of)
+        })
     }
 
     fn account(&self) -> DebridFuture<'_, AccountEvidence, String> {
@@ -144,6 +150,13 @@ impl AutofetchDebrid for PortedDebrid {
                 .map(account_evidence)
                 .map_err(error_of)
         })
+    }
+
+    /// A prova VIVA do `cacheCheck` (`check` fecha `known:true`?). É este o
+    /// sinal que o Season Pack Fill precisa para o Real-Debrid: lá o flag é
+    /// dinâmico (ledger `rdc:v2` + oráculo armado em `Build::ports_for`).
+    fn cache_known(&self) -> bool {
+        self.ports.capabilities().cache_known
     }
 }
 
@@ -189,6 +202,15 @@ fn cache_evidence(of: ports::CacheEvidence) -> CacheEvidence {
     CacheEvidence {
         known: of.known,
         cached: of.cached,
+    }
+}
+
+/// Contrato espelhado → contrato do worker. O veto viaja junto: `readded` é
+/// motivo de PAINEL, não detalhe interno da porta.
+fn evict_outcome(of: ports::EvictOutcome) -> EvictOutcome {
+    EvictOutcome {
+        removed: of.removed,
+        vetoed: of.vetoed,
     }
 }
 

@@ -8,8 +8,8 @@ use std::sync::Mutex;
 
 use adom_autofetch::v3::evict::{EvictReport, EvictSkip, EvictStop};
 use adom_autofetch::v3::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, QueueCandidate,
-    TorrentEvidence,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
+    QueueCandidate, TorrentEvidence,
 };
 
 use super::{plan, plan_hashes, run, EvictAction, EvictFacts, EvictGates, EvictItem, Occupancy};
@@ -130,7 +130,7 @@ impl AutofetchDebrid for StubIo {
         })
     }
 
-    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, String> {
+    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
         // A porta real responde exatamente isto (nenhum serviço apaga por hash).
         Box::pin(async { Err("unsupported: evict".to_string()) })
     }

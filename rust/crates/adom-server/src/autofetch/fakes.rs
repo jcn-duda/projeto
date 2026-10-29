@@ -8,8 +8,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use adom_autofetch::v3::{
-    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, QueueCandidate,
-    TorrentEvidence,
+    AccountEvidence, AutofetchDebrid, CacheEvidence, DebridFuture, EnqueueEvidence, EvictOutcome,
+    QueueCandidate, TorrentEvidence,
 };
 use serde_json::{Map, Value};
 
@@ -157,8 +157,8 @@ impl AutofetchDebrid for FakeDebrid {
         })
     }
 
-    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, Vec<String>, String> {
-        Box::pin(async move { Ok(Vec::new()) })
+    fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
+        Box::pin(async move { Ok(EvictOutcome::default()) })
     }
 
     fn account(&self) -> DebridFuture<'_, AccountEvidence, String> {

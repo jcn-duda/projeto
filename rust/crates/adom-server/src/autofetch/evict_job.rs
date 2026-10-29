@@ -32,10 +32,9 @@
 //!
 //! O marker COM `obra` nasce do Node (ponte napi,
 //! `adom-napi/src/autofetch/state_v3.rs`) E do `enqueue` nativo
-//! (`obra::marker_meta`), sempre com o digest do registro por obra. Sem eles o
-//! passo é fail-closed por construção (`evict-no-marker`/`evict-no-record`),
-//! nunca um passe livre. O `adrm` é escrito AQUI (`DEBRID_REUPLOAD_BLOCK` +
-//! `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`).
+//! (`obra::marker_meta`), sempre com o digest da obra: sem eles o passo é
+//! fail-closed (`evict-no-marker`/`evict-no-record`), nunca um passe livre. O
+//! `adrm` é escrito AQUI (`DEBRID_REUPLOAD_BLOCK` + `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`).
 
 use std::collections::BTreeMap;
 
@@ -52,8 +51,7 @@ use serde_json::json;
 
 use super::super::evict_step::{self, EvictFacts, EvictGates, EvictItem};
 
-/// Prefixo da evidência de BR ready — o MESMO de
-/// `adom-napi/src/autofetch/state_v3.rs:308` (prefixo `RUST_OWNED`).
+/// Prefixo da evidência de BR ready — o MESMO de `adom-napi/src/autofetch/state_v3.rs:308`.
 const BR_READY_PREFIX: &str = "autofetch:v3:er:";
 /// TTL default do `adrm` (`src/debrid/alldebrid-reupload.ts:14`).
 const DEFAULT_REUPLOAD_TTL_MS: f64 = 259_200_000.0;
@@ -126,8 +124,8 @@ impl PassReport {
         *self.skips.entry(label.to_string()).or_default() += 1;
     }
 
-    /// Absorve o mapa de motivos do plano, prefixado (`evict-<motivo>`).
-    fn absorb(&mut self, skips: BTreeMap<&'static str, usize>) {
+    /// Absorve motivos prefixados (`evict-<motivo>`): os do PLANO e os da PORTA.
+    fn absorb<'k>(&mut self, skips: impl IntoIterator<Item = (&'k str, usize)>) {
         for (label, count) in skips {
             *self.skips.entry(format!("evict-{label}")).or_default() += count;
         }
@@ -240,13 +238,15 @@ pub(crate) async fn run(
         left = left.saturating_sub(plan.hashes.len());
         report.requested += plan.hashes.len();
         match io.evict(&plan.hashes).await {
-            Ok(removed) => {
-                report.removed += removed.len();
+            Ok(outcome) => {
+                // `readded` (e o resto) vai ao painel: o veto vale, o silêncio não.
+                report.absorb(outcome.vetoed.iter().map(|(r, n)| (r.as_str(), *n)));
+                report.removed += outcome.removed.len();
                 let mut errors = Vec::new();
                 report.marked += mark_removed(
                     kv,
                     work.account,
-                    &removed,
+                    &outcome.removed,
                     &config.marks,
                     now_ms,
                     &mut errors,

@@ -192,12 +192,14 @@ impl<'a> Engine<'a> {
     ///
     /// Roda DEPOIS do poll: `ready` só existe com resposta do serviço, então o
     /// passo herda a mesma credencial do lote. Daqui para frente não há rede —
-    /// só o KV do worker e o cache de streams.
+    /// só o KV do worker e o cache de streams; do adaptador só se lê o
+    /// `cache_known` (o `cacheCheck` dinâmico do RD, ledger + oráculo).
     pub(super) fn fill_ready(
         &self,
         lot: &recheck::Lot,
         paused: bool,
         ready: &[season_fill::SeasonHint],
+        debrid: &super::super::ports::DebridIo,
         now_ms: i64,
     ) -> season_fill::FillReport {
         if ready.is_empty() {
@@ -205,12 +207,19 @@ impl<'a> Engine<'a> {
         }
         let config = self.season_config(paused);
         let sink = season_fill::sink();
+        // Sem prova viva não há veredito: `known: false` não é "nada em cache".
+        let cache = if debrid.cache_known() {
+            season_fill::CacheProof::Proven
+        } else {
+            season_fill::CacheProof::Unproven("adapter")
+        };
         season_fill::fill(
             self.kv,
             &config,
             sink.as_ref(),
             &lot.adapter_id,
             &lot.account,
+            cache,
             ready,
             now_ms,
         )
