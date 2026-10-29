@@ -90,7 +90,7 @@ const FROZEN_GOLDENS = ['policy', 'progress', 'fallback', 'expired', 'gates', 's
  * `evict-no-record`), então cada item é um `assert.ok` com o papel declarado.
  */
 const LIVE_BOUNDARY: { file: string; role: string }[] = [
-  { file: 'src/providers/autofetch.ts', role: 'reindexação no boot, markerActive do rd-warmer e isDeadQuiet do trace' },
+  { file: 'src/providers/autofetch.ts', role: 'reindexação no boot, markerActive do marker e isDeadQuiet do trace' },
   { file: 'src/providers/autofetch-obra.ts', role: 'prefixo `autofetch:v3:o:` do registro F2 (teto, reserva e registro são nativos desde a leva 6e)' },
   { file: 'src/providers/autofetch-obra-summary.ts', role: 'leitura quieta do registro por obra para o painel' },
   { file: 'src/providers/autofetch-marker.ts', role: 'chave e valor do marker no KV nativo' },
@@ -291,8 +291,8 @@ describe('corte do Chupim: o corpo TS saiu e não volta por conveniência', () =
     const nativeKinds = [...setLiteral[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     assert.deepEqual(
       nativeKinds,
-      ['autofetch', 'autofetch_batch', 'br_probe', 'season_key'],
-      'NATIVE_ONLY_KINDS tem que conter os quatro kinds do worker nativo',
+      ['autofetch', 'autofetch_batch', 'br_probe', 'rd_warmer', 'season_key'],
+      'NATIVE_ONLY_KINDS tem que conter os quatro kinds do worker nativo do Chupim e o warmer RD',
     );
 
     const runEffect = code.match(/function runEffect\(([\s\S]*?)\n\}/);
@@ -300,8 +300,8 @@ describe('corte do Chupim: o corpo TS saiu e não volta por conveniência', () =
     const runnable = [...runEffect[1].matchAll(/case '([a-z_]+)'/g)].map((m) => m[1]).sort();
     assert.deepEqual(
       runnable,
-      ['harvester_enqueue', 'rd_warmer'],
-      'a rota executa só rd_warmer e harvester_enqueue; kind de trabalho aceito aqui é dono duplicado',
+      ['harvester_enqueue'],
+      'a rota executa só harvester_enqueue; rd_warmer e kind de trabalho aceito aqui é dono duplicado',
     );
   });
 

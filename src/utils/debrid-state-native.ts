@@ -137,9 +137,9 @@ export type MagnetStateHandle = {
   /** `true` = havia `bad` para apagar; `alive`/`lie` ficam. */
   forgetBad(adapter: string, apiKey: string, hash: string): boolean;
   /**
-   * Apaga o `bad` de QUALQUER conta do adapter (reparo do rd-warmer e limpeza
-   * do painel, que enumeram por adapter e não têm a chave da conta em mãos) e
-   * devolve quantas LINHAS saíram — uma por conta.
+   * Apaga o `bad` de QUALQUER conta do adapter (limpeza do painel, que enumera
+   * por adapter e não tem a chave da conta em mãos) e devolve quantas LINHAS
+   * saíram — uma por conta.
    */
   forgetBadOf(adapter: string, hash: string): number;
   state(adapter: string, apiKey: string, hash: string, nowMs: number): MagnetSide | null;

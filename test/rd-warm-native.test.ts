@@ -5,8 +5,8 @@
 // que o Node precisa garantir é o CONTRATO da ponte: o GET normaliza o snapshot
 // para o painel, as ações mandam método/corpo/token certos, sem token
 // destrutivo nada sai para a rede e, sem snapshot, a ponte devolve
-// `native-unavailable` para o chamador decidir o fallback local. Nada de rede
-// real: o `fetch` é dublado em todos os testes.
+// `native-unavailable` e `nativeWarmStatus()` devolve `null` (não há warmer
+// local). Nada de rede real: o `fetch` é dublado em todos os testes.
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -197,7 +197,7 @@ test('sem token destrutivo: o GET cai no diagnóstico e as ações não vão à 
   }
 });
 
-test('sem snapshot: native-unavailable sem tocar a rede (o chamador cai no local)', async () => {
+test('sem snapshot: native-unavailable sem tocar a rede (o painel reporta a falha)', async () => {
   const stub = stubFetch(() => json({ ok: true }));
   try {
     for (const result of [await pauseNativeRdWarm(), await resumeNativeRdWarm(), await drainNativeRdWarm()]) {
@@ -213,19 +213,8 @@ test('status nativo mapeado para o formato de rd.warm no diagnóstico', async ()
   const stub = stubFetch(() => json(statusBody()));
   try {
     await refreshRdWarmStatus();
-    let localCalls = 0;
-    const out = nativeWarmStatus({
-      rdWarmer: {
-        status: () => {
-          localCalls += 1;
-          return {
-            enabled: false, queueDepth: 0, lastTickAt: null,
-            paused: false, processedLastHour: 0, accountSource: 'none' as const,
-          };
-        },
-      },
-    });
-    assert.equal(localCalls, 0, 'com snapshot nativo o status local nem é consultado');
+    const out = nativeWarmStatus();
+    assert.ok(out, 'com snapshot o diagnóstico publica o bloco');
     assert.equal(out.enabled, true);
     assert.equal(out.queueDepth, 4);
     assert.equal(out.lastTickAt, 1_793_220_000_000);
@@ -239,15 +228,8 @@ test('status nativo mapeado para o formato de rd.warm no diagnóstico', async ()
   }
 });
 
-test('sem snapshot, nativeWarmStatus delega ao warmer local', () => {
-  const local = {
-    enabled: false, queueDepth: 2, lastTickAt: null,
-    paused: true, processedLastHour: 1, accountSource: 'env' as const,
-  };
-  const out = nativeWarmStatus({ rdWarmer: { status: () => local } });
-  assert.equal(out, local, 'é o mesmo objeto do warmer local');
-  assert.equal('source' in out, false);
-  assert.equal('counters' in out, false);
+test('sem snapshot, nativeWarmStatus devolve null', () => {
+  assert.equal(nativeWarmStatus(), null, 'o dono é o gateway: nada de delegar ao warmer local');
 });
 
 test('probe: 200/ok:true (mesmo enabled:false) confirma o dono nativo; falha vira false', async () => {
@@ -261,7 +243,7 @@ test('probe: 200/ok:true (mesmo enabled:false) confirma o dono nativo; falha vir
   resetRdWarmBridgeForTests();
   const falha = stubFetch(() => ({ ok: false, status: 500, json: async () => ({}) }));
   try {
-    assert.equal(await probeNativeRdWarm(), false, 'gateway antigo/sem a rota deixa o timer local assumir');
+    assert.equal(await probeNativeRdWarm(), false, 'gateway antigo/sem a rota deixa a ponte sem snapshot');
   } finally {
     falha.restore();
   }

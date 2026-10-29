@@ -9,10 +9,11 @@
 // A captura do banco VIVO (`magnet_capture`) saiu na T2-L1 e a auditoria de
 // áudio (`dub_audit`) na T3-L7a — os dois kinds só aparecem aqui para provar a
 // recusa. O trabalho do Chupim (`autofetch`, `autofetch_batch`, `br_probe`,
-// `season_key`) passou ao worker nativo na leva B4: forma válida continua
-// aceita, mas ele só conta em `nativeOnly` e nada é executado no Node — e o
-// aceite sem execução sai com UM `warn` por request (o `Deferred`/`Forward` do
-// gateway desemboca nos dois neste 202; sem o aviso o trabalho sumiria mudo).
+// `season_key`) passou ao worker nativo na leva B4 e o warmer do RD
+// (`rd_warmer`) ao gateway na fatia 1 da Fase 2: forma válida continua aceita,
+// mas eles só contam em `nativeOnly` e nada é executado no Node — e o aceite sem
+// execução sai com UM `warn` por request (o `Deferred`/`Forward` do gateway
+// desemboca nos dois neste 202; sem o aviso o trabalho sumiria mudo).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -29,17 +30,13 @@ const TOKEN = 'tok-internal-effects';
 const encoded = encodeConfig({ ds: 'torbox' });
 
 /** Stubs determinísticos que registram as chamadas recebidas. */
-function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: Record<string, any[]> } {
-  const seen: Record<string, any[]> = { warmer: [], harvest: [] };
+function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: { harvest: any[] } } {
+  const seen: { harvest: any[] } = { harvest: [] };
   const deps: Partial<InternalSearchEffectsCollaborators> = {
     // O `opts` ao lado prova o `runtime.run`: o timer roda com a config do
     // `encoded` do corpo, não com a do `.env`.
-    queueRdWarmForRelevant: (relevant: any[]) => {
-      seen.warmer.push({ relevant, opts: runtime.opts().debridService });
-    },
     harvestEnqueue: (entry: any) => {
-      seen.harvest.push(entry);
-      return { reason: 'enqueued', entry: { ...entry, enqueuedAt: Date.now() } } as any;
+      seen.harvest.push({ ...entry, opts: runtime.opts().debridService });
     },
   };
   return { deps, seen };
@@ -139,13 +136,13 @@ test('effects: 202 imediato e dispara cada efeito com o contexto do usuário', a
         ],
       },
     });
-    // A resposta sai ANTES de qualquer efeito: 202 com as contagens.
+    // A resposta sai ANTES de qualquer efeito: 202 com as contagens. O
+    // `rd_warmer` é do gateway e só engorda `nativeOnly`.
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 2, rejected: 0, nativeOnly: 0 });
+    assert.deepEqual(res.json, { ok: true, accepted: 2, rejected: 0, nativeOnly: 1 });
     await flushTimers();
-    assert.deepEqual(seen.warmer[0].relevant, [itemOf(HASH_A)]);
-    assert.equal(seen.warmer[0].opts, 'torbox', 'runtime.run restaurou a config do encoded');
     assert.equal(seen.harvest[0].reason, 'miss');
+    assert.equal(seen.harvest[0].opts, 'torbox', 'runtime.run restaurou a config do encoded');
   } finally {
     await server2.close();
   }
@@ -170,20 +167,19 @@ test('effects: kinds do Chupim são aceitos e contados em nativeOnly, sem execut
         ],
       },
     }));
-    // O 202 não mente sobre o lote: os cinco têm forma válida, quatro deles
-    // viajam no `nativeOnly` porque o dono é o worker nativo do Chupim.
+    // O 202 não mente sobre o lote: os cinco têm forma válida e TODOS viajam no
+    // `nativeOnly` — o dono é o gateway (worker do Chupim / warmer RD).
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 5, rejected: 0, nativeOnly: 4 });
+    assert.deepEqual(res.json, { ok: true, accepted: 5, rejected: 0, nativeOnly: 5 });
     await flushTimers();
-    // Nenhum dos quatro virou colheita no Node — só o warmer rodou.
-    assert.equal(seen.warmer.length, 1);
-    assert.deepEqual(seen.harvest, [], 'autofetch/autofetch_batch/br_probe/season_key não executam aqui');
+    // Nenhum deles virou trabalho no Node.
+    assert.deepEqual(seen.harvest, [], 'autofetch/autofetch_batch/br_probe/season_key/rd_warmer não executam aqui');
     // …mas o aceite sem execução NÃO pode ser mudo: UM aviso por request, com
     // a contagem e os kinds — e sem uma gota do payload.
     const avisos = warns.filter((linha) => linha.includes('[internal]'));
     assert.equal(avisos.length, 1, 'um único warn por request');
-    assert.match(avisos[0], /nativeOnly=4/);
-    for (const kind of ['autofetch', 'autofetch_batch', 'br_probe', 'season_key']) {
+    assert.match(avisos[0], /nativeOnly=5/);
+    for (const kind of ['autofetch', 'autofetch_batch', 'br_probe', 'season_key', 'rd_warmer']) {
       assert.ok(avisos[0].includes(kind), `o warn cita o kind ${kind}`);
     }
     assert.ok(!avisos[0].includes(HASH_A), 'o warn não carrega payload (hash)');
@@ -194,7 +190,7 @@ test('effects: kinds do Chupim são aceitos e contados em nativeOnly, sem execut
   }
 });
 
-test('effects: lote sem trabalho nativo não avisa e o rd_warmer executa', async () => {
+test('effects: lote sem trabalho nativo não avisa e o colhedor executa', async () => {
   const { deps, seen } = stubEffects();
   const app2 = express();
   registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
@@ -202,14 +198,17 @@ test('effects: lote sem trabalho nativo não avisa e o rd_warmer executa', async
   try {
     const { result: res, warns } = await captureWarns(() => server2.request('POST', '/internal/search/effects', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { encoded, effects: [{ kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } }] },
+      body: {
+        encoded,
+        effects: [{ kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'miss' } }],
+      },
     }));
     assert.equal(res.status, 202);
     assert.equal(res.json.nativeOnly, 0);
     await flushTimers();
     // O caminho que ESTE processo executa continua de pé…
-    assert.equal(seen.warmer.length, 1);
-    assert.deepEqual(seen.warmer[0].relevant, [itemOf(HASH_A)]);
+    assert.equal(seen.harvest.length, 1);
+    assert.equal(seen.harvest[0].reason, 'miss');
     // … e sem trabalho nativo no lote, nenhum aviso.
     assert.deepEqual(warns.filter((linha) => linha.includes('[internal]')), []);
   } finally {
@@ -238,9 +237,9 @@ test('effects: efeito desconhecido/malformado é rejeitado, o lote segue', async
     assert.equal(res.status, 202);
     assert.equal(res.json.accepted, 1);
     assert.equal(res.json.rejected, 3);
-    assert.equal(res.json.nativeOnly, 0);
+    assert.equal(res.json.nativeOnly, 1, 'o rd_warmer válido é contado, não executado');
     await flushTimers();
-    assert.equal(seen.warmer.length, 1);
+    assert.deepEqual(seen.harvest, []);
   } finally {
     await server2.close();
   }
@@ -284,7 +283,8 @@ test('effects: kinds com dono nativo (magnet_capture, dub_audit) são rejeitados
   try {
     // Os dois kinds saíram da rota: a captura do acervo passou para o processo
     // Rust no fim da busca (T2-L1) e o interrogatório de áudio para o gateway
-    // (T3-L7a). Um lote com eles é recusado sem derrubar os demais efeitos.
+    // (T3-L7a). Um lote com eles é recusado sem derrubar os demais efeitos; o
+    // `rd_warmer` tem forma válida e é contado em `nativeOnly`.
     const res = await server2.request('POST', '/internal/search/effects', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: {
@@ -303,7 +303,7 @@ test('effects: kinds com dono nativo (magnet_capture, dub_audit) são rejeitados
       },
     });
     assert.equal(res.status, 202);
-    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2, nativeOnly: 0 });
+    assert.deepEqual(res.json, { ok: true, accepted: 1, rejected: 2, nativeOnly: 1 });
     await flushTimers();
   } finally {
     await server2.close();
@@ -311,8 +311,13 @@ test('effects: kinds com dono nativo (magnet_capture, dub_audit) são rejeitados
 });
 
 test('effects: falha de um efeito não afeta os outros (rota de pé)', async () => {
-  const { deps, seen } = stubEffects();
-  deps.queueRdWarmForRelevant = () => { throw new Error('boom'); };
+  const seen: any[] = [];
+  const deps: Partial<InternalSearchEffectsCollaborators> = {
+    harvestEnqueue: (entry: any) => {
+      if (entry.reason === 'boom') throw new Error('boom');
+      seen.push(entry);
+    },
+  };
   const app2 = express();
   registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
   const server2 = await createTestServer(app2);
@@ -322,6 +327,7 @@ test('effects: falha de um efeito não afeta os outros (rota de pé)', async () 
       body: {
         encoded,
         effects: [
+          { kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'boom' } },
           { kind: 'rd_warmer', payload: { releases: [itemOf(HASH_A)] } },
           { kind: 'harvester_enqueue', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null, reason: 'gap' } },
         ],
@@ -330,8 +336,8 @@ test('effects: falha de um efeito não afeta os outros (rota de pé)', async () 
     assert.equal(res.status, 202);
     await flushTimers();
     // O vizinho do efeito que lançou rodou do mesmo jeito.
-    assert.equal(seen.harvest.length, 1);
-    assert.equal(seen.harvest[0].reason, 'gap');
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].reason, 'gap');
     // E a rota continua viva.
     const deNovo = await server2.request('POST', '/internal/search/effects', {
       headers: { 'X-Indexer-Test-Token': TOKEN },

@@ -9,7 +9,8 @@ export { normalizeRustServices } from './debrid-rust.js';
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.
 // Camada de debrid: serviço, checagem de cache, limpeza, autofetch, sonda e
-// paridade Real-Debrid (gate/ledger/oráculo/warmer).
+// paridade Real-Debrid (gate/ledger/oráculo). O warmer RD é NATIVO: os knobs
+// `DEBRID_RD_WARM*` são lidos pelo Rust direto do `.env`, não passam por aqui.
 export const debrid = () => ({
   // premiumize | realdebrid | alldebrid | torbox | debridlink. Vazio = P2P puro.
   service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
@@ -18,7 +19,7 @@ export const debrid = () => ({
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
   // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk
-  // (runtime.ts); as features de operador (catálogo, painel, warmer) usam
+  // (runtime.ts); as features de operador (catálogo, painel) usam
   // `envOperatorAccount` abaixo, que é o OU com o flag próprio.
   allowEnvKey: String(process.env.DEBRID_ALLOW_ENV_KEY || 'true') === 'true',
   // Features de operador sobre a conta do .env SEM herdar a chave para
@@ -26,7 +27,7 @@ export const debrid = () => ({
   // = true deixa o painel/catálogo funcionando e o anônimo em P2P puro.
   operatorEnvAccount: String(process.env.DEBRID_OPERATOR_ENV_ACCOUNT || 'false') === 'true',
   // Gate das features de OPERADOR (catalog-env, env-ops, account-status,
-  // inventory warmup, harvester quota-warn, br-coverage, rd-warmer). Getter
+  // inventory warmup, harvester quota-warn, br-coverage). Getter
   // (não valor congelado) porque o OU precisa refletir os campos vivos — os
   // testes mutam os campos do singleton, e um booleano pré-calculado na
   // fábrica dessincronizaria do par de flags real.
@@ -303,15 +304,11 @@ export const debrid = () => ({
     // preemptado e ainda precisa terminar.
     playMaxWaitMs: Math.max(0, num(process.env.DEBRID_RD_GATE_PLAY_MAX_WAIT_MS, 1_500)),
   },
-  // Warmer contínuo em fundo para o Real-Debrid (Fase F3).
-  rdWarm: {
-    enabled: String(process.env.DEBRID_RD_WARM || 'true') === 'true',
-    intervalMs: Math.max(1, num(process.env.DEBRID_RD_WARM_INTERVAL_MS, 30_000)),
-    batch: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_BATCH, 10))),
-    maxPerHour: Math.max(0, Math.trunc(num(process.env.DEBRID_RD_WARM_MAX_HOUR, 300))),
-    idleWindowMs: Math.max(0, num(process.env.DEBRID_RD_WARM_IDLE_WINDOW_MS, 120_000)),
-    queueMax: Math.max(1, Math.trunc(num(process.env.DEBRID_RD_WARM_QUEUE_MAX, 5000))),
-  },
+  // Warmer contínuo em fundo para o Real-Debrid (Fase F3) — NATIVO desde a
+  // fatia 1 da Fase 2: o dono da fila é o gateway (`/rd-warm`, admin 8711) e
+  // este processo só lê o snapshot pela ponte `utils/rd-warm-native.ts`. Os
+  // knobs `DEBRID_RD_WARM*` continuam válidos, mas quem os lê é o Rust.
+  //
   // Prefetch do próximo episódio (E+1) APOSENTADO na B4: o knob não tinha leitor
   // algum (nem TS, nem Rust) e o construtor de chave `prefetchKey` saiu do Node
   // na L6 (o formato segue provado em `adom-autofetch::v3::prefetch_key`). Não

@@ -86,8 +86,8 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Torrentio migrou para `rdt` e a fila do warmer para `rdq`), então abriu
   // espaço para os dois novos baldes sem estourar o teto global.
   rdc: 14000,
-  // Fila do rdWarmer: uma única chave `rdq:v1:wq` carrega o array inteiro;
-  // cota pequena por ser essencialmente um registro de estado, não histórico.
+  // Fila do warmer RD nativo: uma única chave `rdq:v1:wq` carrega o array
+  // inteiro; cota pequena por ser essencialmente um registro de estado.
   rdq: 500,
   // Cache por título do Torrentio (`rdt:v1:trt:<type>:<id>`): uma entrada por
   // obra consultada, TTL ~6h — cota média para conviver com o ledger.

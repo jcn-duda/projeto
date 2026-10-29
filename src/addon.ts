@@ -11,7 +11,6 @@ import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.
 import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
 import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js';
 import { startRdWarmPolling, stopRdWarmPolling } from './utils/rd-warm-native.js';
-import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
 import * as magnetBank from './utils/magnet-bank.js';
@@ -98,10 +97,9 @@ const server = app.listen(config.port, config.host, () => {
   // Varreduras NATIVAS da AllDebrid: o Node só espelha o status do gateway
   // (modo, último tick, contadores) para o painel — quem varre é o `al_sweeps`.
   startSweepsPolling();
-  // Warmer NATIVO do RD: o Node só espelha o status do gateway para o painel e
-  // o `rdWarmer.start()` desiste do timer local quando `/rd-warm` responde.
+  // Warmer NATIVO do RD: o dono da fila é o gateway (`/rd-warm` na admin 8711)
+  // e o Node só espelha o status para o painel — não há mais timer local.
   startRdWarmPolling();
-  rdWarmer.start();
   brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
   // — o motor decide pelo overlay vivo (`crawler-live`) e o painel liga/desliga

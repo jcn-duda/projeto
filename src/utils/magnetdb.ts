@@ -205,10 +205,10 @@ function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
 }
 
 /**
- * Apaga o `bad` de QUALQUER conta do adapter. É o caminho do reparo que
- * enumera por adapter (`rd-warmer`) e da limpeza do painel, que não têm a chave
- * da conta em mãos. Idempotente: a segunda passada devolve false. `alive`/`lie`
- * do mesmo hash não são tocados.
+ * Apaga o `bad` de QUALQUER conta do adapter. É o caminho da limpeza do painel,
+ * que enumera por adapter e não tem a chave da conta em mãos (o reparo do
+ * warmer saiu com o warmer TS). Idempotente: a segunda passada devolve false.
+ * `alive`/`lie` do mesmo hash não são tocados.
  *
  * O núcleo apaga o par (adapter, hash) em TODAS as contas e devolve quantas
  * linhas saíram; o agregado durável baixa esse número — o antigo `onForget` do

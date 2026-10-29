@@ -1,11 +1,12 @@
 // Ponte do Node com o warmer NATIVO do Real-Debrid (`adom-server::rd_warmer`,
 // API administrativa do gateway em loopback, 8711).
 //
-// A Fase 1 do porte tira o timer do Node do caminho quando o gateway responde:
-// fila, sonda e teto horário passam a ser do Rust. Ao Node sobra o painel — ler
-// o snapshot (`GET /rd-warm`) e pedir pausa/retomada/drenagem. Se a rota não
-// existir (gateway antigo), o snapshot fica `null` e o chamador segue com o
-// warmer local: esta ponte nunca inicia timer nem toca a conta.
+// O DONO do aquecimento é o gateway: fila, sonda e teto horário são do Rust.
+// Ao Node sobra o painel — ler o snapshot (`GET /rd-warm`) e pedir
+// pausa/retomada/drenagem. Não existe mais warmer local: se a rota não
+// existir (gateway antigo), o snapshot fica `null`, `nativeWarmStatus()` devolve
+// `null` e as ações respondem `native-unavailable` — o painel reporta a falha
+// em vez de fingir que aqueceu. Esta ponte nunca inicia timer nem toca a conta.
 //
 // DUAS credenciais, de propósito: o `GET` aceita o token próprio ou, sem ele, o
 // de DIAGNÓSTICO (`JACKETT_TEST_TOKEN`, o mesmo de `/metrics.json`); o `POST`
@@ -44,26 +45,25 @@ export type NativeRdWarmStatus = {
 };
 
 /**
- * Resultado de pausa/retomada/drenagem. `unavailable` só aparece quando o
- * snapshot nativo é `null` — o chamador então decide cair no warmer local.
- * Com snapshot presente, qualquer recusa é definitiva: dois donos da mesma
- * fila sondariam a mesma conta.
+ * Resultado de pausa/retomada/drenagem. `unavailable` aparece quando o
+ * snapshot nativo é `null` (gateway antigo/sem a rota): não há dono local para
+ * onde cair, então o chamador devolve a falha ao painel. Com snapshot presente,
+ * qualquer recusa é definitiva: dois donos da mesma fila sondariam a mesma conta.
  */
 export type NativeRdWarmAction = {
   ok: boolean; paused?: boolean; processed?: number | null; queueRemaining?: number | null;
   reason?: string; error?: string; unavailable?: boolean;
 };
 
-/** O que o `status()` local do `rd-warmer` publica (mínimo estrutural). */
-export type LocalRdWarmStatus = {
+/**
+ * Formato de `rd.warm` no `/debrid-status.json`. `null` quando ainda não houve
+ * snapshot — o diagnóstico é honesto sem o poll, em vez de inventar estado.
+ */
+export type RdWarmDiagnosticStatus = {
   enabled: boolean; queueDepth: number; lastTickAt: number | null; paused: boolean;
   processedLastHour: number; accountSource: NativeRdWarmAccountSource;
-};
-
-/** Formato de `rd.warm` no `/debrid-status.json`. `source` só existe no nativo. */
-export type RdWarmDiagnosticStatus = LocalRdWarmStatus & {
-  source?: 'rust';
-  counters?: NativeRdWarmCounters;
+  source: 'rust';
+  counters: NativeRdWarmCounters;
 };
 
 const SEQUENTIAL_FAILURES_BEFORE_BACKOFF = 2;
@@ -170,8 +170,8 @@ type PullResult = { snapshot: NativeRdWarmStatus | null; responded: boolean };
 
 /**
  * Corpo do refresh. Nunca lança; em falha mantém o snapshot anterior. O
- * `responded` é o que a sonda de boot usa: snapshot antigo não prova gateway
- * vivo, e é isso que decide quem fica com o timer.
+ * `responded` diz se ESTA tentativa falou com o gateway (snapshot antigo não
+ * prova gateway vivo) — é o que a sonda usa.
  */
 async function pull(timeoutMs?: number): Promise<PullResult> {
   if (!available()) return { snapshot, responded: false };
@@ -214,10 +214,10 @@ export async function refreshRdWarmStatus(): Promise<NativeRdWarmStatus | null> 
 }
 
 /**
- * Sonda de boot: `true` quando a rota existe e respondeu `200 {ok:true}` —
+ * Sonda do gateway: `true` quando a rota existe e respondeu `200 {ok:true}` —
  * inclusive `enabled:false`, que significa "o gateway é o dono, mas está
- * desligado". Nesse caso o Node NÃO liga o timer local: dois donos sondariam a
- * mesma conta. Prazo curto para não atrasar o arranque.
+ * desligado". Não decide mais dono nenhum (não há timer local desde a fatia 1
+ * da Fase 2); serve para saber se a ponte enxerga o gateway, com prazo curto.
  */
 export async function probeNativeRdWarm(): Promise<boolean> {
   const timeoutMs = Math.max(1, Math.min(PROBE_TIMEOUT_CAP_MS, Number(settings().timeoutMs) || PROBE_TIMEOUT_CAP_MS));
@@ -231,9 +231,10 @@ function isTimeout(err: unknown): boolean {
 }
 
 /**
- * Pré-condições das ações. Snapshot `null` não toca a rede (o chamador decide o
- * fallback local); com snapshot, a credencial destrutiva é obrigatória e NÃO há
- * fallback: token de diagnóstico não pausa nem drena a fila do operador.
+ * Pré-condições das ações. Sem snapshot (gateway antigo/sem a rota) a ponte nem
+ * toca a rede: não há dono local, então o painel reporta a falha. Com snapshot,
+ * a credencial destrutiva é obrigatória e NÃO há fallback: token de diagnóstico
+ * não pausa nem drena a fila do operador.
  */
 function actionBlocked(): NativeRdWarmAction | null {
   if (snapshot === null) {
@@ -346,12 +347,13 @@ export async function drainNativeRdWarm(max?: number): Promise<NativeRdWarmActio
 
 /**
  * Mapeia o snapshot nativo para o formato que `/debrid-status.json` já publica
- * em `rd.warm`. Sem snapshot, delega ao warmer local (gateway antigo/sem rota).
- * O `source:'rust'` é o que o painel usa para saber quem é o dono.
+ * em `rd.warm`. Sem snapshot devolve `null`: o dono é o gateway e não existe
+ * warmer local para inventar estado. O `source:'rust'` é o que o painel usa
+ * para saber quem é o dono.
  */
-export function nativeWarmStatus(services: { rdWarmer: { status(): LocalRdWarmStatus } }): RdWarmDiagnosticStatus {
+export function nativeWarmStatus(): RdWarmDiagnosticStatus | null {
   const snap = snapshot;
-  if (!snap) return services.rdWarmer.status();
+  if (!snap) return null;
   return {
     enabled: snap.enabled,
     queueDepth: snap.queueDepth,

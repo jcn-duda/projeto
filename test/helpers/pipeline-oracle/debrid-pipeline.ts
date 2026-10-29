@@ -17,9 +17,6 @@ import type { Stream } from '../../../types/domain.js';
 import { markDebridName } from '../../../src/utils/format.js';
 import {
   filterKnownCache,
-  pickBrDubbedCandidates,
-  pickAnyDubbedCandidates,
-  pickTopSeededCandidates,
 } from './autofetch-ranking.js';
 import { kvPeek } from '../../../src/utils/native-kv.js';
 import debrid from '../../../src/debrid/index.js';
@@ -39,7 +36,6 @@ import {
   oracleReleaseAllHolds as releaseAllHolds,
   oracleAutoFetchBrDubbed as autoFetchBrDubbed,
 } from './autofetch-bridge.js';
-import rdWarmer from '../../../src/providers/rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
 import { enrichInstantWithoutCacheCheck } from './debrid-instant-steps.js';
 import { countFirstBr, pruneKnownBroken } from './debrid-cache-steps.js';
@@ -212,26 +208,9 @@ export async function applyDebrid(input: Array<Stream | null>, {
     imdbId,
     searchKey, trace,
   });
-  // Warmer RD em fundo (F3): enfileira os top-N desconhecidos sem rede nem atraso na resposta.
-  if (config.debrid.rdWarm.enabled && (adapter.id === 'realdebrid' || config.debrid.service === 'realdebrid')) {
-    const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
-    const topN = 10;
-    const warmable = streams.filter((s) => !s._multiWorkAdmitted && !s._fromFallback);
-    const brCands = pickBrDubbedCandidates(warmable, cachedSet, topN)
-      .map((s) => String(s.infoHash || '').toLowerCase())
-      .filter(Boolean);
-    if (brCands.length) rdWarmer.enqueue(brCands, 100);
-
-    const anyDubbedCands = pickAnyDubbedCandidates(warmable, cachedSet, topN)
-      .map((s) => String(s.infoHash || '').toLowerCase())
-      .filter(Boolean);
-    if (anyDubbedCands.length) rdWarmer.enqueue(anyDubbedCands, 50);
-
-    const topSeededCands = pickTopSeededCandidates(warmable, cachedSet, topN, { minSeeders: 1 })
-      .map((s) => String(s.infoHash || '').toLowerCase())
-      .filter(Boolean);
-    if (topSeededCands.length) rdWarmer.enqueue(topSeededCands, 10);
-  }
+  // Warmer RD: NATIVO. O oráculo congelado só preserva o pipeline de debrid —
+  // quem enfileira hash no `/rd-warm` do gateway é o próprio gateway, e a
+  // fonte TS do warmer (rd-warmer/harvest-warmer) saiu do repositório.
   if (onCacheResult) onCacheResult({
     known,
     needsFullRefresh,

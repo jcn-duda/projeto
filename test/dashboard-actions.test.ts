@@ -7,7 +7,6 @@ import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 import * as cache from '../src/utils/cache.js';
 import { streamsCacheKey, streamsCacheScope } from '../src/utils/request-key.js';
-import rdWarmer from '../src/providers/rd-warmer.js';
 import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
 import { harvestDashboardRoutes } from './helpers/harvest-dashboard-mock.js';
@@ -236,38 +235,24 @@ test('ações operacionais do dashboard são idempotentes ou no-op seguro', asyn
   }
 });
 
-test('ações warm-pause, warm-resume e warm-drain operam sobre o rdWarmer', async () => {
+test('ações warm-pause, warm-resume e warm-drain falam com o gateway pela ponte', async () => {
+  // O painel não tem mais dono local: a ponte tem teste próprio em
+  // `rd-warm-native.test.ts` (método, corpo e token destrutivo), e aqui só se
+  // garante que a ação não cai em warmer local — sem snapshot a ponte responde
+  // `native-unavailable` e a rota reporta a falha.
   config.jackett.testToken = TOKEN;
   try {
-    const pause = await server.request('POST', '/dashboard-action.json', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'warm-pause' },
-    });
-    assert.equal(pause.status, 200);
-    assert.equal(pause.json.ok, true);
-    assert.equal(pause.json.action, 'warm-pause');
-    assert.equal(pause.json.paused, true);
-    assert.equal(rdWarmer.status().paused, true);
-
-    const resume = await server.request('POST', '/dashboard-action.json', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'warm-resume' },
-    });
-    assert.equal(resume.status, 200);
-    assert.equal(resume.json.ok, true);
-    assert.equal(resume.json.action, 'warm-resume');
-    assert.equal(resume.json.paused, false);
-    assert.equal(rdWarmer.status().paused, false);
-
-    const drain = await server.request('POST', '/dashboard-action.json', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'warm-drain', max: 5 },
-    });
-    assert.equal(drain.status, 200);
-    assert.equal(drain.json.ok, true);
-    assert.equal(drain.json.action, 'warm-drain');
-    assert.equal(typeof drain.json.processed, 'number');
-    assert.equal(typeof drain.json.queueRemaining, 'number');
+    for (const action of ['warm-pause', 'warm-resume', 'warm-drain']) {
+      const res = await server.request('POST', '/dashboard-action.json', {
+        headers: { 'X-Indexer-Test-Token': TOKEN },
+        body: { action },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.ok, false, `${action} sem snapshot não finge que aplicou`);
+      assert.equal(res.json.action, action);
+      assert.equal(res.json.reason, 'native-unavailable');
+      assert.match(String(res.json.error), /warmer nativo/);
+    }
   } finally {
     config.jackett.testToken = '';
   }

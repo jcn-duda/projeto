@@ -1,13 +1,14 @@
 // Rotas internas de ESCRITA E EFEITOS da busca (Fase A, passo 2 da migração
 // strangler Node→Rust): POST /internal/search/effects. É o que o orquestrador
 // Rust (`adom-search`) pede ao Node DEPOIS do `collect`: disparar os efeitos de
-// fundo que AINDA moram aqui — o warmer do RD e o pedido ao colhedor. A captura
-// do banco VIVO e o índice são NATIVOS desde o R4 (a rota `index-write` e o
-// efeito `magnet_capture` foram removidos junto com os ramos Node); o
-// interrogatório de áudio (`dub_audit`) saiu na T3-L7a; e o trabalho do Chupim
-// (`autofetch` legado, `autofetch_batch`, `br_probe`, `season_key`) passou ao
-// worker nativo na leva B4 — aqui ele é só CONTADO, nunca executado, e o lote
-// com esse trabalho sai com UM `warn` (aceite mudo seria trabalho perdido).
+// fundo que AINDA moram aqui — o pedido ao colhedor. A captura do banco VIVO e
+// o índice são NATIVOS desde o R4 (a rota `index-write` e o efeito
+// `magnet_capture` foram removidos junto com os ramos Node); o interrogatório
+// de áudio (`dub_audit`) saiu na T3-L7a; o trabalho do Chupim (`autofetch`
+// legado, `autofetch_batch`, `br_probe`, `season_key`) passou ao worker nativo
+// na leva B4 e o warmer do RD (`rd_warmer`) ao gateway na fatia 1 da Fase 2 —
+// aqui eles são só CONTADOS, nunca executados, e o lote com esse trabalho sai
+// com UM `warn` (aceite mudo seria trabalho perdido).
 //
 // Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
 // vem no CORPO (`encoded`), e o contexto é restaurado com `runtime.run` (o
@@ -17,7 +18,6 @@ import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import { rejectedByGuard, decodeTarget } from './internal-search-shared.js';
-import { queueRdWarmForRelevant } from '../providers/harvest-warmer.js';
 import { enqueueNativeHarvest } from '../utils/harvest-native.js';
 import type { NativeHarvestEnqueue } from '../utils/harvest-native.js';
 import * as runtime from '../runtime.js';
@@ -37,10 +37,11 @@ const IMDB_RE = /^tt\d+$/;
  * `NativeWorkQueue` do worker nativo do Chupim, que despacha por `kind`
  * (`autofetch_batch` → enqueue/recheck/dreno, `br_probe` → `probe_job`,
  * `season_key` → `season_step`); o `autofetch` legado é o mesmo lote em outro
- * formato.
+ * formato. O `rd_warmer` é do sink nativo do gateway (warmer RD): a fila vive
+ * no `/rd-warm` da admin 8711 e este processo só a lê pela ponte.
  *
- * A leva B4 já apagou os donos no TS (`autofetch-runner`/`autofetch-batch`/
- * `br-probe`/`autofetch-season-index`): não há mais para onde executar aqui.
+ * A leva B4 já apagou os donos do Chupim no TS e a fatia 1 da Fase 2 apagou o
+ * warmer (`rd-warmer`/`harvest-warmer`): não há mais para onde executar aqui.
  * Eles continuam ACEITOS na validação de forma — recusar faria o 202 mentir
  * sobre o lote que o gateway já classificou —, engordam `nativeOnly` e não
  * chamam nada. Como `Deferred` (`tail_effects.rs`) e o `Forward` de worker
@@ -48,19 +49,17 @@ const IMDB_RE = /^tt\d+$/;
  * UM `warn`: aceite silencioso é trabalho perdido sem rastro.
  */
 const NATIVE_ONLY_KINDS: ReadonlySet<string> = new Set([
-  'autofetch', 'autofetch_batch', 'br_probe', 'season_key',
+  'autofetch', 'autofetch_batch', 'br_probe', 'season_key', 'rd_warmer',
 ]);
 
 /** Colaboradores trocáveis em teste (mesmo padrão do internal-search.ts). */
 export interface InternalSearchEffectsCollaborators {
-  /** Alimenta o warmer do RD com as releases relevantes do lote. */
-  queueRdWarmForRelevant: typeof queueRdWarmForRelevant;
   /** Enfileira obra no colhedor NATIVO (`POST /harvest/enqueue` do gateway). */
   harvestEnqueue: (req: NativeHarvestEnqueue) => void;
 }
 
 /** Efeito que este processo executa: `kind` discriminado + payload validado. */
-type Effect = { kind: 'rd_warmer' | 'harvester_enqueue'; payload: Record<string, unknown> };
+type Effect = { kind: 'harvester_enqueue'; payload: Record<string, unknown> };
 
 /**
  * Payload do efeito → pedido do colhedor NATIVO. O contrato do gateway não
@@ -166,10 +165,6 @@ function kindSummary(kinds: readonly string[]): string {
 function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): void {
   const p = effect.payload;
   switch (effect.kind) {
-    case 'rd_warmer':
-      // O Node segue como fallback do sink nativo do warmer.
-      deps.queueRdWarmForRelevant(p.releases as any[]);
-      return;
     case 'harvester_enqueue': {
       // `next-episode`/`miss`/`gap`/`br-gap` do Rust: o enfileiramento é do
       // gateway (fila, dedupe de 12h e prioridade são dele). A flag `brProbe`
@@ -205,16 +200,17 @@ function handleEffects(
   const { effects, accepted, nativeOnly, nativeKinds, rejected } = parseEffects(body.effects);
   if (nativeOnly > 0) {
     // Um warn por request, só com kind e contagem — payload não entra em log.
-    // O motivo de existir: o `Deferred` do Rust (`tail_effects.rs:140-154`: sem
-    // escopo de conta ou `submit` recusado) e o `Forward` do worker desligado
-    // (`tail_effects.rs:179`) chegam os dois a este 202. Quem enfileira é o
-    // worker nativo do Chupim; se o lote veio por um desses dois caminhos, o
-    // aceite aqui NÃO significa trabalho enfileirado.
+    // O motivo de existir: o `Deferred` do Rust (`tail_effects.rs`: sem escopo de
+    // conta, `submit`/`offer` recusado) e o `Forward` do worker desligado
+    // (`tail_effects.rs`) chegam os dois a este 202. Quem executa é o gateway
+    // (worker nativo do Chupim para os kinds de trabalho, sink do warmer para
+    // `rd_warmer`); se o lote veio por um desses dois caminhos, o aceite aqui
+    // NÃO significa trabalho enfileirado.
     log.warn(
       `[internal] effects: nativeOnly=${nativeOnly} (${kindSummary(nativeKinds)}) aceitos sem execução local —`
-      + ' o dono destes kinds é o worker nativo do Chupim; o Node só confirma o 202.'
-      + ' Se chegaram aqui por `Deferred`/`Forward` do gateway (AUTOFETCH_WORKER off,'
-      + ' sem escopo de conta ou canal cheio), nada foi enfileirado: religue o worker nativo.',
+      + ' o dono destes kinds é o gateway nativo (worker do Chupim / warmer RD); o Node só confirma o 202.'
+      + ' Se chegaram aqui por `Deferred`/`Forward` do gateway (worker off,'
+      + ' sem escopo de conta ou canal cheio), nada foi enfileirado: religue o dono nativo.',
     );
   }
   // Contexto do usuário para os timers: `capture()` cumpre o invariante do
@@ -250,7 +246,6 @@ export function registerInternalSearchEffects(
   overrides: Partial<InternalSearchEffectsCollaborators> = {},
 ): void {
   const deps: InternalSearchEffectsCollaborators = {
-    queueRdWarmForRelevant: overrides.queueRdWarmForRelevant ?? queueRdWarmForRelevant,
     harvestEnqueue: overrides.harvestEnqueue ?? enqueueNativeHarvest,
   };
   const json = express.json({ limit: '1mb' });

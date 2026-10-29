@@ -132,7 +132,7 @@ function makeDiagnosticHandlers(services: AppServices) {
             torrentio: Boolean(services.config.debrid.rdOracle.torrentio),
           },
           gate: services.rdGate.status(),
-          warm: nativeWarmStatus(services),
+          warm: nativeWarmStatus(),
         };
         return res.json({ ...status, rd });
       }

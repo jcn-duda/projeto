@@ -90,8 +90,8 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // `rdt:v1:trt:<type>:<id>` com TTL ~6h por obra. Separado do ledger para o
   // veredicto por hash não competir com o histórico por título na mesma cota.
   rdt: 'v1',
-  // Fila persistente do rdWarmer, chave `rdq:v1:wq` (uma única entrada que
-  // carrega o array). Separado do ledger para o bump do rdc não arrastar um
+  // Fila persistente do warmer RD nativo, chave `rdq:v1:wq` (uma única entrada
+  // que carrega o array). Separado do ledger para o bump do rdc não arrastar um
   // estado vivo: a fila não é histórico reconstructivo — é trabalho pendente.
   rdq: 'v1',
   // v3: a gravação passou a ROTEAR a release pela temporada/episódio que o

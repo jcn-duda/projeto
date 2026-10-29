@@ -20,9 +20,10 @@ import { harvestPause, harvestDrain, harvestClearQueue, harvestConfigSet, harves
 // Varredura de mortos: ponte nativa da AllDebrid + ramo legado dos outros
 // serviços (extraído pela catraca de 400 linhas).
 import { sweepDead } from './dashboard-actions-sweep.js';
-// Warmer do RD: quando a ponte nativa tem snapshot, ela é a dona da fila. Sem
-// snapshot (gateway sem a rota), as ações caem no warmer local como antes.
-import { drainNativeRdWarm, pauseNativeRdWarm, rdWarmStatusSnapshot, resumeNativeRdWarm, type NativeRdWarmAction } from '../utils/rd-warm-native.js';
+// Warmer do RD: o dono da fila é o gateway (`/rd-warm`, admin 8711) e as ações
+// falam SÓ pela ponte. Sem snapshot a ponte devolve `native-unavailable` e o
+// painel reporta a falha — não existe mais warmer local para onde cair.
+import { drainNativeRdWarm, pauseNativeRdWarm, resumeNativeRdWarm, type NativeRdWarmAction } from '../utils/rd-warm-native.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -56,9 +57,9 @@ const DESTRUCTIVE_ACTIONS = new Set([
 const MAX_TEST_KEY_LENGTH = 512;
 
 /**
- * Recusa da ponte nativa com snapshot presente NÃO cai no warmer local: dois
+ * Recusa da ponte nativa NÃO cai em warmer local (ele não existe mais): dois
  * donos sondariam a mesma conta e o painel diria que aplicou o que o gateway
- * recusou. `unavailable` é o único caso em que o chamador segue local.
+ * recusou. O corpo mantém `reason`/`error` da ponte para a UI explicar a falha.
  */
 function nativeWarmFailure(action: string, result: NativeRdWarmAction) {
   return {
@@ -108,67 +109,43 @@ const ACTIONS: Record<string, ActionHandler> = {
   'crawl-site-pause': crawlSitePause, 'crawl-site-config-set': crawlSiteConfigSet, 'crawl-site-config-reset': crawlSiteConfigReset,
 
   'warm-pause': async ({ services, res, action }) => {
-    if (rdWarmStatusSnapshot() !== null) {
-      const native = await pauseNativeRdWarm();
-      if (native.ok && native.paused === true) {
-        services.metrics.count('dashboard.rd.warm.pause');
-        services.log.info('[dashboard] warmer RD nativo pausado');
-        return res.json({ ok: true, action, paused: true });
-      }
-      if (!native.unavailable) {
-        services.metrics.count('dashboard.rd.warm.unavailable');
-        services.log.warn(`[dashboard] pausa do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
-        return res.json(nativeWarmFailure(action, native));
-      }
+    const native = await pauseNativeRdWarm();
+    if (native.ok && native.paused === true) {
+      services.metrics.count('dashboard.rd.warm.pause');
+      services.log.info('[dashboard] warmer RD nativo pausado');
+      return res.json({ ok: true, action, paused: true });
     }
-    services.rdWarmer.setPaused(true);
-    services.metrics.count('dashboard.rd.warm.pause');
-    services.log.info('[dashboard] warmer RD pausado');
-    return res.json({ ok: true, action, paused: true });
+    services.metrics.count('dashboard.rd.warm.unavailable');
+    services.log.warn(`[dashboard] pausa do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
+    return res.json(nativeWarmFailure(action, native));
   },
 
   'warm-resume': async ({ services, res, action }) => {
-    if (rdWarmStatusSnapshot() !== null) {
-      const native = await resumeNativeRdWarm();
-      if (native.ok && native.paused === false) {
-        services.metrics.count('dashboard.rd.warm.resume');
-        services.log.info('[dashboard] warmer RD nativo retomado');
-        return res.json({ ok: true, action, paused: false });
-      }
-      if (!native.unavailable) {
-        services.metrics.count('dashboard.rd.warm.unavailable');
-        services.log.warn(`[dashboard] retomada do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
-        return res.json(nativeWarmFailure(action, native));
-      }
+    const native = await resumeNativeRdWarm();
+    if (native.ok && native.paused === false) {
+      services.metrics.count('dashboard.rd.warm.resume');
+      services.log.info('[dashboard] warmer RD nativo retomado');
+      return res.json({ ok: true, action, paused: false });
     }
-    services.rdWarmer.setPaused(false);
-    services.metrics.count('dashboard.rd.warm.resume');
-    services.log.info('[dashboard] warmer RD retomado');
-    return res.json({ ok: true, action, paused: false });
+    services.metrics.count('dashboard.rd.warm.unavailable');
+    services.log.warn(`[dashboard] retomada do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
+    return res.json(nativeWarmFailure(action, native));
   },
 
   'warm-drain': async ({ services, req, res, action }) => {
     const max = maxFromBody(req);
-    if (rdWarmStatusSnapshot() !== null) {
-      const native = await drainNativeRdWarm(max);
-      if (native.ok) {
-        const processed = native.processed ?? 0;
-        services.metrics.count('dashboard.rd.warm.drain', processed);
-        services.log.info(
-          `[dashboard] warmer RD nativo drenado: ${processed} item(ns) processado(s), ${native.queueRemaining ?? 0} restante(s)`,
-        );
-        return res.json({ ok: true, action, processed, queueRemaining: native.queueRemaining ?? null });
-      }
-      if (!native.unavailable) {
-        services.metrics.count('dashboard.rd.warm.unavailable');
-        services.log.warn(`[dashboard] drenagem do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
-        return res.json(nativeWarmFailure(action, native));
-      }
+    const native = await drainNativeRdWarm(max);
+    if (native.ok) {
+      const processed = native.processed ?? 0;
+      services.metrics.count('dashboard.rd.warm.drain', processed);
+      services.log.info(
+        `[dashboard] warmer RD nativo drenado: ${processed} item(ns) processado(s), ${native.queueRemaining ?? 0} restante(s)`,
+      );
+      return res.json({ ok: true, action, processed, queueRemaining: native.queueRemaining ?? null });
     }
-    const result = await services.rdWarmer.drain(max);
-    services.metrics.count('dashboard.rd.warm.drain', result.processed);
-    services.log.info(`[dashboard] warmer RD drenado: ${result.processed} item(ns) processado(s), ${result.queueRemaining} restante(s)`);
-    return res.json({ ok: true, action, ...result });
+    services.metrics.count('dashboard.rd.warm.unavailable');
+    services.log.warn(`[dashboard] drenagem do warmer nativo não aplicada (${native.reason || 'sem motivo'})`);
+    return res.json(nativeWarmFailure(action, native));
   },
 
   'refresh-inventory': ({ services, res, action }) => {
