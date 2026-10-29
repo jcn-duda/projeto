@@ -199,13 +199,18 @@ docker compose exec adom sh -lc \
 | `suppressed` / `lastSuppressedDrain` | presença do campo | ausência = gateway antigo (imagem anterior à rota) |
 
 Prova de escrita pela admin (o painel usa as mesmas). As rotas são de
-`rust/crates/adom-server/src/autofetch/routes.rs:15-22`: `pause` exige **só**
-`{"paused":bool}`; `drain` e `suppressed-drain` **não levam corpo** — `effect`
-é campo da RESPOSTA, não do pedido.
+`rust/crates/adom-server/src/autofetch/routes.rs:17-23`: `pause` exige **só**
+`{"paused":bool}`; `drain` não leva corpo (`effect` é campo da RESPOSTA, não do
+pedido). `suppressed-drain` é **DESTRUTIVA** e exige **as duas coisas**:
+`{"confirm":true}` no corpo (sem isso, `409 confirmation_required`) e a
+**credencial destrutiva** (`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN`,
+como no `POST /sweeps/run`: `409 autofetch_requires_admin_token` sem ela,
+`403 autofetch_token_insufficient` com o token de diagnóstico). Token só no
+header — `?token=` nunca autentica.
 
 ```bash
-# `pause` leva corpo; `drain`/`suppressed-drain` NÃO levam corpo — o `fetch`
-# do Node distingue os dois; o token viaja só no header.
+# `pause` leva corpo; `drain` não leva corpo; `suppressed-drain` leva
+# `{"confirm":true}` E o token destrutivo. Token viaja só no header.
 docker compose exec adom node -e '
 const t = process.env.STREAM_STORE_ADMIN_TOKEN || process.env.DEBRID_INTERNAL_TOKEN || "";
 const post = (p, body) => fetch(`http://127.0.0.1:8711${p}`, {
@@ -216,7 +221,7 @@ const post = (p, body) => fetch(`http://127.0.0.1:8711${p}`, {
 Promise.all([
   post("/autofetch/pause", { paused: false }),
   post("/autofetch/drain"),
-  post("/autofetch/suppressed-drain"),
+  post("/autofetch/suppressed-drain", { confirm: true }),
 ]);'
 ```
 

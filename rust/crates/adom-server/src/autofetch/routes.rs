@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-use crate::store_admin::AdminState;
+use crate::store_admin::{tokens_match, AdminState};
 
-use super::suppressed_step::{self, DrainGate, GATE_REMOVE_BY_ID_OFF};
+use super::suppressed_step::{self, DrainGate};
 use super::worker::AutofetchStatus;
 use super::Policy;
 
@@ -111,22 +112,36 @@ async fn drain(State(state): State<Arc<AdminState>>) -> Response {
 
 /// Dreno da represa (`autofetch:v3:sup:`) — o `drainSuppressed` do Node.
 ///
-/// A rota é a ação do OPERADOR e é DESTRUTIVA: `force` só nasce do corpo
-/// `{"confirm":true}`. Sem confirmação (corpo ausente ou `{}`) vale o gate
-/// estático `DEBRID_REMOVE_BY_ID`: com o knob OFF — o default — a resposta é
-/// `effect:"none"` + `reason:"remove-by-id-off"` e NADA é varrido nem
-/// apagado, exatamente como o dreno automático. Com a confirmação o passo roda
-/// AQUI e devolve contadores reais: `drained` é a contagem de remoções
-/// confirmadas no serviço (o painel pinta isso em "removidas"). Sem worker
-/// (`enabled:false`), sem KV ou sem a fábrica do ciclo, responde `drained:0` +
-/// `reason` — nunca 500: painel quebrado é pior que dreno adiado, e é o motivo
-/// que mantém o Node como dono enquanto os dois existirem
-/// (`autofetchEffectApplied` só liga com `effect:"applied"`, que exige chamada
-/// de serviço).
+/// A rota é a ação do OPERADOR e é DESTRUTIVA (apaga transferência na conta do
+/// usuário pelo `remove(id)` do adaptador). Por isso ela carrega as DUAS
+/// guardas que o `POST /sweeps/run` já tinha, e recusa SEM executar nada:
+///
+/// 1. **credencial destrutiva** — o token da superfície (o de diagnóstico, o
+///    mesmo de `/metrics.json` e dos scripts) abre o painel mas NÃO apaga
+///    magnet: sem `STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN` responde
+///    409 `autofetch_requires_admin_token`; com o token de diagnóstico, 403
+///    `autofetch_token_insufficient`. O header é o MESMO
+///    (`x-indexer-test-token`) e a comparação usa `store_admin::tokens_match`
+///    (tempo constante); token NUNCA vem por query nem por corpo.
+/// 2. **`confirm`** — corpo ausente, `{}` ou `{"confirm":false}` ⇒ 409
+///    `confirmation_required`. É a regra da ação do painel (o Node manda
+///    `{confirm:true}` em `autofetch-native.ts`), não um no-op silencioso.
+///
+/// Com as duas, o passo roda AQUI com `force:true` (o dreno do operador não
+/// depende do knob global, como no Node) e devolve contadores reais: `drained`
+/// é a contagem de remoções confirmadas no serviço (o painel pinta isso em
+/// "removidas"). O knob `DEBRID_REMOVE_BY_ID` continua governando só o passo
+/// AUTOMÁTICO do laço. Sem worker (`enabled:false`), sem KV ou sem a fábrica do
+/// ciclo, responde `drained:0` + `reason` — nunca 500: painel quebrado é pior
+/// que dreno adiado, e é o motivo que mantém o Node como dono enquanto os dois
+/// existirem (`autofetchEffectApplied` só liga com `effect:"applied"`, que
+/// exige chamada de serviço).
 async fn suppressed_drain(
     State(state): State<Arc<AdminState>>,
-    // Corpo OPCIONAL: ausente = `{}` (a confirmação é o que libera o `force`).
-    body: Option<Json<Value>>,
+    headers: HeaderMap,
+    // Corpo CRU: vazio é "não confirmado" (409), não um 400 do extrator. Um
+    // corpo ilegível também não confirma — a recusa nunca vira efeito.
+    body: Bytes,
 ) -> Response {
     let Some(handle) = state.autofetch.as_ref() else {
         return unavailable();
@@ -137,20 +152,32 @@ async fn suppressed_drain(
         // Worker `prepared`: não há fábrica nem laço — quem drena é o Node.
         return press_skipped(&status, "worker-disabled", depth);
     }
-    // `force` SÓ com `{"confirm":true}`: ação destrutiva, nunca implícita.
-    let confirmed = body
-        .map(|Json(value)| value)
-        .and_then(|value| value.get("confirm").and_then(Value::as_bool))
-        == Some(true);
+    // Credencial DESTRUTIVA antes de qualquer varredura da represa ou chamada
+    // de serviço: `None` = nenhuma configurada (recusa de configuração).
+    let Some(expected) = state.destructive_token.as_deref() else {
+        return refuse(
+            StatusCode::CONFLICT,
+            "autofetch_requires_admin_token",
+            Some("no_destructive_token"),
+        );
+    };
+    if !tokens_match(expected, header_token(&headers)) {
+        return refuse(
+            StatusCode::FORBIDDEN,
+            "autofetch_token_insufficient",
+            Some("diagnostic_token"),
+        );
+    }
+    if confirmed(&body) != Some(true) {
+        return refuse(StatusCode::CONFLICT, "confirmation_required", None);
+    }
     // A `Policy` nasce do `.env` no boot e é imutável: reler aqui dá o MESMO
-    // knob, sem getter novo no worker.
+    // knob, sem getter novo no worker. O operador confirmou: `force` liga o
+    // passo, e o knob só decide o dreno AUTOMÁTICO.
     let gate = DrainGate {
         remove_by_id: Policy::from_env().remove_by_id,
-        force: confirmed,
+        force: true,
     };
-    if !gate.open() {
-        return press_gated(&status, depth);
-    }
     let Some(kv) = state.ownership_kv.as_deref() else {
         return press_skipped(&status, "kv-unavailable", depth);
     };
@@ -193,29 +220,32 @@ async fn suppressed_drain(
     }
 }
 
-/// Gate do knob fechado (sem `confirm` e com `DEBRID_REMOVE_BY_ID` OFF):
-/// nenhuma chave é varrida e o serviço não é chamado — `kept` é a profundidade
-/// preservada, como no relatório do passo automático.
-fn press_gated(status: &AutofetchStatus, depth: Option<usize>) -> Response {
-    let depth = depth.unwrap_or(0);
-    Json(json!({
-        "ok": true,
-        "enabled": status.enabled,
-        "phase": status.phase,
-        "operation": "suppressed-drain",
-        "effect": "none",
-        "drained": 0,
-        "retried": 0,
-        "dropped": 0,
-        "kept": depth,
-        "failed": 0,
-        "operations": 0,
-        "suppressed": depth,
-        "reason": GATE_REMOVE_BY_ID_OFF,
-        "gate": GATE_REMOVE_BY_ID_OFF,
-        "lastSuppressedDrain": suppressed_step::last(),
-    }))
-    .into_response()
+/// `confirm` do corpo: só `true` libera. Corpo ausente/vazio, `{}`, `null`,
+/// corpo ilegível e `{"confirm":"true"}` (string) contam como NÃO confirmado.
+fn confirmed(body: &[u8]) -> Option<bool> {
+    serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|value| value.get("confirm").and_then(Value::as_bool))
+}
+
+/// Token do header (`X-Indexer-Test-Token`); ausente/lixo ⇒ vazio, que nunca
+/// casa com a credencial esperada. Query e corpo NÃO são lidos: o token de
+/// `?token=` nunca autentica.
+fn header_token(headers: &HeaderMap) -> &str {
+    headers
+        .get("x-indexer-test-token")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+}
+
+/// Recusa de rota destrutiva: status + corpo com o motivo, sem tocar o KV, o
+/// serviço ou o último passo.
+fn refuse(status: StatusCode, error: &'static str, reason: Option<&'static str>) -> Response {
+    let mut body = json!({ "ok": false, "error": error });
+    if let Some(reason) = reason {
+        body["reason"] = json!(reason);
+    }
+    (status, Json(body)).into_response()
 }
 
 /// Resposta do passo que NÃO executou: `drained:0`, `effect:"none"` e o motivo

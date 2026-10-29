@@ -222,9 +222,10 @@ export function drainAutofetch(): Promise<AutofetchResult | null> {
 }
 
 /**
- * Dreno da fila de remoções represadas do worker. DESTRUTIVA: o gateway só
- * executa com `{"confirm": true}` (a rota do painel já chega aqui sob
- * confirmação) ou com o knob `DEBRID_REMOVE_BY_ID` ligado.
+ * Dreno da fila de remoções represadas do worker. DESTRUTIVA: o gateway exige o
+ * `{"confirm": true}` daqui E a credencial destrutiva (`STREAM_STORE_ADMIN_TOKEN`
+ * ou `DEBRID_INTERNAL_TOKEN`, a mesma precedência do `token()` acima). O knob
+ * `DEBRID_REMOVE_BY_ID` governa só o dreno AUTOMÁTICO do laço, não esta rota.
  */
 export function drainSuppressedAutofetch(): Promise<AutofetchResult | null> {
   return command('/autofetch/suppressed-drain', { confirm: true }, 'suppressed-drain');
