@@ -1799,8 +1799,10 @@ em loopback + token). Fora dessa pasta: `tail_effects.rs` é a **porta única** 
 alimenta o cofre com o `encoded` de cada lote e entrega `adapter:sha256(chave)`
 ao sink (sem escopo derivável, o efeito volta ao Node), `rd_warmer*.rs` é o
 aquecimento do RD nativo e `adom-debrid/src/alldebrid_sweeps*.rs` são as
-varreduras de conteúdo da AllDebrid (agendador em `al_sweeps.rs`, ligado no
-`main.rs`).
+varreduras de conteúdo da AllDebrid (agendador em
+`adom-server/src/al_sweeps.rs` + `al_sweeps_env.rs::spawn`, chamado UMA vez por
+`proxy::run` — `rust/crates/adom-server/src/proxy.rs:99-102` — e mantido vivo
+até o fim do `axum::serve`; o `main.rs` não monta nada).
 
 Já é nativo: fila/marker/blacklist (`autofetch:v3:q|m|dead`), as decisões puras
 (cascata, `recheck_step`/`lot_outcome`/settle LRU), o cofre, o enfileiramento, o
@@ -1809,9 +1811,9 @@ chave do cofre e ledger `rdc:v2`) e o **executor** das quatro varreduras da
 AllDebrid (decisão pura + `apply_plan` com `may_delete` fail-closed).
 
 Continua no Node (ver a subseção seguinte): `adsub`/`adprot` (marcas de posse e
-retenção que o nativo só LÊ), o `harvester_enqueue` e o agendamento das
-varreduras da AllDebrid
-(`ReadOnly`). Sonda, Season Pack Fill, represa e evicção **saíram** dessa lista
+retenção que o nativo só LÊ) e o `harvester_enqueue` — o agendamento das
+varreduras da AllDebrid **não** está mais nessa lista (é o `al_sweeps` citado
+acima). Sonda, Season Pack Fill, represa e evicção **saíram** dessa lista
 na leva C1 — e o despacho por `kind` (`serve_jobs.rs:57-65`) é o que as liga ao
 canal: `BR_PROBE`/`SEASON_KEY`/`AUTOFETCH_BATCH`. O corte do TS do Chupim foi
 **executado** na leva B4 (2026-10-28): ver "Corte do TS do Chupim" abaixo.

@@ -140,18 +140,29 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
    A fábrica usa o MESMO `RdGateExecutor`/`RdKvStore` das outras pontas do
    processo, e sem cliente HTTP o worker volta a `prepared` em vez de quebrar o
    boot.
-3. **Varreduras AllDebrid — agendador FIADO, `Apply` ainda freado** (`bf846820`
-   + `016b3690`). `al_sweeps` (`rust/crates/adom-server/src/al_sweeps.rs`, ligado
-   em `main.rs`) monta os fatos, respeita `DEBRID_AL_SWEEP_MS` e roda as quatro
-   decisões puras com `may_delete` fail-closed. A listagem nativa NÃO prova
+3. **Varreduras AllDebrid — nativas, donas únicas e `Apply` ligado no compose**
+   (`bf846820` + `016b3690`). `al_sweeps`
+   (`rust/crates/adom-server/src/al_sweeps.rs`) monta os fatos, respeita
+   `DEBRID_AL_SWEEP_MS` (6 h por tipo; `0` desliga) e roda as quatro decisões
+   puras com `may_delete` fail-closed. O `spawn` é chamado UMA vez por
+   `proxy::run` (`rust/crates/adom-server/src/proxy.rs:99-102`) e o
+   `SweepRuntime` fica vivo até o fim do `axum::serve`; o `main.rs` não monta
+   nada e não há segundo laço nem segunda fila. A listagem nativa NÃO prova
    posse (`adsub`), retenção (`adprot`) nem a fila `sup:` — fatos do `cache.db`
-   do Node. **Fase 1 do wiring** (2026-10-28): os fatos do `cache.db` estão
-   ligados (`adsub`/`adprot`/`adrm` via KV nativo, fila `sup:` via
-   `SuppressedV3`), os efeitos de estado existem (`al_sweeps_effects.rs`:
+   — e eles estão ligados (`adsub`/`adprot`/`adrm` via KV nativo, fila `sup:` via
+   `SuppressedV3`); os efeitos de estado existem (`al_sweeps_effects.rs`:
    `adrm` só do que o `sweepUndubbed` removeu, poda `adprot` com hold/idade,
-   cura da represa) — mas o freio virou o gate explícito
-   `DEBRID_AL_SWEEP_APPLY` (default **OFF**): com `DEBRID_AL_CLEANUP=on` e o
-   gate fechado, o modo fica em `ReadOnly` e nenhum efeito de estado roda.
+   cura da represa). O freio é o gate explícito `DEBRID_AL_SWEEP_APPLY`:
+   default **OFF no código**, **ON no `docker-compose.yml`**. Gate fechado com
+   `DEBRID_AL_CLEANUP=on` ⇒ modo `ReadOnly` e nenhum efeito de estado roda;
+   gate aberto ⇒ `Apply`, e a rodada MANUAL (`POST /sweeps/run` na 8711) exige
+   a **credencial destrutiva** (a segunda do `store_admin`:
+   `STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`, nunca o token de
+   diagnóstico) e `confirm:true` — sem elas, `409
+   sweeps_requires_admin_token`/`403 sweeps_token_insufficient` e `409
+   confirmation_required`, sempre antes de tocar a conta. O painel lê
+   `GET /sweeps`, que responde `200` mesmo desligado. O contrato das duas rotas
+   está em `docs/debrid-al-check-rust.md` §9.
    **Correção da leva C1:** a gravação do
    `adrm` da EVICÇÃO não está mais sem fio — `evict_job::mark_removed`
    (`autofetch/evict_job.rs:352-378`) grava `{"at":now}` e nunca poda marca, gated

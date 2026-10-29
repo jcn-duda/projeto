@@ -513,8 +513,8 @@ No `.env` (operador): `DEBRID_SERVICE`, `DEBRID_API_KEY`, `DEBRID_ALLOW_ENV_KEY`
 `DEBRID_AUTO_FETCH_DEAD_TTL`, `DEBRID_AUTO_FETCH_STALL_STREAK`,
 `DEBRID_AUTO_FETCH_SETTLE_MS`, `DEBRID_AUTO_FETCH_SETTLE_MAX_LOTS`,
 `DEBRID_AUTO_FETCH_ENQUEUE_MAX_HOUR`, `DEBRID_AUTO_FETCH_SEASON_FILL`,
-`DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_SWEEP_DEAD`,
-`DEBRID_ACCOUNT_WARN_TOTAL`, `DEBRID_ACCOUNT_WARN_LIMIT_USED`,
+`DEBRID_AUTO_FETCH_SEASON_INDEX_MAX`, `DEBRID_AL_SWEEP_APPLY`,
+`DEBRID_AL_SWEEP_MS`, `DEBRID_ACCOUNT_WARN_TOTAL`, `DEBRID_ACCOUNT_WARN_LIMIT_USED`,
 `DEBRID_DASHBOARD_ACCOUNT_TIMEOUT_MS`, `DEBRID_DASHBOARD_ACCOUNT_TTL_MS`.
 
 `DEBRID_PREFETCH_NEXT_EP` e `DEBRID_PREFETCH_TTL` estão **aposentadas** desde a
@@ -522,26 +522,37 @@ leva B4: saíram do código sem leitor no TS nem no Rust, e a nota está em
 [`src/config/debrid.ts`](src/config/debrid.ts), linhas 351-353. Defini-las no
 `.env` não tem efeito.
 
-**Ocupação da conta AllDebrid (Fase 8).** Todos tocam uma conta real; os três
-primeiros são os que apagam.
+**Ocupação da conta AllDebrid (Fase 8).** Todos tocam uma conta real; só as
+varreduras apagam — e só com o gate de aplicação aberto.
 
 - Posse durável: `ALLDEBRID_SUBMITTED_TTL_MS` (7d; `0` volta ao `Map` de
   memória — e à catraca que ele causava), `ALLDEBRID_PREEXISTING_TTL_MS`
   (300000).
 - Anti-reenchimento: `DEBRID_REUPLOAD_BLOCK` (default `true`) e o TTL do
   marcador. Expurgo manual pelo `--unblock`.
-- Reconcile da posse órfã: `DEBRID_RECONCILE` (default **`false`**; ligar explicitamente),
-  `DEBRID_RECONCILE_MAX_PER_ROUND` (25, clamp 0..50 — `0` desliga),
-  `DEBRID_RECONCILE_MIN_INTERVAL_MS` (300000),
-  `DEBRID_RECONCILE_AGE_MARGIN_MS` (600000, margem anti-re-add).
-- Evicção por busca: `DEBRID_EVICT_PER_SEARCH` (default **`false`**).
+- As **quatro varreduras** (mortos, não-dublados, reconcile da posse e cura da
+  fila `sup:`) são NATIVAS desde o corte do TS: o agendador é
+  `adom-server::al_sweeps` (dono único, `spawn` em `proxy::run`) e o gate de
+  APLICAÇÃO é `DEBRID_AL_SWEEP_APPLY` — default **OFF no código** (só
+  `on/1/true/yes` libera), **ON no `docker-compose.yml`**; sem ele a rodada fica
+  read-only (plano calculado, zero `DELETE`). `DEBRID_AL_SWEEP_MS` é o intervalo
+  por tipo (default 6 h; `0` desliga o agendamento; a primeira rodada espera um
+  intervalo).
+- Kill-switches das varreduras: `DEBRID_AL_HOLDS` (`off` desmonta o feed de
+  holds — sem ele o inventário sozinho não prova download em voo e nenhum hash
+  sai) e `DEBRID_AL_CLEANUP` (ausente = `ReadOnly`, `off` = `Off`: nem plano).
+  `DEBRID_AL_CLEANUP_KILL=on` volta a `ReadOnly` mesmo com o gate aberto.
+  Pisos/tetos de cada varredura são constantes do crate
+  (`alldebrid_sweeps_facts::SweepConfig`: mortos 30 min, não-dublados 7 d/100,
+  reconcile 24 h/25, revalidate 30 min) — não há env por varredura.
 
-Os dois destrutivos têm defaults **opostos**, e a assimetria é deliberada: o
-reconcile nasce ligado porque só alcança o que o addon provadamente subiu e não
-conseguiu remover; a evicção nasce desligada porque escolhe vítima por idade
-entre magnets que ninguém provou serem nossos. Ambos valem só para a conta do
-**operador** (nunca chave BYO de instalação) e ambos dependem de `dropReady` ou
-`dropUncached` estar ativo.
+Não existem mais os knobs da varredura de posse órfã (`DEBRID_RECONCILE`,
+`DEBRID_RECONCILE_MAX_PER_ROUND`, `DEBRID_RECONCILE_MIN_INTERVAL_MS`), nem
+`DEBRID_EVICT_PER_SEARCH`, nem `DEBRID_SWEEP_DEAD`: nenhum tem leitor em `src/`
+ou em `rust/`. O único sobrevivente desse prefixo é
+`DEBRID_RECONCILE_AGE_MARGIN_MS`, lido só pela evicção do autofetch
+(`adom-debrid/src/autofetch_ports_evict.rs`) — não pelas varreduras. Defini-los
+no `.env` não tem efeito algum, como os `PREFETCH` acima.
 
 **Paridade Real-Debrid (F1/F2/F3/F5):**
 

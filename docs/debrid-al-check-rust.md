@@ -77,6 +77,8 @@ O `debrid_seam` / `FrozenDebridCheck` consomem apenas
 | `DEBRID_BATCH_SIZE` | `25` | `25` | lote da checagem (já existia no Node) |
 | `DEBRID_CACHE_CHECK_TIMEOUT_MS` | `10000` | `10000` | teto por lote |
 | `DEBRID_AL_HOLDS_TIMEOUT_MS` | `800` | `800` | prazo do POST interno do feed (mínimo 1 ms; falha = read-only) |
+| `DEBRID_AL_SWEEP_APPLY` | `on` (`${DEBRID_AL_SWEEP_APPLY:-on}`) | `off` (ausente/vazio/lixo = OFF) | freio de APLICAÇÃO das quatro varreduras (`al_sweeps_env::apply_gate_on_from`): só o literal `on/1/true/yes` (aparado, sem caixa) abre o `Apply`. Sem ele, `DEBRID_AL_CLEANUP=on` vira `ReadOnly` (plano roda, `DELETE` não — `effective_from`). Desligar = rodada read-only; não devolve o agendador ao Node |
+| `DEBRID_AL_SWEEP_MS` | vazio (= 6 h) | 6 h | intervalo mínimo por tipo de varredura; `0` desliga o agendamento (`interval_zero`); a primeira rodada espera um intervalo de propósito. Com `0` o runtime sai desligado inteiro (`enabled:false`), inclusive a rota manual |
 | `DEBRID_AL_CLEANUP_KILL` | vazio | vazio | `on/1/true/yes` suprime plano e fila (kill-switch de uma linha) |
 | `DEBRID_AL_CLEANUP_BACKOFF_MS` | `400,800,1600` | idem | espera por tentativa na fila de delete |
 | `DEBRID_AL_CLEANUP_CONCURRENCY` | `4` | `4` | workers por execução de delete (1..8) |
@@ -149,8 +151,20 @@ no branch). Para desligar só a limpeza, mantendo a checagem nativa:
    FICAM como kill-switches do hold e do plano: default do código `off`, compose
    `on`; sem holds/inventário a nativa é read-only. O freio de APLICAÇÃO das
    quatro varreduras é `DEBRID_AL_SWEEP_APPLY` (código `off`, compose `on`) e o
-   intervalo é `DEBRID_AL_SWEEP_MS`. Rollback da fatia é **imagem/commit
-   anterior**, não env.
+   intervalo é `DEBRID_AL_SWEEP_MS`.
+   **A fatia tem dois freios independentes**, e nenhum dos dois é rollback:
+   (a) o gate `DEBRID_AL_SWEEP_APPLY` decide se o modo vira `Apply`
+   (`al_sweeps_env::effective_from`: sem o gate, `on` em
+   `DEBRID_AL_CLEANUP` vira `ReadOnly` — plano roda, `DELETE` não); (b) na rota
+   manual, a **credencial destrutiva** (a segunda do `store_admin`, §9.1) mais
+   `confirm:true` — sem a credencial o `POST /sweeps/run` responde
+   `409 sweeps_requires_admin_token`/`403 sweeps_token_insufficient` e, sem
+   `confirm`, `409 confirmation_required`, sempre antes de qualquer I/O na conta
+   (`al_sweeps_admin::run`); a rodada **agendada** não pede `confirm`. Fechar
+   (a) degrada tudo para read-only; fechar (b) só impede a rodada manual.
+   Rollback da fatia continua sendo **imagem/commit anterior**: não existe env de
+   DONO do agendador — o `spawn` é chamado uma vez por `proxy::run` e não há
+   segundo laço (§9).
 
 ## 5. Métricas (`/metrics` do gateway)
 
@@ -449,3 +463,132 @@ Saíram neste corte: os timers de `src/addon.ts`, `sweepDeadEnv`/`sweepUndubbedE
 `alldebrid-cleanup.ts` ficou a higiene da checagem: `skipCleanup` e
 `deleteMagnets`/`deleteMagnetsNow`, atrás do gate B-4 por conta. `warmupEnv`
 continua no Node — é inventário da conta do operador, não varredura.
+
+## 9. Contrato admin das varreduras (8711)
+
+As varreduras nativas não têm servidor próprio: `GET /sweeps` e
+`POST /sweeps/run` são rotas do roteador do `store_admin`
+(`rust/crates/adom-server/src/al_sweeps_admin.rs::router`), montadas por `merge`
+em `store_admin::router_with_ownership`. Não há autenticação local nessas
+rotas — o `auth` do `store_admin` cobre as duas. O listener é loopback
+(`STREAM_STORE_ADMIN_LISTEN`, default `127.0.0.1:8711`) e o `docker-compose.yml`
+**não publica** a porta (o bloco `ports` só abre 80/443, `${PORT:-7000}` e os
+painéis 9117/8191): a sonda é por `docker exec`, nunca por fora do container.
+
+### 9.1 Duas credenciais, de propósito
+
+| credencial | de onde sai | para quê |
+|---|---|---|
+| token da admin (abre a superfície) | `store_admin::token_from_env`: `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN` | TODAS as rotas, `GET /sweeps` inclusive — é o mesmo token de `/metrics.json`, `/dashboard-status.json` e dos scripts |
+| token **destrutivo** | `store_admin::destructive_token_from_env`: `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` (`JACKETT_TEST_TOKEN` fica FORA) | libera o `DELETE` do `POST /sweeps/run`, depois do `auth` global |
+
+As duas viajam no MESMO header `x-indexer-test-token` — não há segundo header:
+o `store_admin::auth` compara o valor com a primeira e o handler compara o
+mesmo valor com a segunda (`al_sweeps_admin::run` → `store_admin::tokens_match`).
+Na prática o `POST` só passa quando o header é o token do `store_admin`; um
+deploy em que só `JACKETT_TEST_TOKEN` está definido continua lendo o status
+(`GET` 200) e leva `409` para executar. Os desfechos:
+
+- sem credencial destrutiva configurada ⇒ `409 sweeps_requires_admin_token`
+  (`reason:"no_destructive_token"`), **antes** de qualquer I/O na conta;
+- token de diagnóstico (passa no `auth`, não é a segunda credencial) ⇒
+  `403 sweeps_token_insufficient` (`reason:"diagnostic_token"`);
+- header ausente/errado nem chega ao handler: o `auth` devolve `401
+  unauthorized`; processo sem token algum devolve `503
+  streams_admin_disabled`.
+
+A ponte do Node manda o MESMO valor nas duas chamadas
+(`src/utils/sweeps-native.ts::token`: `streamStore.token` —
+`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN` — com fallback
+`config.jackett.testToken`), então o botão do painel só apaga quando a primeira
+das duas envs existe.
+
+Também não há `403` por escopo de conta: a conta é sempre a do operador
+(`al_sweeps_admin::FORBIDDEN` recusa `apiKey`/`encoded`/`service`/`accountScope`
+no corpo com `400 operator_only`).
+
+### 9.2 `GET /sweeps` — status do agendador
+
+| situação | status | corpo |
+|---|---|---|
+| runtime montado ou não | `200` | `ok:true`, `enabled`, `scheduled`, `mode`, `intervalMs`, `disabledReason` + a foto do snapshot |
+| processo sem token | `503` | `{"ok":false,"error":"streams_admin_disabled"}` (`store_admin::auth`) |
+| header ausente/errado | `401` | `{"ok":false,"error":"unauthorized"}` (`store_admin::auth`) |
+
+O `200` vale **mesmo desligado** (`enabled:false` + `disabledReason`) e a rota
+nunca faz I/O na conta: lê o snapshot em memória (`SweepAdmin::snapshot` →
+`SweepSnapshot::to_json`). Campos: `running` (guard de anti-reentrada),
+`startedAt`, `lastTickAt`, `nextDueAt`, `lastByKind` (relógio por tipo),
+`counters` (`runs`, `manualRuns`, `reentered`, `notDue`, `missing`, `planned`,
+`swept`, `sweptUndubbed`, `failed`, `blocked`, `calls`, `byKind`, `reasons`) e
+`last` (`{at, manual, outcomes[], missing[]}`). Nenhum campo traz `apiKey`,
+hash, id de magnet ou escopo de conta; `counters` nasce em zero a cada boot e
+`last` é `null` até a primeira rodada que executou algo.
+
+`disabledReason` só assume estes valores: `interval_zero` (`DEBRID_AL_SWEEP_MS`
+≤ `0`) e `cleanup_off` (modo sem plano), de `al_sweeps_env::disabled_reason`;
+`no_operator_account` e `http_client_unavailable`, de `al_sweeps_env::spawn`; e
+`not_wired`, de `SweepAdmin::not_wired` (admin sem runtime injetado).
+
+### 9.3 `POST /sweeps/run` — UMA varredura fora do relógio
+
+A ordem das checagens é a do handler (`al_sweeps_admin::run`), e ela
+determina o status:
+
+| # | condição | status | `error` |
+|---|---|---|---|
+| 1 | corpo traz `apiKey`/`encoded`/`service`/`accountScope` não nulo | `400` | `operator_only` |
+| 2 | `kind` ausente ou fora do vocabulário | `400` | `invalid_kind` |
+| 3 | sem `Sweeper` e motivo de conta/cliente/runtime | `503` | `sweeps_unavailable` (+ `reason`) |
+| 4 | sem `Sweeper` por env desligado | `409` | `sweeps_disabled` (+ `reason`) |
+| 5 | credencial destrutiva não configurada | `409` | `sweeps_requires_admin_token` (`reason:"no_destructive_token"`) |
+| 6 | header ≠ credencial destrutiva | `403` | `sweeps_token_insufficient` (`reason:"diagnostic_token"`) |
+| 7 | modo `apply` e `confirm` ≠ `true` | `409` | `confirmation_required` |
+| 8 | rodada em voo (anti-reentrada) | `409` | `sweep_in_progress` (`reason:"reentered"`, `running:true`) |
+| 9 | tarefa abortada/panic | `500` | `sweep_failed` |
+| 10 | executou | `200` | — (corpo de sucesso abaixo) |
+
+Nos degraus 3 e 4 o `reason` é o `disabled_reason` do §9.2 (`not_wired`,
+`no_operator_account`, `http_client_unavailable` ⇒ `503`; `cleanup_off`,
+`interval_zero` ⇒ `409`, com `cleanup_off` como default quando o motivo é
+`None`). A credencial (5/6) vem ANTES do `confirm`: sem a segunda credencial não
+há nem confirmação a cobrar. Em `ReadOnly` o `confirm` é **ignorado** — só o
+destruidor o exige.
+
+**Um `kind` por chamada; não existe `all`.** O vocabulário é o de
+`SweepKind::parse` (`alldebrid_sweeps_types.rs`): `sweepDead`, `sweepUndubbed`,
+`reconcile`, `revalidate`, em qualquer caixa e aceitando `_`/`-`
+(`sweep_dead`, `sweep-undubbed`). Qualquer outro valor — inclusive `all` — cai
+em `400 invalid_kind`.
+
+Corpo do sucesso (`al_sweeps_admin::ran_json`): `ok`, `kind`, `ran`, `mode`,
+`applied`, `planned`, `swept`, `varridos`, `falhas`, `failed`, `blocked`,
+`calls`, `stopped`, `missing` (booleano: o tipo acordou sem listagem da conta),
+`reasons` e `at`. `varridos`/`falhas` repetem `swept`/`failed` porque o toast do
+painel lê esses nomes desde antes da rota nativa
+(`src/utils/sweeps-native.ts::runOf` repassa os dois). A rota só responde
+depois de varrer; se o cliente cair, a rodada continua e o `GET` mostra
+`running:true` até o `FlightGuard` soltar.
+
+Sonda de dentro do container (a imagem é `node:22-alpine` e o `Dockerfile` faz
+`apk add` **sem** `curl` — use o `wget` do busybox):
+
+```bash
+# status
+wget -q -O - --header "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+  http://127.0.0.1:8711/sweeps
+
+# uma varredura (o `confirm` só é exigido no modo apply)
+wget -q -O - \
+  --header "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+  --header "content-type: application/json" \
+  --post-data '{"kind":"sweepDead","confirm":true}' \
+  http://127.0.0.1:8711/sweeps/run
+```
+
+O token vai **só no header** (nunca na URL, que sobra em log de proxy). No
+`POST`, o valor tem que ser a credencial DESTRUTIVA
+(`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`): o token de diagnóstico
+serve para o `GET` e leva `403 sweeps_token_insufficient` no `run`. Como a 8711
+não é publicada, o comando roda com `docker compose exec adom sh -lc '...'`
+(`DEPLOY.md` §8.2).

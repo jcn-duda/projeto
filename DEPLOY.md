@@ -180,10 +180,11 @@ porta nova no firewall):
 # caminho curto: o próprio script do repo (curl → node → docker exec)
 ./scripts/check-autofetch.sh
 
-# equivalente à mão
+# equivalente à mão: a imagem NÃO tem curl (`node:22-alpine` + apk sem curl),
+# então a sonda usa o wget do busybox. Token só no header.
 docker compose exec adom sh -lc \
-  'curl -s -H "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
-   http://127.0.0.1:8711/autofetch' | jq .
+  'wget -q -O - --header "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+     http://127.0.0.1:8711/autofetch'
 ```
 
 | campo de `status` no `GET /autofetch` | esperado | o que significa se não estiver |
@@ -203,12 +204,52 @@ Prova de escrita pela admin (o painel usa as mesmas). As rotas são de
 é campo da RESPOSTA, não do pedido.
 
 ```bash
-docker compose exec adom sh -lc 'T=$STREAM_STORE_ADMIN_TOKEN; B=http://127.0.0.1:8711
-curl -s -X POST -H "x-indexer-test-token: $T" -H "content-type: application/json" \
-  -d "{\"paused\":false}" $B/autofetch/pause
-curl -s -X POST -H "x-indexer-test-token: $T" $B/autofetch/drain
-curl -s -X POST -H "x-indexer-test-token: $T" $B/autofetch/suppressed-drain'
+# `pause` leva corpo; `drain`/`suppressed-drain` NÃO levam corpo — o `fetch`
+# do Node distingue os dois; o token viaja só no header.
+docker compose exec adom node -e '
+const t = process.env.STREAM_STORE_ADMIN_TOKEN || process.env.DEBRID_INTERNAL_TOKEN || "";
+const post = (p, body) => fetch(`http://127.0.0.1:8711${p}`, {
+  method: "POST",
+  headers: { "x-indexer-test-token": t, ...(body ? { "content-type": "application/json" } : {}) },
+  body: body ? JSON.stringify(body) : undefined,
+}).then(async (r) => console.log(p, r.status, await r.text()));
+Promise.all([
+  post("/autofetch/pause", { paused: false }),
+  post("/autofetch/drain"),
+  post("/autofetch/suppressed-drain"),
+]);'
 ```
+
+Varreduras da AllDebrid (mesma admin, contrato em
+[`docs/debrid-al-check-rust.md`](docs/debrid-al-check-rust.md) §9). `GET` não
+toca a conta e responde `200` mesmo desligado; o `POST` roda **um** tipo por
+chamada (`sweepDead`/`sweepUndubbed`/`reconcile`/`revalidate`, sem `all`), exige
+a **credencial destrutiva** (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN` —
+`sweeps_requires_admin_token` sem ela, `sweeps_token_insufficient` com o token de
+diagnóstico) e só cobra `confirm` no modo `apply`:
+
+```bash
+# GET /sweeps — enabled/scheduled/mode/intervalMs/disabledReason + contadores
+docker compose exec adom sh -lc \
+  'wget -q -O - --header "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+     http://127.0.0.1:8711/sweeps'
+
+# POST /sweeps/run — UM tipo; 409 confirmation_required sem o confirm
+docker compose exec adom sh -lc \
+  'wget -q -O - \
+     --header "x-indexer-test-token: $STREAM_STORE_ADMIN_TOKEN" \
+     --header "content-type: application/json" \
+     --post-data "{\"kind\":\"sweepDead\",\"confirm\":true}" \
+     http://127.0.0.1:8711/sweeps/run'
+```
+
+O token sai do env do container. Para o `POST` ele tem de ser a credencial
+destrutiva (`STREAM_STORE_ADMIN_TOKEN`/`DEBRID_INTERNAL_TOKEN`): com só
+`JACKETT_TEST_TOKEN` o `GET` funciona e o `run` responde `409`/`403`. A ordem do
+`auth` é `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` →
+`JACKETT_TEST_TOKEN` (`store_admin::token_from_env`), e a da credencial
+destrutiva pára nas duas primeiras (`destructive_token_from_env`). Nenhum dos
+comandos imprime segredo: o header aparece na requisição, não na saída.
 
 Sinais no log do container: `docker compose logs adom | grep -i autofetch` —
 um `[autofetch] passagem com N falha(s)` isolado é aceitável; a cada passagem,

@@ -39,9 +39,9 @@ para ela não encher. Ordem em que as peças agem:
 | `dropReady` / `dropUncached` | o que ESTA busca subiu | ON |
 | `adsub:v1` (posse durável) | não apaga nada — decide **de quem é** | ON (TTL 7d) |
 | `adrm:v1` (anti-reenchimento) | impede re-subir o que a limpeza apagou | ON (TTL 3d) |
-| `sweepDead` / `sweepUndubbed` | morto / pronto sem áudio PT | ON |
-| `alldebrid-reconcile.ts` | posse órfã que a limpeza NÃO alcançou (H2) | **OFF por padrão** |
-| `DEBRID_EVICT_PER_SEARCH` | mais antigos provadamente estrangeiros | **OFF** |
+| `sweepDead` / `sweepUndubbed` | morto / pronto sem áudio PT — NATIVAS (`al_sweeps` no gateway) | agendadas; só apagam com `DEBRID_AL_SWEEP_APPLY` (código OFF, compose ON) |
+| `reconcile` / `revalidate` | posse órfã que a limpeza NÃO alcançou (H2) e fila `sup:` — nativas, sem arquivo TS | mesmo gate `DEBRID_AL_SWEEP_APPLY` |
+| evicção por busca (`evict_step`/`evict_job`) | mais antigos provadamente estrangeiros | passagem do worker nativo (não é varredura) |
 
 Três coisas que só se aprende errando:
 
@@ -62,8 +62,10 @@ Três coisas que só se aprende errando:
 - `src/debrid/index.ts`, `common.ts`, `file-selector.ts`, `protected.ts`
 - `src/debrid/alldebrid*.ts` — **família de módulos**, não um arquivo:
   `-api`, `-check` (a checagem que é upload), `-inventory` (`knownBefore` +
-  `adsub`), `-cleanup` (gate único `deleteMagnets`), `-reupload` (`adrm`),
-  `-evict`, `-reconcile`, `-play`. `alldebrid.ts` é só fachada
+  `adsub`), `-cleanup` (gate único `deleteMagnets`) + `-cleanup-facts`,
+  `-reupload` (`adrm`), `-play`. `alldebrid.ts` é só fachada. As varreduras
+  (`sweepDead`/`sweepUndubbed`/`reconcile`/`revalidate`) não têm arquivo aqui:
+  são o `al_sweeps` do gateway
 - `premiumize.ts`, `realdebrid.ts`, `torbox.ts`, `debridlink.ts`
 - `src/debrid/account-status.ts`
 
