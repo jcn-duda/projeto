@@ -28,6 +28,16 @@
 // `{ id, at, fails, nextAt }`; registro antigo verificado antes da Etapa 2
 // (`{ id, at }`) lê como `fails: 0, nextAt: 0` — sempre elegível.
 //
+// DONO ÚNICO DA ESCRITA: `autofetch:v3:sup:<adapter>:<account>:<hash>` é chave do
+// KV nativo (`NativeKv` sobre a tabela `cache` do MESMO `cache.db`) — o worker a
+// grava (`recheck_expire.rs` → `SuppressedV3::note`) e o dreno nativo a lê/apaga
+// (`suppressed_step.rs`). Este módulo NÃO espelha nada no L1: escrita e remoção
+// passam só pela ponte (`utils/autofetch-state-native.ts`). O `cache.set` de antes
+// era segundo escritor da mesma linha, e o `cache.forget` (DELETE no SQLite do
+// Node) podia apagar a linha FRESCA do nativo no meio de uma passagem dele. Por
+// isso `sup:` está em `AUTOFETCH_NATIVE_PREFIXES` (`src/utils/cache-keys.ts`): o
+// L1 recusa escrita e remoção, e a leitura (painel/drain) cai na ponte.
+//
 // O drain tem DUAS portas, e elas não são iguais:
 // - O `drainSuppressed` automático do `runRecheck` NÃO passa `force`: respeita
 //   o gate estático `config.debrid.removeById` e vira no-op com ele desligado
@@ -42,7 +52,6 @@
 // diretamente ao vencer o settle. Assim o painel enxerga e cobra toda remoção
 // por id que o freio de rollout adiou.
 import { prefix } from '../utils/cache-keys.js';
-import * as cache from '../utils/cache.js';
 import {
   forgetSuppressedNative,
   listSuppressedKeysNative,
@@ -50,7 +59,6 @@ import {
   readSuppressedNative,
   remainingNative,
   retrySuppressedNative,
-  setKvNative,
 } from '../utils/autofetch-state-native.js';
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
@@ -59,20 +67,15 @@ import type { DebridAdapter } from '../../types/domain.js';
 
 const SUP_PREFIX = `${prefix('autofetch')}sup:`;
 
-// Índice de processo das chaves `sup:` vivas. O painel (snapshot) e as ações de
-// drain contam e varrem a fila a cada passagem; enumerar keysMatching do L1
-// inteiro (até 84k) por poll seria O(L1) no caminho quente. Este Set espelha o
-// que sobreviveu no cache, mantido pelas únicas operações que mudam o conjunto
-// (note/forget/givenup) e reindexado no boot no padrão reindexDead do autofetch.
+// Índice de processo das chaves `sup:` vivas. O agregado do painel conta a cada
+// poll e não pode varrer o KV inteiro. Este Set espelha o que a ponte gravou,
+// mantido pelas únicas operações que mudam o conjunto (note/forget/givenup) e
+// reindexado no boot (`reindexSuppressed`, mesma garantia do reindexDead).
 const knownSuppressed = new Set<string>();
 
-// Backoff da reescrita por falha: base 5min dobra a cada falha. O cap de 6h é
-// margem futura — com `GIVE_UP_AFTER = 5` a espera máxima real é 40min (2^3),
-// pois na 5ª falha o registro é esquecido antes de agendar. Só seria alcançável
-// com GIVE_UP_AFTER ≥ 8.
-const BACKOFF_BASE_MS = 5 * 60_000;
-const BACKOFF_CAP_MS = 6 * 3600_000;
-const GIVE_UP_AFTER = 5;
+// O backoff (5min dobrando, teto 6h) e a desistência na 5ª falha moram no
+// nativo (`SuppressedV3::retry`, mesma régua de `suppressed.rs`). O Node não
+// recalcula `fails`/`nextAt`: seria segundo escritor dos MESMOS campos.
 
 type SuppressedRead = {
   id: string;
@@ -87,8 +90,9 @@ function suppressedKey(adapterId: string, account: string, infoHash: string) {
 }
 
 function remaining(key: string): number | null {
-  const native = remainingNative(key);
-  return native == null ? cache.peekRemaining(key) : native;
+  // Só a ponte responde: o L1 não tem linha `sup:` desde que o prefixo entrou
+  // em `AUTOFETCH_NATIVE_PREFIXES` (um fallback aqui leria sempre null).
+  return remainingNative(key) ?? null;
 }
 
 /**
@@ -99,8 +103,9 @@ function remaining(key: string): number | null {
  */
 function readSuppressed(key: string): SuppressedRead {
   const parts = key.startsWith(SUP_PREFIX) ? key.slice(SUP_PREFIX.length).split(':') : [];
-  const native = parts.length >= 3 ? readSuppressedNative(parts[0], parts[1], parts.slice(2).join(':')) : undefined;
-  const stored = (native == null ? cache.peek(key) : native) as { id?: unknown; at?: unknown; fails?: unknown; nextAt?: unknown } | null;
+  const stored = (parts.length >= 3
+    ? readSuppressedNative(parts[0], parts[1], parts.slice(2).join(':'))
+    : null) as { id?: unknown; at?: unknown; fails?: unknown; nextAt?: unknown } | null;
   if (!stored || typeof stored !== 'object' || stored.id == null) {
     return { id: '', at: 0, fails: 0, nextAt: 0 };
   }
@@ -114,7 +119,7 @@ function readSuppressed(key: string): SuppressedRead {
 
 /**
  * Registra uma remoção barrada pelo gate. Sem id não há o que apagar depois.
- * Reescrever preserva o TTL RESTANTE (peekRemaining): evento novo reseta o
+ * Reescrever preserva o TTL RESTANTE (remainingNative): evento novo reseta o
  * backoff, mas um registro que já espera há 20 dias não renasce de 30 por um
  * re-note.
  */
@@ -128,22 +133,22 @@ function noteSuppressed(
   if (!adapterId || !account || !infoHash) return;
   if (transferId == null || transferId === '') return;
   const key = suppressedKey(adapterId, account, infoHash);
-  const nativeRemaining = remainingNative(key);
-  const shadowRemaining = cache.peekRemaining(key);
-  const restante = nativeRemaining != null && nativeRemaining > 0 ? nativeRemaining : shadowRemaining;
+  const restante = remainingNative(key);
   const ttl = restante != null && restante > 0 ? restante : ttlSeconds;
-  noteSuppressedNative(adapterId, account, infoHash, String(transferId), ttl);
-  cache.set(key, { id: String(transferId), at: Date.now(), fails: 0, nextAt: 0 }, ttl);
+  // A escrita é da ponte, e só dela: `note` no nativo grava o MESMO registro
+  // `{ id, at, fails: 0, nextAt: 0 }` que o `cache.set` gravava e preserva o TTL
+  // restante (`SuppressedV3::note`). Sem espelho no L1.
+  if (noteSuppressedNative(adapterId, account, infoHash, String(transferId), ttl) !== true) return;
   knownSuppressed.add(key);
 }
 
 /**
  * Leitura por adapter/conta APOIADA NO ÍNDICE de processo (`knownSuppressed`),
- * não na varredura do L1. `listAllSuppressed` percorre o L1 inteiro por prefixo
- * (O(L1)) e existe para passagens pontuais (painel/drain); o revalidate de fundo
- * roda a cada busca e não pode pagar O(L1). O índice é populado por note/forget
- * e reconstruído no boot (`reindexSuppressed`) — a MESMA garantia de durabilidade
- * do painel. Chave expirada ainda não podada é descartada aqui.
+ * não na enumeração do namespace. `listAllSuppressed` varre o KV inteiro por
+ * prefixo e existe para passagens pontuais (painel/drain); o revalidate de fundo
+ * roda a cada busca e não pode pagar essa varredura. O índice é populado por
+ * note/forget e reconstruído no boot (`reindexSuppressed`) — a MESMA garantia de
+ * durabilidade do painel. Chave expirada ainda não podada é descartada aqui.
  */
 function listSuppressedForAccount(adapterId: string, account: string): Array<SuppressedRead & { hash: string }> {
   const escopo = `${SUP_PREFIX}${adapterId}:${account}:`;
@@ -165,13 +170,11 @@ function listSuppressedForAccount(adapterId: string, account: string): Array<Sup
 function listAllSuppressed(adapterId: string, account: string): Array<SuppressedRead & { hash: string }> {
   const escopo = `${SUP_PREFIX}${adapterId}:${account}:`;
   const out: Array<SuppressedRead & { hash: string }> = [];
-  // Varredura do L1 pelo escopo (ex.: testes que semeiam via cache.set direto,
-  // registros que o reindex do boot não pegou). O caminho quente do PAINEL
-  // (agregado de todas as contas) usa o índice `knownSuppressed`; esta é a
-  // leitura por conta, que age em passagens pontuais, não em poll.
-  const nativeKeys = listSuppressedKeysNative();
-  const keys = new Set([...cache.keysMatching(escopo), ...(nativeKeys || []).filter((key) => key.startsWith(escopo))]);
-  for (const key of keys) {
+  // Enumeração pela ponte, e só por ela: o L1 do Node não tem (nem aceita)
+  // linha `sup:`, então não existe segunda fonte a somar. O caminho quente do
+  // PAINEL (agregado de todas as contas) usa o índice `knownSuppressed`; esta é
+  // a leitura por conta, que age em passagens pontuais, não em poll.
+  for (const key of (listSuppressedKeysNative() || []).filter((key) => key.startsWith(escopo))) {
     const rec = readSuppressed(key);
     if (!rec.id) continue;
     knownSuppressed.add(key);
@@ -191,8 +194,9 @@ function listSuppressed(adapterId: string, account: string, agora = Date.now()) 
 function forgetSuppressed(adapterId: string, account: string, infoHash: string) {
   const key = suppressedKey(adapterId, account, infoHash);
   knownSuppressed.delete(key);
+  // Remoção pela ponte (`kvForget` sob o capô). O `cache.forget` de antes era um
+  // DELETE no MESMO SQLite que o worker lê — podia apagar a linha fresca dele.
   forgetSuppressedNative(adapterId, account, infoHash);
-  cache.forget(key);
 }
 
 /** Profundidade COMPLETA da fila de uma conta (painel: o que aguarda decisão). */
@@ -200,7 +204,7 @@ function countSuppressed(adapterId: string, account: string) {
   return listAllSuppressed(adapterId, account).length;
 }
 
-/** Agregado de TODAS as contas/adapters, sem varredura do L1: índice de processo. */
+/** Agregado de TODAS as contas/adapters, sem varrer o namespace: índice de processo. */
 function countAllSuppressed(): number {
   let total = 0;
   for (const key of knownSuppressed) {
@@ -214,45 +218,17 @@ function countAllSuppressed(): number {
 }
 
 /**
- * Conta uma falha de remoção e agenda a próxima tentativa. A reescrita usa o
- * TTL restante — sem isso o id que falha toda passagem renasceria de 30 dias
- * em cada falha e nunca expiraria. Com `GIVE_UP_AFTER` falhas o registro é
- * esquecido e contado como `autofetch.suppressed.givenup`.
+ * Conta uma falha de remoção e agenda a próxima tentativa. Backoff e
+ * desistência são do NATIVO (`SuppressedV3::retry`): ele relê o id ATUAL,
+ * preserva o TTL restante e esquece o registro na 5ª falha. Aqui só se espelha
+ * o efeito no índice de processo — recalcular `fails`/`nextAt` do lado Node
+ * seria segundo escritor dos MESMOS campos pelo MESMO SQLite.
  */
 function scheduleRetry(adapterId: string, account: string, reg: SuppressedRead & { hash: string }, agora: number) {
-  const key = suppressedKey(adapterId, account, reg.hash);
   const nativeRetry = retrySuppressedNative(adapterId, account, reg.hash, config.debrid.suppressedTtl, agora);
-  if (nativeRetry === 'missing' && !readSuppressed(key).id) return;
-  if (nativeRetry === 'given-up') {
-    knownSuppressed.delete(key);
-    cache.forget(key);
-    metrics.count('autofetch.suppressed.givenup');
-    return;
-  }
-  if (nativeRetry === 'scheduled') {
-    const updated = readSuppressedNative(adapterId, account, reg.hash);
-    if (updated) cache.set(key, updated, remaining(key) ?? config.debrid.suppressedTtl);
-    return;
-  }
-  const ant = readSuppressed(key);
-  // Registro sumido = outro ator (recheck de outro lote, porta do painel) já
-  // liquidou a transferência antes de nós. Sem isso a falha do removeTorrent
-  // sobre id já apagado recriava o registro com TTL cheio de 30d e o dado-up
-  // queimava 4 tentativas num id morto.
-  if (!ant.id) return;
-  const fails = (ant.fails || 0) + 1;
-  if (fails >= GIVE_UP_AFTER) {
-    knownSuppressed.delete(key);
-    forgetSuppressed(adapterId, account, reg.hash);
-    metrics.count('autofetch.suppressed.givenup');
-    return;
-  }
-  const espera = Math.min(BACKOFF_BASE_MS * 2 ** (fails - 1), BACKOFF_CAP_MS);
-  const restante = remaining(key);
-  const ttl = restante != null && restante > 0 ? restante : config.debrid.suppressedTtl;
-  const updated = { id: reg.id, at: ant.at || agora, fails, nextAt: agora + espera };
-  cache.set(key, updated, ttl);
-  setKvNative(key, updated, ttl, agora);
+  if (nativeRetry !== 'given-up') return;
+  knownSuppressed.delete(suppressedKey(adapterId, account, reg.hash));
+  metrics.count('autofetch.suppressed.givenup');
 }
 
 /**
@@ -304,15 +280,14 @@ async function drainSuppressed(
 }
 
 /**
- * Reconstrói o índice de processo no boot: varre o L1 UMA vez (despesa única)
- * e espelha o que sobreviveu ao restart. Depois disso o conjunto só muda pelas
- * operações do próprio módulo — `countAllSuppressed` fica O(índice), não O(L1).
+ * Reconstrói o índice de processo no boot: enumera o KV nativo UMA vez (despesa
+ * única) e espelha o que sobreviveu ao restart. Depois disso o conjunto só muda
+ * pelas operações do próprio módulo — `countAllSuppressed` fica O(índice), não
+ * O(namespace).
  */
 function reindexSuppressed() {
   let n = 0;
-  const nativeKeys = listSuppressedKeysNative();
-  const keys = new Set([...cache.keysMatching(SUP_PREFIX), ...(nativeKeys || [])]);
-  for (const key of keys) {
+  for (const key of listSuppressedKeysNative() || []) {
     if (knownSuppressed.has(key)) continue;
     if (readSuppressed(key).id) {
       knownSuppressed.add(key);

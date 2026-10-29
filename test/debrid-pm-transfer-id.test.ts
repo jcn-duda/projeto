@@ -16,7 +16,6 @@ import * as premiumize from '../src/debrid/premiumize.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -354,7 +353,7 @@ test('falha ao remover mantém o represado para a próxima passagem', async () =
     // A falha agora agenda a proxima tentativa no proprio registro (backoff
     // 5min..6h) e preserva o TTL restante — o TTL proprio de 30 dias cobre a
     // janela de observacao do operador, nao a aposentadoria do id.
-    const rec = cache.peek(suppressed.suppressedKey('premiumize', account, h)) as {
+    const rec = kvPeek(suppressed.suppressedKey('premiumize', account, h)) as {
       fails?: number;
       nextAt?: number;
     };

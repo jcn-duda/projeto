@@ -240,19 +240,83 @@ test('registro em formato antigo {id, at} continua drenável', async () => {
   };
   try {
     config.debrid.removeById = true;
-    // Registro gravado ANTES da Etapa 2 (só id/at, sem fails/nextAt).
+    // Registro gravado ANTES da Etapa 2 (só id/at, sem fails/nextAt). O seed vai
+    // direto no KV nativo: é lá que a represa mora desde que `sup:` entrou em
+    // `AUTOFETCH_NATIVE_PREFIXES` (o L1 do Node nem aceita a chave).
     const key = suppressed.suppressedKey('draft', account, H);
     kvForget(key);
-    cache.set(key, { id: 'legado-1', at: Date.now() - 3600_000 }, 3600);
+    kvSetForTest(key, { id: 'legado-1', at: Date.now() - 3600_000 }, 3600);
 
     assert.equal(suppressed.listSuppressed('draft', account).length, 1, 'legado nasce elegível');
     assert.equal(await suppressed.drainSuppressed(adapter, 'chave', account), 1);
     assert.deepEqual(removidos, ['legado-1']);
     assert.equal(suppressed.countSuppressed('draft', account), 0);
-    assert.equal(cache.peek(key), null, 'a cópia L1 legado também é removida');
+    assert.equal(kvPeek(key), null, 'o registro sai do KV nativo (não há cópia L1 a limpar)');
   } finally {
     config.debrid.removeById = originalRemove;
     suppressed.forgetSuppressed('draft', account, H);
+  }
+});
+
+// Dono único da escrita: `sup:` é chave do KV nativo e o `cache.set` do Node é
+// no-op para o prefixo (`AUTOFETCH_NATIVE_PREFIXES`). Sem esta prova, um espelho
+// L1 voltaria a ser segundo escritor da MESMA linha do `cache.db` — e um
+// `cache.forget` apagaria a linha fresca do worker no meio de uma passagem dele.
+test('escrita de sup: é da ponte — cache.set não cria nem sobrescreve linha', () => {
+  const account = 'conta-ponte';
+  const key = suppressed.suppressedKey('draft', account, H);
+  try {
+    suppressed.noteSuppressed('draft', account, H, 'id-ponte');
+    assert.equal((kvPeek(key) as { id?: string } | null)?.id, 'id-ponte', 'o registro nasce no KV nativo');
+    assert.equal(cache.has(key), false, 'nenhuma cópia no L1');
+    assert.equal(cache.peek(key), null, 'a leitura quieta do L1 não enxerga a chave');
+    assert.equal(cache.get(key), null, 'nem o get (também não conta miss do namespace)');
+
+    cache.set(key, { id: 'espelho', at: 1, fails: 0, nextAt: 0 }, 600);
+    assert.equal(cache.has(key), false, 'cache.set é no-op para sup:');
+    assert.equal((kvPeek(key) as { id?: string } | null)?.id, 'id-ponte', 'e não sobrescreve o KV nativo');
+  } finally {
+    suppressed.forgetSuppressed('draft', account, H);
+  }
+});
+
+// O DELETE do Node (`cache.forget`) não pode alcançar a tabela `cache` que o
+// worker lê. A remoção da represa é da ponte (`forgetSuppressedNative`).
+test('cache.forget não apaga a chave do nativo; forgetSuppressed remove pela ponte', () => {
+  const account = 'conta-remocao';
+  const key = suppressed.suppressedKey('draft', account, H);
+  try {
+    suppressed.noteSuppressed('draft', account, H, 'id-remocao');
+    cache.forget(key);
+    assert.equal(
+      (kvPeek(key) as { id?: string } | null)?.id,
+      'id-remocao',
+      'a linha fresca do nativo sobrevive ao forget do Node',
+    );
+    assert.equal(suppressed.countSuppressed('draft', account), 1, 'e o painel continua contando');
+
+    suppressed.forgetSuppressed('draft', account, H);
+    assert.equal(kvPeek(key), null, 'a remoção pela ponte apaga o registro');
+    assert.equal(suppressed.countSuppressed('draft', account), 0, 'a fila da conta esvazia');
+  } finally {
+    suppressed.forgetSuppressed('draft', account, H);
+  }
+});
+
+// O painel não depende do índice de processo nem do L1: registro escrito por
+// OUTRO ator (o worker nativo do gateway) tem que ser contado e enumerado.
+test('painel lê a represa pela ponte: reindex e enumeração não dependem do L1', () => {
+  const account = 'conta-worker';
+  const hash = '9'.repeat(40);
+  const key = suppressed.suppressedKey('draft', account, hash);
+  try {
+    kvSetForTest(key, { id: 'id-worker', at: Date.now(), fails: 0, nextAt: 0 }, 600);
+    assert.ok(suppressed.reindexSuppressed() >= 1, 'o reindex do boot varre o KV, não o L1');
+    assert.equal(suppressed.countSuppressed('draft', account), 1, 'profundidade por conta vem da enumeração da ponte');
+    assert.deepEqual(suppressed.listSuppressed('draft', account).map((r) => r.id), ['id-worker']);
+    assert.ok(suppressed.countAllSuppressed() >= 1, 'o agregado do snapshot (índice) também enxerga');
+  } finally {
+    suppressed.forgetSuppressed('draft', account, hash);
   }
 });
 
