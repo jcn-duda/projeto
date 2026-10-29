@@ -366,3 +366,33 @@ describe('entrypoint: indexers que derrubam o Chromium ficam estacionados', () =
     assert.match(body, /mv "\$stock" "\$backup"/);
   });
 });
+
+// O container herda o `.env` INTEIRO (`env_file`) e o supervisor repassa isso a
+// todo filho. Caddy, Jackett e FlareSolverr (Chromium) não usam token nenhum — e
+// o Chromium navega site de terceiro, então `JACKETT_TEST_TOKEN`,
+// `STREAM_STORE_ADMIN_TOKEN` e `DEBRID_INTERNAL_TOKEN` não podem estar no
+// `/proc/<pid>/environ` dele. A allowlist mora em `*_env()`; a medição ao vivo
+// é `scripts/check-env-isolation.sh`.
+describe('entrypoint: filho de terceiro sobe com ambiente allowlistado', () => {
+  const familias: Array<[string, string]> = [
+    ['caddy', 'caddy_env'],
+    ['jackett', 'jackett_env'],
+    ['flaresolverr', 'flaresolverr_env'],
+  ];
+  for (const [tag, fn] of familias) {
+    test(`${tag} é iniciado por ${fn}() com env -i`, () => {
+      assert.match(script, new RegExp(`^${fn}\\(\\) \\{$`, 'm'));
+      // `run '[x]' env VAR=y ...` herdaria o resto do .env; a função não herda.
+      assert.match(script, new RegExp(`^run '\\[${tag}\\]' ${fn}$`, 'm'));
+      const corpo = script.slice(script.indexOf(`${fn}() {`));
+      assert.match(corpo.slice(0, corpo.indexOf('\n}\n')), /exec env -i "\$@" /);
+    });
+  }
+  test('Caddy recebe ADDON_DOMAIN: é o único {$...} do Caddyfile', () => {
+    assert.match(script, /ADDON_DOMAIN="\$\{ADDON_DOMAIN:-localhost\}"/);
+  });
+  test('FlareSolverr mantém PORT=8191 (o .env define 7000 para o addon)', () => {
+    const corpo = script.slice(script.indexOf('flaresolverr_env() {'));
+    assert.match(corpo.slice(0, corpo.indexOf('\n}\n')), /^\s+PORT=8191 \\$/m);
+  });
+});

@@ -307,18 +307,118 @@ seed_parked_card() {
 
 bootstrap_jackett_indexers
 
+# ── Isolamento de ambiente dos filhos ────────────────────────
+#
+# O container herda o ambiente INTEIRO do `env_file: .env` do compose, e o
+# supervisor repassa isso a todo filho. Herdar é o certo para quem USA o
+# segredo (gateway, Node e o sidecar — ver a nota deles abaixo) e é o errado
+# para quem só precisa de porta e caminho: JACKETT_TEST_TOKEN,
+# STREAM_STORE_ADMIN_TOKEN e DEBRID_INTERNAL_TOKEN autorizam as rotas
+# administrativas e o disparo das varreduras destrutivas, e não têm nada a ver
+# com o Caddy, com o Jackett nem com o Chromium do FlareSolverr — que navega
+# site de terceiro e é o pior lugar do container para carregar esse token (basta
+# ler /proc/<pid>/environ de dentro dele).
+#
+# Cada `*_env()` abaixo monta uma ALLOWLIST fechada (`env -i` + pares
+# explícitos) e termina em `exec`: o subshell da função é SUBSTITUÍDO pelo
+# binário, então o `$!` do `run`/do laço de supervisão continua sendo o PID real
+# do serviço (é dele que dependem o `wait -n` e o `kill` do shutdown).
+#
+# Allowlist e não blacklist, de propósito: segredo novo no `.env` não vaza para
+# quem não foi listado. O preço é que knob novo de um destes três processos
+# precisa entrar aqui — `scripts/check-env-isolation.sh` é a catraca: ela lê
+# `/proc/<pid>/environ` de cada família e reprova nome fora da lista (e nome com
+# cara de segredo).
+#
+# `set --` e não array: é POSIX e não depende de bash. Com `set -u` ligado,
+# todo opcional usa `${VAR:-}`.
+#
+# NÃO isolados, com motivo:
+#  - gateway (`adom-server`) e Node: leem os tokens nas rotas internas
+#    (`store_admin.rs` aceita STREAM_STORE_ADMIN_TOKEN/DEBRID_INTERNAL_TOKEN/
+#    JACKETT_TEST_TOKEN; o Node usa o mesmo token no header X-Indexer-Test-Token).
+#  - sidecar (`adom-sidecar`): sem `JACKETT_TEST_TOKEN` ele RECUSA subir
+#    (`adom_sidecar.rs`: "JACKETT_TEST_TOKEN vazio; o sidecar precisa de um token").
+#    Ele é o único que precisa do token sem ser servidor HTTP público; a
+#    alternativa seria passar um token próprio — mudança de contrato, fora deste
+#    escopo.
+#  - resolvers (`adom-resolvers`): não usam segredo nenhum, mas leem `<SITE>_URL`
+#    e `<SITE>_URLS` por site (`main.rs`, 9 sites) e mais 4 knobs; uma allowlist
+#    aqui perderia em SILÊNCIO um espelho do operador se o site mudasse de nome.
+#    Fica com o ambiente herdado até existir um contrato de knob por site.
+#
 # A ordem é só pra legibilidade de log: o addon já tolera o Jackett demorar
 # (busca degrada e o passe tardio recacheia quando tudo chega).
-run '[caddy]' env XDG_CONFIG_HOME=/caddy/config XDG_DATA_HOME=/caddy/data \
-  caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
 
-run '[jackett]' env XDG_CONFIG_HOME=/config XDG_DATA_HOME=/config TMPDIR=/run/jackett-temp \
-  /app/Jackett/jackett --NoUpdates
+# Caddy: o Caddyfile interpola exatamente UM lugar — {$ADDON_DOMAIN:localhost}
+# (domínio do ACME). Sem ele o Caddy cairia no default `localhost`, emitiria
+# certificado interno e o site público subiria "verde" e sem HTTPS válido; por
+# isso ele vai EXPLÍCITO aqui. Os XDG são o volume do certificado.
+caddy_env() {
+  set -- \
+    PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}" \
+    HOME="${HOME:-/root}" \
+    TZ="${TZ:-America/Sao_Paulo}" \
+    ADDON_DOMAIN="${ADDON_DOMAIN:-localhost}" \
+    XDG_CONFIG_HOME=/caddy/config \
+    XDG_DATA_HOME=/caddy/data
+  exec env -i "$@" caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+}
 
-# PORT fixo: o .env define PORT=7000 pro addon, e o FlareSolverr também lê
-# PORT do ambiente — sem isso ele tenta subir na porta do addon e morre em
+# Jackett: token nenhum. A API key dele mora no ServerConfig.json do volume (o
+# addon a manda na query) e `--NoUpdates` já desliga o auto-update. Do ambiente
+# ele só precisa de estado (XDG no volume), temp fora do /config e do TZ.
+jackett_env() {
+  set -- \
+    PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}" \
+    HOME="${HOME:-/root}" \
+    TZ="${TZ:-America/Sao_Paulo}" \
+    XDG_CONFIG_HOME=/config \
+    XDG_DATA_HOME=/config \
+    TMPDIR=/run/jackett-temp \
+    AUTO_UPDATE="${AUTO_UPDATE:-false}"
+  exec env -i "$@" /app/Jackett/jackett --NoUpdates
+}
+
+# FlareSolverr (python -> chromedriver -> Chromium): só knob do solver.
+#
+# PORT é fixo: o .env define PORT=7000 pro addon e o FlareSolverr também lê PORT
+# do ambiente — sem o override ele tenta subir na porta do addon e morre em
 # "Address in use".
-run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
+#
+# PATH é OBRIGATÓRIO, não higiene: o undetected_chromedriver acha o Chromium
+# varrendo o PATH (`utils.py` -> find_chrome_executable) e o Xvfb do modo
+# headless sobe pelo nome. HOME mantém `~` e o perfil como antes.
+#
+# Os opcionais só entram quando o operador setou: ausentes, vale o default do
+# próprio FlareSolverr (HEADLESS=true, LOG_HTML=false, CAPTCHA_SOLVER=none…),
+# que é o mesmo default de hoje. PROXY_PASSWORD é a única credencial que este
+# processo pode carregar — é do browser, não do addon (ver o probe).
+flaresolverr_env() {
+  set -- \
+    PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}" \
+    HOME="${HOME:-/root}" \
+    TZ="${TZ:-America/Sao_Paulo}" \
+    PORT=8191 \
+    HOST="${HOST:-0.0.0.0}" \
+    LOG_LEVEL="${LOG_LEVEL:-info}"
+  [ -n "${LANG:-}" ] && set -- "$@" LANG="$LANG"
+  [ -n "${LOG_HTML:-}" ] && set -- "$@" LOG_HTML="$LOG_HTML"
+  [ -n "${LOG_FILE:-}" ] && set -- "$@" LOG_FILE="$LOG_FILE"
+  [ -n "${HEADLESS:-}" ] && set -- "$@" HEADLESS="$HEADLESS"
+  [ -n "${DISABLE_MEDIA:-}" ] && set -- "$@" DISABLE_MEDIA="$DISABLE_MEDIA"
+  [ -n "${BROWSER_WAIT_TIMEOUT:-}" ] && set -- "$@" BROWSER_WAIT_TIMEOUT="$BROWSER_WAIT_TIMEOUT"
+  [ -n "${PROXY_URL:-}" ] && set -- "$@" PROXY_URL="$PROXY_URL"
+  [ -n "${PROXY_USERNAME:-}" ] && set -- "$@" PROXY_USERNAME="$PROXY_USERNAME"
+  [ -n "${PROXY_PASSWORD:-}" ] && set -- "$@" PROXY_PASSWORD="$PROXY_PASSWORD"
+  exec env -i "$@" python3 -u /app/flaresolverr/flaresolverr.py
+}
+
+run '[caddy]' caddy_env
+
+run '[jackett]' jackett_env
+
+run '[flaresolverr]' flaresolverr_env
 
 # O gateway ocupa a 7000 e o Node nasce sempre na 7100. O sidecar fala com ele
 # direto (o Caddy responde 403 em /internal no vhost público).
