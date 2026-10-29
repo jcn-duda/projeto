@@ -24,6 +24,7 @@ use hyper_util::rt::TokioExecutor;
 
 use adom_search::orchestrator::Orchestrator;
 
+use crate::al_sweeps::{SweepAdmin, SweepRuntime};
 use crate::config::Config;
 use crate::resolve_bridge::PlayBridge;
 use crate::resolve_native::{self, NativeContext, PlayResolver};
@@ -95,6 +96,10 @@ pub async fn run(config: Config) -> Result<(), String> {
     // `None` — nos dois casos o efeito segue ao Node, como antes.
     let warmer = crate::rd_warmer::register();
     let autofetch = crate::autofetch::spawn();
+    // Varreduras da AllDebrid: o gateway é o DONO ÚNICO do spawn (o `main` não
+    // monta mais nada). O runtime vive até o fim do `serve`; a admin 8711
+    // recebe só o `SweepAdmin` (modo, contadores e o sweeper compartilhado).
+    let sweeps: SweepRuntime = crate::al_sweeps::spawn();
     // Falha de boot da coleta nativa (nenhuma fonte montada) é erro VISÍVEL:
     // `main` loga e sai — nunca queda silenciosa para uma lista vazia.
     let orchestrator = stores
@@ -124,6 +129,7 @@ pub async fn run(config: Config) -> Result<(), String> {
             orch.config().stale_grace_seconds,
             harvest,
             autofetch,
+            Some(sweeps.admin.clone()),
         );
     }
     let state = AppState {
@@ -160,6 +166,7 @@ fn spawn_store_admin(
     grace_seconds: u64,
     harvest: Option<crate::harvest::HarvestHandle>,
     autofetch: Option<crate::autofetch::AutofetchHandle>,
+    sweeps: Option<SweepAdmin>,
 ) {
     let Some(streams) = stores.streams.clone() else {
         eprintln!("[gateway] streams admin sem store SQLite (memória); invalidação indisponível");
@@ -174,7 +181,7 @@ fn spawn_store_admin(
     };
     tokio::spawn(async move {
         if let Err(err) =
-            crate::store_admin::serve(cfg, streams, grace_seconds, harvest, autofetch).await
+            crate::store_admin::serve(cfg, streams, grace_seconds, harvest, autofetch, sweeps).await
         {
             eprintln!("[gateway] {err}");
         }

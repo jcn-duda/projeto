@@ -22,6 +22,8 @@
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) |
 //! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
+//! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
+//! | `POST /sweeps/run` `{"kind":"sweepDead"}` | varredura manual de UM tipo (`crate::al_sweeps`) |
 //!
 //! O colhedor nativo monta as rotas `/harvest*` neste MESMO roteador —
 //! loopback e token são os mesmos, sem segundo servidor. Sem colhedor
@@ -44,8 +46,13 @@ use serde_json::{json, Value};
 
 use adom_store::StreamsStore;
 
+use crate::al_sweeps::SweepAdmin;
 use crate::autofetch::AutofetchHandle;
 use crate::harvest::HarvestHandle;
+
+#[path = "store_admin_util.rs"]
+mod util;
+use util::{now_ms, stream_hash};
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
@@ -108,16 +115,21 @@ pub(crate) struct AdminState {
     pub(crate) harvest: Option<HarvestHandle>,
     /// Worker Chupim preparado; a fase atual não lê fila nem chama debrid.
     pub(crate) autofetch: Option<AutofetchHandle>,
+    /// Agendador das varreduras da AllDebrid; `None` = rota sem runtime
+    /// (`enabled:false` + `disabledReason:"not_wired"`), nunca 500.
+    pub(crate) sweeps: Option<SweepAdmin>,
     pub(crate) ownership_kv: Option<Arc<adom_index::NativeKv>>,
 }
 
 /// Roteador completo (auth + rotas); `pub(crate)` para os testes de rota.
+#[allow(clippy::too_many_arguments)] // um dono por eixo: store, graça, harvest, chupim, varreduras, posse
 pub(crate) fn router_with_ownership(
     cfg: &AdminConfig,
     store: Arc<StreamsStore>,
     grace_seconds: u64,
     harvest: Option<HarvestHandle>,
     autofetch: Option<AutofetchHandle>,
+    sweeps: Option<SweepAdmin>,
     ownership: Router<Arc<AdminState>>,
     ownership_kv: Option<Arc<adom_index::NativeKv>>,
 ) -> Router {
@@ -130,6 +142,7 @@ pub(crate) fn router_with_ownership(
         grace_seconds,
         harvest,
         autofetch,
+        sweeps,
         ownership_kv,
     });
     Router::new()
@@ -141,6 +154,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::autofetch::admin_router())
         .merge(ownership)
         .merge(crate::harvest::admin_router())
+        .merge(crate::al_sweeps::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -153,6 +167,7 @@ pub async fn serve(
     grace_seconds: u64,
     harvest: Option<HarvestHandle>,
     autofetch: Option<AutofetchHandle>,
+    sweeps: Option<SweepAdmin>,
 ) -> Result<(), String> {
     let listen = cfg.listen;
     let ownership = crate::ownership_admin::router();
@@ -163,6 +178,7 @@ pub async fn serve(
         grace_seconds,
         harvest,
         autofetch,
+        sweeps,
         ownership,
         ownership_kv,
     );
@@ -370,28 +386,6 @@ async fn indexer_status() -> Response {
         "indexers": adom_sources::jackett::status_board::snapshot(now),
     }))
     .into_response()
-}
-
-/// Hash do item para a sonda live: o campo quando existe (item P2P); senão o
-/// segmento de 40 hex da URL relativa de `/resolve`.
-fn stream_hash(info_hash: Option<&str>, url: Option<&str>) -> String {
-    if let Some(hash) = info_hash.filter(|h| !h.is_empty()) {
-        return hash.to_ascii_lowercase();
-    }
-    let Some(url) = url else {
-        return String::new();
-    };
-    url.split(|c: char| !c.is_ascii_hexdigit())
-        .find(|part| part.len() == 40 && part.bytes().all(|b| b.is_ascii_hexdigit()))
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default()
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

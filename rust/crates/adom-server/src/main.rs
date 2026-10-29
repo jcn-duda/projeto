@@ -64,12 +64,9 @@ async fn run_gateway() {
         }
         Err(err) => eprintln!("[debrid] API interna não sobe: {err}"),
     }
-    // O warmer e o worker do Chupim são construídos no boot do gateway, junto
-    // com o tail que os recebe (`proxy::run`).
-    // Agendador das varreduras da AllDebrid: desligado por env (`DEBRID_AL_SWEEP_MS=0`
-    // ou `DEBRID_AL_CLEANUP` off/ausente) e, quando existe, o handle vive com o
-    // processo. Não toca no proxy: só monta portas e um task.
-    let _sweeps = al_sweeps::spawn();
+    // O warmer, o worker do Chupim e o agendador das varreduras da AllDebrid
+    // são construídos no boot do gateway, junto com o tail que os recebe
+    // (`proxy::run`): o gateway é o dono único do spawn.
     if let Err(err) = proxy::run(config).await {
         eprintln!("[gateway] {err}");
         std::process::exit(1);

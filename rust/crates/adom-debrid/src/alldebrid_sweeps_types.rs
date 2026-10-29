@@ -120,6 +120,26 @@ impl SweepKind {
             Self::Revalidate => "revalidate",
         }
     }
+
+    /// Vocabulário da rota manual (`POST /sweeps/run`): aceita os nomes
+    /// canônicos de [`Self::as_str`] em qualquer caixa e com `_`/`-`
+    /// (`sweep_dead`, `sweep-undubbed`). Desconhecido ⇒ `None`: um `unwrap_or`
+    /// aqui apagaria o tipo errado.
+    pub fn parse(raw: &str) -> Option<Self> {
+        let normalized: String = raw
+            .trim()
+            .chars()
+            .filter(|ch| *ch != '_' && *ch != '-')
+            .map(|ch| ch.to_ascii_lowercase())
+            .collect();
+        match normalized.as_str() {
+            "sweepdead" => Some(Self::Dead),
+            "sweepundubbed" => Some(Self::Undubbed),
+            "reconcile" => Some(Self::Reconcile),
+            "revalidate" => Some(Self::Revalidate),
+            _ => None,
+        }
+    }
 }
 
 /// Por que um hash NÃO saiu. Cada motivo é contado: é o diagnóstico que prova

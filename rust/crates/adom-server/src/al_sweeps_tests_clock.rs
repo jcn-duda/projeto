@@ -25,14 +25,16 @@ fn intervalo_zero_nao_agenda() {
         interval_ms: 0,
     };
     let facts: Arc<dyn FactSource> = Arc::new(FakeFacts::default());
-    assert!(spawn_with(
+    let runtime = spawn_with(
         settings,
         source(Some(Vec::new())),
         facts,
         Arc::new(FakeEffects::default()),
         None,
-    )
-    .is_none());
+    );
+    assert!(!runtime.admin.enabled, "intervalo zero não agenda");
+    assert_eq!(runtime.admin.disabled_reason, Some("interval_zero"));
+    assert!(runtime.admin.sweeper.is_none());
 }
 
 #[test]

@@ -84,6 +84,7 @@ impl Admin {
             300,
             None,
             autofetch,
+            None,
             crate::ownership_admin::router(),
             ownership_kv,
         );

@@ -312,14 +312,9 @@ impl AllDebrid {
     }
 
     async fn magnet_status(&self, api_key: &str, id: &str) -> Result<Option<Value>, DebridError> {
+        let params = [("id", id)];
         let data = self
-            .call(
-                api_key,
-                "/magnet/status",
-                &[("id", id)],
-                CALL_TIMEOUT,
-                false,
-            )
+            .call(api_key, "/magnet/status", &params, CALL_TIMEOUT, false)
             .await?;
         Ok(first_magnet(&data).cloned())
     }

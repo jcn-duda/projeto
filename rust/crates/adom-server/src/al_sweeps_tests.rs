@@ -33,6 +33,12 @@ mod guard;
 #[path = "al_sweeps_tests_inventory.rs"]
 mod inventory_tests;
 
+#[path = "al_sweeps_tests_manual.rs"]
+mod manual;
+
+#[path = "al_sweeps_admin_tests.rs"]
+mod admin;
+
 pub(crate) use ff::FakeFacts;
 
 pub(crate) const NOW: i64 = 1_700_000_000_000;

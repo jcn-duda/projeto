@@ -1,29 +1,53 @@
-//! Varreduras destrutivas da AllDebrid no gateway: agendador, freio e portas.
+//! Varreduras destrutivas da AllDebrid no gateway: portas, freio e divisão.
 //!
 //! O núcleo (`adom_debrid::alldebrid_sweeps`) decide; aqui só se monta o que
-//! ele precisa, se respeita o intervalo e se obedece ao kill-switch. Nada neste
+//! ele precisa, se respeita o intervalo e se obedece ao freio. Nada neste
 //! módulo inventa fato: o que o processo não consegue PROVAR vira `None` e o
 //! plano fecha em `inventory_missing` (o `may_delete` fail-closed do núcleo
 //! aplicado à rodada inteira).
 //!
-//! # Kill-switches (default do CÓDIGO OFF; o compose liga)
+//! # Divisão dos arquivos
 //!
-//! - `DEBRID_AL_CLEANUP` **ausente** ⇒ [`SweepMode::ReadOnly`]: monta o plano,
-//!   loga os motivos, não apaga. `off` ⇒ [`SweepMode::Off`]: nem plano nem I/O.
-//!   `on` ⇒ `Apply`, salvo o freio `DEBRID_AL_SWEEP_APPLY` (default **OFF**) ou
-//!   `DEBRID_AL_CLEANUP_KILL` — qualquer um dos dois volta a `ReadOnly`.
+//! - `al_sweeps.rs` (este): portas injetáveis e o vocabulário da rodada;
+//! - `al_sweeps_run.rs`: estado, relógio, guard de anti-reentrada e execução
+//!   (`Sweeper::tick` agendado, `Sweeper::run_kind` manual);
+//! - `al_sweeps_stats.rs`: contadores cumulativos (RAM) e snapshot do painel;
+//! - `al_sweeps_env.rs`: env, montagem e `spawn` (`SweepAdmin`/`SweepRuntime`);
+//! - `al_sweeps_admin.rs`: `GET /sweeps` e `POST /sweeps/run` na 8711;
+//! - `al_sweeps_facts.rs` / `al_sweeps_effects.rs` / `al_sweeps_native.rs`:
+//!   fatos da rodada, efeitos de estado e as portas de produção.
+//!
+//! # Dono do agendamento
+//!
+//! O agendador NATIVO é o dono: `proxy::run` chama `spawn` UMA vez e mantém o
+//! `SweepRuntime` vivo até o fim do `axum::serve`; o `main` não monta mais
+//! nada. Não existe segundo laço nem segunda fila — a rota manual usa o MESMO
+//! `Sweeper` e o MESMO guard de anti-reentrada do tick agendado.
+//!
+//! # O freio
+//!
+//! `DEBRID_AL_SWEEP_APPLY` é o freio (default **OFF**): `DEBRID_AL_CLEANUP=on`
+//! só vira `Apply` com ele ligado. OFF = o diagnóstico read-only de sempre
+//! (plano calculado, `DELETE` = 0, nenhum `adrm` gravado). Os demais
+//! kill-switches:
+//!
+//! - `DEBRID_AL_CLEANUP` **ausente** ⇒ `ReadOnly`: monta o plano, loga os
+//!   motivos, não apaga. `off` ⇒ `Off`: nem plano nem I/O.
+//! - `DEBRID_AL_CLEANUP_KILL` ligado ⇒ volta a `ReadOnly` mesmo com o freio
+//!   aberto.
 //! - `DEBRID_AL_HOLDS` ausente/off ⇒ o hold do autofetch não está montado e o
 //!   inventário sozinho não prova que um download em voo está protegido:
 //!   `known_before = None` em toda rodada e nenhum hash sai.
-//! - `DEBRID_AL_SWEEP_MS` (default 6 h, `0` desliga) é o intervalo mínimo por
-//!   tipo; cada tipo tem o próprio relógio (`last`), então a falha de um não
-//!   antecipa nem atrasa os outros.
+//! - `DEBRID_AL_SWEEP_MS` (default 6 h, `0` desliga o agendamento) é o
+//!   intervalo mínimo por tipo; cada tipo tem o próprio relógio (`last`), então
+//!   a falha de um não antecipa nem atrasa os outros.
 //!
 //! # Concorrência
 //!
-//! UMA rodada em voo por processo (anti-reentrada): o segundo `tick` devolve
-//! `reentered: true` sem tocar na conta. O `FlightGuard` solta o `running` no
-//! `Drop`, inclusive se a tarefa for abortada no shutdown.
+//! UMA rodada em voo por processo (anti-reentrada): o segundo tick — ou o
+//! manual que chega durante o agendado — devolve `reentered: true` sem tocar na
+//! conta. O `FlightGuard` solta o `running` no `Drop`, inclusive se a tarefa for
+//! abortada no shutdown.
 //!
 //! # O que a porta nativa prova
 //!
@@ -42,27 +66,33 @@
 //! `DEBRID_AL_HOLDS` off deixa o peek `None` de qualquer jeito). A fonte
 //! durável (`adprot`/`adhold`) ilegível fecha a rodada no PLANEJAMENTO (sem
 //! plano e sem poda) e no INSTANTE do delete (`live_delete_ok` → veto): o que
-//! não se consegue ler não pode virar "sem proteção". E o delete
-//! de cada id relê os fatos protetivos NA HORA (`live_delete_ok` via
-//! `guard_live` no núcleo): o que chegou depois do plano veta, e guarda
-//! ilegível veta junto.
+//! não se consegue ler não pode virar "sem proteção".
 
 use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use adom_debrid::alldebrid_sweeps::{
-    apply_plan, MagnetRow, SweepHttp, SweepHttpError, SweepKind, SweepMode,
-};
+use adom_debrid::alldebrid_sweeps::{MagnetRow, SweepHttp, SweepHttpError, SweepKind};
 
 #[path = "al_sweeps_env.rs"]
 mod env;
-pub(crate) use env::spawn;
+pub(crate) use env::{spawn, SweepAdmin, SweepRuntime};
+
+#[path = "al_sweeps_stats.rs"]
+mod stats;
+pub(crate) use stats::OutcomeSummary;
+
+#[path = "al_sweeps_run.rs"]
+mod run;
+pub(crate) use run::Sweeper;
+
+#[path = "al_sweeps_admin.rs"]
+mod admin;
+pub(crate) use admin::router as admin_router;
 
 #[path = "al_sweeps_facts.rs"]
 mod facts;
-pub(crate) use facts::{config_of, gather, missing_outcome, plan_of, Facts, TickReport};
+pub(crate) use facts::TickReport;
 
 #[path = "al_sweeps_native.rs"]
 mod native;
@@ -170,263 +200,3 @@ pub(crate) trait InventoryEnsure: Send + Sync {
 }
 
 pub(crate) type EnsureFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
-
-// ---------------------------------------------------------------------------
-// Agendador
-// ---------------------------------------------------------------------------
-
-#[derive(Default)]
-pub(crate) struct State {
-    running: bool,
-    /// `SweepKind` não é `Ord` nem `Hash`: relógio por tipo numa lista curta.
-    last: Vec<(SweepKind, i64)>,
-}
-
-fn last_of(last: &[(SweepKind, i64)], kind: SweepKind) -> Option<i64> {
-    last.iter()
-        .find(|(known, _)| *known == kind)
-        .map(|(_, at)| *at)
-}
-
-pub(crate) struct Sweeper {
-    mode: SweepMode,
-    interval_ms: i64,
-    source: Arc<dyn SweepSource>,
-    facts: Arc<dyn FactSource>,
-    /// Efeitos de estado (`adrm`/poda/cura) — materializados SÓ no `Apply`.
-    effects: Arc<dyn effects::SweepEffects>,
-    /// Carregador do inventário frio (`None` = sem carga: rodada fria fecha).
-    inventory: Option<Arc<dyn InventoryEnsure>>,
-    state: Arc<Mutex<State>>,
-}
-
-impl Sweeper {
-    pub(crate) fn new(
-        mode: SweepMode,
-        interval_ms: i64,
-        source: Arc<dyn SweepSource>,
-        facts: Arc<dyn FactSource>,
-        effects: Arc<dyn effects::SweepEffects>,
-        inventory: Option<Arc<dyn InventoryEnsure>>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            mode,
-            interval_ms,
-            source,
-            facts,
-            effects,
-            inventory,
-            state: Arc::new(Mutex::new(State::default())),
-        })
-    }
-
-    fn lock(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Tipos cujo intervalo mínimo já venceu (na primeira rodada, todos).
-    fn due(&self, now_ms: i64) -> Vec<SweepKind> {
-        let state = self.lock();
-        KINDS
-            .iter()
-            .copied()
-            .filter(|kind| match last_of(&state.last, *kind) {
-                Some(last) => now_ms.saturating_sub(last) >= self.interval_ms,
-                None => true,
-            })
-            .collect()
-    }
-
-    /// Anti-reentrada: `false` = outra rodada está em voo.
-    fn begin(&self) -> bool {
-        let mut state = self.lock();
-        if state.running {
-            return false;
-        }
-        state.running = true;
-        true
-    }
-
-    fn mark_run(&self, kind: SweepKind, now_ms: i64) {
-        let mut state = self.lock();
-        let position = state.last.iter().position(|(known, _)| *known == kind);
-        match position {
-            Some(index) => state.last[index].1 = now_ms,
-            None => state.last.push((kind, now_ms)),
-        }
-    }
-
-    /// UMA rodada. `Off` não faz I/O; `ReadOnly` monta o plano e não chama
-    /// `DELETE` (o próprio `apply_plan` respeita o modo).
-    pub(crate) async fn tick(&self, now_ms: i64) -> TickReport {
-        let mut report = TickReport::default();
-        if !self.mode.plans() {
-            return report;
-        }
-        let due = self.due(now_ms);
-        if due.is_empty() {
-            report.not_due = true;
-            return report;
-        }
-        if !self.begin() {
-            report.reentered = true;
-            return report;
-        }
-        let _flight = FlightGuard {
-            state: self.state.clone(),
-        };
-        // Fatos duráveis (`adprot`/`adhold`) ilegíveis: leitura que falha não
-        // prova "sem proteção" — o plano condenaria acervo retido. A rodada
-        // inteira fecha sem plano (a poda nem é chamada), como na listagem
-        // indisponível.
-        if !self.facts.durable_readable() {
-            eprintln!("[al_sweeps] fatos duráveis ilegíveis (adprot/adhold): rodada sem plano");
-            for kind in due {
-                self.mark_run(kind, now_ms);
-                report.missing.push(kind);
-                report.outcomes.push(missing_outcome(kind));
-            }
-            return report;
-        }
-        // UMA listagem por rodada (os quatro tipos leem a mesma foto da conta).
-        let mut rows = self.source.rows().await;
-        if rows.is_none() {
-            eprintln!("[al_sweeps] sem listagem da conta: nenhum hash entra em plano");
-        }
-        // Inventário frio: uma tentativa AGUARDADA de provar a referência
-        // (caminho de fundo — a busca quente nunca espera isto). Falhou ⇒ o
-        // peek segue `None` e TODA a rodada fecha em `inventory_missing`.
-        if rows.is_some() && self.facts.known_before().is_none() {
-            if let Some(ensure) = self.inventory.as_ref() {
-                ensure.ensure().await;
-            }
-        }
-        // Os fatos também são da rodada: mudam entre rodadas, não entre tipos.
-        let facts = rows
-            .as_deref()
-            .map(|rows| gather(self.facts.as_ref(), rows));
-        if due.contains(&SweepKind::Undubbed) {
-            if let (Some(rows), Some(facts)) = (rows.as_mut(), facts.as_ref()) {
-                self.load_audio_proofs(rows, facts, now_ms).await;
-            }
-        }
-        // Poda do acervo durável (o `pruneMissing` do `sweepDead` do Node): um
-        // efeito de estado como outro qualquer — SÓ no Apply. Com o freio OFF a
-        // rodada é diagnóstico e nenhum registro muda de mão.
-        if self.mode.deletes() && due.contains(&SweepKind::Dead) {
-            if let Some(rows) = rows.as_deref() {
-                let present: HashSet<String> = rows
-                    .iter()
-                    .map(|row| row.normalized_hash())
-                    .filter(|hash| !hash.is_empty())
-                    .collect();
-                let grace = config_of(SweepKind::Dead).min_age_ms.max(0);
-                self.effects
-                    .prune_retention(self.facts.as_ref(), &present, grace, now_ms);
-            }
-        }
-        let view = facts.as_ref().map(|facts| facts.view(now_ms));
-        for kind in due {
-            // Marca ANTES de executar: um tipo que falha não vira laço quente.
-            self.mark_run(kind, now_ms);
-            let (Some(rows), Some(view)) = (rows.as_deref(), view.as_ref()) else {
-                eprintln!(
-                    "[al_sweeps] {} pulado: listagem da conta indisponível (read-only)",
-                    kind.as_str()
-                );
-                report.missing.push(kind);
-                report.outcomes.push(missing_outcome(kind));
-                continue;
-            };
-            let config = config_of(kind);
-            let plan = plan_of(kind, rows, view, &config);
-            if !plan.delete.is_empty() && !self.mode.deletes() {
-                eprintln!(
-                    "[al_sweeps] {}: {} hash(es) no plano, modo {} — nada sai",
-                    kind.as_str(),
-                    plan.delete.len(),
-                    self.mode.as_str()
-                );
-            }
-            let http = SourceHttp {
-                source: self.source.as_ref(),
-                facts: self.facts.as_ref(),
-            };
-            let outcome = apply_plan(&plan, rows, view, &config, self.mode, &http).await;
-            // A prova do que SAIU vira estado (adrm/cura) — nunca no ReadOnly.
-            if self.mode.deletes() {
-                effects::apply_effects(self.effects.as_ref(), &outcome, rows, now_ms);
-            }
-            report.outcomes.push(outcome);
-        }
-        report
-    }
-
-    /// Consulta arquivos só de magnets prontos, antigos e não protegidos.
-    /// O teto evita uma chamada por todo o inventário a cada tick.
-    async fn load_audio_proofs(&self, rows: &mut [MagnetRow], facts: &Facts, now_ms: i64) {
-        const MAX_FILE_LOOKUPS: usize = 100;
-        let Some(known_before) = facts.known_before.as_ref() else {
-            return;
-        };
-        let minimum_age = config_of(SweepKind::Undubbed).min_age_ms.max(0);
-        let cutoff = now_ms.saturating_sub(minimum_age);
-        let mut candidates: Vec<usize> = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| {
-                let hash = row.normalized_hash();
-                if hash.is_empty()
-                    || row.id.trim().is_empty()
-                    || !row.is_ready()
-                    || row.is_active()
-                    || !row.files.is_empty()
-                    || row.uploaded_at_ms <= 0
-                    || row.uploaded_at_ms > cutoff
-                    || known_before.contains(&hash)
-                    || facts.held.contains(&hash)
-                    || facts.retained.contains(&hash)
-                {
-                    return None;
-                }
-                Some(index)
-            })
-            .collect();
-        // Os mais antigos primeiro: o lote limitado é o que a varredura pode
-        // apagar nesta rodada (mesmo `max_per_round` da decisão).
-        candidates.sort_by_key(|index| rows[*index].uploaded_at_ms);
-        candidates.truncate(MAX_FILE_LOOKUPS);
-        for index in candidates {
-            let id = rows[index].id.clone();
-            if let Some(paths) = self.source.files(id).await {
-                rows[index].files = paths;
-            }
-        }
-    }
-}
-
-/// Solta o `running` mesmo em panic ou cancelamento da tarefa.
-struct FlightGuard {
-    state: Arc<Mutex<State>>,
-}
-
-impl Drop for FlightGuard {
-    fn drop(&mut self) {
-        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        state.running = false;
-    }
-}
-
-/// Handle do agendador. O `main` guarda a variável e o task vive com o
-/// processo (dropar um `JoinHandle` do tokio NÃO aborta o task).
-pub(crate) struct SweepHandle {
-    // Só existe para o task seguir vivo enquanto o handle existir.
-    #[allow(dead_code)]
-    task: tokio::task::JoinHandle<()>,
-}
-
-impl SweepHandle {
-    pub(crate) fn new(task: tokio::task::JoinHandle<()>) -> Self {
-        Self { task }
-    }
-}

@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::{
     plan_reconcile, plan_revalidate, plan_sweep_dead, plan_sweep_undubbed, MagnetRow, Reason,
-    SweepConfig, SweepFacts, SweepMode,
+    SweepConfig, SweepFacts, SweepKind, SweepMode,
 };
 
 const NOW: i64 = 1_700_000_000_000;
@@ -341,4 +341,24 @@ fn modo_vem_das_flags_do_chamador() {
     assert!(SweepMode::ReadOnly.plans() && !SweepMode::ReadOnly.deletes());
     assert!(!SweepMode::Off.plans() && !SweepMode::Off.deletes());
     assert!(SweepMode::Apply.plans() && SweepMode::Apply.deletes());
+}
+
+#[test]
+fn kind_parse_aceita_o_vocabulario_do_painel() {
+    // A rota manual aceita o nome canônico e as grafias com `_`/`-`.
+    for (raw, expected) in [
+        ("sweepDead", SweepKind::Dead),
+        ("sweep_dead", SweepKind::Dead),
+        ("sweep-undubbed", SweepKind::Undubbed),
+        ("SWEEPUNDUBBED", SweepKind::Undubbed),
+        ("Reconcile", SweepKind::Reconcile),
+        ("  revalidate ", SweepKind::Revalidate),
+    ] {
+        assert_eq!(SweepKind::parse(raw), Some(expected), "{raw}");
+        assert_eq!(SweepKind::parse(expected.as_str()), Some(expected));
+    }
+    // Desconhecido/vazio é `None`: nunca um default que apagaria outro tipo.
+    assert_eq!(SweepKind::parse(""), None);
+    assert_eq!(SweepKind::parse("all"), None);
+    assert_eq!(SweepKind::parse("dead"), None, "nome curto não é canônico");
 }
