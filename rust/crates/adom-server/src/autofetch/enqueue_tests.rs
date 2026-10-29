@@ -44,6 +44,9 @@ async fn lote_aceito_grava_fila_marker_e_enfileira() {
     let kv = kv();
     let now = now_ms();
     let holds = Holds::default();
+    // Config PINADA: os testes de env escrevem no processo em paralelo.
+    kv.put_json("cfg:v1:autofetch", &json!({ "autoFetchMax": 3 }), 600, now)
+        .unwrap();
     let debrid = FakeDebrid::accepting();
     let payload = batch_payload(SEARCH, &[(&hash_of(1), true), (&hash_of(2), true)]);
     let report = run(
@@ -79,6 +82,10 @@ async fn adiado_fica_na_fila_mesmo_sem_tentar() {
     let kv = kv();
     let now = now_ms();
     let hashes: Vec<String> = (1..=5).map(hash_of).collect();
+    // O teste cobra o `autoFetchMax = 3` do default: PINADO no overlay para
+    // não depender do env do processo (outros testes o escrevem em paralelo).
+    kv.put_json("cfg:v1:autofetch", &json!({ "autoFetchMax": 3 }), 600, now)
+        .unwrap();
     let items: Vec<(&str, bool)> = hashes.iter().map(|hash| (hash.as_str(), true)).collect();
     let debrid = FakeDebrid::accepting();
     let report = run(
@@ -282,8 +289,8 @@ async fn hash_com_marca_adrm_sai_antes_dos_pools() {
     let blocked = hash_of(1);
     let free = hash_of(2);
     let key = adom_debrid::alldebrid_cleanup::adrm_key(ACCOUNT, &blocked);
-    kv.put_json(&key, &json!({ "at": now }), 3_600, now)
-        .unwrap();
+    let mark = json!({ "at": now });
+    kv.put_json(&key, &mark, 3_600, now).unwrap();
     let debrid = FakeDebrid::accepting();
     let report = run(
         &kv,
@@ -301,11 +308,8 @@ async fn hash_com_marca_adrm_sai_antes_dos_pools() {
     .unwrap();
 
     assert_eq!(report.skips.get("adrm"), Some(&1));
-    assert_eq!(
-        debrid.accepted(),
-        vec![free.clone()],
-        "adrm não vai ao upload"
-    );
+    let accepted = debrid.accepted();
+    assert_eq!(accepted, vec![free.clone()], "adrm não vai ao upload");
     assert_eq!(queued(&kv, now), vec![free]);
     assert!(!marker(&kv, &blocked, now));
     // Nem reescrita nem renovada: a marca de 1h caiu exatos 10 min.
@@ -324,13 +328,8 @@ async fn pool_global_desligado_nao_para_o_br() {
     let holds = Holds::default();
     let br = hash_of(1);
     let any = hash_of(2);
-    kv.put_json(
-        "cfg:v1:autofetch",
-        &json!({ "autoFetchAnyDubbed": false }),
-        600,
-        now,
-    )
-    .unwrap();
+    let off = json!({ "autoFetchAnyDubbed": false });
+    kv.put_json("cfg:v1:autofetch", &off, 600, now).unwrap();
     let debrid = FakeDebrid::accepting();
     let report = run(
         &kv,
