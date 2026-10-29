@@ -143,14 +143,20 @@ Arquivo: `rust/crates/adom-server/src/autofetch/vault.rs` (testes no
 3. **Varreduras AllDebrid — agendador FIADO, `Apply` ainda freado** (`bf846820`
    + `016b3690`). `al_sweeps` (`rust/crates/adom-server/src/al_sweeps.rs`, ligado
    em `main.rs`) monta os fatos, respeita `DEBRID_AL_SWEEP_MS` e roda as quatro
-   decisões puras com `may_delete` fail-closed. Mas a listagem nativa não prova
+   decisões puras com `may_delete` fail-closed. A listagem nativa NÃO prova
    posse (`adsub`), retenção (`adprot`) nem a fila `sup:` — fatos do `cache.db`
-   do Node —, então `DEBRID_AL_CLEANUP=on` fica em `ReadOnly`
-   (`native::ROW_PROOFS_COMPLETE`). **Correção da leva C1:** a gravação do
+   do Node. **Fase 1 do wiring** (2026-10-28): os fatos do `cache.db` estão
+   ligados (`adsub`/`adprot`/`adrm` via KV nativo, fila `sup:` via
+   `SuppressedV3`), os efeitos de estado existem (`al_sweeps_effects.rs`:
+   `adrm` só do que o `sweepUndubbed` removeu, poda `adprot` com hold/idade,
+   cura da represa) — mas o freio virou o gate explícito
+   `DEBRID_AL_SWEEP_APPLY` (default **OFF**): com `DEBRID_AL_CLEANUP=on` e o
+   gate fechado, o modo fica em `ReadOnly` e nenhum efeito de estado roda.
+   **Correção da leva C1:** a gravação do
    `adrm` da EVICÇÃO não está mais sem fio — `evict_job::mark_removed`
    (`autofetch/evict_job.rs:352-378`) grava `{"at":now}` e nunca poda marca, gated
    por `DEBRID_REUPLOAD_BLOCK` e com o TTL de `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`.
-   Sem fio continua só o `adrm` das VARREDURAS (`al_sweeps`, `ReadOnly`).
+   O `adrm` das VARREDURAS segue o mesmo gate (`al_sweeps_effects::NativeEffects`).
 4. **Corte do TS (B4) — EXECUTADO.** A trava já está `on` no compose
    (`94268f0a`), o laço já consome os passos e o corpo TS saiu de `src/` — são
    os 19 caminhos congelados em `CUT_SOURCES`

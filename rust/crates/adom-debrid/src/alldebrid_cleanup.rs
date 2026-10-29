@@ -38,9 +38,9 @@
 #[path = "cleanup_flags.rs"]
 mod flags;
 pub use flags::{
-    env_truthy, kill_switch_on, ownership_enabled, reupload_block_enabled, CleanupMode,
-    CACHE_DB_ENV, CLEANUP_ENV, KILL_ENV, PREEXISTING_TTL_ENV, REUPLOAD_BLOCK_ENV, REUPLOAD_TTL_ENV,
-    SUBMITTED_TTL_ENV,
+    env_truthy, kill_switch_on, ownership_enabled, reupload_block_enabled, reupload_ttl_seconds,
+    CleanupMode, CACHE_DB_ENV, CLEANUP_ENV, KILL_ENV, PREEXISTING_TTL_ENV, REUPLOAD_BLOCK_ENV,
+    REUPLOAD_TTL_ENV, SUBMITTED_TTL_ENV,
 };
 #[cfg(test)]
 pub(crate) use flags::{
@@ -59,7 +59,13 @@ pub use holds::{
 mod durable;
 #[cfg(test)]
 pub(crate) use durable::warn_missing_cache_db_once;
-pub use durable::{account_scope, adhold_key, adprot_key, adrm_key, adsub_key, DurablePeek};
+pub use durable::{
+    account_scope, adhold_key, adprot_key, adprot_prefix, adrm_key, adsub_key, DurablePeek,
+};
+
+#[path = "cleanup_prune.rs"]
+mod prune;
+pub use prune::{prune_missing_plan, RetentionEntry};
 
 #[path = "cleanup_inventory.rs"]
 mod inventory;

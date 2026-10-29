@@ -40,14 +40,16 @@ impl Facts {
     }
 }
 
-/// `consulted` e `suppressed` são fatos de BUSCA (o upload da checagem e a
-/// fila `sup:` do Node). Uma varredura de fundo não é busca: vazios, o
-/// reconcile não remove re-add (`no_ownership`) e a revalidação fica em
-/// `not_suppressed` — nunca "libera" um hash por omissão de fato.
+/// `consulted` é fato de BUSCA (o upload da checagem): uma varredura de fundo
+/// não é busca, e vazio o reconcile não remove re-add (`no_ownership`) — nunca
+/// "libera" um hash por omissão de fato. `suppressed` É montado da fila `sup:`
+/// (fase 1 do wiring): sem fila o revalidate não condena ninguém
+/// (`not_suppressed`), com fila ele reavalia só o que a represa guarda.
 pub(crate) fn gather(facts: &dyn FactSource, rows: &[MagnetRow]) -> Facts {
     let mut out = Facts {
         known_before: facts.known_before(),
         marked: facts.marked(),
+        suppressed: facts.suppressed(),
         ..Facts::default()
     };
     for row in rows {

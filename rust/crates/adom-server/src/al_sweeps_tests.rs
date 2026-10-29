@@ -12,12 +12,28 @@ use adom_debrid::alldebrid_sweeps::{
 };
 use tokio::sync::Semaphore;
 
-use super::env::{mode_from, settings_from};
+use super::env::{apply_gate_on_from, mode_from, settings_from};
 use super::native::gated_snapshot;
+// `FactSource` segue importado aqui: os filhos (clock/effects) o referenciam
+// como `super::FactSource` nas assinaturas dos duplos.
 use super::{FactSource, SweepSource, Sweeper};
 
 #[path = "al_sweeps_tests_clock.rs"]
 mod clock;
+
+#[path = "al_sweeps_tests_effects.rs"]
+mod fx;
+
+#[path = "al_sweeps_tests_facts.rs"]
+mod ff;
+
+#[path = "al_sweeps_tests_guard.rs"]
+mod guard;
+
+#[path = "al_sweeps_tests_inventory.rs"]
+mod inventory_tests;
+
+pub(crate) use ff::FakeFacts;
 
 pub(crate) const NOW: i64 = 1_700_000_000_000;
 pub(crate) const DAY: i64 = 24 * 60 * 60 * 1000;
@@ -62,6 +78,11 @@ pub(crate) struct FakeSource {
     failed: HashSet<String>,
     terminal: HashSet<String>,
     gate: Option<Arc<Semaphore>>,
+    /// Portão do DELETE: o teste segura o id EM VOO para mudar o mundo
+    /// (guarda viva) antes de o próximo id ser avaliado.
+    delete_gate: Option<Arc<Semaphore>>,
+    /// Ids cujo delete COMEÇOU (gravado antes de parar no portão).
+    delete_started: Mutex<Vec<String>>,
 }
 
 pub(crate) fn source(rows: Option<Vec<MagnetRow>>) -> Arc<FakeSource> {
@@ -91,6 +112,14 @@ impl FakeSource {
 
     pub(crate) fn gate(&mut self, gate: Arc<Semaphore>) {
         self.gate = Some(gate);
+    }
+
+    pub(crate) fn delete_gate(&mut self, gate: Arc<Semaphore>) {
+        self.delete_gate = Some(gate);
+    }
+
+    pub(crate) fn delete_started(&self) -> Vec<String> {
+        self.delete_started.lock().unwrap().clone()
     }
 
     pub(crate) fn rows_calls(&self) -> usize {
@@ -127,6 +156,11 @@ impl SweepSource for FakeSource {
 
     fn delete(&self, id: String) -> super::DeleteFuture<'_> {
         Box::pin(async move {
+            self.delete_started.lock().unwrap().push(id.clone());
+            if let Some(gate) = self.delete_gate.as_ref() {
+                let permit = gate.acquire().await;
+                drop(permit);
+            }
             if self.terminal.contains(&id) {
                 return Err(SweepHttpError::Terminal(SweepStop::Quota));
             }
@@ -139,54 +173,15 @@ impl SweepSource for FakeSource {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct FakeFacts {
-    known_before: Option<HashSet<String>>,
-    held: HashSet<String>,
-    retained: HashSet<String>,
-    owned_at: HashMap<String, i64>,
-    marked: HashSet<String>,
-}
-
-impl FakeFacts {
-    /// Inventário carregado (holds on) com os preexistentes de `hashes`.
-    pub(crate) fn loaded(hashes: &[char]) -> Self {
-        Self {
-            known_before: Some(hashes.iter().map(|ch| hash_of(*ch)).collect()),
-            ..Self::default()
-        }
-    }
-
-    pub(crate) fn owns(mut self, ch: char) -> Self {
-        self.owned_at.insert(hash_of(ch), NOW - 30 * DAY);
-        self
-    }
-}
-
-impl FactSource for FakeFacts {
-    fn known_before(&self) -> Option<HashSet<String>> {
-        self.known_before.clone()
-    }
-
-    fn held(&self, hash: &str) -> bool {
-        self.held.contains(hash)
-    }
-
-    fn retained(&self, hash: &str) -> bool {
-        self.retained.contains(hash)
-    }
-
-    fn owned_at(&self, hash: &str) -> Option<i64> {
-        self.owned_at.get(hash).copied()
-    }
-
-    fn marked(&self) -> HashSet<String> {
-        self.marked.clone()
-    }
-}
-
 pub(crate) fn sweeper(mode: SweepMode, source: Arc<FakeSource>, facts: FakeFacts) -> Arc<Sweeper> {
-    Sweeper::new(mode, INTERVAL, source, Arc::new(facts))
+    Sweeper::new(
+        mode,
+        INTERVAL,
+        source,
+        Arc::new(facts),
+        Arc::new(fx::FakeEffects::default()),
+        None,
+    )
 }
 
 fn outcome(report: &super::TickReport, kind: SweepKind) -> &SweepOutcome {
@@ -257,10 +252,31 @@ fn cleanup_ausente_vira_readonly() {
 }
 
 #[test]
-fn cleanup_on_fica_readonly_sem_provas_nativas_completas() {
-    let settings = settings_from(Some("60000"), Some("on"), false)
+fn gate_apply_desligado_por_default() {
+    // O freio é o DEFAULT: ausente, vazio, lixo e `off` NÃO abrem o Apply.
+    assert!(!apply_gate_on_from(None));
+    assert!(!apply_gate_on_from(Some("")));
+    assert!(!apply_gate_on_from(Some("off")));
+    assert!(!apply_gate_on_from(Some("readonly")));
+    assert!(apply_gate_on_from(Some("on")));
+    assert!(apply_gate_on_from(Some("1")));
+    assert!(apply_gate_on_from(Some(" TRUE ")));
+    assert!(apply_gate_on_from(Some("Yes")));
+}
+
+#[test]
+fn cleanup_on_fica_readonly_sem_o_gate_de_aplicacao() {
+    // Fase 1: o freio é o gate explícito (`DEBRID_AL_SWEEP_APPLY`), não um
+    // flag interno. Com o gate OFF (default), `on` é diagnóstico read-only.
+    let freiado = settings_from(Some("60000"), Some("on"), false, false)
         .expect("intervalo ligado agenda o modo de diagnóstico");
-    assert_eq!(settings.mode, SweepMode::ReadOnly);
+    assert_eq!(freiado.mode, SweepMode::ReadOnly);
+    let aberto = settings_from(Some("60000"), Some("on"), false, true)
+        .expect("o gate aberto mantém o agendamento");
+    assert_eq!(aberto.mode, SweepMode::Apply);
+    // O kill-switch vence mesmo com o gate aberto (o plano continua, sem delete).
+    let morto = settings_from(Some("60000"), Some("on"), true, true).expect("diagnóstico");
+    assert_eq!(morto.mode, SweepMode::ReadOnly);
 }
 
 #[tokio::test]

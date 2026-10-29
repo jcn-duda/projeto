@@ -197,18 +197,27 @@ impl AllDebrid {
         let data = self
             .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
             .await?;
-        Ok(data
+        let rows = data
             .get("magnets")
             .and_then(Value::as_array)
-            .map(|list| {
-                list.iter()
-                    .filter_map(|magnet| magnet.get("hash").and_then(Value::as_str))
-                    .map(str::trim)
-                    .map(str::to_lowercase)
-                    .filter(|hash| !hash.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default())
+            .ok_or_else(|| DebridError::other("alldebrid: /magnet/status sem lista de magnets"))?;
+        let hashes: Vec<String> = rows
+            .iter()
+            .filter_map(|magnet| magnet.get("hash").and_then(Value::as_str))
+            .map(str::trim)
+            .map(str::to_lowercase)
+            .filter(|hash| !hash.is_empty())
+            .collect();
+        // Listagem PARCIALMENTE malformada é FALHA: o snapshot alimentado por
+        // ela esconderia magnets reais do `knownBefore` — e ausência que não se
+        // provou destrava o preexisting de acervo do usuário. `Ok(vazio)` com
+        // lista não vazia seria "tudo na conta é nosso".
+        if hashes.len() != rows.len() {
+            return Err(DebridError::other(
+                "alldebrid: listagem parcialmente malformada (hash ausente em parte das linhas)",
+            ));
+        }
+        Ok(hashes)
     }
 
     /// Upload, no máximo 3 esperas, `/link/unlock` do arquivo escolhido.

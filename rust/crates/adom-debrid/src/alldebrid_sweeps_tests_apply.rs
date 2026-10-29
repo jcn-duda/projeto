@@ -222,6 +222,76 @@ async fn may_delete_fecha_no_instante_do_delete() {
     assert_eq!(outcome.count(Reason::GuardClosed), 1);
 }
 
+/// Dublê com guarda viva por roteiro: `hash → Some(false)` veta (protegido
+/// agora), `hash → None` é ilegível (fail-closed) e ausente deixa passar.
+struct GuardedHttp {
+    inner: FakeHttp,
+    vetoes: HashMap<String, Option<bool>>,
+}
+
+impl SweepHttp for GuardedHttp {
+    async fn delete(&self, id: &str) -> Result<(), SweepHttpError> {
+        self.inner.delete(id).await
+    }
+
+    async fn guard_live(&self, hash: &str) -> Option<bool> {
+        self.vetoes.get(hash).copied().unwrap_or(Some(true))
+    }
+}
+
+#[tokio::test]
+async fn guarda_viva_que_veta_fecha_sem_chamar_delete() {
+    let rows = [dead_row('a'), dead_row('b')];
+    let facts = Facts::loaded();
+    let plan = plan_sweep_dead(&rows, &facts.view(), &config());
+    assert_eq!(plan.delete.len(), 2);
+    // O hold de 'b' chegou DEPOIS de o plano fechar: só a guarda viva o vê.
+    let http = GuardedHttp {
+        inner: FakeHttp::default(),
+        vetoes: HashMap::from([(hash_of('b'), Some(false))]),
+    };
+    let outcome = apply_plan(
+        &plan,
+        &rows,
+        &facts.view(),
+        &config(),
+        SweepMode::Apply,
+        &http,
+    )
+    .await;
+    assert!(outcome.applied);
+    assert_eq!(outcome.removed, vec!["id-a".to_string()]);
+    assert_eq!(outcome.blocked, vec!["id-b".to_string()]);
+    assert_eq!(outcome.reason_of(&hash_of('b')), Some(Reason::GuardClosed));
+    assert_eq!(outcome.calls, 1, "o vetado nem chega na API");
+    assert_eq!(outcome.failed.len(), 0, "veto não é falha de delete");
+}
+
+#[tokio::test]
+async fn guarda_viva_ilegivel_e_fail_closed() {
+    let rows = [dead_row('a'), dead_row('b')];
+    let facts = Facts::loaded();
+    let plan = plan_sweep_dead(&rows, &facts.view(), &config());
+    // Não deu para reler a guarda de 'b': veto, nunca "pode apagar".
+    let http = GuardedHttp {
+        inner: FakeHttp::default(),
+        vetoes: HashMap::from([(hash_of('b'), None)]),
+    };
+    let outcome = apply_plan(
+        &plan,
+        &rows,
+        &facts.view(),
+        &config(),
+        SweepMode::Apply,
+        &http,
+    )
+    .await;
+    assert_eq!(outcome.removed, vec!["id-a".to_string()]);
+    assert_eq!(outcome.blocked, vec!["id-b".to_string()]);
+    assert_eq!(outcome.reason_of(&hash_of('b')), Some(Reason::GuardClosed));
+    assert_eq!(outcome.calls, 1);
+}
+
 #[tokio::test]
 async fn parada_por_quota_interrompe_a_rodada() {
     let rows = [dead_row('a'), dead_row('b'), dead_row('c')];

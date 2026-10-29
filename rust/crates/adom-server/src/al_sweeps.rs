@@ -10,7 +10,8 @@
 //!
 //! - `DEBRID_AL_CLEANUP` **ausente** ⇒ [`SweepMode::ReadOnly`]: monta o plano,
 //!   loga os motivos, não apaga. `off` ⇒ [`SweepMode::Off`]: nem plano nem I/O.
-//!   `on` ⇒ `Apply`, salvo `DEBRID_AL_CLEANUP_KILL` (aí volta a `ReadOnly`).
+//!   `on` ⇒ `Apply`, salvo o freio `DEBRID_AL_SWEEP_APPLY` (default **OFF**) ou
+//!   `DEBRID_AL_CLEANUP_KILL` — qualquer um dos dois volta a `ReadOnly`.
 //! - `DEBRID_AL_HOLDS` ausente/off ⇒ o hold do autofetch não está montado e o
 //!   inventário sozinho não prova que um download em voo está protegido:
 //!   `known_before = None` em toda rodada e nenhum hash sai.
@@ -24,19 +25,27 @@
 //! `reentered: true` sem tocar na conta. O `FlightGuard` solta o `running` no
 //! `Drop`, inclusive se a tarefa for abortada no shutdown.
 //!
-//! # O que a porta nativa prova (e o que ainda falta)
+//! # O que a porta nativa prova
 //!
 //! `AllDebrid::sweep_magnet_list` entrega `id`, `hash`, o texto do `status`, o
 //! `ready`, o `filename` e o `uploadDate` (segundos → ms) numa chamada;
 //! `sweep_magnet_files` entrega os caminhos de UM magnet pronto, sob demanda e
-//! só para os candidatos do `sweepUndubbed`. A listagem por si só NÃO prova
-//! posse (`adsub`), retenção (`adprot`) nem a fila `sup:` — fatos do `cache.db`
-//! do Node. Enquanto esses fatos não estiverem ligados de ponta a ponta,
-//! `DEBRID_AL_CLEANUP=on` fica em `ReadOnly` (freio
-//! `native::ROW_PROOFS_COMPLETE`): o plano é montado e logado, nenhum `DELETE`
-//! sai. Independente disso valem as travas por rodada: sem inventário
-//! (`known_before`) ou com `DEBRID_AL_HOLDS` off o plano inteiro fecha em
-//! `inventory_missing`.
+//! só para os candidatos do `sweepUndubbed`. Posse (`adsub`), retenção
+//! (`adprot`), anti-reenchimento (`adrm`) e a fila `sup:` vêm do `cache.db`
+//! (fatos de [`facts`] + [`effects`]).
+//!
+//! # Inventário frio e guarda viva
+//!
+//! Rodada fria: o [`InventoryEnsure`] de produção tenta provar o snapshot
+//! (UMA `/magnet/status` aguardada, régua do Node: conta − posse durável −
+//! `submitted`; falhou ⇒ `inventory_missing` relatado, nada é inventado;
+//! `DEBRID_AL_HOLDS` off deixa o peek `None` de qualquer jeito). A fonte
+//! durável (`adprot`/`adhold`) ilegível fecha a rodada no PLANEJAMENTO (sem
+//! plano e sem poda) e no INSTANTE do delete (`live_delete_ok` → veto): o que
+//! não se consegue ler não pode virar "sem proteção". E o delete
+//! de cada id relê os fatos protetivos NA HORA (`live_delete_ok` via
+//! `guard_live` no núcleo): o que chegou depois do plano veta, e guarda
+//! ilegível veta junto.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -57,6 +66,9 @@ pub(crate) use facts::{config_of, gather, missing_outcome, plan_of, Facts, TickR
 
 #[path = "al_sweeps_native.rs"]
 mod native;
+
+#[path = "al_sweeps_effects.rs"]
+mod effects;
 
 #[cfg(test)]
 #[path = "al_sweeps_tests.rs"]
@@ -91,14 +103,22 @@ pub(crate) trait SweepSource: Send + Sync {
     fn delete(&self, id: String) -> DeleteFuture<'_>;
 }
 
-/// `SweepHttp` do núcleo sobre a porta da conta (o executor não conhece HTTP).
+/// `SweepHttp` do núcleo sobre as portas da conta. A guarda viva
+/// (`guard_live`) relê os FATOS no instante do delete; `None` = ilegível e o
+/// executor vetará (fail-closed).
 struct SourceHttp<'a> {
     source: &'a dyn SweepSource,
+    facts: &'a dyn FactSource,
 }
 
 impl SweepHttp for SourceHttp<'_> {
     fn delete(&self, id: &str) -> impl Future<Output = Result<(), SweepHttpError>> + Send {
         self.source.delete(id.to_string())
+    }
+
+    fn guard_live(&self, hash: &str) -> impl Future<Output = Option<bool>> + Send {
+        let verdict = self.facts.live_delete_ok(hash);
+        async move { verdict }
     }
 }
 
@@ -110,7 +130,46 @@ pub(crate) trait FactSource: Send + Sync {
     fn retained(&self, hash: &str) -> bool;
     fn owned_at(&self, hash: &str) -> Option<i64>;
     fn marked(&self) -> HashSet<String>;
+    /// Fila de represados (`sup:`) da conta — lida da represa nativa. Vazio =
+    /// fila ilegível ou sem represados (o revalidate não condena por omissão).
+    fn suppressed(&self) -> HashSet<String>;
+    /// A fonte durável (`adprot`/`adhold` no `cache.db`) está LEGÍVEL? `false`
+    /// = leitura que falha não prova "sem proteção": o planejamento inteiro
+    /// fecha (mesma postura da listagem indisponível).
+    fn durable_readable(&self) -> bool {
+        true
+    }
+    /// Hold do hash COM prova de leitura: `None` = não deu para ler AGORA, e
+    /// quem poda não pode tratá-lo como "sem hold" (fail-closed).
+    fn held_checked(&self, hash: &str) -> Option<bool> {
+        Some(self.held(hash))
+    }
+    /// Guarda VIVA no INSTANTE do delete: relê AGORA preexistente, hold e
+    /// retenção do hash. `None` = não deu para saber (fail-closed: veto).
+    /// Em produção os portos acima são leitura VIVA (peek do snapshot, hold
+    /// volátil + `adhold`, `adprot`) — relê-los aqui é o que pega o que
+    /// chegou DEPOIS de o plano fechar. Duplos de teste derivam igual. A
+    /// fonte durável ilegível no instante do delete VETA junto: "não
+    /// protegido" sem leitura não é veredito, é palpite.
+    fn live_delete_ok(&self, hash: &str) -> Option<bool> {
+        if !self.durable_readable() {
+            return None;
+        }
+        let known = self.known_before()?;
+        Some(!known.contains(hash) && !self.held(hash) && !self.retained(hash))
+    }
 }
+
+/// Carregador do inventário frio: uma tentativa AGUARDADA de provar a
+/// referência `knownBefore` quando a rodada acorda sem ela. Produção:
+/// `native::NativeInventory` (UMA `/magnet/status` pela mesma régua do Node).
+/// Falha NÃO é completada com suposição: o peek segue `None` e a rodada
+/// inteira fecha em `inventory_missing`.
+pub(crate) trait InventoryEnsure: Send + Sync {
+    fn ensure(&self) -> EnsureFuture<'_>;
+}
+
+pub(crate) type EnsureFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 
 // ---------------------------------------------------------------------------
 // Agendador
@@ -134,6 +193,10 @@ pub(crate) struct Sweeper {
     interval_ms: i64,
     source: Arc<dyn SweepSource>,
     facts: Arc<dyn FactSource>,
+    /// Efeitos de estado (`adrm`/poda/cura) — materializados SÓ no `Apply`.
+    effects: Arc<dyn effects::SweepEffects>,
+    /// Carregador do inventário frio (`None` = sem carga: rodada fria fecha).
+    inventory: Option<Arc<dyn InventoryEnsure>>,
     state: Arc<Mutex<State>>,
 }
 
@@ -143,12 +206,16 @@ impl Sweeper {
         interval_ms: i64,
         source: Arc<dyn SweepSource>,
         facts: Arc<dyn FactSource>,
+        effects: Arc<dyn effects::SweepEffects>,
+        inventory: Option<Arc<dyn InventoryEnsure>>,
     ) -> Arc<Self> {
         Arc::new(Self {
             mode,
             interval_ms,
             source,
             facts,
+            effects,
+            inventory,
             state: Arc::new(Mutex::new(State::default())),
         })
     }
@@ -157,8 +224,7 @@ impl Sweeper {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Tipos cujo intervalo mínimo já venceu (primeira rodada do processo:
-    /// todos).
+    /// Tipos cujo intervalo mínimo já venceu (na primeira rodada, todos).
     fn due(&self, now_ms: i64) -> Vec<SweepKind> {
         let state = self.lock();
         KINDS
@@ -209,10 +275,31 @@ impl Sweeper {
         let _flight = FlightGuard {
             state: self.state.clone(),
         };
+        // Fatos duráveis (`adprot`/`adhold`) ilegíveis: leitura que falha não
+        // prova "sem proteção" — o plano condenaria acervo retido. A rodada
+        // inteira fecha sem plano (a poda nem é chamada), como na listagem
+        // indisponível.
+        if !self.facts.durable_readable() {
+            eprintln!("[al_sweeps] fatos duráveis ilegíveis (adprot/adhold): rodada sem plano");
+            for kind in due {
+                self.mark_run(kind, now_ms);
+                report.missing.push(kind);
+                report.outcomes.push(missing_outcome(kind));
+            }
+            return report;
+        }
         // UMA listagem por rodada (os quatro tipos leem a mesma foto da conta).
         let mut rows = self.source.rows().await;
         if rows.is_none() {
             eprintln!("[al_sweeps] sem listagem da conta: nenhum hash entra em plano");
+        }
+        // Inventário frio: uma tentativa AGUARDADA de provar a referência
+        // (caminho de fundo — a busca quente nunca espera isto). Falhou ⇒ o
+        // peek segue `None` e TODA a rodada fecha em `inventory_missing`.
+        if rows.is_some() && self.facts.known_before().is_none() {
+            if let Some(ensure) = self.inventory.as_ref() {
+                ensure.ensure().await;
+            }
         }
         // Os fatos também são da rodada: mudam entre rodadas, não entre tipos.
         let facts = rows
@@ -221,6 +308,21 @@ impl Sweeper {
         if due.contains(&SweepKind::Undubbed) {
             if let (Some(rows), Some(facts)) = (rows.as_mut(), facts.as_ref()) {
                 self.load_audio_proofs(rows, facts, now_ms).await;
+            }
+        }
+        // Poda do acervo durável (o `pruneMissing` do `sweepDead` do Node): um
+        // efeito de estado como outro qualquer — SÓ no Apply. Com o freio OFF a
+        // rodada é diagnóstico e nenhum registro muda de mão.
+        if self.mode.deletes() && due.contains(&SweepKind::Dead) {
+            if let Some(rows) = rows.as_deref() {
+                let present: HashSet<String> = rows
+                    .iter()
+                    .map(|row| row.normalized_hash())
+                    .filter(|hash| !hash.is_empty())
+                    .collect();
+                let grace = config_of(SweepKind::Dead).min_age_ms.max(0);
+                self.effects
+                    .prune_retention(self.facts.as_ref(), &present, grace, now_ms);
             }
         }
         let view = facts.as_ref().map(|facts| facts.view(now_ms));
@@ -248,10 +350,14 @@ impl Sweeper {
             }
             let http = SourceHttp {
                 source: self.source.as_ref(),
+                facts: self.facts.as_ref(),
             };
-            report
-                .outcomes
-                .push(apply_plan(&plan, rows, view, &config, self.mode, &http).await);
+            let outcome = apply_plan(&plan, rows, view, &config, self.mode, &http).await;
+            // A prova do que SAIU vira estado (adrm/cura) — nunca no ReadOnly.
+            if self.mode.deletes() {
+                effects::apply_effects(self.effects.as_ref(), &outcome, rows, now_ms);
+            }
+            report.outcomes.push(outcome);
         }
         report
     }

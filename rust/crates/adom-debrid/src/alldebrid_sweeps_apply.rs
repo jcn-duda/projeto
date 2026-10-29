@@ -5,9 +5,9 @@
 //!
 //! - [`SweepMode::Off`] / [`SweepMode::ReadOnly`]: **nenhum** `DELETE` sai
 //!   (`applied = false`), o plano é devolvido como diagnóstico;
-//! - [`SweepMode::Apply`]: cada hash do plano passa por `may_delete` NO
-//!   INSTANTE do delete (hold novo/preexistente que chegaram depois do plano
-//!   fecham a guarda) e vira uma chamada de [`SweepHttp::delete`].
+//! - [`SweepMode::Apply`]: cada hash do plano passa pela guarda VIVA
+//!   ([`SweepHttp::guard_live`], reavaliada IMEDIATAMENTE antes do delete) e
+//!   por `may_delete` fail-closed, e vira uma chamada de [`SweepHttp::delete`].
 //!
 //! Falha de um id **não** interrompe o lote: o magnet continua na conta e a
 //! rodada segue (`delete_failed`). Só quota/auth param tudo
@@ -55,6 +55,15 @@ pub enum SweepHttpError {
 pub trait SweepHttp {
     /// Remove UM id (`/magnet/delete`).
     fn delete(&self, id: &str) -> impl Future<Output = Result<(), SweepHttpError>> + Send;
+    /// Guarda VIVA reavaliada IMEDIATAMENTE antes do DELETE deste hash: hold
+    /// volátil, retenção durável e preexistente podem ter chegado DEPOIS de o
+    /// plano fechar, e os fatos congelados da rodada não os enxergam.
+    /// `None` = não deu para reler (fail-closed: veto, como `may_delete`).
+    /// Default `Some(true)`: a fonte que não prova guarda viva não inventa
+    /// veto — o `may_delete` dos fatos da rodada continua sendo a régua mínima.
+    fn guard_live(&self, _hash: &str) -> impl Future<Output = Option<bool>> + Send {
+        async { Some(true) }
+    }
 }
 
 /// Resultado da aplicação: prova do que saiu, do que falhou e do que a guarda
@@ -70,7 +79,7 @@ pub struct SweepOutcome {
     pub removed: Vec<String>,
     /// Ids que continuam na conta.
     pub failed: Vec<String>,
-    /// Ids vetados por `may_delete` no instante do delete.
+    /// Ids vetados no instante do delete (guarda viva ou `may_delete`).
     pub blocked: Vec<String>,
     pub stopped: Option<SweepStop>,
     /// Chamadas de `DELETE` feitas.
@@ -145,6 +154,14 @@ pub async fn apply_plan<H: SweepHttp>(
                 outcome.skip.insert(hash.clone(), Reason::MissingId);
                 continue;
             };
+            // Guarda VIVA, no instante do delete: `Some(false)` (protegido
+            // agora) e `None` (não deu para reler) fecham a guarda. Sem isto,
+            // um hold do autofetch que chegou depois do plano não seria visto.
+            if http.guard_live(hash).await != Some(true) {
+                outcome.blocked.push(id.to_string());
+                outcome.skip.insert(hash.clone(), Reason::GuardClosed);
+                continue;
+            }
             // `may_delete` fail-closed NO INSTANTE do delete: hold novo,
             // preexistente provado ou inventário que sumiu fecham a guarda.
             let allowed = may_delete(DeleteFacts {

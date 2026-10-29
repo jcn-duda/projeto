@@ -69,13 +69,12 @@ async fn adapter(scene: Scene) -> AllDebrid {
 }
 
 #[tokio::test]
-async fn lista_normaliza_campos_data_auth_e_ignora_linhas_invalidas() {
+async fn lista_normaliza_campos_data_e_auth() {
     let scene = Scene {
         hits: Arc::new(Mutex::new(Vec::new())),
         rows: json!({"magnets":[
             {"id":12,"hash":"ABCDEF","status":"Ready","ready":false,"filename":"filme.mkv","size":42,"uploadDate":1700000000},
-            {"id":"13","hash":"fedcba","status":"Downloading","uploadDate":"12"},
-            {"id":14,"hash":""},{"hash":"sem-id"}
+            {"id":"13","hash":"fedcba","status":"Downloading","uploadDate":"12"}
         ]}),
         detail: json!({}),
     };
@@ -95,6 +94,29 @@ async fn lista_normaliza_campos_data_auth_e_ignora_linhas_invalidas() {
     assert_eq!(hits[0].0, "/magnet/status");
     assert!(hits[0].1.contains("agent=stremio-adom"));
     assert!(hits[0].2);
+}
+
+#[tokio::test]
+async fn listagem_parcialmente_malformada_e_falha_nunca_lista_parcial() {
+    // UMA linha boa + UMA sem id e UMA com hash vazio: foto POSSIVELMENTE
+    // truncada da conta. Aceitá-la fundamentaria ausência não provada — a
+    // poda cortaria o `adprot` de magnet presente e a fila `sup:` seria
+    // curada por engano. Linhas inválidas NÃO são mais ignoradas.
+    let scene = Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[
+            {"id":12,"hash":"ABCDEF","status":"Ready","uploadDate":1700000000},
+            {"id":14,"hash":""},
+            {"hash":"sem-id"}
+        ]}),
+        detail: json!({}),
+    };
+    let api = adapter(scene).await;
+    assert!(api.sweep_magnet_list(KEY).await.is_err());
+    assert!(
+        api.magnet_index(KEY).await.is_err(),
+        "a evicção por hash herda o mesmo contrato"
+    );
 }
 
 #[tokio::test]
@@ -128,4 +150,96 @@ async fn magnet_nao_pronto_nao_expoe_arquivos() {
     })
     .await;
     assert!(api.sweep_magnet_files(KEY, "7").await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn listagem_sem_magnets_e_falha_nunca_vazio_valido() {
+    // Corpo 200/success SEM `magnets`: leitura que não aconteceu. Vazio
+    // válido aqui podaria o `adprot` inteiro (poda) e curaria a fila `sup:`.
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({}),
+        detail: json!({}),
+    })
+    .await;
+    let err = api
+        .sweep_magnet_list(KEY)
+        .await
+        .expect_err("malformada é FALHA");
+    assert!(err.to_string().contains("magnets"));
+}
+
+#[tokio::test]
+async fn listagem_sem_linha_reconhecivel_e_falha() {
+    // A lista veio, mas NENHUMA linha rendeu id/hash: não é "conta vazia",
+    // é leitura que não produziu identidade.
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[{"id":1},{"foo":"bar"}]}),
+        detail: json!({}),
+    })
+    .await;
+    assert!(api.sweep_magnet_list(KEY).await.is_err());
+}
+
+#[tokio::test]
+async fn listagem_conta_vazia_provada_continua_valida() {
+    // `magnets: []` é vazio PROVADO: é o único vazio válido.
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[]}),
+        detail: json!({}),
+    })
+    .await;
+    assert!(api.sweep_magnet_list(KEY).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn hashes_sem_magnets_e_falha_snapshot_vazio_nao_prova() {
+    // `magnet_hashes` alimenta o snapshot `knownBefore`: vazio aqui diria
+    // "tudo na conta é nosso" e tiraria o preexisting de TODA a conta.
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({}),
+        detail: json!({}),
+    })
+    .await;
+    assert!(api.magnet_hashes(KEY).await.is_err());
+}
+
+#[tokio::test]
+async fn hashes_sem_hash_reconhecivel_e_falha() {
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[{"id":1,"status":"Ready"}]}),
+        detail: json!({}),
+    })
+    .await;
+    assert!(api.magnet_hashes(KEY).await.is_err());
+}
+
+#[tokio::test]
+async fn hashes_parcialmente_malformados_sao_falha_snapshot_nao_mentira() {
+    // `magnet_hashes` alimenta o snapshot `knownBefore`: lista com hash em
+    // PARTE das linhas esconderia magnets reais do preexisting — e ausência
+    // que não se provou destrava acervo do usuário.
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[{"id":1,"hash":"aabb"},{"id":2,"status":"Ready"}]}),
+        detail: json!({}),
+    })
+    .await;
+    assert!(api.magnet_hashes(KEY).await.is_err());
+}
+
+#[tokio::test]
+async fn hashes_de_conta_vazia_provada_continuam_validos() {
+    let api = adapter(Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[]}),
+        detail: json!({}),
+    })
+    .await;
+    let hashes = api.magnet_hashes(KEY).await.unwrap();
+    assert!(hashes.is_empty(), "vazio provado é prova");
 }

@@ -4,19 +4,17 @@
 //! Regra única: o que este módulo NÃO consegue provar vira `None`
 //! (`known_before`) ou campo vazio (`uploaded_at_ms = 0`, `files` vazio,
 //! `status` vazio). O plano do núcleo fecha sozinho nesses casos — nenhum fato
-//! é inventado aqui.
-//!
-//! A lista real fornece `hash/id/status/ready/filename/uploadDate`; caminhos
-//! de vídeo são lidos sob demanda por id, só para itens prontos e antigos.
-//! Campos ausentes ficam vazios/zero. A escrita continua ReadOnly até o wiring
-//! dos fatos de posse/supressão confirmar que todas as guardas estão completas.
+//! é inventado aqui. Os EFEITOS de estado (adrm/poda/cura) são de
+//! `al_sweeps_effects`; o freio de aplicação é o gate `DEBRID_AL_SWEEP_APPLY`
+//! (default OFF, lido em `al_sweeps_env`), não este módulo.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use adom_autofetch::v3::SuppressedV3;
 use adom_debrid::alldebrid::{AllDebrid, SweepMagnet};
 use adom_debrid::alldebrid_cleanup::{
-    account_scope, adsub_key, is_held, known_before, DurablePeek,
+    account_scope, inventory, is_held, known_before, DurablePeek,
 };
 use adom_debrid::alldebrid_sweeps::{MagnetRow, SweepHttpError, SweepStop};
 use adom_debrid::holds_feed::holds_feed_enabled;
@@ -25,10 +23,6 @@ use adom_debrid::DebridError;
 use adom_index::NativeKv;
 
 use super::{DeleteFuture, FactSource, FilesFuture, RowsFuture, SweepSource};
-
-/// Falta ligar/revisar todos os fatos de posse e supressão no gateway.
-/// Não habilitar deletes só porque a listagem passou a ter metadados reais.
-pub(crate) const ROW_PROOFS_COMPLETE: bool = false;
 
 /// Conta do operador: a chave NUNCA sai daqui (sem `Debug`, sem log) e o
 /// escopo é o `sha256` que casa com `adprot`/`adsub`/`adrm` e com o Node.
@@ -171,19 +165,79 @@ pub(crate) struct NativeFacts {
     account: String,
     holds_on: bool,
     durable: DurablePeek,
-    /// `None` = `cache.db` não abriu: sem `adsub` não há posse provada.
+    /// `None` = `cache.db` não abriu: sem `adsub` não há posse provada e a
+    /// fila `sup:` lê vazia (fail-closed: sem fato, o plano não condena).
     kv: Option<Arc<NativeKv>>,
 }
 
-pub(crate) fn facts(account: &Account) -> Arc<dyn FactSource> {
+/// Um SÓ handle do `cache.db` para os fatos e para os efeitos da rodada.
+pub(crate) fn open_kv() -> Option<Arc<NativeKv>> {
+    NativeKv::open(&adom_store::default_cache_db_path())
+        .ok()
+        .map(Arc::new)
+}
+
+pub(crate) fn facts_with_kv(account: &Account, kv: Option<Arc<NativeKv>>) -> Arc<dyn FactSource> {
     Arc::new(NativeFacts {
         account: account.scope.clone(),
         holds_on: holds_feed_enabled(),
         durable: DurablePeek::from_env(),
-        kv: NativeKv::open(&adom_store::default_cache_db_path())
-            .ok()
-            .map(Arc::new),
+        kv,
     })
+}
+
+/// Efeitos de produção (adrm/poda/cura) sobre o MESMO handle do `cache.db`.
+/// O escopo vem da conta: é o que casa com `adprot`/`adsub`/`adrm` do Node.
+pub(crate) fn effects(
+    account: &Account,
+    kv: Option<Arc<NativeKv>>,
+) -> Arc<dyn super::effects::SweepEffects> {
+    Arc::new(super::effects::NativeEffects::new(&account.scope, kv))
+}
+
+/// Carregador do inventário frio. A rodada que acorda sem snapshot faz UMA
+/// chamada aguardada de `/magnet/status` (caminho de fundo; a busca quente
+/// nunca espera isto). O snapshot sai pela MESMA régua do Node
+/// (`build_snapshot`): conta − posse durável (`adsub`, com o kill-switch) −
+/// `submitted` desta instância. Falhou ⇒ `None`: a rodada inteira fecha em
+/// `inventory_missing` e fica RELATADA — nada é inventado para destravar.
+pub(crate) struct NativeInventory {
+    ad: AllDebrid,
+    key: String,
+    account: String,
+    durable: DurablePeek,
+}
+
+impl super::InventoryEnsure for NativeInventory {
+    fn ensure(&self) -> super::EnsureFuture<'_> {
+        Box::pin(async move {
+            // Peek barato primeiro: snapshot vivo não dispara rede.
+            if known_before(&self.account).is_some() {
+                return;
+            }
+            // `load_now` respeita o lease do refresh: não disputa com o
+            // refresh em fundo que a busca quente pode ter disparado.
+            if inventory()
+                .load_now(&self.ad, &self.key, &self.account, Some(&self.durable))
+                .await
+                .is_none()
+            {
+                eprintln!(
+                    "[al_sweeps] inventário frio sem carga: rodada segue fail-closed (inventory_missing)"
+                );
+            }
+        })
+    }
+}
+
+/// Porta de produção do [`super::InventoryEnsure`]. `None` = sem cliente HTTP.
+pub(crate) fn inventory_ensure(account: &Account) -> Option<Arc<dyn super::InventoryEnsure>> {
+    Some(Arc::new(NativeInventory {
+        ad: AllDebrid::new(HttpClient::new().ok()?),
+        key: account.key.clone(),
+        account: account.scope.clone(),
+        durable: DurablePeek::from_env(),
+    }))
 }
 
 /// O inventário só vale como referência se o hold estiver montado: com
@@ -200,14 +254,39 @@ pub(crate) fn gated_snapshot(
     }
 }
 
+impl NativeFacts {
+    /// Hold em DUAS camadas, o mesmo OR da evicção (`autofetch_ports_evict.rs`):
+    /// o mapa em processo E o `adhold:v1` do KV (o que o Node/worker gravou com
+    /// TTL). Sem o KV, um hold do Node seria invisível para a varredura — e a
+    /// poda o ignoraria. COM prova: `None` = base durável ilegível, e ausência
+    /// de hold não lida não é veredito (fail-closed).
+    fn hold_verdict(&self, hash: &str, now: i64) -> Option<bool> {
+        let durable_held = self.durable.is_held_checked(&self.account, hash, now)?;
+        Some(is_held(&self.account, hash) || durable_held)
+    }
+}
+
 impl FactSource for NativeFacts {
     fn known_before(&self) -> Option<HashSet<String>> {
         let snapshot = known_before(&self.account).map(|set| (*set).clone());
         gated_snapshot(self.holds_on, snapshot)
     }
 
+    /// A fonte durável (`adprot`/`adhold` no `cache.db`) LEGÍVEL é
+    /// pré-condição de plano: sem leitura, "não protegido" não é provável.
+    fn durable_readable(&self) -> bool {
+        self.durable.readable()
+    }
+
     fn held(&self, hash: &str) -> bool {
-        is_held(&self.account, hash)
+        self.hold_verdict(hash, adom_sources::now_ms())
+            .unwrap_or(false)
+    }
+
+    /// Hold COM prova de leitura: `None` = `cache.db` ilegível agora (a poda
+    /// mantém o registro em vez de tratá-lo como "sem hold").
+    fn held_checked(&self, hash: &str) -> Option<bool> {
+        self.hold_verdict(hash, adom_sources::now_ms())
     }
 
     fn retained(&self, hash: &str) -> bool {
@@ -216,19 +295,61 @@ impl FactSource for NativeFacts {
     }
 
     fn owned_at(&self, hash: &str) -> Option<i64> {
-        let kv = self.kv.as_ref()?;
-        let key = adsub_key(&self.account, hash);
-        let record = kv.get_json(&key, adom_sources::now_ms()).ok()??;
-        // O Node grava `{ at }` (epoch ms). Sem `at` não há instante de posse:
-        // `None` é `no_ownership` e o magnet fica.
-        record.get("at").and_then(serde_json::Value::as_i64)
+        // Obrigatoriamente via `DurablePeek`: o kill-switch da posse
+        // (`ALLDEBRID_SUBMITTED_TTL_MS <= 0`) desliga a prova NA ORIGEM (a
+        // mesma régua de `hasDurableOwnership` do Node). Ler `adsub` direto do
+        // KV por presença condenaria no reconcile/revalidate um hash que o
+        // Node nem considera nosso.
+        self.durable
+            .owned_at(&self.account, hash, adom_sources::now_ms())
     }
 
     fn marked(&self) -> HashSet<String> {
         self.durable
             .blocked_hashes(&self.account, adom_sources::now_ms())
     }
+
+    /// Fila `sup:` da conta (fase 1 do wiring): a MESMA represa que o passo
+    /// nativo do recheck escreve. Banco indisponível lê vazio — o revalidate
+    /// não condena ninguém por omissão de fato.
+    fn suppressed(&self) -> HashSet<String> {
+        let Some(kv) = self.kv.as_ref() else {
+            return HashSet::new();
+        };
+        let now = adom_sources::now_ms();
+        match SuppressedV3::new(kv).list(SWEEPS_ADAPTER, &self.account, now, false) {
+            Ok(fila) => fila.into_iter().map(|(hash, _)| hash).collect(),
+            Err(err) => {
+                eprintln!("[al_sweeps] fila sup: ilegível ({err}): revalidate sem fila");
+                HashSet::new()
+            }
+        }
+    }
 }
+
+/// Adapter único da fila `sup:` (`id` de `alldebrid-api.ts`).
+const SWEEPS_ADAPTER: &str = "alldebrid";
+
+/// Construtor de teste: o wiring real (`facts_with_kv`) lê env; aqui a conta
+/// e o `DurablePeek` entram prontos (o teste do kill-switch da posse não
+/// depende de `CACHE_DB_PATH`).
+#[cfg(test)]
+pub(crate) fn facts_for_test(
+    account: &str,
+    kv: Option<Arc<NativeKv>>,
+    durable: DurablePeek,
+) -> NativeFacts {
+    NativeFacts {
+        account: account.to_string(),
+        holds_on: true,
+        durable,
+        kv,
+    }
+}
+
+#[cfg(test)]
+#[path = "al_sweeps_native_tests.rs"]
+mod native_tests;
 
 /// Listagem → linhas do plano. Ordenada: o `HashMap` do adapter não tem ordem
 /// e o log/diagnóstico precisa de rodada estável.

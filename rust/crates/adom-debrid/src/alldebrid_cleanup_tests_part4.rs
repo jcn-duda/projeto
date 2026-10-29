@@ -87,3 +87,76 @@ fn owned_hashes_com_ttl_zero_nao_concede_posse() {
         "desligado não abre o banco"
     );
 }
+
+/// Leitura COM prova (`alive_checked`/`is_held_checked`): `Some(false)` é
+/// ausência PROVADA; `None` é banco ilegível — quem apaga ou poda não pode
+/// tratá-lo como "não protegido"/"sem hold".
+#[test]
+fn guarda_duravel_checked_distingue_ilegivel_de_ausente() {
+    let account = account_scope("ad-durable-checked");
+    let now = crate::error::now_ms() as i64;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cache.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        for (key, expires) in [
+            (adprot_key(&account, &hash_of('a')), now + 60_000),
+            (adhold_key(&account, &hash_of('b')), now + 60_000),
+            (adhold_key(&account, &hash_of('c')), now - 1_000),
+        ] {
+            conn.execute(
+                "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+                rusqlite::params![key, expires],
+            )
+            .unwrap();
+        }
+    }
+    let peek = DurablePeek::new(&path);
+    assert!(
+        peek.is_protected(&account, &hash_of('a'), now),
+        "adprot vivo é retenção (leitura simples, fail-open)"
+    );
+    assert_eq!(
+        peek.alive_checked(&adprot_key(&account, &hash_of('z')), now),
+        Some(false),
+        "hash sem registro: ausência PROVADA"
+    );
+    assert_eq!(
+        peek.is_held_checked(&account, &hash_of('b'), now),
+        Some(true),
+        "adhold vivo é hold provado"
+    );
+    assert_eq!(
+        peek.is_held_checked(&account, &hash_of('c'), now),
+        Some(false),
+        "adhold expirado não é hold — e a ausência veio com prova"
+    );
+    // Ilegível: arquivo ausente e banco sem a tabela `cache`.
+    assert_eq!(
+        DurablePeek::new(dir.path().join("ausente.db")).is_held_checked(
+            &account,
+            &hash_of('a'),
+            now
+        ),
+        None,
+        "banco ausente não é ausência de hold"
+    );
+    let sem_tabela = dir.path().join("outra.db");
+    rusqlite::Connection::open(&sem_tabela)
+        .unwrap()
+        .execute_batch("CREATE TABLE outra (id INTEGER);")
+        .unwrap();
+    assert_eq!(
+        DurablePeek::new(&sem_tabela).is_held_checked(&account, &hash_of('a'), now),
+        None,
+        "schema ilegível não vira 'sem hold'"
+    );
+    assert!(
+        !DurablePeek::new(dir.path().join("ausente.db")).readable(),
+        "a sonda de legibilidade enxerga a mesma falha que o planejador usa"
+    );
+}

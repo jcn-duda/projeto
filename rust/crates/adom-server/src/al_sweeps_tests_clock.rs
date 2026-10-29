@@ -10,6 +10,7 @@ use tokio::sync::Semaphore;
 
 use super::super::env::{interval_from, settings_from, spawn_with, Settings, DEFAULT_INTERVAL_MS};
 use super::super::native::rows_from;
+use super::fx::FakeEffects;
 use super::{
     dead_row, hash_of, ready_row, source, sweeper, tweak, FactSource, FakeFacts, DAY, INTERVAL, NOW,
 };
@@ -17,14 +18,21 @@ use super::{
 #[test]
 fn intervalo_zero_nao_agenda() {
     assert_eq!(interval_from(Some("0")), 0);
-    assert!(settings_from(Some("0"), Some("on"), false).is_none());
-    assert!(settings_from(None, Some("off"), false).is_none());
+    assert!(settings_from(Some("0"), Some("on"), false, true).is_none());
+    assert!(settings_from(None, Some("off"), false, true).is_none());
     let settings = Settings {
         mode: SweepMode::Apply,
         interval_ms: 0,
     };
     let facts: Arc<dyn FactSource> = Arc::new(FakeFacts::default());
-    assert!(spawn_with(settings, source(Some(Vec::new())), facts).is_none());
+    assert!(spawn_with(
+        settings,
+        source(Some(Vec::new())),
+        facts,
+        Arc::new(FakeEffects::default()),
+        None,
+    )
+    .is_none());
 }
 
 #[test]

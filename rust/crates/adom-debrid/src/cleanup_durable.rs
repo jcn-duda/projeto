@@ -38,6 +38,12 @@ pub fn adprot_key(account: &str, hash: &str) -> String {
     )
 }
 
+/// Prefixo de varredura do acervo retido: toda a poda (`pruneMissing`) enumera
+/// as chaves da conta por aqui. Bate com `adprot_key` de propósito.
+pub fn adprot_prefix(account: &str) -> String {
+    format!("adprot:v1:alldebrid:{account}:")
+}
+
 pub fn adsub_key(account: &str, hash: &str) -> String {
     format!("adsub:v1:{account}:{}", hash.trim().to_lowercase())
 }
@@ -151,18 +157,29 @@ impl DurablePeek {
         body(guard.as_ref()?)
     }
 
-    /// Registro existe e ainda não expirou (`cache.peek` do Node).
+    /// Registro existe e ainda não expirou (`cache.peek` do Node). Fail-open:
+    /// ilegível devolve `false` — só use onde ausência não destrói.
     pub fn alive(&self, key: &str, now: i64) -> bool {
+        self.alive_checked(key, now).unwrap_or(false)
+    }
+
+    /// Registro existe e ainda não expirou, COM prova de leitura: `Some(false)`
+    /// é ausência PROVADA; `None` é `cache.db` ausente/ilegível OU consulta que
+    /// falhou — quem apaga ou poda NÃO pode tratá-lo como "não protegido"/
+    /// "sem hold".
+    pub fn alive_checked(&self, key: &str, now: i64) -> Option<bool> {
         self.with_conn(|conn| {
             let mut stmt = conn
                 .prepare("SELECT expires_at FROM cache WHERE key = ?1")
                 .ok()?;
-            let expires_at: Option<i64> = stmt
-                .query_row(params![key], |row| row.get::<_, i64>(0))
-                .ok();
-            Some(expires_at.is_some_and(|expires| expires > now))
+            match stmt.query_row(params![key], |row| row.get::<_, i64>(0)) {
+                Ok(expires) => Some(Some(expires > now)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Some(Some(false)),
+                // Consulta que falhou (busy/lock/corrupção) não é ausência.
+                Err(_) => None,
+            }
         })
-        .unwrap_or(false)
+        .flatten()
     }
 
     /// Acervo BR retido (`adprot:v1:alldebrid:...`).
@@ -216,6 +233,13 @@ impl DurablePeek {
     /// `protected.hold` do TS, que o `Holds` deste processo não enxerga.
     pub fn is_held(&self, account: &str, hash: &str, now: i64) -> bool {
         self.alive(&adhold_key(account, hash), now)
+    }
+
+    /// Hold VIVO com prova de leitura (`None` = base ilegível): o `held` que a
+    /// poda e a guarda viva consultam não pode confundir "não deu para ler"
+    /// com "sem hold" — aqui a ausência é PROVADA ou não existe resposta.
+    pub fn is_held_checked(&self, account: &str, hash: &str, now: i64) -> Option<bool> {
+        self.alive_checked(&adhold_key(account, hash), now)
     }
 
     /// `at` do registro vivo. Ausência, vencimento, valor ilegível ou carimbo

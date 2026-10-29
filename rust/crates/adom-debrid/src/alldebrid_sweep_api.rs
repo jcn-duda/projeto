@@ -23,33 +23,28 @@ pub struct SweepFile {
 }
 
 impl AllDebrid {
-    /// Lê a lista da conta numa única chamada. Linhas sem id/hash são ignoradas,
-    /// como no `magnetList` TypeScript; `uploadDate` chega em segundos.
+    /// Lê a lista da conta numa única chamada. `uploadDate` chega em segundos.
+    /// Corpo 200/success SEM `magnets` — ou do qual QUALQUER linha não rendeu
+    /// id/hash — é FALHA, nunca lista (parcial): a varredura poda `adprot` e
+    /// cura a fila `sup:` com base nesta leitura, e foto truncada não prova
+    /// ausência (mesmo contrato de [`Self::magnet_index`]).
     pub async fn sweep_magnet_list(&self, api_key: &str) -> Result<Vec<SweepMagnet>, DebridError> {
         let data = self
             .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
             .await?;
-        let Some(rows) = data.get("magnets").and_then(Value::as_array) else {
-            return Ok(Vec::new());
-        };
-        Ok(rows.iter().filter_map(parse_magnet).collect())
+        parse_listing(magnets_array(&data)?)
     }
 
     /// Lista a conta para a evicção por hash (`hash -> id`).
     ///
-    /// Diferente de [`Self::sweep_magnet_list`], corpo sem `magnets` é **falha**
-    /// e não lista vazia: quem apaga por hash não pode concluir "nada a apagar"
-    /// a partir de uma leitura que não aconteceu.
+    /// Corpo sem `magnets` — ou com QUALQUER linha sem id/hash — é **falha** e
+    /// não lista parcial: quem apaga por hash não pode concluir nada a partir
+    /// de uma leitura que não aconteceu por inteiro.
     pub async fn magnet_index(&self, api_key: &str) -> Result<Vec<SweepMagnet>, DebridError> {
         let data = self
             .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
             .await?;
-        let Some(rows) = data.get("magnets").and_then(Value::as_array) else {
-            return Err(DebridError::other(
-                "alldebrid: /magnet/status sem lista de magnets",
-            ));
-        };
-        Ok(rows.iter().filter_map(parse_magnet).collect())
+        parse_listing(magnets_array(&data)?)
     }
 
     /// Lê a árvore de UM magnet pronto. O chamador escolhe os ids a consultar;
@@ -138,6 +133,29 @@ fn first_magnet(data: &Value) -> Option<&Value> {
         Value::Object(_) => data.get("magnets"),
         _ => None,
     }
+}
+
+/// A lista de magnets do payload: ausente ou fora de forma é FALHA (`Err`),
+/// não `Ok(vazio)` — uma leitura que não aconteceu não prova conta vazia.
+fn magnets_array(data: &Value) -> Result<&[Value], DebridError> {
+    data.get("magnets")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .ok_or_else(|| DebridError::other("alldebrid: /magnet/status sem lista de magnets"))
+}
+
+/// Linhas reconhecidas. QUALQUER linha não reconhecida (id/hash ausentes) é
+/// FALHA — inclusive quando outras linhas renderam: uma listagem parcialmente
+/// malformada pode ser foto truncada da conta, e ausência fundada nela podaria
+/// o `adprot` (poda) e curaria a fila `sup:` de magnet ainda presente.
+fn parse_listing(rows: &[Value]) -> Result<Vec<SweepMagnet>, DebridError> {
+    let parsed: Vec<SweepMagnet> = rows.iter().filter_map(parse_magnet).collect();
+    if parsed.len() != rows.len() {
+        return Err(DebridError::other(
+            "alldebrid: listagem parcialmente malformada (id/hash ausentes em parte das linhas)",
+        ));
+    }
+    Ok(parsed)
 }
 
 fn flatten_files(nodes: &[Value], prefix: &str, files: &mut Vec<SweepFile>) {

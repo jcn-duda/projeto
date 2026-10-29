@@ -33,4 +33,6 @@ serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 
 [dev-dependencies]
+# Corromper um registro do L2 no teste da poda fail-closed (`al_sweeps_effects_tests`).
+rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "3"

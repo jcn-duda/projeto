@@ -10,12 +10,17 @@ use std::time::Duration;
 use adom_debrid::alldebrid_cleanup::{kill_switch_on, CleanupMode, CLEANUP_ENV};
 use adom_debrid::alldebrid_sweeps::SweepMode;
 
-use super::{native, FactSource, SweepHandle, SweepSource, Sweeper};
+use super::{effects, native, FactSource, SweepHandle, SweepSource, Sweeper};
 
 /// Intervalo mínimo entre rodadas do MESMO tipo. `0` desliga o agendamento.
 pub(crate) const SWEEP_MS_ENV: &str = "DEBRID_AL_SWEEP_MS";
 /// 6 h: varredura destrutiva não é caminho quente.
 pub(crate) const DEFAULT_INTERVAL_MS: i64 = 6 * 60 * 60 * 1000;
+/// Freio de APLICAÇÃO das varreduras destrutivas (default **OFF**): mesmo com
+/// `DEBRID_AL_CLEANUP=on`, o modo só vira `Apply` com este gate ligado. OFF =
+/// exatamente o diagnóstico read-only de sempre — a virada é uma decisão
+/// explícita do operador, não um efeito colateral da flag de limpeza.
+pub(crate) const APPLY_GATE_ENV: &str = "DEBRID_AL_SWEEP_APPLY";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Settings {
@@ -29,6 +34,7 @@ impl Settings {
             std::env::var(SWEEP_MS_ENV).ok().as_deref(),
             std::env::var(CLEANUP_ENV).ok().as_deref(),
             kill_switch_on(),
+            apply_gate_on(),
         )
     }
 }
@@ -42,6 +48,17 @@ pub(crate) fn interval_from(raw: Option<&str>) -> i64 {
             .map(|ms| ms.max(0))
             .unwrap_or(DEFAULT_INTERVAL_MS),
     }
+}
+
+/// `DEBRID_AL_SWEEP_APPLY`: só o literal ligado abre o `Apply` (mesma família
+/// de `kill_switch_on`). Ausente/lixo = OFF — o freio é o DEFAULT.
+pub(crate) fn apply_gate_on() -> bool {
+    apply_gate_on_from(std::env::var(APPLY_GATE_ENV).ok().as_deref())
+}
+
+pub(crate) fn apply_gate_on_from(raw: Option<&str>) -> bool {
+    raw.map(|text| text.trim().to_ascii_lowercase())
+        .is_some_and(|text| matches!(text.as_str(), "on" | "1" | "true" | "yes"))
 }
 
 /// `DEBRID_AL_CLEANUP`: ausente é diagnóstico (`ReadOnly`), `off` é `Off`.
@@ -63,14 +80,14 @@ pub(crate) fn settings_from(
     interval: Option<&str>,
     cleanup: Option<&str>,
     kill_on: bool,
+    apply_gate: bool,
 ) -> Option<Settings> {
     let interval_ms = interval_from(interval);
     let requested_mode = mode_from(cleanup, kill_on);
-    // `on` só vira `Apply` quando as guardas de posse/supressão estiverem
-    // ligadas de ponta a ponta (`native::ROW_PROOFS_COMPLETE`). Enquanto
-    // faltar fato, `on` é diagnóstico read-only — nunca completar o que falta
-    // com suposição para habilitar DELETE.
-    let mode = if requested_mode.deletes() && !native::ROW_PROOFS_COMPLETE {
+    // O gate vence: `on` só vira `Apply` com o freio aberto. Sem ele, `on` é
+    // diagnóstico read-only — nunca completar o que falta com suposição para
+    // habilitar DELETE.
+    let mode = if requested_mode.deletes() && !apply_gate {
         SweepMode::ReadOnly
     } else {
         requested_mode
@@ -95,7 +112,15 @@ pub(crate) fn spawn() -> Option<SweepHandle> {
         eprintln!("[al_sweeps] cliente HTTP da AllDebrid indisponível; nada agendado");
         return None;
     };
-    spawn_with(settings, source, native::facts(&account))
+    // Um SÓ handle do `cache.db` para fatos e efeitos da rodada.
+    let kv = native::open_kv();
+    spawn_with(
+        settings,
+        source,
+        native::facts_with_kv(&account, kv.clone()),
+        native::effects(&account, kv),
+        native::inventory_ensure(&account),
+    )
 }
 
 /// Montagem testável (o `spawn` só escolhe as portas de produção).
@@ -103,12 +128,21 @@ pub(crate) fn spawn_with(
     settings: Settings,
     source: Arc<dyn SweepSource>,
     facts: Arc<dyn FactSource>,
+    effects: Arc<dyn effects::SweepEffects>,
+    inventory: Option<Arc<dyn super::InventoryEnsure>>,
 ) -> Option<SweepHandle> {
     if settings.interval_ms <= 0 || !settings.mode.plans() {
         return None;
     }
     let handle = tokio::runtime::Handle::try_current().ok()?;
-    let sweeper = Sweeper::new(settings.mode, settings.interval_ms, source, facts);
+    let sweeper = Sweeper::new(
+        settings.mode,
+        settings.interval_ms,
+        source,
+        facts,
+        effects,
+        inventory,
+    );
     eprintln!(
         "[al_sweeps] varreduras da AllDebrid agendadas a cada {} ms (modo {})",
         settings.interval_ms,

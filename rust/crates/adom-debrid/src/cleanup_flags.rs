@@ -164,3 +164,11 @@ pub(crate) fn submitted_ttl_ms_from(raw: Option<&str>) -> f64 {
         .filter(|value| value.is_finite())
         .unwrap_or(DEFAULT_SUBMITTED_TTL_MS)
 }
+
+/// TTL do `adrm` em SEGUNDOS — o `Math.floor(ttlMs/1000)` do Node. `0` =
+/// desligado: a MESMA régua de `reupload_block_enabled`, que exige ms > 0.
+/// Quem grava a marca consulta isto ANTES de abrir o KV.
+pub fn reupload_ttl_seconds() -> i64 {
+    let ms = reupload_ttl_ms_from(std::env::var(REUPLOAD_TTL_ENV).ok().as_deref());
+    (ms / 1000.0).floor().max(0.0) as i64
+}
