@@ -36,6 +36,9 @@ mod inventory_tests;
 #[path = "al_sweeps_tests_manual.rs"]
 mod manual;
 
+#[path = "al_sweeps_tests_lookup.rs"]
+mod lookup_batch;
+
 #[path = "al_sweeps_admin_tests.rs"]
 mod admin;
 

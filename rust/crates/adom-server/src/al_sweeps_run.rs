@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use adom_debrid::alldebrid_sweeps::{apply_plan, MagnetRow, SweepKind, SweepMode};
 
 use super::facts::{config_of, gather, missing_outcome, plan_of, Facts, TickReport};
+use super::lookup::file_lookup_batch;
 use super::stats::{next_due_at, SweepCounters, SweepSnapshot, TickSummary};
 use super::{effects, FactSource, InventoryEnsure, SourceHttp, SweepSource, KINDS};
 
@@ -316,40 +317,12 @@ impl Sweeper {
     }
 
     /// Consulta arquivos só de magnets prontos, antigos e não protegidos.
-    /// O teto evita uma chamada por todo o inventário a cada tick.
+    /// O teto (e a ordem) moram na seleção PURA [`file_lookup_batch`]; aqui só
+    /// se faz o I/O do lote que ela escolheu.
     async fn load_audio_proofs(&self, rows: &mut [MagnetRow], facts: &Facts, now_ms: i64) {
-        const MAX_FILE_LOOKUPS: usize = 100;
-        let Some(known_before) = facts.known_before.as_ref() else {
-            return;
-        };
         let minimum_age = config_of(SweepKind::Undubbed).min_age_ms.max(0);
         let cutoff = now_ms.saturating_sub(minimum_age);
-        let mut candidates: Vec<usize> = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| {
-                let hash = row.normalized_hash();
-                if hash.is_empty()
-                    || row.id.trim().is_empty()
-                    || !row.is_ready()
-                    || row.is_active()
-                    || !row.files.is_empty()
-                    || row.uploaded_at_ms <= 0
-                    || row.uploaded_at_ms > cutoff
-                    || known_before.contains(&hash)
-                    || facts.held.contains(&hash)
-                    || facts.retained.contains(&hash)
-                {
-                    return None;
-                }
-                Some(index)
-            })
-            .collect();
-        // Os mais antigos primeiro: o lote limitado é o que a varredura pode
-        // apagar nesta rodada (mesmo `max_per_round` da decisão).
-        candidates.sort_by_key(|index| rows[*index].uploaded_at_ms);
-        candidates.truncate(MAX_FILE_LOOKUPS);
-        for index in candidates {
+        for index in file_lookup_batch(rows, facts, cutoff) {
             let id = rows[index].id.clone();
             if let Some(paths) = self.source.files(id).await {
                 rows[index].files = paths;

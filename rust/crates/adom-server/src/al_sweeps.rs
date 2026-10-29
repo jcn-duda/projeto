@@ -86,6 +86,9 @@ pub(crate) use stats::OutcomeSummary;
 mod run;
 pub(crate) use run::Sweeper;
 
+#[path = "al_sweeps_lookup.rs"]
+mod lookup;
+
 #[path = "al_sweeps_admin.rs"]
 mod admin;
 pub(crate) use admin::router as admin_router;
