@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { batched } from '../src/debrid/common.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as premiumize from '../src/debrid/premiumize.js';
@@ -114,7 +115,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
   try {
     const expired = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['hash-a'], { timeoutMs: 0 }),
+      () => debridCheck.checkCached(['hash-a'], { timeoutMs: 0 }),
     );
     assert.equal(expired.known, false);
     assert.equal(expired.cached.size, 0);
@@ -122,7 +123,7 @@ test('checkCached degrada sem rede quando o prazo acabou e propaga teto positivo
 
     const bounded = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['hash-b'], { timeoutMs: 750 }),
+      () => debridCheck.checkCached(['hash-b'], { timeoutMs: 750 }),
     );
     assert.equal(bounded.known, true);
     assert.deepEqual([...bounded.cached], ['hash-b']);
@@ -160,12 +161,12 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
     // Degradação por prazo não é pergunta ao debrid: nada entra na janela.
     await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['track-degradado'], { timeoutMs: 0 }),
+      () => debridCheck.checkCached(['track-degradado'], { timeoutMs: 0 }),
     );
 
     await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['track-AAA', 'track-bbb']),
+      () => debridCheck.checkCached(['track-AAA', 'track-bbb']),
     );
     // A janela normaliza caixa: 'aaa' casa com 'track-AAA' da busca anterior.
     // forceFresh (o mesmo escape do recheck do autofetch) impede o L1 do davail
@@ -173,7 +174,7 @@ test('medição de repetição por hash: janela conta o que volta, ignora degrad
     // ele a repetição sumiria da medição e o teste mediria só miss de cache.
     await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(['track-aaa', 'track-ccc'], forceFreshOpts),
+      () => debridCheck.checkCached(['track-aaa', 'track-ccc'], forceFreshOpts),
     );
 
     const counters = metrics.snapshot().counters;

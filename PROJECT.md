@@ -62,7 +62,7 @@
   - `src/utils/release-matching.ts`: Precision title matching, `matchesBrTitle`, `matchesEpisodeWorkIdentity`, `magnetYearContradicts`, franchise roots, sequence numerals (`extractSequenceMarkers`).
   - `src/utils/episode-matching.ts`: Season/episode parsing, season pack identification.
   - `src/utils/audio-quality.ts`: Audio/language classifiers, resolution detection, audio lie audit.
-  - `src/utils/stream-ranking.ts`: Sorting algorithms, deduplication by hash, candidate selection pools.
+  - Ranking and autofetch candidate pools: native (gateway); the frozen TS copy lives in `test/helpers/pipeline-oracle/` (`autofetch-ranking.ts`, `autofetch-picks.ts`, `autofetch-pools.ts`).
   - `src/utils/stream-quotas.ts`: Multi-dimensional quotas (quality, indexer, Brazilian reserved slots).
   - `src/utils/search-names.ts`: Cinemeta/TMDB name resolution, Stremio ID parser, Stremio stream formatter.
   - `src/utils/format.ts`: Backward-compatible barrel re-exporting all formatting and ranking APIs.

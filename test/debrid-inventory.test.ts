@@ -5,6 +5,7 @@ import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import * as torbox from '../src/debrid/torbox.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
 import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../src/utils/format.js';
@@ -322,8 +323,8 @@ test('applyDebrid preserva o pack de franquia da conta e o entrega via /resolve'
     name: FILMOGRAFIA, title: FILMOGRAFIA, infoHash: HASH_FILM,
     _seeders: 1, _size: 22_450_000_000, _indexer: 'debrid',
   };
-  const originalCheck = debrid.checkCached;
-  debrid.checkCached = async () => ({ cached: new Set([HASH_FILM]), known: true });
+  const originalCheck = debridCheck.checkCached;
+  debridCheck.checkCached = async () => ({ cached: new Set([HASH_FILM]), known: true });
   try {
     const streams = await runWith<Stream[]>(
       {
@@ -347,7 +348,7 @@ test('applyDebrid preserva o pack de franquia da conta e o entrega via /resolve'
     assert.match(streams[0].title as string, /FILMOGRAFIA/i);
     assert.ok(streams[0].url, 'item pronto da conta sai pelo /resolve (com ⚡)');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
   }
 });
 

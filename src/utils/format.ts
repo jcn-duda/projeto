@@ -1,7 +1,9 @@
 /**
  * PLANO_MELHORIAS 5.3: format.ts virou barrel de reexport depois do split em
  * 7 submódulos (title-normalization, release-matching, episode-matching,
- * audio-quality, stream-quotas, stream-ranking, search-names). É a API pública
+ * audio-quality, stream-quotas, stream-ranking, search-names). Os picks do
+ * autofetch (antigo `stream-ranking`) saíram para o oráculo de teste depois do
+ * corte do Chupim: sem chamador em produção. É a API pública
  * de conveniência: 70 nomes, 99 consumidores (src/, test/, resolvers/) — a
  * remoção (migrar cada consumidor para o submódulo direto) é decisão posterior,
  * com grep de uso. O barrel NÃO guarda cópia: todo nome reexportado existe no
@@ -68,20 +70,3 @@ export {
   buildSearchQuery,
   numeralSearchVariant,
 } from './search-names.js';
-
-export {
-  pickBrDubbedCandidate,
-  pickBrDubbedCandidates,
-  pickBrDubbedByTargetQualities,
-  cachedBrDubbedTargetQualities,
-  isAutofetchTargetQuality,
-  AUTOFETCH_TARGET_QUALITIES,
-  pickAnyDubbedCandidates,
-  pickTopSeededCandidates,
-  topSeededPool,
-  hasCachedBrDubbed,
-  hasCachedAnyDubbed,
-  canAutoFetchBr,
-  uncachedBrHashes,
-  filterKnownCache,
-} from './stream-ranking.js';

@@ -1,6 +1,8 @@
 // Barril dos picks do autofetch (pools, alvos de qualidade e seleção BR).
-// O ranking da lista (dedupe/sortAndLimit) é do gateway; a casca TS dele foi
-// para o oráculo de teste na fase 1.
+// Era `src/utils/stream-ranking.ts`: saiu de `src/` porque, desde o corte do
+// Chupim (B4) e da família `obra`, nenhum caminho de produção chama estes
+// nomes — a seleção é do worker nativo. Fica para os testes e os geradores de
+// golden medirem a régua TS congelada.
 import {
   DUBBED_QUALITY_WEIGHT,
   AUTOFETCH_TARGET_QUALITIES,

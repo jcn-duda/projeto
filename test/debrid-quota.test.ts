@@ -10,6 +10,7 @@ import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 const A = 'a'.repeat(40);
@@ -145,7 +146,7 @@ test('premiumize: rate_limit_reached com HTTP 200 não vira unusable', async () 
       },
     );
     const result = await runWith<{ known: boolean; unusable?: { reason: string } }>({ opts: userOpts, encoded: '' }, () =>
-      debrid.checkCached(['a'.repeat(40)]),
+      debridCheck.checkCached(['a'.repeat(40)]),
     );
     assert.equal(result.known, false);
     assert.equal(result.unusable, undefined, 'rate limit é transitório: a lista NÃO vira P2P');
@@ -249,7 +250,7 @@ test('cooldown na checagem de cache é transitório: known:false, sem unusable',
 
   try {
     const result = await runWith<{ known: boolean; unusable?: { reason: string } }>({ opts: userOpts, encoded: '' }, () =>
-      debrid.checkCached(['hash-cooldown']),
+      debridCheck.checkCached(['hash-cooldown']),
     );
     assert.equal(result.known, false, 'cooldown vira "não sei", como qualquer falha transitória');
     assert.equal(result.unusable, undefined, 'cooldown não é auth/quota: a lista NÃO vira P2P');

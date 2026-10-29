@@ -98,8 +98,6 @@ const LIVE_BOUNDARY: { file: string; role: string }[] = [
   { file: 'src/providers/autofetch-keys.ts', role: 'chaves folha (blacklist/marker) sem ciclo de debrid' },
   { file: 'src/providers/autofetch-suppressed.ts', role: 'fila `sup:` do que a remoção automática deixou de apagar' },
   { file: 'src/providers/autofetch-evict.ts', role: 'leitura da evidência `er:` de BR ready por obra para o painel (a política e o executor são nativos)' },
-  { file: 'src/utils/autofetch-pools.ts', role: 'classificação de pool/qualidade-alvo (br -> any -> seeds)' },
-  { file: 'src/utils/autofetch-picks.ts', role: 'seleção e limite de candidatos por pool, consumida pelo ranking' },
   { file: 'src/utils/rust-autofetch.ts', role: 'decisão do lote no núcleo (`decideAutofetch`)' },
   { file: 'src/utils/autofetch-native.ts', role: 'ponte da admin do gateway (estado/pausa/dreno do worker)' },
 ];

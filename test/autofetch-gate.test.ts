@@ -9,6 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as held from '../src/debrid/protected.js';
@@ -34,7 +35,7 @@ const brDub = (hash: string) => ({
 });
 
 test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const originalStatus = pmAdapter.accountStatus;
@@ -42,7 +43,7 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
     config.debrid.publicUrl = 'http://addon.test';
     config.debrid.autoFetchPauseAt = 5;
     pmAdapter.accountStatus = async () => ({ magnets: 900 });
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     autofetch.resetAccountGate();
 
     // Frio: nenhuma medição local, então a busca não pode ser barrada.
@@ -73,7 +74,7 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
     assert.equal(desligado.blocked, false, 'pauseAt 0 não pinta bloqueio');
     assert.equal(desligado.accounts.find((item) => item.count === 900)?.blocked, false);
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchPauseAt = originalPauseAt;
     pmAdapter.accountStatus = originalStatus;
@@ -82,7 +83,7 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
 });
 
 test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio libera', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const originalEnqueue = pmAdapter.enqueue;
@@ -105,7 +106,7 @@ test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio
     config.debrid.autoFetchPauseAt = 5;
     pmAdapter.enqueue = async () => { enqueues += 1; return true; };
     pmAdapter.accountStatus = async () => ({ magnets: 900 });
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     autofetch.resetAccountGate();
 
     // Aquece o memo sem passar pela busca.
@@ -126,7 +127,7 @@ test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio
     assert.equal(held.isHeld(hCold, account), true, 'aceite mantém o hold');
     assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), true, 'refresh da busca fria reaqueceu o memo');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchPauseAt = originalPauseAt;
     pmAdapter.enqueue = originalEnqueue;

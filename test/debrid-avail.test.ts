@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { AuthError } from '../src/debrid/common.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -68,7 +69,7 @@ function userOpts(apiKey: string) {
 }
 
 const check = (opts: object, hashes: string[], options?: { timeoutMs?: number; forceFresh?: boolean }) =>
-  runWith<CheckResult>({ opts, encoded: '' }, () => debrid.checkCached(hashes, options));
+  runWith<CheckResult>({ opts, encoded: '' }, () => debridCheck.checkCached(hashes, options));
 
 test('positivo em L1: segunda chamada do mesmo hash responde sem abrir rede', async () => {
   const { adapter, calls } = makeFake(async (_apiKey, infoHashes) => ({
@@ -214,7 +215,7 @@ test('forceFresh pula a leitura do L1 (contrato do recheck do autofetch)', async
     // (120s) não pode segurar o ⚡ até o próximo ciclo natural.
     const fresh = await runWith<CheckResult>(
       { opts, encoded: '' },
-      () => debrid.checkCached(['ff-neg'], forceFresh),
+      () => debridCheck.checkCached(['ff-neg'], forceFresh),
     );
     assert.equal(fresh.known, true);
     assert.equal(calls.length, 2, 'forceFresh re-executa a checagem');

@@ -14,15 +14,16 @@
 // validado no núcleo Rust; este arquivo preserva o oráculo dos testes.
 import config from '../../../src/config.js';
 import type { Stream } from '../../../types/domain.js';
+import { markDebridName } from '../../../src/utils/format.js';
 import {
-  markDebridName,
   filterKnownCache,
   pickBrDubbedCandidates,
   pickAnyDubbedCandidates,
   pickTopSeededCandidates,
-} from '../../../src/utils/format.js';
+} from './autofetch-ranking.js';
 import { kvPeek } from '../../../src/utils/native-kv.js';
 import debrid from '../../../src/debrid/index.js';
+import debridCheck from './debrid-check.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { signResolve } from '../../../src/utils/sign.js';
 import { prefix, opts } from '../../../src/runtime.js';
@@ -141,7 +142,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // Packs sem lista de arquivos no memo: quem sabe listar lê na mesma checagem.
   const fileHashes = packHashesMissingFiles(streams, season);
   const { cached, known, unusable } = await checkCachedFrozen(adapter.id, hashes, fileHashes, adapterTimeoutMs,
-    (options) => debrid.checkCached(hashes, options));
+    (options) => debridCheck.checkCached(hashes, options));
   const checkMs = Date.now() - checkStarted;
   const needsFullRefresh = adapter.cacheCheck && !known && !unusable;
   // Chave recusada ou conta cheia: a lista inteira sairia como `[AD download]`

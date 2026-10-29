@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -43,7 +44,7 @@ test('pack sem arquivos servido pelo L1 volta ao serviço e a AllDebrid recebe f
   debrid.BY_ID.set('premiumize', adapter);
   const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: `chave-fake-file-refetch-${process.pid}` };
   const run = (hashes: string[], options?: { timeoutMs?: number; fileHashes?: string[] }) =>
-    runtime.run({ opts, encoded: '' }, () => debrid.checkCached(hashes, options)) as Promise<CheckResult>;
+    runtime.run({ opts, encoded: '' }, () => debridCheck.checkCached(hashes, options)) as Promise<CheckResult>;
   try {
     await run(['colecao-pronta', 'outro-hash']);
     assert.equal(calls.length, 1);
@@ -88,7 +89,7 @@ test('o orçamento dinâmico chega como fileWaitTimeoutMs, nunca como timeoutMs 
   debrid.BY_ID.set('premiumize', adapter);
   const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: `chave-fake-teto-${process.pid}` };
   const run = (hashes: string[], options?: { timeoutMs?: number; fileHashes?: string[] }) =>
-    runtime.run({ opts, encoded: '' }, () => debrid.checkCached(hashes, options)) as Promise<CheckResult>;
+    runtime.run({ opts, encoded: '' }, () => debridCheck.checkCached(hashes, options)) as Promise<CheckResult>;
   try {
     const com = await run(['teto-pack-1'], { timeoutMs: 2000, fileHashes: ['teto-pack-1'] });
     assert.equal(calls.length, 1);

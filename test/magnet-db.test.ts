@@ -12,6 +12,7 @@ import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import { magnetState, davailState } from '../src/utils/debrid-state-native.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { sortAndLimit } from './helpers/pipeline-oracle/format.js';
 import { pickFile, NoVideoError } from '../src/debrid/common.js';
@@ -181,7 +182,7 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
   magnetState().clear();
   davailState().clear();
   try {
-    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'primeira passada vai à rede');
     assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
     // Simula o alive expirando enquanto o davail (TTL curto) ainda cobre: não há
@@ -189,13 +190,13 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
     // observável — o davail fica intacto e a 2ª passada tem de renovar sem rede.
     magnetState().clear();
     assert.equal(magnetdb.isAlive('premiumize', key, hash), false);
-    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'segunda passada é servida pelo L1 do davail, sem rede');
     assert.equal(magnetdb.isAlive('premiumize', key, hash), true, 'mesma evidência confirmada, servida da memória, renova o TTL');
     // Renovação ECONÔMICA: com o alive recém-regravado (TTL cheio pela frente),
     // um novo hit do atalho NÃO regrava — o hit do L1 não é evidência nova.
     metrics.reset();
-    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached([hash]));
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'continua sem rede');
     assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
     const counters = (metrics.snapshot() as any).counters;
@@ -218,7 +219,7 @@ test('checkCached com positivo confirmado grava o histórico alive', async () =>
   debrid.BY_ID.set('premiumize', adapter as any);
   const key = 'chave-mag-confirm';
   try {
-    await runWith({ opts: userOpts(key), encoded: '' }, () => debrid.checkCached(['c1'.repeat(20)]));
+    await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached(['c1'.repeat(20)]));
     assert.equal(
       magnetdb.isAlive('premiumize', key, 'c1'.repeat(20)),
       true,

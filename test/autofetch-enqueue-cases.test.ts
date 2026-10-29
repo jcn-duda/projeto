@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
@@ -27,7 +28,7 @@ function clearDead(adapterId: string, account: string, hashes: string[]) {
 }
 
 test('autofetch de série: o seletor põe o pack à frente do episódio avulso', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -41,7 +42,7 @@ test('autofetch de série: o seletor põe o pack à frente do episódio avulso',
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await runtime.run({ opts: userOpts, encoded: 'cfg-pack' }, () =>
       applyDebrid(
         [
@@ -59,7 +60,7 @@ test('autofetch de série: o seletor põe o pack à frente do episódio avulso',
     // aqui os dois disparam.
     assert.deepEqual(enqueued, [pack, ep], 'série: pack primeiro; a vaga única da obra é do worker');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -71,7 +72,7 @@ test('autofetch de série: o seletor põe o pack à frente do episódio avulso',
 });
 
 test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -85,14 +86,14 @@ test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO',
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set([lower]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([lower]), known: true });
     await runtime.run({ opts: userOpts, encoded: 'cfg-caixa' }, () => applyDebrid([brDub(upper)], { searchKey } as any));
     await sleep(20);
 
     assert.deepEqual(enqueued, [], 'cacheado em minúsculo casa com o candidato em maiúsculo');
     assert.equal(held.isHeld(upper, account), false, 'sem download a proteger, o hold é liberado');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -102,7 +103,7 @@ test('BR dublado em cache trava o autofetch mesmo com o infoHash em MAIÚSCULO',
 });
 
 test('marker pré-existente pula apenas o hash marcado; um candidato diferente ainda enfileira', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -119,7 +120,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     autofetch.setMarker('premiumize', account, x, 1, 3600);
 
     await run(x, 'busca-marker-x');
@@ -131,7 +132,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
     assert.deepEqual(enqueued, [y], 'hash sem marker continua enfileirando');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, y)), 1, 'o aceite de Y grava o marker dele');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch('busca-marker-x');
@@ -144,7 +145,7 @@ test('marker pré-existente pula apenas o hash marcado; um candidato diferente a
 });
 
 test('passe parcial e tardio no MESMO searchKey compartilham teto de três enqueues', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -165,7 +166,7 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de três enque
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     await run(h1);
     await sleep(20);
@@ -185,7 +186,7 @@ test('passe parcial e tardio no MESMO searchKey compartilham teto de três enque
     assert.equal(held.isHeld(h4, account), false, 'o quarto candidato é liberado do hold');
     assert.equal(held.isHeld(h5, account), false, 'o quinto candidato é liberado do hold');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);

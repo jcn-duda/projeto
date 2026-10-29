@@ -31,6 +31,7 @@ import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import debrid from '../../src/debrid/index.js';
+import debridCheck from '../helpers/pipeline-oracle/debrid-check.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import type { Stream } from '../../types/domain.js';
 
@@ -106,7 +107,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         assert.equal(rawCached.cached.size, 0); assert.equal(rawCached.complete, false);
 
         await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
-          const res = await debrid.checkCached([TEST_HASH_1]);
+          const res = await debridCheck.checkCached([TEST_HASH_1]);
           assert.equal(res.known, false);
           assert.equal(res.cached.size, 0);
         });

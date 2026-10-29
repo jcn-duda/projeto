@@ -3,7 +3,8 @@
 // vive nos módulos irmãos, em camadas sem ciclo (padrão dos splits §5.1/§5.3):
 //
 //   registry.ts        ADAPTERS/BY_ID/SERVICES + current()
-//   cache-check.ts     checagem de cache (davail, nonAbortable, unusable)
+//   cache-check.ts     davail do play e veredito de conta inutilizável (o
+//                      checkCached orquestrado está no oráculo de teste)
 //   account-status.ts  saúde da conta para o verificador/painel
 //   inventory.ts       inventário da conta como fonte (memo dinv)
 //   env-ops.ts         warmup da conta do OPERADOR (.env)
@@ -26,7 +27,6 @@ export default {
   SERVICES: registry.SERVICES,
   BY_ID: registry.BY_ID,
   current: registry.current,
-  checkCached: cacheCheck.checkCached,
   noteAvailable: cacheCheck.noteAvailable,
   peekDavail: cacheCheck.peekDavail,
   noteUnavailable: cacheCheck.noteUnavailable,

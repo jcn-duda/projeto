@@ -4,7 +4,7 @@
 // - AllDebrid/Debrid-Link/Real-Debrid NUNCA participam (checar na AD é upload
 //   e escreve na conta; DL não tem cacheCheck; RD escreve ledger/rdt e pode
 //   enviar a chave a terceiro) — recusados SEM rede, com motivo honesto.
-// - O live chama o adaptador direto (BY_ID), NUNCA debrid.checkCached() — a
+// - O live chama o adaptador direto (BY_ID), NUNCA debridCheck.checkCached() — a
 //   camada orquestrada grava davail/magnetdb/métricas/notify.
 // - Nada é gravado em lugar nenhum; hash some do payload (id+name+verdict).
 //
@@ -23,6 +23,7 @@ import * as cache from '../src/utils/cache.js';
 import { liveCapability, liveCheck } from '../src/debrid/live-check.js';
 import { createTestServer, withMockFetch, fakeResponse, encodeConfig } from './e2e/e2e-harness.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 
 const HASH = 'd'.repeat(40);
 const PM_HOST = 'https://www.premiumize.me';

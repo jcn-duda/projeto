@@ -5,7 +5,7 @@
 // prioridade de indexador) e os pools do autofetch (topSeededPool).
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { topSeededPool, pickTopSeededCandidates } from '../src/utils/format.js';
+import { topSeededPool, pickTopSeededCandidates } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { toStremioStream, dedupeByHash, sortAndLimit } from './helpers/pipeline-oracle/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 import * as metrics from '../src/utils/metrics.js';

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import config from '../src/config.js';
 import { abortDelay, errorCode, errorMessage, hasHash, unreachableCount, withPremiumize } from './helpers/rust-remote-stub.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
 import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -313,7 +314,7 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
   const counter = (name: string) => metrics.snapshot().counters[name] || 0;
   const reply = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
   // Chave e hash únicos: davail e memo de checagem casam por conta+hash.
-  const run = (tag: string) => withPremiumize(() => debrid.checkCached([`${tag}${'0'.repeat(39)}`]), tag);
+  const run = (tag: string) => withPremiumize(() => debridCheck.checkCached([`${tag}${'0'.repeat(39)}`]), tag);
   let tsChecks = 0;
   try {
     config.debrid.rustServices = ['premiumize'];

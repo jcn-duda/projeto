@@ -2,18 +2,19 @@
 // fileWaitTimeoutMs IGUAL ao timeoutMs da corrida externa, mas o timer externo
 // começa ANTES da checagem (e o upload consome parte do orçamento). Leitura
 // lenta de pack fazia a espera interna estourar DEPOIS do prazo externo —
-// debrid.checkCached devolvia known:false/raceLost e o ⚡ desaparecia da lista
+// debridCheck.checkCached devolvia known:false/raceLost e o ⚡ desaparecia da lista
 // por causa de um tamanho cosmético (fsz).
 //
 // O conserto: a espera interna desiste com a margem
 // (DEBRID_PACK_FILES_WAIT_MARGIN_MS) ANTES do orçamento. Aqui exercitamos o
-// caminho INTEIRO via debrid.checkCached (não chamada direta ao adapter), com
+// caminho INTEIRO via debridCheck.checkCached (não chamada direta ao adapter), com
 // leitura de arquivos mais lenta que a espera interna e mais lenta que o
 // orçamento externo: o resultado tem que sair known:true com ⚡, sem raceLost,
 // e o fsz aquece depois (em fundo) para a reabertura corrigir o tamanho.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import { raceWithDeadline } from '../src/utils/deadline.js';
@@ -73,7 +74,7 @@ test('espera interna de pack desiste antes do prazo externo: known:true, ⚡ pre
   const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: `chave-fake-margem-${process.pid}` };
   const run = () =>
     runtime.run({ opts, encoded: '' }, () =>
-      debrid.checkCached([PACK], { timeoutMs: EXTERNAL, forceFresh: true, fileHashes: [PACK] })) as Promise<CheckResult>;
+      debridCheck.checkCached([PACK], { timeoutMs: EXTERNAL, forceFresh: true, fileHashes: [PACK] })) as Promise<CheckResult>;
 
   // O timer da corrida é unref'd; o keepAlive segura o loop até o fundo (900ms)
   // assentar e o teste conferir o fsz aquecido.
@@ -138,7 +139,7 @@ test('passe tardio (sem timeoutMs) mantém o limite normal de cacheCheckTimeout 
   const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: `chave-fake-tardio-${process.pid}` };
   try {
     const result = await (runtime.run({ opts, encoded: '' }, () =>
-      debrid.checkCached([PACK], { fileHashes: [PACK] })) as Promise<CheckResult>);
+      debridCheck.checkCached([PACK], { fileHashes: [PACK] })) as Promise<CheckResult>);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].options?.timeoutMs, undefined);
     assert.equal(calls[0].options?.fileWaitTimeoutMs, undefined, 'sem orçamento dinâmico a espera usa o teto do adaptador');

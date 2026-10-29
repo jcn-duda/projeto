@@ -1,13 +1,13 @@
-import type { Stream } from '../../types/domain.js';
+import type { Stream } from '../../../types/domain.js';
 import {
   UNKNOWN_QUALITY,
   sourceFromTitle,
   hasExplicitForeignAudio,
   looksPtBr,
   hasPtSigns,
-} from './audio-quality.js';
-import { isSeasonPackRelease } from './episode-matching.js';
-import { streamQuality } from './stream-quotas-candidate.js';
+} from '../../../src/utils/audio-quality.js';
+import { isSeasonPackRelease } from '../../../src/utils/episode-matching.js';
+import { streamQuality } from '../../../src/utils/stream-quotas-candidate.js';
 
 interface PoolsOptions {
   season?: number | null;

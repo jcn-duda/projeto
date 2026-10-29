@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, pickTopSeededCandidates } from '../src/utils/format.js';
+import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, pickTopSeededCandidates } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { dedupeByHash } from './helpers/pipeline-oracle/format.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -24,11 +25,11 @@ const stream = (infoHash: any, extra = {}) => ({ infoHash, name: 'Release', ...e
 const SEEDS_POLICY = { dubbedOnly: false, cachedOnly: true, maxSizeGb: 0, seedsMaxGb: 8, seedsMaxQuality: '1080p' };
 
 test('applyDebrid limita a primeira checagem e mantém resposta não vazia quando cache é desconhecido', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const calls: Array<{ infoHashes: unknown; options?: any }> = [];
   let cacheResult;
-  debrid.checkCached = async (infoHashes, options) => {
+  debridCheck.checkCached = async (infoHashes, options) => {
     calls.push({ infoHashes, options });
     return { cached: new Set(), known: false };
   };
@@ -77,7 +78,7 @@ test('applyDebrid limita a primeira checagem e mantém resposta não vazia quand
     assert.equal(late.length, 1);
     assert.deepEqual(calls[0].options, {}, 'passe tardio usa o timeout completo do adaptador');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
   }
 });

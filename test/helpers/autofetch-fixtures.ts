@@ -4,6 +4,7 @@ import { accountScope } from '../../src/utils/request-key.js';
 import { prefix } from '../../src/utils/cache-keys.js';
 import config from '../../src/config.js';
 import debrid from '../../src/debrid/index.js';
+import debridCheck from './pipeline-oracle/debrid-check.js';
 import * as cache from '../../src/utils/cache.js';
 import { kvForget } from '../../src/utils/native-kv.js';
 import * as held from '../../src/debrid/protected.js';
@@ -114,7 +115,7 @@ export function makeDrainHarness(
   key: string,
   options: { stallStreak?: number; recheckMax?: number } = {},
 ): DrainHarness {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalStall = config.debrid.autoFetchStallStreak;
   const originalRecheckMax = config.debrid.autoFetchRecheckMax;
@@ -130,7 +131,7 @@ export function makeDrainHarness(
   if (options.stallStreak != null) config.debrid.autoFetchStallStreak = options.stallStreak;
   if (options.recheckMax != null) config.debrid.autoFetchRecheckMax = options.recheckMax;
   pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
-  debrid.checkCached = async () => ({ cached: new Set(), known: true });
+  debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
   return {
     account, enqueued, searchKey, pmAdapter,
     async run(streams) {
@@ -144,7 +145,7 @@ export function makeDrainHarness(
       config.debrid.autoFetchStallStreak = originalStall;
       config.debrid.autoFetchRecheckMax = originalRecheckMax;
       config.debrid.publicUrl = originalPublicUrl;
-      debrid.checkCached = originalCheck;
+      debridCheck.checkCached = originalCheck;
       pmAdapter.enqueue = originalEnqueue;
       pmAdapter.torrentStatus = originalTorrentStatus;
       pmAdapter.removeTorrent = originalRemoveTorrent;

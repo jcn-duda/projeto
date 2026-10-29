@@ -50,15 +50,14 @@ import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import { opts } from '../../../src/runtime.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import autofetchLive from '../../../src/utils/autofetch-live.js';
+import { isSeasonPackFillEligible, streamQuality } from '../../../src/utils/format.js';
 import {
   canAutoFetchBr,
   cachedBrDubbedTargetQualities,
   hasCachedAnyDubbed,
   hasCachedBrDubbed,
   isAutofetchTargetQuality,
-  isSeasonPackFillEligible,
-  streamQuality,
-} from '../../../src/utils/format.js';
+} from './autofetch-ranking.js';
 import { decideAutofetch, type AutofetchPick } from '../../../src/utils/rust-autofetch.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as held from '../../../src/debrid/protected.js';

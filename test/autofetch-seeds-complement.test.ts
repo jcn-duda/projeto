@@ -31,6 +31,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -52,7 +53,7 @@ const LIVE_KNOBS = { autoFetchMinSeeders: 3, autoFetchTopSeedsMax: 2, autoFetchQ
 const withSize = (s: any) => ({ ...s, _size: 2 * 1024 ** 3 });
 
 function seedsHarness(key: string) {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -79,7 +80,7 @@ function seedsHarness(key: string) {
       if (typeof r.autofetchCount === 'number') counts.push(r.autofetchCount);
     },
     cleanup() {
-      debrid.checkCached = originalCheck;
+      debridCheck.checkCached = originalCheck;
       config.debrid.publicUrl = originalPublicUrl;
       pmAdapter.enqueue = originalEnqueue;
     },
@@ -107,7 +108,7 @@ test('seeds: pool estrito cheio nao complementa com relaxado', async () => {
   const h1seed = '3'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const dEnqueued = deltaOf('autofetch.enqueued');
     await harness.run(() =>
       applyDebrid(
@@ -139,7 +140,7 @@ test('seeds: pool estrito parcial completa com relaxado distinto (estritos prime
   const h1seed = '5'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await harness.run(() =>
       applyDebrid(
         [
@@ -173,7 +174,7 @@ test('seeds: complemento relaxado nao duplica hash do pool estrito', async () =>
   const h4 = '6'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await harness.run(() =>
       applyDebrid(
         [
@@ -201,7 +202,7 @@ test('seeds: autoFetchTopSeedsMax=1 preserva o comportamento antigo', async () =
   const h1seed = '8'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await harness.run(() =>
       applyDebrid(
         [
@@ -236,7 +237,7 @@ test('seeds: estrito vazio preenche as vagas imediatas com o relaxado', async ()
   const s3 = 'b'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await harness.run(() =>
       applyDebrid(
         [
@@ -276,7 +277,7 @@ test('seeds: strict parcial completa so vagas imediatas, nao usa a profundidade 
   const w2 = 'e'.repeat(40);
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await harness.run(() =>
       applyDebrid(
         [

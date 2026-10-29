@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -14,7 +15,7 @@ import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colateral, não resposta)', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -38,7 +39,7 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const started = Date.now();
     await runtime.run({ opts: userOpts, encoded: 'cfg5' }, () =>
       applyDebrid([brDub(h)], { searchKey } as any),
@@ -52,7 +53,7 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
     await sleep(350);
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h)), 1, 'aceite confirmado grava o marker');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -62,7 +63,7 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
 });
 
 test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/known:false liberam', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalRegistryEnqueue = debrid.enqueue;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
@@ -97,7 +98,7 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     // busca. A checagem é o momento crítico; se o hash estiver protegido ali,
     // a limpeza não o toca.
     let heldDuringCheck = false;
-    debrid.checkCached = async () => {
+    debridCheck.checkCached = async () => {
       heldDuringCheck = held.isHeld(h1, account);
       return { cached: new Set(), known: true };
     };
@@ -109,13 +110,13 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
 
     // (2) known:false libera o hold na hora: sem resposta confiável não há
     // download em andamento para proteger.
-    debrid.checkCached = async () => ({ cached: new Set(), known: false });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: false });
     await run(h2, 'hold-known-false');
     assert.equal(held.isHeld(h2, account), false, 'known:false libera o candidato');
 
     // (3) Recusa do serviço (enqueue resolve false) libera o hold e não grava
     // marker — o download não aconteceu, não há o que deduplicar nem proteger.
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     pmAdapter.enqueue = async () => false;
     await run(h3, 'hold-recusa');
     await sleep(20);
@@ -129,7 +130,7 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     assert.equal(held.isHeld(h4, account), false, 'falha libera o hold');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h4)), null, 'falha não grava marker');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     debrid.enqueue = originalRegistryEnqueue;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalAdapterEnqueue;
@@ -145,7 +146,7 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
 });
 
 test('falha definitiva do enqueue não é retentada: libera hold e slot sem marker', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -169,7 +170,7 @@ test('falha definitiva do enqueue não é retentada: libera hold e slot sem mark
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     // ECONNRESET não é cooldown: nada indica que repetir vai dar certo, então
     // o retry precisa ficar só no estado de cooldown.
@@ -188,7 +189,7 @@ test('falha definitiva do enqueue não é retentada: libera hold e slot sem mark
     assert.equal(calls, 2, 'o slot liberado permite o próximo enqueue');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h)), 1, 'a tentativa nova grava o marker');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -198,7 +199,7 @@ test('falha definitiva do enqueue não é retentada: libera hold e slot sem mark
 });
 
 test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda roda', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -232,7 +233,7 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     // Passe parcial: enfileira h1 (1080) e o enqueue fica em voo.
     await run([brDub(h1)]);
@@ -250,7 +251,7 @@ test('passe tardio não duplica o candidato do parcial enquanto o enqueue ainda 
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h1)), 1, 'o aceite do parcial grava o marker');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h2)), 1, 'o candidato novo do tardio também');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);

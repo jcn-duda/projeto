@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import { uncachedBrHashes, filterKnownCache } from '../src/utils/format.js';
+import { uncachedBrHashes, filterKnownCache } from './helpers/pipeline-oracle/autofetch-ranking.js';
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);

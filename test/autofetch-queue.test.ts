@@ -13,7 +13,7 @@ import * as cache from '../src/utils/cache.js';
 import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
 import config from '../src/config.js';
-import { canAutoFetchBr } from '../src/utils/format.js';
+import { canAutoFetchBr } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { H1, H2, H3, H4, sleep, mkAdapter, dinvKeyFor } from './helpers/autofetch-fixtures.js';
 
 test('reindexQueues reconstrói knownQueues a partir do KV nativo (bypass writeQueue)', () => {

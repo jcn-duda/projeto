@@ -19,6 +19,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
 import { enrichInstantWithoutCacheCheck } from './helpers/pipeline-oracle/debrid-instant-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
@@ -93,7 +94,7 @@ async function seedDavail(adapterId: string, apiKey: string, hash: string, cache
   try {
     return await runWith<CheckResult>(
       { opts: testOpts({ debridService: adapterId, debridApiKey: apiKey }), encoded: '' },
-      () => debrid.checkCached([hash]),
+      () => debridCheck.checkCached([hash]),
     );
   } finally {
     restore();

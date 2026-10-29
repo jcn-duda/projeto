@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -19,7 +20,7 @@ import type { DebridAdapter } from '../types/domain.js';
 // exigia season != null. Resultado: nada baixado, e com somente já em
 // cache ligado o usuário via zero opção em toda busca, para sempre.
 test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeders', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -50,7 +51,7 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-seeds-filme' }, () =>
       applyDebrid(
@@ -70,7 +71,7 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
     // Teto de 2 (autoFetchTopSeedsMax), na ordem do swarm: 59 e depois 47.
     assert.deepEqual(enqueued, [h2, h1], 'os dois maiores swarms saudáveis são enfileirados');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -84,7 +85,7 @@ test('terceiro nível: filme sem dublado nenhum enfileira os melhores por seeder
 // O gate do terceiro nível é NADA toca: um único stream pronto já entrega
 // play, e gastar a conta baixando outro não melhora nada para o usuário.
 test('terceiro nível não dispara quando já existe qualquer fonte tocável', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -106,7 +107,7 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set([pronto]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([pronto]), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-seeds-gate' }, () =>
       applyDebrid(
@@ -120,7 +121,7 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
     await sleep(20);
     assert.deepEqual(enqueued, [], 'com algo tocável, o terceiro nível fica quieto');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -135,7 +136,7 @@ test('terceiro nível não dispara quando já existe qualquer fonte tocável', a
 // operador recusando DEBRID_AUTO_FETCH_ANY, o terceiro nível (swarm) ainda
 // precisa disparar — o return [] antigo engolia o seeds justamente aí.
 test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalAny = config.debrid.autoFetchAnyDubbed;
   const originalTopSeeds = config.debrid.autoFetchTopSeeds;
@@ -164,7 +165,7 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
     config.debrid.autoFetchTopSeeds = true;
     // Um só: prova que o escolhido é o swarm, não a dublada do pool any.
     config.debrid.autoFetchTopSeedsMax = 1;
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-any-off-seeds' }, () =>
       applyDebrid(
@@ -186,7 +187,7 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
     await sleep(20);
     assert.deepEqual(enqueued, [hSwarm], 'com ANY off o candidato é o maior swarm, não a dublada');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchAnyDubbed = originalAny;
     config.debrid.autoFetchTopSeeds = originalTopSeeds;
@@ -203,7 +204,7 @@ test('ANY off + topSeeds: enfileira o maior swarm, não a dublada global', async
 // A vaga do enqueue usa o teto do pool: seeds respeita autoFetchTopSeedsMax,
 // não o autoFetchMax do BR/any — senão Max=1 engolia o segundo swarm saudável.
 test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalMax = config.debrid.autoFetchMax;
   const originalTopSeeds = config.debrid.autoFetchTopSeeds;
@@ -231,7 +232,7 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     config.debrid.autoFetchMax = 1;
     config.debrid.autoFetchTopSeeds = true;
     config.debrid.autoFetchTopSeedsMax = 2;
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-seeds-slot' }, () =>
       applyDebrid(
@@ -245,7 +246,7 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
     await sleep(20);
     assert.deepEqual(enqueued, [h2, h1], 'TopSeedsMax=2 enfileira os dois swarms mesmo com Max=1');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchMax = originalMax;
     config.debrid.autoFetchTopSeeds = originalTopSeeds;
@@ -261,7 +262,7 @@ test('pool seeds: vaga usa autoFetchTopSeedsMax, não autoFetchMax', async () =>
 
 // Event Horizon: REMUX gringo ⚡ + cachedOnly + bu=0 não cancela o pool BR.
 test('BR dublado uncached enfileira mesmo com remux gringo em cache e bu=0', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -283,7 +284,7 @@ test('BR dublado uncached enfileira mesmo com remux gringo em cache e bu=0', asy
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set([remux]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([remux]), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-eh-br' }, () =>
       applyDebrid(
@@ -304,7 +305,7 @@ test('BR dublado uncached enfileira mesmo com remux gringo em cache e bu=0', asy
     await sleep(20);
     assert.deepEqual(enqueued, [brHash], 'pool BR aquece o dublado; remux ⚡ não aborta');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);

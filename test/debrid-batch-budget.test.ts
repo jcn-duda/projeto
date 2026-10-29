@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { batched } from '../src/debrid/common.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -39,7 +40,7 @@ test('abortSafeCacheCheck:false repassa o orçamento como fileWaitTimeoutMs, sem
       // a checagem inteira para o passe tardio. `forceFresh` contorna o davail
       // persistido de runs anteriores (positivo de 900s faria a checagem nem
       // chegar ao adaptador).
-      () => debrid.checkCached(['hash-budget'], { timeoutMs: 750, forceFresh: true }),
+      () => debridCheck.checkCached(['hash-budget'], { timeoutMs: 750, forceFresh: true }),
     );
     assert.equal(calls.length, 1, 'orçamento suficiente executa a consulta na primeira resposta');
     // A consulta continua NÃO abortável: nenhum `timeoutMs` chega ao adaptador
@@ -86,7 +87,7 @@ test('orçamento abaixo do piso não chama rede em consulta não abortável', as
       { opts: userOpts, encoded: '' },
       // Abaixo do piso a consulta só atrasaria a resposta sem chance útil de
       // vencer — e, na AllDebrid, cada chamada é um upload de verdade.
-      () => debrid.checkCached(['hash-floor'], { timeoutMs: 100 }),
+      () => debridCheck.checkCached(['hash-floor'], { timeoutMs: 100 }),
     );
     assert.equal(result.known, false);
     assert.equal(result.cached.size, 0);
@@ -127,7 +128,7 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
   try {
     const lost = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes, { timeoutMs: 450 }),
+      () => debridCheck.checkCached(hashes, { timeoutMs: 450 }),
     );
     assert.equal(lost.known, false, 'a resposta não espera a consulta');
     assert.equal(lost.cached.size, 0);
@@ -138,7 +139,7 @@ test('corrida perdida devolve unknown; o sem-teto junta a mesma consulta', async
     // O passe tardio (sem teto) não pode repetir o upload: junta a mesma promise.
     const joined = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(joined.known, true);
     assert.deepEqual([...joined.cached].sort(), [...hashes].sort());
@@ -172,7 +173,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
   try {
     const first = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(first.known, true);
 
@@ -180,7 +181,7 @@ test('resultado conhecido permanece coalescido para o passe tardio', async () =>
     // não pode repetir o upload enquanto a consulta ainda vale (60s).
     const second = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(second.known, true);
     assert.deepEqual([...second.cached].sort(), [...hashes].sort());
@@ -214,7 +215,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
   try {
     const failed = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(failed.known, false, 'falha vira unknown na hora');
 
@@ -222,7 +223,7 @@ test('falha da consulta não abortável não fica memorizada', async () => {
     // morta, o ⚡ nunca se recuperaria quando o serviço voltasse.
     const recovered = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(recovered.known, true, 'chamada sem teto reexecuta o adaptador');
     assert.deepEqual([...recovered.cached], hashes);
@@ -256,13 +257,13 @@ test('resposta incompleta não fica memorizada e permite recuperar known', async
   try {
     const incomplete = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(incomplete.known, false, 'lote perdido não é "não tem"');
 
     const recovered = await runWith<{ cached: Set<string>; known: boolean }>(
       { opts: userOpts, encoded: '' },
-      () => debrid.checkCached(hashes),
+      () => debridCheck.checkCached(hashes),
     );
     assert.equal(recovered.known, true);
     assert.deepEqual([...recovered.cached].sort(), [...hashes].sort());

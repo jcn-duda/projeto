@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
@@ -31,7 +32,7 @@ function clearDead(adapterId: string, account: string, hashes: string[]) {
 
 test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+4K)', async () => {
   autofetchLive.reset();
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalResolveUncached = config.debrid.resolveUncached;
   config.debrid.resolveUncached = false;
@@ -51,7 +52,7 @@ test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+
   try {
     clearDead('premiumize', account, [h1, h2, h3, h4]);
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const out = await runtime.run({ opts: userOpts, encoded: 'cfg4s' }, () =>
       applyDebrid([brDub(h4, '2160p', 999), brDub(h3, '720p', 100), brDub(h2, '1080p', 5), brDub(h1, '1080p', 1)], { searchKey } as any),
     ) as Stream[];
@@ -67,7 +68,7 @@ test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+
     // escolha e NÃO grava o KV (leva B4).
     assert.deepEqual(autofetch.readQueue(searchKey), [], 'oráculo não escreve a fila');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.resolveUncached = originalResolveUncached;
     pmAdapter.enqueue = originalEnqueue;
@@ -82,7 +83,7 @@ test('matriz integrada: 4 BR uncached enfileiram 1 por qualidade-alvo (1080+720+
 });
 
 test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -95,14 +96,14 @@ test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set([h]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([h]), known: true });
     await runtime.run({ opts: userOpts, encoded: 'cfg7' }, () => applyDebrid([brDub(h)], { searchKey } as any));
     await sleep(20);
 
     assert.deepEqual(enqueued, [], 'mesma faixa já tocável encerra o autofetch mesmo com dc=false');
     assert.equal(held.isHeld(h, account), false, 'sem download a proteger, o hold é liberado na hora');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -112,7 +113,7 @@ test('matriz integrada: dc=false com mesma qualidade já em cache não enfileira
 });
 
 test('autofetch aceito grava o marker e a busca repetida reconhece o cache', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -126,7 +127,7 @@ test('autofetch aceito grava o marker e a busca repetida reconhece o cache', asy
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
       applyDebrid([brDub(hash)], { searchKey, imdbId } as any));
     await sleep(20);
@@ -137,13 +138,13 @@ test('autofetch aceito grava o marker e a busca repetida reconhece o cache', asy
     // cobertura segue sem declarar nada (a régua é `idxPoolCovered`/`br_gap`).
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, hash)), 1, 'o aceite grava o marker');
 
-    debrid.checkCached = async () => ({ cached: new Set([hash]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([hash]), known: true });
     await runtime.run({ opts: baseOpts(key, false), encoded: 'cfg-ciclo' }, () =>
       applyDebrid([brDub(hash)], { searchKey: `${searchKey}-2`, imdbId } as any));
     await sleep(20);
     assert.deepEqual(enqueued, [hash], 'o hash pronto não volta para a conta');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     for (const sk of [searchKey, `${searchKey}-2`]) autofetch.releaseSearch(sk);
@@ -156,7 +157,7 @@ test('autofetch aceito grava o marker e a busca repetida reconhece o cache', asy
 test('F4: a abertura seguinte oferece a release do autofetch já pronta e não repete o download', async () => {
   const adapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = adapter.enqueue;
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalInventory = adapter.inventory;
   const saved = {
     publicUrl: config.debrid.publicUrl,
@@ -178,7 +179,7 @@ test('F4: a abertura seguinte oferece a release do autofetch já pronta e não r
       return true;
     };
     adapter.inventory = async () => [];
-    debrid.checkCached = async () => ({
+    debridCheck.checkCached = async () => ({
       cached: new Set(ready ? [hash] : []),
       known: true,
     });
@@ -219,7 +220,7 @@ test('F4: a abertura seguinte oferece a release do autofetch já pronta e não r
   } finally {
     adapter.enqueue = originalEnqueue;
     adapter.inventory = originalInventory;
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = saved.publicUrl;
     config.debrid.resolveSecret = saved.resolveSecret;
     autofetch.releaseSearch(searchKey);
@@ -230,7 +231,7 @@ test('F4: a abertura seguinte oferece a release do autofetch já pronta e não r
 });
 
 test('matriz integrada: 720 Dual ⚡ não bloqueia upgrade 1080/4K', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalResolveUncached = config.debrid.resolveUncached;
   config.debrid.resolveUncached = false;
@@ -247,7 +248,7 @@ test('matriz integrada: 720 Dual ⚡ não bloqueia upgrade 1080/4K', async () =>
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set([h720]), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set([h720]), known: true });
     await runtime.run({ opts: userOpts, encoded: 'cfgu' }, () =>
       applyDebrid([
         brDub(h720, '720p', 50),
@@ -260,7 +261,7 @@ test('matriz integrada: 720 Dual ⚡ não bloqueia upgrade 1080/4K', async () =>
     assert.deepEqual(enqueued, [h1080, h4k], '720 cacheado libera upgrade 1080 e 4K');
     assert.equal(held.isHeld(h720, account), false, 'hold do 720 coberto é liberado');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.resolveUncached = originalResolveUncached;
     pmAdapter.enqueue = originalEnqueue;
@@ -273,7 +274,7 @@ test('matriz integrada: 720 Dual ⚡ não bloqueia upgrade 1080/4K', async () =>
 });
 
 test('fallback global: sem BR dublado na busca, as melhores dubladas globais são enfileiradas', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
@@ -291,7 +292,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
 
   try {
     config.debrid.publicUrl = 'http://addon.test';
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-any' }, () =>
       applyDebrid([globalDub(h3, '720p', 100), globalDub(h2, '1080p', 9), globalDub(h1, '1080p', 1)], { searchKey } as any),
@@ -303,7 +304,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
     // `autofetch-obra-terminal.test.ts` (vaga any cap=1).
     assert.deepEqual(enqueued, [h2, h1, h3], 'ordem do seletor: a melhor dublada global primeiro');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalEnqueue;
     autofetch.releaseSearch(searchKey);
@@ -315,7 +316,7 @@ test('fallback global: sem BR dublado na busca, as melhores dubladas globais sã
 });
 
 test('fallback global respeita os gates: dublado ⚡, BR presente e toggle off não baixam global', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalAny = config.debrid.autoFetchAnyDubbed;
   const originalTopSeeds = config.debrid.autoFetchTopSeeds;
@@ -332,7 +333,7 @@ test('fallback global respeita os gates: dublado ⚡, BR presente e toggle off n
   pmAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
   const userOpts = baseOpts('chave-any-gates', true);
   const run = (streams: any, searchKey: any, cached = [] as string[]) => {
-    debrid.checkCached = async () => ({ cached: new Set(cached), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(cached), known: true });
     return runtime.run({ opts: userOpts, encoded: 'cfg-gates' }, () => applyDebrid(streams, { searchKey } as any));
   };
 
@@ -355,7 +356,7 @@ test('fallback global respeita os gates: dublado ⚡, BR presente e toggle off n
     await sleep(20);
     assert.deepEqual(enqueued, [br], 'DEBRID_AUTO_FETCH_ANY=false não enfileira pelo pool any');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchAnyDubbed = originalAny;
     config.debrid.autoFetchTopSeeds = originalTopSeeds;

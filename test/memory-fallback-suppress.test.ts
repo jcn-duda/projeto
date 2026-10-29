@@ -7,13 +7,13 @@
 // teste `audita_so_o_dublado_em_cache_fora_da_reserva`).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { brDubbedPool, anyDubbedPool, topSeededPool } from '../src/utils/autofetch-pools.js';
+import { brDubbedPool, anyDubbedPool, topSeededPool } from './helpers/pipeline-oracle/autofetch-pools.js';
 import {
   hasCachedBrDubbed,
   cachedBrDubbedTargetQualities,
   pickBrDubbedCandidates,
   pickBrDubbedByTargetQualities,
-} from '../src/utils/autofetch-picks.js';
+} from './helpers/pipeline-oracle/autofetch-picks.js';
 import type { Stream } from '../types/domain.js';
 
 const cacheHash = 'aa'.repeat(20);

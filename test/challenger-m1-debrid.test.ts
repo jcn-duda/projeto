@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import { AuthError, QuotaError } from '../src/debrid/common.js';
 
@@ -324,7 +325,7 @@ test('alldebrid.ts: API error classification (AUTH_BAD_APIKEY -> AuthError, MAGN
     currentErrorCode = 'AUTH_BAD_APIKEY';
     const authRes = await runtime.run(
       { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'invalid-key' } },
-      () => debrid.checkCached(['1'.repeat(40)]),
+      () => debridCheck.checkCached(['1'.repeat(40)]),
     );
     assert.equal(authRes.known, false);
     assert.equal(authRes.unusable?.reason, 'auth');
@@ -332,7 +333,7 @@ test('alldebrid.ts: API error classification (AUTH_BAD_APIKEY -> AuthError, MAGN
     currentErrorCode = 'MAGNET_TOO_MANY_ACTIVE';
     const quotaRes = await runtime.run(
       { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'quota-full-key' } },
-      () => debrid.checkCached(['2'.repeat(40)]),
+      () => debridCheck.checkCached(['2'.repeat(40)]),
     );
     assert.equal(quotaRes.known, false);
     assert.equal(quotaRes.unusable?.reason, 'quota');

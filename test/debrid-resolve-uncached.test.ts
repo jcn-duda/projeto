@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 
 process.env.CACHE_PERSIST = 'false';
@@ -23,11 +24,11 @@ const FRIO = 'b'.repeat(40);
 async function run({ resolveUncached, cached }: any) {
   const originalResolve = config.debrid.resolveUncached;
   const originalPublicUrl = config.debrid.publicUrl;
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
 
   config.debrid.resolveUncached = resolveUncached;
   config.debrid.publicUrl = 'http://addon.test';
-  debrid.checkCached = async () => ({ cached: new Set(cached), known: true });
+  debridCheck.checkCached = async () => ({ cached: new Set(cached), known: true });
 
   const opts = {
     ...runtime.defaults(),
@@ -52,7 +53,7 @@ async function run({ resolveUncached, cached }: any) {
   } finally {
     config.debrid.resolveUncached = originalResolve;
     config.debrid.publicUrl = originalPublicUrl;
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
   }
 }
 

@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
+import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -202,7 +203,7 @@ test('adprot: reset por cache.clearNamespace(adprot) derruba a retenção inteir
 });
 
 test('adprot integrado: aceite do pool BR no AllDebrid cria a proteção durável', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalProtect = config.debrid.autoFetchProtectBr;
   const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
@@ -220,7 +221,7 @@ test('adprot integrado: aceite do pool BR no AllDebrid cria a proteção duráve
     config.debrid.publicUrl = 'http://addon.test';
     config.debrid.autoFetchProtectBr = true;
     adAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const userOpts = {
       ...runtime.defaults(),
       debridService: 'alldebrid',
@@ -239,7 +240,7 @@ test('adprot integrado: aceite do pool BR no AllDebrid cria a proteção duráve
     held.release(h, account);
     assert.equal(held.isDurablyProtected('alldebrid', account, h), true, 'sem hold volátil, o durável segue de pé');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchProtectBr = originalProtect;
     adAdapter.enqueue = originalEnqueue;
@@ -252,7 +253,7 @@ test('adprot integrado: aceite do pool BR no AllDebrid cria a proteção duráve
 });
 
 test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam proteção', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalAny = config.debrid.autoFetchAnyDubbed;
   const originalTopSeeds = config.debrid.autoFetchTopSeeds;
@@ -275,7 +276,7 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
     config.debrid.autoFetchAnyDubbed = true;
     config.debrid.autoFetchTopSeeds = true;
     adAdapter.enqueue = async (_apiKey, infoHash) => { enqueued.push(infoHash); return true; };
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const userOpts = {
       ...runtime.defaults(),
       debridService: 'alldebrid',
@@ -307,7 +308,7 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
 
     assert.equal(metrics.snapshot().counters['adprot.set'] || 0, 0, 'nenhum dos três pools criou retenção');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchAnyDubbed = originalAny;
     config.debrid.autoFetchTopSeeds = originalTopSeeds;
@@ -326,7 +327,7 @@ test('adprot integrado: pools any/seeds e o BR mentiroso (_lied) não criam prot
 });
 
 test('adprot integrado: recusa e falha do enqueue não criam proteção', async () => {
-  const originalCheck = debrid.checkCached;
+  const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
   const originalProtect = config.debrid.autoFetchProtectBr;
   const adAdapter = debrid.BY_ID.get('alldebrid') as DebridAdapter;
@@ -345,7 +346,7 @@ test('adprot integrado: recusa e falha do enqueue não criam proteção', async 
   try {
     config.debrid.publicUrl = 'http://addon.test';
     config.debrid.autoFetchProtectBr = true;
-    debrid.checkCached = async () => ({ cached: new Set(), known: true });
+    debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
     const userOpts = {
       ...runtime.defaults(),
       debridService: 'alldebrid',
@@ -370,7 +371,7 @@ test('adprot integrado: recusa e falha do enqueue não criam proteção', async 
     assert.equal(held.isHeld(hFalha, account), false, 'falha libera o hold do candidato');
     assert.equal(metrics.snapshot().counters['adprot.set'] || 0, 0, 'nem recusa nem falha retêm nada');
   } finally {
-    debrid.checkCached = originalCheck;
+    debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchProtectBr = originalProtect;
     adAdapter.enqueue = originalEnqueue;
