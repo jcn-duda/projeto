@@ -90,24 +90,109 @@ function sweepCount(value: unknown): string {
   return value != null && Number.isFinite(n) ? String(n) : '?';
 }
 
+/** Motivo vindo da rede como texto: objeto/array nunca vira `[object Object]`. */
+function reasonKey(value: unknown): string {
+  if (typeof value === 'string') return value.trim().slice(0, 60);
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
 /**
- * Toast do `sweep-dead` (rota NATIVA da AllDebrid ou adaptador legado). Três
- * desfechos que o operador precisa distinguir:
+ * Motivos do gateway e da ponte em PT-BR. As chaves são o vocabulário ESTÁVEL
+ * do Rust (`SweepStop`, `disabledReason` e `reasons`) mais as da ponte
+ * (`sweeps-native.ts`), que é quem cria `reentered`/`bridge-*`. `Map` de
+ * propósito: um objeto indexado por chave da rede devolveria `constructor` e
+ * `__proto__` herdados onde o certo é "desconhecido".
+ */
+const SWEEP_REASON_LABELS = new Map<string, string>([
+  ['ready', 'pronto no cache do debrid'],
+  ['preexisting', 'já existia antes da varredura'],
+  ['protected', 'protegido (retenção/autofetch)'],
+  ['missing', 'não está mais na conta'],
+  ['stale', 'obsoleto'],
+  ['too_young', 'novo demais para varrer'],
+  ['no_upload_date', 'sem data de upload'],
+  ['quota', 'cota do serviço esgotada'],
+  ['auth', 'credencial recusada pelo serviço'],
+  ['cleanup_off', 'limpeza desligada no gateway'],
+  ['holds_off', 'holds desligados (sem guarda de posse)'],
+  ['no_operator_account', 'sem conta do operador configurada'],
+  ['http_client_unavailable', 'cliente HTTP do gateway indisponível'],
+  ['not_wired', 'varredura não fiada no gateway'],
+  ['no_destructive_token', 'sem token destrutivo para aplicar'],
+  ['inventory_missing', 'inventário da conta ainda não carregado'],
+  // Motivos da PONTE (`sweeps-native.ts`), não do gateway.
+  ['reentered', 'outra varredura em andamento'],
+  ['bridge-backoff', 'ponte em espera depois de falhas seguidas'],
+  ['bridge-error', 'falha de rede falando com o gateway'],
+  ['invalid_kind', 'tipo de varredura inválido'],
+  ['sweeps_disabled', 'varreduras desligadas no gateway'],
+  ['sweeps_unavailable', 'varreduras indisponíveis no gateway'],
+]);
+
+/**
+ * Motivo legível. Desconhecido não vira `undefined` nem `[object Object]`: sai
+ * como "motivo: <chave>", que ainda diz ao operador o que procurar no gateway.
+ */
+export function sweepReasonLabel(value: unknown): string {
+  const key = reasonKey(value);
+  if (!key) return 'motivo não informado';
+  return SWEEP_REASON_LABELS.get(key) ?? `motivo: ${key}`;
+}
+
+/** Desfechos da varredura manual. A view escolhe a COR por ele — `waiting`
+ * (409 `reentered` ou prazo da ponte) é ESPERA, nunca falha. */
+export type SweepOutcome = 'done' | 'stopped' | 'waiting' | 'planned' | 'refused';
+
+/**
+ * Classifica o resultado de `POST /sweeps/run` devolvido pela ponte:
  *
- *  - `applied === false` → o gateway PLANEJOU e não removeu nada (modo leitura);
- *  - `pending`/`timedOut` → a varredura continua no gateway depois do prazo da
- *    ponte; o cartão de status acompanha até o próximo poll;
- *  - caso contrário → concluída, com removidos e falhas.
+ *  - `waiting` → `busy`/`reentered` (outra rodada em voo) e `pending`/`timedOut`;
+ *  - `stopped` → a rodada foi INTERROMPIDA (`quota`, `auth`) e não terminou;
+ *  - `refused` → nem começou (`ran:false`, ou `reason` sem nenhuma medida);
+ *  - `planned` → rodou em modo leitura e não removeu nada;
+ *  - `done` → rodou até o fim.
+ */
+export function sweepOutcome(result: Record<string, any> | null | undefined): SweepOutcome {
+  const r = result && typeof result === 'object' ? result : {};
+  if (r.busy === true || r.reason === 'reentered') return 'waiting';
+  if (r.pending === true || r.timedOut === true) return 'waiting';
+  if (r.stopped != null) return 'stopped';
+  if (r.ran === false) return 'refused';
+  // Resposta antiga/sem medida: `reason` sem `ran`/`applied` nunca rodou.
+  if (r.reason != null && r.ran !== true && r.applied == null) return 'refused';
+  if (r.applied === false) return 'planned';
+  return 'done';
+}
+
+/**
+ * Toast do `sweep-dead` (rota NATIVA da AllDebrid ou adaptador legado). Separa
+ * os desfechos que o operador NÃO pode confundir: concluída, interrompida (com
+ * o `stopped` em PT-BR) e recusada/em espera. `busy` não é erro — é "outra
+ * varredura em andamento".
  *
  * `result` nulo/estranho cai nas contagens ausentes, que viram "?" em vez de
  * anunciar uma remoção que ninguém mediu.
  */
 export function sweepToast(result: Record<string, any> | null | undefined): string {
-  const r = result || {};
-  if (r.pending === true || r.timedOut === true) {
+  const r = result && typeof result === 'object' ? result : {};
+  const outcome = sweepOutcome(r);
+  if (outcome === 'waiting') {
+    if (r.busy === true || r.reason === 'reentered') {
+      return 'Outra varredura em andamento; aguarde o ciclo atual terminar';
+    }
     return 'Varredura em andamento; acompanhe o status nativo';
   }
-  if (r.applied === false) {
+  if (outcome === 'refused') {
+    return r.reason == null
+      ? 'Varredura recusada pelo gateway'
+      : `Varredura recusada · ${sweepReasonLabel(r.reason)}`;
+  }
+  if (outcome === 'stopped') {
+    return `Varredura interrompida (${sweepReasonLabel(r.stopped)}): ` +
+      `${sweepCount(r.varridos ?? r.swept)} removido(s) até parar`;
+  }
+  if (outcome === 'planned') {
     return `Plano: ${sweepCount(r.planned ?? r.varridos)} alvo(s) · modo leitura, nada removido`;
   }
   const falhas = Number(r.falhas ?? r.failed);
