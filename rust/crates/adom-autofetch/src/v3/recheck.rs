@@ -3,8 +3,17 @@
 //! Duas escalas: por HASH ([`recheck_step`], com prova de posse na expiração) e
 //! por LOTE ([`lot_outcome`], com o settle e o LRU). `unknown` nunca é prova de
 //! morte — só ausência de resposta, que mantém os contadores como estão.
+//!
+//! A terceira escala é a parada DERIVADA por progresso ([`derive_stall`]): bytes
+//! parados por N passagens, sem sinal nativo — o `deriveStall` de
+//! `src/providers/autofetch-progress.ts:57`. É CONTAGEM de passagens, não janela
+//! de tempo: `autofetch-progress.ts:109-111` não olha relógio, e por isso
+//! `now_ms` aqui só carimba a memória para observabilidade.
 
 use adom_core::{expired_removal_allowed, ExpiredFacts};
+use serde::{Deserialize, Serialize};
+
+use super::debrid::TorrentProgress;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecheckAction {
@@ -108,6 +117,157 @@ pub fn recheck_step(input: &RecheckInput) -> RecheckAction {
     RecheckAction::Pending
 }
 
+/// Memória de progresso de UM hash — o `ProgressMemory` do oráculo
+/// (`src/providers/autofetch-progress.ts:31`): último valor de bytes, id da
+/// transferência que produziu aquela leitura e o streak de observações
+/// CONSECUTIVAS paradas.
+///
+/// `last_seen_ms` é acréscimo de observabilidade (painel/log): NÃO entra na
+/// decisão. Inventar janela de tempo aqui seria régua nova — o oráculo conta
+/// passagens (`autofetch-progress.ts:109`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressMemory {
+    pub last_bytes: f64,
+    #[serde(default)]
+    pub last_id: String,
+    pub streak: i64,
+    #[serde(default)]
+    pub last_seen_ms: i64,
+}
+
+// `Eq` à mão: `derive_stall` só grava `bytes` depois de `is_finite` e `>= 0`
+// (`:74-77` do oráculo), então a memória nunca carrega `NaN` — o marcador é
+// verdadeiro no uso real e o lote (que é `Eq`) continua derivando o trait.
+impl Eq for ProgressMemory {}
+
+/// O que a passagem observou de UM hash, e o que a memória já sabia dele.
+#[derive(Clone, Copy, Debug)]
+pub struct ProgressObservation<'a> {
+    /// `state` do adaptador (`downloading`/`ready`/`dead`/`unknown`).
+    pub state: Option<&'a str>,
+    /// `progress` do status; `None` = serviço sem sinal medido.
+    pub progress: Option<&'a TorrentProgress>,
+    /// Id da transferência (`status.id` do oráculo): id diferente é OUTRO
+    /// download visto pelo mesmo hash.
+    pub transfer_id: Option<&'a str>,
+    pub memory: Option<&'a ProgressMemory>,
+    /// `autoFetchStallStreak`; `<= 0` desliga a derivação.
+    pub threshold: i64,
+    /// Instante desta passagem — só carimbo da memória.
+    pub now_ms: i64,
+}
+
+/// Veredito da derivação de progresso para UM hash.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProgressVerdict {
+    /// Sem sinal válido: memória INTOCADA e hash NÃO terminal. É o fail-safe de
+    /// `autofetch-progress.ts:65-79` — ausência de campo nunca condena.
+    NoSignal,
+    /// Memória nova ou reiniciada (bytes crescendo, velocidade positiva, troca
+    /// da transferência, regressão de bytes): não terminal.
+    Moved(ProgressMemory),
+    /// Bytes parados, ainda abaixo do limiar: não terminal.
+    Still(ProgressMemory),
+    /// Cruzou o limiar: parada DERIVADA (`autofetch-progress.ts:111`).
+    Stalled(ProgressMemory),
+}
+
+impl ProgressVerdict {
+    /// O hash cruzou o limiar de parada derivada?
+    pub fn is_stalled(&self) -> bool {
+        matches!(self, Self::Stalled(_))
+    }
+
+    /// Memória a gravar; `None` = intocada (sem sinal).
+    pub fn memory(&self) -> Option<&ProgressMemory> {
+        match self {
+            Self::NoSignal => None,
+            Self::Moved(memory) | Self::Still(memory) | Self::Stalled(memory) => Some(memory),
+        }
+    }
+}
+
+/// Derivação CONSERVADORA de parada por progresso — porte fiel de `deriveStall`
+/// (`src/providers/autofetch-progress.ts:57-114`).
+///
+/// Um hash vira `stalled` derivado SÓ quando bytes E velocidade ficam parados
+/// por `threshold` passagens CONSECUTIVAS; qualquer evidência contrária zera o
+/// contador. Falso positivo condena um download que ainda esquentava, então a
+/// regra erra para o lado de NÃO condenar:
+///
+/// - `threshold <= 0` acumula memória mas NUNCA devolve `Stalled`
+///   (`autofetch-progress.ts:111`);
+/// - hash pronto/morto/queued (state ≠ `downloading`) não é observado
+///   (`:69`);
+/// - campo não numérico, `total <= 0`, `bytes < 0` ou `bytes >= total` são SEM
+///   sinal (`:74-79`);
+/// - troca de `id`, regressão de bytes, bytes crescendo e `speed > 0`
+///   reiniciam o streak (`:84-108`) — `seeders: 0` nunca sobrepõe velocidade
+///   positiva;
+/// - só `bytes` parado E `speed <= 0` acumula (`:109`).
+///
+/// Puro: nenhum I/O, nenhum relógio lido — `now_ms` entra por parâmetro.
+pub fn derive_stall(obs: &ProgressObservation<'_>) -> ProgressVerdict {
+    // Sem progresso = serviço sem sinal (ou item pronto/morto): uma janela sem
+    // campo não é prova de nada (`autofetch-progress.ts:67`).
+    let Some(progress) = obs.progress else {
+        return ProgressVerdict::NoSignal;
+    };
+    // Só download ATIVO vira parada: queued/processing/unknown/ready/dead não.
+    if obs.state != Some("downloading") {
+        return ProgressVerdict::NoSignal;
+    }
+    let (Some(bytes), Some(total), Some(speed), Some(seeders)) = (
+        progress.bytes,
+        progress.total,
+        progress.speed,
+        progress.seeders,
+    ) else {
+        return ProgressVerdict::NoSignal;
+    };
+    // Os QUATRO campos entram na validação do oráculo (`:74-77`), inclusive
+    // `seeders` — que não decide nada mas reprova a leitura se não for número.
+    if !bytes.is_finite() || !total.is_finite() || !speed.is_finite() || !seeders.is_finite() {
+        return ProgressVerdict::NoSignal;
+    }
+    if total <= 0.0 || bytes < 0.0 {
+        return ProgressVerdict::NoSignal;
+    }
+    // Completo/limítrofe: o `ready` cuida (`autofetch-progress.ts:79`).
+    if bytes >= total {
+        return ProgressVerdict::NoSignal;
+    }
+    let id = obs.transfer_id.unwrap_or_default();
+    let memory = |streak: i64| ProgressMemory {
+        last_bytes: bytes,
+        last_id: id.to_string(),
+        streak,
+        last_seen_ms: obs.now_ms,
+    };
+    let Some(prev) = obs.memory else {
+        // Primeira observação: só abre a janela.
+        return ProgressVerdict::Moved(memory(0));
+    };
+    // Troca da transferência: a leitura anterior era de OUTRO download.
+    if !prev.last_id.is_empty() && !id.is_empty() && prev.last_id != id {
+        return ProgressVerdict::Moved(memory(0));
+    }
+    // Regressão de bytes (contador resetado) e bytes crescendo são movimento.
+    if bytes != prev.last_bytes {
+        return ProgressVerdict::Moved(memory(0));
+    }
+    // Bytes parados, mas velocidade positiva é evidência de movimento.
+    if speed > 0.0 {
+        return ProgressVerdict::Moved(memory(0));
+    }
+    let streak = prev.streak.saturating_add(1);
+    if obs.threshold > 0 && streak >= obs.threshold {
+        return ProgressVerdict::Stalled(memory(streak));
+    }
+    ProgressVerdict::Still(memory(streak))
+}
+
 /// Fatos do LOTE ao fim de uma varredura, já sem os hashes resolvidos.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LotFacts {
@@ -192,3 +352,9 @@ mod tests;
 #[cfg(test)]
 #[path = "recheck_lot_tests.rs"]
 mod lot_tests;
+
+// Derivação de progresso (`derive_stall`) — a Fase 3 do Chupim, com relógio e
+// memória por parâmetro: arquivo próprio pela catraca de 400 linhas.
+#[cfg(test)]
+#[path = "recheck_progress_tests.rs"]
+mod progress_tests;

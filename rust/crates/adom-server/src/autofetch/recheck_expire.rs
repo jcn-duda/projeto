@@ -149,6 +149,10 @@ pub(super) async fn expire(
         // O `via` segue o hash que ficou: marca órfã voltaria a barrar remoção
         // de um hash reenfileirado depois.
         next.via_id.retain(|hash| kept.contains(hash));
+        // A memória de progresso segue a mesma poda (`forgetLotProgress` do TS
+        // no fim do lote, `autofetch-recheck.ts:381`): hash que saiu do lote não
+        // leva streak residual para uma janela futura.
+        next.progress.retain(|hash, _| kept.contains(hash));
         super::recheck::write(kv, &next, policy, now_ms)?;
     }
     report.remaining = kept.len();

@@ -25,7 +25,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use adom_autofetch::v3::{
-    lot_outcome, settle_lru_evictions, LotFacts, LotOutcome, QueueV3, SettleLotRef,
+    lot_outcome, settle_lru_evictions, LotFacts, LotOutcome, ProgressMemory, QueueV3, SettleLotRef,
 };
 use adom_index::NativeKv;
 use serde::{Deserialize, Serialize};
@@ -54,6 +54,16 @@ pub(crate) struct Lot {
     pub(crate) dead_streak: BTreeMap<String, i64>,
     #[serde(default)]
     pub(crate) stall_streak: BTreeMap<String, i64>,
+    /// Memória de progresso por hash — o `ProgressMemory` de
+    /// `src/providers/autofetch-progress.ts:31` (`lastBytes`/`lastId`/`streak`).
+    ///
+    /// O TS guarda isso num `Map` de PROCESSO (`:32`) e limpa em `cleanLotHash`
+    /// (`autofetch-terminal.ts:52-58`) e no fim do lote (`forgetLotProgress`).
+    /// Aqui ele viaja no próprio lote: mesma vida (a chave do lote expira com o
+    /// `autoFetchTtl` e o LRU a apaga) e, diferente do Node, sobrevive a
+    /// restart — sem inventar chave de KV que o oráculo não tem.
+    #[serde(default)]
+    pub(crate) progress: BTreeMap<String, ProgressMemory>,
     #[serde(default)]
     pub(crate) transfers: BTreeMap<String, String>,
     /// Fatos do PACK por hash (título do release + obra declarada). O recheck do
@@ -343,3 +353,9 @@ mod mode_tests;
 #[cfg(test)]
 #[path = "recheck_forget_tests.rs"]
 mod forget_tests;
+
+// Parada DERIVADA por progresso (Fase 3): a régua pura vive em
+// `adom-autofetch::v3::recheck`; aqui se prova o fio no laço.
+#[cfg(test)]
+#[path = "recheck_progress_tests.rs"]
+mod progress_tests;

@@ -65,8 +65,9 @@ pub use probe::{
 };
 pub use queue::{marker_value, QueueV3, WriteReport};
 pub use recheck::{
-    lot_outcome, recheck_step, recheck_streaks, settle_lru_evictions, LotFacts, LotOutcome,
-    RecheckAction, RecheckInput, RecheckStreaks, SettleLotRef,
+    derive_stall, lot_outcome, recheck_step, recheck_streaks, settle_lru_evictions, LotFacts,
+    LotOutcome, ProgressMemory, ProgressObservation, ProgressVerdict, RecheckAction, RecheckInput,
+    RecheckStreaks, SettleLotRef,
 };
 pub use season::{
     season_fill_decision, season_fill_eligible, SeasonFill, SeasonFillSkip, SeasonGap, SeasonIndex,
@@ -130,8 +131,8 @@ pub fn marker_key(adapter_id: &str, account: &str, info_hash: &str) -> String {
 }
 
 /// Prefetch legado (`autofetch:v3:pf:<conta>:<id>:<s>:<e>`). Só formato: não há
-/// escritor em produção (o consumo morreu com o caminho antigo), mas a chave é
-/// contrato da ponte e do teste TS.
+/// escritor em produção (o consumo morreu com o caminho antigo) e o construtor
+/// TS saiu na leva L6; o formato continua provado por `v3_tests`.
 pub fn prefetch_key(account: &str, id: &str, season: i64, episode: i64) -> String {
     format!("{NAMESPACE_V3}:pf:{account}:{id}:{season}:{episode}")
 }
