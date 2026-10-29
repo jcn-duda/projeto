@@ -8,6 +8,9 @@ license = "UNLICENSED"
 
 [dependencies]
 adom-core = { path = "../adom-core" }
+# KV nativo (`cache.db`) para gravar a posse `adsub:v1` direto. Sem ciclo:
+# o adom-index só depende do adom-core.
+adom-index = { path = "../adom-index" }
 # O contrato `AutofetchDebrid` NÃO entra como dependência: `adom-autofetch` →
 # `adom-store` → `adom-search` → `adom-debrid` é ciclo de pacote (o Cargo
 # recusa). O espelho fica em `src/autofetch_ports_contract.rs`.

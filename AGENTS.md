@@ -294,8 +294,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   (`protected.ts`), preexistente do usuário (`knownBefore`) e, com inventário
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
   anti-reenchimento `adrm:v1` (SÓ das varreduras de conteúdo — a higiene da
-  checagem nunca marca; a ponte nativa `/internal/debrid/marked` leva só a
-  posse), retenção BR `adprot:v1`. As varreduras destrutivas (`sweepDead`,
+  checagem nunca marca; a posse do que a checagem nativa sobe é gravada pelo
+  próprio gateway no KV nativo, `adom-debrid::marks_feed`), retenção BR
+  `adprot:v1`. As varreduras destrutivas (`sweepDead`,
   `sweepUndubbed`, reconcile, revalidate) são NATIVAS (`al_sweeps`) e o TS não é
   mais chamador de nenhuma; o gate de aplicação é `DEBRID_AL_SWEEP_APPLY`.
   **R3**: a checagem/limpeza é NATIVA e incondicional — não existe
@@ -335,7 +336,8 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   o `audioForChip` do `toStremioStream`); o título sozinho é `dub_claim`.
   Série no Rust tem o fallback de pack e o pack tardio do TS
   (`orchestrator/pack.rs`, `SEARCH_PACK_TAIL`): fonte BR só publica pack.
-- **Real-Debrid**: `rd-ledger` (`rdc:v2`, global, miss nunca condena),
+- **Real-Debrid**: `rd-ledger` (`rdc:v2`, global, miss nunca condena; namespace
+  `RUST_OWNED` — o Node decide mas grava/lê só pela ponte `native-kv.ts`, sem L1),
   `rd-oracle` (StremThru/Torrentio opt-in). O gate AIMD de escrita é NATIVO
   (`RdGateExecutor`, `DEBRID_RD_GATE*` lidos pelo Rust) e é o MESMO do
   autofetch (`shared_gate`). "Fase 2 fatia 2" é o corte de

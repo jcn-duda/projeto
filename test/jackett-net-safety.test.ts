@@ -124,7 +124,7 @@ test('isLoopbackBase aceita só loopback literal (http/https)', () => {
     'http://127.10.20.30:7100',
     'https://127.0.0.1:7100',
     'http://localhost:7100',
-    'http://LOCALHOST:7100/internal/debrid/marked',
+    'http://LOCALHOST:7100/',
     'http://[::1]:7100',
   ]) {
     assert.equal(isLoopbackBase(base), true, base);

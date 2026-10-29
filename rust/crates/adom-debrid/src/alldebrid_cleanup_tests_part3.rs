@@ -353,7 +353,7 @@ fn cache_db_ausente_avisa_uma_vez_e_segue_fail_open() {
         .is_empty());
 }
 
-/// Devolução das marcas da limpeza nativa ao Node (`/internal/debrid/marked`).
+/// Devolução das marcas da limpeza nativa ao Node (a antiga rota `/internal/debrid/marked` (removida)).
 /// Filho deste módulo: reaproveita as fixtures do servidor falso da AllDebrid.
 #[path = "alldebrid_marks_tests.rs"]
 mod marked;

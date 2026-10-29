@@ -23,6 +23,7 @@ try {
 // única (estado limpo); os filhos importam SEM query para compartilhar a
 // instância com o `./cache.js` interno do magnetdb.
 const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
+const NATIVE_KV_URL = new URL('../src/utils/native-kv.js', import.meta.url).href;
 let cacheSeq = 0;
 const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
@@ -211,9 +212,12 @@ const RD_VERSION_DISCARD_SCRIPT = [
   'seed.close();',
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+  `const kv = await import(${JSON.stringify(NATIVE_KV_URL)});`,
   '',
-  // Só os formatos novos sobem no L1.
-  "assert.deepStrictEqual(cache.get('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 sobe do disco');",
+  // Só os formatos novos sobem no L1. O ledger `rdc` é Rust-owned desde a
+  // migração do KV: o L1 não o carrega, e quem o lê é a ponte nativa.
+  "assert.strictEqual(cache.get('rdc:v2:ddddddd'), null, 'rdc:v2 não sobe ao L1 (é do KV nativo)');",
+  "assert.deepStrictEqual(kv.kvPeek('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 segue legível pela ponte');",
   "assert.deepStrictEqual(cache.get('rdt:v1:trt:movie:ttnovo'), [['eeeeeee', true]], 'rdt:v1 preservado');",
   "assert.strictEqual(cache.get('rdc:v1:aaaa'), null, 'miss legado do ledger não entra no L1');",
   "assert.strictEqual(cache.get('rdc:v1:wq'), null, 'fila legada embutida no v1 não entra no L1');",

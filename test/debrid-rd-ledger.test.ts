@@ -6,6 +6,7 @@ import * as metrics from '../src/utils/metrics.js';
 import * as ledger from '../src/debrid/rd-ledger.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
+import { kvForget, kvRemaining } from '../src/utils/native-kv.js';
 
 const H1 = '1'.repeat(40);
 const H2 = '2'.repeat(40);
@@ -25,11 +26,11 @@ test.beforeEach(() => {
 
 test('ledger: backoff do miss cresce a cada observação', () => {
   ledger.noteMiss(H1);
-  const first = cache.peekRemaining(ledger.key(H1));
+  const first = kvRemaining(ledger.key(H1));
   ledger.noteMiss(H1);
-  const second = cache.peekRemaining(ledger.key(H1));
+  const second = kvRemaining(ledger.key(H1));
   ledger.noteMiss(H1);
-  const third = cache.peekRemaining(ledger.key(H1));
+  const third = kvRemaining(ledger.key(H1));
 
   assert.ok(first != null && second != null && third != null);
   assert.ok(second > first, 'segunda observação espera mais antes de re-sondar');
@@ -67,7 +68,7 @@ test('ledger: kill-switch desliga leitura e escrita', () => {
   config.debrid.rdLedger.enabled = false;
   ledger.noteHit([H5]);
   assert.equal(ledger.peek(H5), 'unknown');
-  assert.equal(cache.peekRemaining(ledger.key(H5)), null);
+  assert.equal(kvRemaining(ledger.key(H5)), null);
 });
 
 test('ledger: status reflete tracked e poda expirados em track', () => {
@@ -92,7 +93,7 @@ test('ledger: status sync do tracked dropta chave forgotten (não superconta)', 
   assert.equal(before.hits, 2);
   assert.equal(before.misses, 1);
   // Evicção/forget não notifica o Map — o status precisa sync via peek.
-  cache.forget(ledger.key(H1));
+  kvForget(ledger.key(H1));
   const after = ledger.status();
   assert.equal(after.tracked, 2, 'peek null remove a fantasma do Map');
   assert.equal(after.hits, 1);

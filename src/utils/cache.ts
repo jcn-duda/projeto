@@ -323,6 +323,7 @@ function clear() {
   kvClearPrefix(prefix('adprot'));
   kvClearPrefix(prefix('adhold'));
   kvClearPrefix(prefix('adrm'));
+  kvClearPrefix(prefix('rdc')); // ledger do RD: o clear global zera a evidência de CDN, como antes
   clearAutofetchNative();
 }
 
@@ -347,7 +348,7 @@ function clearNamespace(namespace: string) {
               : wanted === 'adrm' ? kvClearPrefix(prefix('adrm'))
                 : wanted === 'autofetch' ? clearAutofetchNative()
                   : 0;
-  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
+  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust + (wanted === 'rdc' ? kvClearPrefix(prefix('rdc')) : 0);
 }
 
 /**

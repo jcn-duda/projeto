@@ -159,8 +159,9 @@ pub(super) async fn check_cached(
         // Erro de lote não gera plano: sem upload não há o que limpar.
         Err(error) => return Err(CheckFailure::new(error, attempted)),
     };
-    // A posse (`adsub`) mora no `cache.db` do Node: devolve o que esta checagem
-    // SUBIU e que o snapshot provou novo. Fora do prazo da resposta, fail-open.
+    // A posse (`adsub`) é gravada no KV nativo (mesmo `cache.db`): registra o
+    // que esta checagem SUBIU e que o snapshot provou novo. Em `spawn_blocking`,
+    // fora do prazo da resposta, fail-open.
     let submitted = std::mem::take(&mut folded.submitted);
     if !submitted.is_empty() {
         crate::marks_feed::spawn(crate::marks_feed::MarkedBatch {

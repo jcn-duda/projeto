@@ -5,7 +5,6 @@ import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
 import { registerInternalDebridHolds } from './internal-debrid-holds.js';
-import { registerInternalDebridMarked } from './internal-debrid-marked.js';
 import { registerInternalResolve } from './internal-resolve.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
@@ -70,9 +69,6 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Feed do hold volátil do autofetch para o seam in-process do gateway
   // (`DEBRID_AL_HOLDS=on`). Mesma guarda das rotas /internal/* acima.
   registerInternalDebridHolds(app, services);
-  // Devolução das marcas da limpeza NATIVA da AllDebrid (`adsub`/`adrm`): o
-  // Rust apaga/sube e o Node, dono único do `cache.db`, grava. Mesma guarda.
-  registerInternalDebridMarked(app, services);
   // Efeitos e fatos do play nativo. O `/resolve` NÃO é montado aqui: quem
   // atende o cliente é o gateway (7000, `resolve_native` sem flag); o Node só
   // grava os efeitos e responde os fatos por `/internal/resolve/*`.

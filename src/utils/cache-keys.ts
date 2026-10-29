@@ -207,6 +207,12 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 //               sobre o mesmo dado (e a janela do `setImmediate` do flush);
 //   `adrm`    — KV durável do anti-reenchimento (T2-L7): o gateway lê a marca
 //               no mesmo `cache.db` para tirar o hash do `/magnet/upload`.
+//   `rdc`     — ledger do CDN do Real-Debrid (`rdc:v2:<hash>`): o `adom-debrid`
+//               lê a linha direto da tabela `cache` (`store.rs`, leitor
+//               read-only), e o Rust é o dono das transições. Se o Node
+//               gravasse pelo L1, a linha só chegaria ao disco no flush e um
+//               `forget`/evicção do L1 poderia apagar ou sobrescrever a
+//               evidência nova; por isso o Node lê e grava só pela ponte.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
 // disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
 // superfície do Node é só a ponte (`streams-store-native.ts` /
@@ -237,7 +243,7 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // deixaria o disco incoerente com o handle do Rust.
 const RUST_OWNED = Object.freeze([
   'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
-  'autofetch', 'rdq',
+  'autofetch', 'rdq', 'rdc',
 ]);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
@@ -325,6 +331,10 @@ const RUST_OWNED_PREFIXES = Object.freeze([
   // Fila e quota do warmer RD: a leitura do Node também cai na ponte (`kvPeek`),
   // nunca no L1 — o prefixo é o que fecha o `get`/`peek` do cache.
   prefix('rdq'),
+  // Ledger do Real-Debrid: o prefixo (não o namespace) é o que bloqueia o
+  // `get`/`peek` no L1 e o `set` do Node. `rdc:v1` legado não casa aqui de
+  // propósito — o boot já o apaga do disco (migração G1).
+  prefix('rdc'),
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 

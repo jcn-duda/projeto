@@ -79,23 +79,6 @@ export function rememberSubmitted(account: string, hash: string) {
   persistSubmitted(account, normalized);
 }
 
-/**
- * Posse (`adsub`) com a prova de criação JÁ FEITA por quem chamou. É o caminho
- * do canal `/internal/debrid/marked`: o checador nativo só devolve hash que o
- * snapshot do lote (`knownBefore`) provou AUSENTE antes do `/magnet/upload` —
- * a regra do 8.15 existe, só não mora neste processo. Grava a MESMA memória, a
- * mesma chave durável, o mesmo TTL e a mesma métrica do `rememberSubmitted`.
- *
- * NUNCA chame de um caminho que não provou a ausência: sem a prova, acervo do
- * usuário viraria "nosso" e a limpeza o apagaria (a polaridade invertida que a
- * Fase 1 corrigiu).
- */
-export function rememberSubmittedProven(account: string, hash: string) {
-  const normalized = String(hash || '').toLowerCase();
-  if (!normalized) return;
-  persistSubmitted(account, normalized);
-}
-
 /** Miolo comum: memória + write-through durável (`adsub:v1`). */
 function persistSubmitted(account: string, normalized: string) {
   let hashes = submitted.get(account);

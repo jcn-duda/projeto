@@ -19,9 +19,12 @@ use std::sync::{Mutex, MutexGuard};
 use rusqlite::{params, Connection};
 use serde_json::Value;
 
+// `busy_timeout` ANTES do `journal_mode`: trocar o modo do journal pede lock, e
+// sem o prazo já valendo uma abertura concorrente (outro processo no mesmo
+// `cache.db`) falhava na hora com SQLITE_BUSY em vez de esperar.
 const SCHEMA: &str = "
-PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 5000;
+PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS cache (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,

@@ -13,10 +13,10 @@
 //! `accountStatus`; `files` só o Premiumize e o link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
-//! `holds_feed.rs` e `marks_feed.rs` são os ÚNICOS que falam com rotas
-//! internas do Node: `/internal/debrid/holds` (fatos do hold) e
-//! `/internal/debrid/marked` (devolução de `adsub`/`adrm`, dono único do
-//! `cache.db`).
+//! `holds_feed.rs` é o ÚNICO que fala com rota interna do Node
+//! (`/internal/debrid/holds`, fatos do hold). A posse `adsub` é gravada
+//! direto no KV nativo (`marks_feed.rs`, mesma tabela `cache` do `cache.db`),
+//! sem rota: a rota `/internal/debrid/marked` deixou de existir.
 //! `play.rs` é o dispatch do play nativo (`/resolve` do gateway, incondicional):
 //! os cinco adaptadores, com o mesmo `pickFile` e a mesma
 //! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
@@ -54,8 +54,8 @@ pub mod error;
 /// (`DEBRID_AL_HOLDS`, default OFF) — rota `/internal/debrid/holds` do Node.
 pub mod holds_feed;
 pub mod http;
-/// Devolução das marcas da limpeza nativa (`adsub`/`adrm`) ao Node — rota
-/// `/internal/debrid/marked`. Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
+/// Posse da checagem nativa (`adsub:v1`) gravada direto no KV nativo.
+/// Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
 pub mod marks_feed;
 pub mod metrics;
 /// Play nativo: dispatch por adaptador (usado pelo `/resolve` do gateway).

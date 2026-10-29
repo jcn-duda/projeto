@@ -30,7 +30,6 @@ use crate::alldebrid_delete::{delete_with_backoff, DeleteConfig, DeleteStop};
 use crate::http::HttpClient;
 
 const KEY: &str = "ad-cleanup-key";
-const MARKS_TOKEN: &str = "tok-marcas-limpeza";
 /// Nome que o `/magnet/upload` dublê devolve; viaja até o `adrm` do Node.
 const UPLOAD_NAME: &str = "Alvo da limpeza 2024 1080p";
 

@@ -1,196 +1,114 @@
-//! Marcas da limpeza nativa (`/internal/debrid/marked`): contrato do POST,
-//! loopback, prazo, envs internas e o gate da flag. O dublê da rota mora em
-//! [`super::test_support`]; nada aqui fala com rede real.
+//! Posse da checagem (`adsub:v1`) gravada no KV nativo: chave, valor, TTL,
+//! normalização e filtros (inválido/duplicado), TTL zero e a régua do env.
+//! Tudo com `NativeKv::open_memory()`; o `spawn` com gate fica em
+//! `alldebrid_marks_tests.rs` (precisa do banco de teste do processo).
 
-use std::sync::Arc;
-use std::time::Duration;
-
+use adom_index::NativeKv;
 use serde_json::json;
 
-use super::test_support::{listen, wait_bodies, MarksSeen};
-use super::{timeout_from, InternalMarkedClient, MarkedBatch, DEFAULT_BASE, TIMEOUT_ENV};
+use super::{parse_ttl_seconds, write_marks, MarkedBatch};
+use crate::alldebrid_cleanup::{account_scope, adsub_key};
 
-const TOKEN: &str = "token-interno-marked";
-const KEY: &str = "chave-da-conta-marked";
+const KEY: &str = "chave-da-conta-marks";
+const NOW: i64 = 1_700_000_000_000;
+const WEEK_SECONDS: i64 = 604_800;
 const HIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const HIT2: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-/// Env com a trava única do crate (outros módulos de teste também mexem).
-struct EnvGuard {
-    prev: Vec<(&'static str, Option<String>)>,
-    _lock: std::sync::MutexGuard<'static, ()>,
-}
-
-impl EnvGuard {
-    fn set(pairs: &[(&'static str, Option<&str>)]) -> Self {
-        let lock = crate::test_env::lock();
-        let mut prev = Vec::new();
-        for (name, value) in pairs {
-            prev.push((*name, std::env::var(name).ok()));
-            unsafe {
-                match value {
-                    Some(raw) => std::env::set_var(name, raw),
-                    None => std::env::remove_var(name),
-                }
-            }
-        }
-        Self { prev, _lock: lock }
-    }
-}
-
-impl Drop for EnvGuard {
-    fn drop(&mut self) {
-        unsafe {
-            for (name, value) in &self.prev {
-                match value {
-                    Some(raw) => std::env::set_var(name, raw),
-                    None => std::env::remove_var(name),
-                }
-            }
-        }
-    }
-}
-
-fn batch() -> MarkedBatch {
+fn batch(submitted: &[&str]) -> MarkedBatch {
     MarkedBatch {
         api_key: KEY.into(),
-        submitted: vec![HIT.into()],
+        submitted: submitted.iter().map(|hash| hash.to_string()).collect(),
     }
 }
 
-#[test]
-fn corpo_leva_servico_chave_e_a_posse_sem_canal_de_remocao() {
-    let body = batch().body();
-    assert_eq!(body["service"], json!("alldebrid"));
-    assert_eq!(body["apiKey"], json!(KEY));
-    assert_eq!(body["submitted"], json!([HIT]));
-    // A higiene da checagem nunca vira `adrm`: o campo não existe mais.
-    assert!(body.get("removed").is_none());
+fn kv() -> NativeKv {
+    NativeKv::open_memory().expect("KV em memória")
 }
 
-#[tokio::test]
-async fn cliente_manda_token_no_header_e_as_listas_no_corpo() {
-    let seen = Arc::new(MarksSeen::default());
-    let base = listen(seen.clone()).await;
-    let client = InternalMarkedClient::new(&base, TOKEN, Duration::from_millis(2_000)).unwrap();
-    client.send(&batch()).await.unwrap();
-
-    let tokens = seen.tokens.lock().unwrap();
+#[test]
+fn grava_chave_com_escopo_da_conta_valor_at_e_ttl() {
+    let kv = kv();
+    let written = write_marks(&kv, &batch(&[HIT]), WEEK_SECONDS, NOW).unwrap();
+    assert_eq!(written, 1);
+    let key = format!("adsub:v1:{}:{HIT}", account_scope(KEY));
+    assert_eq!(key, adsub_key(&account_scope(KEY), HIT));
+    assert_eq!(kv.get_json(&key, NOW).unwrap(), Some(json!({ "at": NOW })));
+    // TTL de 7 dias: o restante é o próprio TTL, arredondado.
     assert_eq!(
-        tokens.first().cloned().flatten().as_deref(),
-        Some(TOKEN),
-        "o token vai SÓ no header"
+        kv.remaining_seconds(&key, NOW).unwrap(),
+        Some(WEEK_SECONDS)
     );
-    drop(tokens);
-    let bodies = seen.bodies.lock().unwrap();
-    assert_eq!(bodies.len(), 1);
-    assert_eq!(bodies[0]["service"], json!("alldebrid"));
-    assert_eq!(bodies[0]["apiKey"], json!(KEY));
-    assert_eq!(bodies[0]["submitted"], json!([HIT]));
-    assert!(bodies[0].get("removed").is_none());
-    assert!(
-        bodies[0].get("encoded").is_none(),
-        "a marca não carrega config do usuário"
-    );
-}
-
-#[tokio::test]
-async fn cliente_recusa_lote_vazio_host_nao_loopback_e_chave_ausente() {
-    let seen = Arc::new(MarksSeen::default());
-    let base = listen(seen.clone()).await;
-    let client = InternalMarkedClient::new(&base, TOKEN, Duration::from_millis(1_000)).unwrap();
-    assert!(
-        client.send(&MarkedBatch::default()).await.is_err(),
-        "lote vazio não vira POST"
-    );
-    let mut sem_chave = batch();
-    sem_chave.api_key.clear();
-    assert!(client.send(&sem_chave).await.is_err());
-    assert!(InternalMarkedClient::new(
-        "http://example.com:7100",
-        TOKEN,
-        Duration::from_millis(1_000)
-    )
-    .is_err());
-    assert!(
-        seen.bodies.lock().unwrap().is_empty(),
-        "nada inválido abriu HTTP"
-    );
-}
-
-#[test]
-fn from_env_usa_as_mesmas_envs_internas_do_feed() {
-    // Sem token não há canal (nem com base válida).
-    {
-        let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some(DEFAULT_BASE)),
-            ("DEBRID_INTERNAL_TOKEN", None),
-            ("JACKETT_TEST_TOKEN", None),
-        ]);
-        assert!(InternalMarkedClient::from_env().is_none());
-    }
-    // `JACKETT_TEST_TOKEN` é o fallback do token interno.
-    {
-        let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some(DEFAULT_BASE)),
-            ("DEBRID_INTERNAL_TOKEN", None),
-            ("JACKETT_TEST_TOKEN", Some(TOKEN)),
-        ]);
-        assert!(InternalMarkedClient::from_env().is_some());
-    }
-    // Fora do loopback não há canal, mesmo com token.
-    {
-        let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some("http://203.0.113.9:7100")),
-            ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
-            ("JACKETT_TEST_TOKEN", None),
-        ]);
-        assert!(InternalMarkedClient::from_env().is_none());
-    }
-}
-
-#[test]
-fn timeout_tem_default_e_minimo() {
-    assert_eq!(timeout_from(None), Duration::from_millis(1_500));
-    assert_eq!(timeout_from(Some("0")), Duration::from_millis(1_500));
-    assert_eq!(timeout_from(Some("250")), Duration::from_millis(250));
-    let _env = EnvGuard::set(&[(TIMEOUT_ENV, Some("120"))]);
+    // Vencida a janela, o leitor não enxerga mais a posse.
     assert_eq!(
-        timeout_from(std::env::var(TIMEOUT_ENV).ok().as_deref()),
-        Duration::from_millis(120)
+        kv.get_json(&key, NOW + WEEK_SECONDS * 1_000).unwrap(),
+        None
     );
 }
 
-// ── Gate: nada é enviado com a limpeza OFF ──────────────────────────────────
+#[test]
+fn ignora_invalido_e_duplicado_e_conta_so_os_unicos_validos() {
+    let kv = kv();
+    let lote = batch(&[HIT, HIT2, "nao-e-hash", "123", "", HIT, HIT2]);
+    assert_eq!(write_marks(&kv, &lote, WEEK_SECONDS, NOW).unwrap(), 2);
+    let scope = account_scope(KEY);
+    assert!(kv.get_json(&adsub_key(&scope, HIT), NOW).unwrap().is_some());
+    assert!(kv.get_json(&adsub_key(&scope, HIT2), NOW).unwrap().is_some());
+    // Hash inválido nunca vira chave.
+    let live = kv
+        .keys_matching(&format!("adsub:v1:{scope}:"), NOW)
+        .unwrap();
+    assert_eq!(live.len(), 2, "só os dois hashes válidos: {live:?}");
+}
 
-#[tokio::test]
-#[allow(clippy::await_holding_lock)]
-async fn spawn_so_entrega_com_cleanup_ligado() {
-    let seen = Arc::new(MarksSeen::default());
-    let base = listen(seen.clone()).await;
-    {
-        let _env = EnvGuard::set(&[
-            ("DEBRID_AL_CLEANUP", Some("off")),
-            ("INTERNAL_CHECK_URL", Some(base.as_str())),
-            ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
-            ("JACKETT_TEST_TOKEN", None),
-        ]);
-        super::spawn(batch());
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        assert!(
-            seen.bodies.lock().unwrap().is_empty(),
-            "cleanup OFF não abre HTTP: nada foi subido/removido de propósito"
-        );
-    }
-    {
-        let _env = EnvGuard::set(&[
-            ("DEBRID_AL_CLEANUP", Some("on")),
-            ("INTERNAL_CHECK_URL", Some(base.as_str())),
-            ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
-            ("JACKETT_TEST_TOKEN", None),
-        ]);
-        super::spawn(batch());
-        let bodies = wait_bodies(&seen, 1).await;
-        assert_eq!(bodies.len(), 1, "cleanup ON entrega o lote uma vez");
-        assert_eq!(bodies[0]["submitted"], json!([HIT]));
-    }
+#[test]
+fn hash_em_maiusculas_vira_minusculas_e_dedupa_com_a_forma_minuscula() {
+    let kv = kv();
+    let maiusculas = HIT.to_uppercase();
+    // Mesmo hash em caixa alta e com espaço: uma única posse.
+    let com_espaco = format!("  {HIT}  ");
+    let lote = batch(&[maiusculas.as_str(), com_espaco.as_str()]);
+    assert_eq!(write_marks(&kv, &lote, WEEK_SECONDS, NOW).unwrap(), 1);
+    // `adsub_key` já normaliza: a forma em caixa alta cai na MESMA linha, então
+    // a prova é a contagem de linhas da conta (uma só, não duas).
+    let live = kv
+        .keys_matching(&format!("adsub:v1:{}:", account_scope(KEY)), NOW)
+        .unwrap();
+    assert_eq!(live, vec![adsub_key(&account_scope(KEY), HIT)]);
+}
+
+#[test]
+fn ttl_zero_nao_grava_nada() {
+    let kv = kv();
+    assert_eq!(write_marks(&kv, &batch(&[HIT]), 0, NOW).unwrap(), 0);
+    assert_eq!(write_marks(&kv, &batch(&[HIT]), -5, NOW).unwrap(), 0);
+    let live = kv
+        .keys_matching(&format!("adsub:v1:{}:", account_scope(KEY)), NOW)
+        .unwrap();
+    assert!(live.is_empty(), "posse desligada não escreve linha");
+}
+
+#[test]
+fn lote_sem_hash_valido_devolve_zero_sem_erro() {
+    let kv = kv();
+    assert_eq!(write_marks(&kv, &batch(&["x", ""]), WEEK_SECONDS, NOW).unwrap(), 0);
+}
+
+#[test]
+fn ttl_do_env_default_zero_negativo_e_lixo() {
+    // Ausente = 7 dias (o default do Node).
+    assert_eq!(parse_ttl_seconds(None), WEEK_SECONDS);
+    // Vazio e `0` desligam a posse.
+    assert_eq!(parse_ttl_seconds(Some("")), 0);
+    assert_eq!(parse_ttl_seconds(Some("   ")), 0);
+    assert_eq!(parse_ttl_seconds(Some("0")), 0);
+    // Negativo nunca chega a `> 0`: desliga.
+    assert_eq!(parse_ttl_seconds(Some("-1")), 0);
+    assert_eq!(parse_ttl_seconds(Some("-604800000")), 0);
+    // Lixo cai no default.
+    assert_eq!(parse_ttl_seconds(Some("lixo")), WEEK_SECONDS);
+    // Ms → segundos com piso.
+    assert_eq!(parse_ttl_seconds(Some("120000")), 120);
+    assert_eq!(parse_ttl_seconds(Some("1500")), 1);
+    assert_eq!(parse_ttl_seconds(Some("999")), 0);
 }

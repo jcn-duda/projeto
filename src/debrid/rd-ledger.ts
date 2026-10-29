@@ -8,9 +8,10 @@
 // que falso positivo, então miss expira com backoff e nunca condena uma release
 // sem nova medição.
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
+import { QUOTAS } from '../utils/cache-quotas.js';
+import { kvKeys, kvPeek, kvRemaining, kvSet } from '../utils/native-kv.js';
 import { rdNextBlocked, rdNextHit, rdNextMiss } from '../utils/rust-debrid-rd.js';
 
 type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
@@ -92,10 +93,13 @@ function key(hash: string) {
   return `${prefix('rdc')}${hashOf(hash)}`;
 }
 
+// O ledger é lido pelo `adom-debrid` direto da tabela `cache`, então a verdade
+// mora no KV nativo: o Node lê pela ponte e nunca por L1 (um L1 com a versão
+// antiga da linha venceria a escrita do Rust).
 function read(hash: string): LedgerValue | null {
   const normalized = hashOf(hash);
   if (!config.debrid.rdLedger.enabled || !normalized) return null;
-  const value = cache.get(key(normalized)) as LedgerValue | null;
+  const value = kvPeek(key(normalized)) as LedgerValue | null;
   if (!value || !['hit', 'miss', 'blocked'].includes(value.s)) return null;
   return value;
 }
@@ -131,12 +135,14 @@ function track(
   tracked.set(hash, { state, expiresAt: Date.now() + ttlSeconds * 1000 });
 }
 
+// `kvSet` com TTL <= 0 gravaria PERMANENTE; o cache antigo ignorava esse caso,
+// então o filtro fica aqui para o ledger nunca criar linha sem validade.
+// Não há lote nativo: cada `kvSet` é uma escrita SQLite e o lote é pequeno
+// (um hash por chamada, exceto o `noteHit` de uma lista de play).
 function writeMany(entries: { key: string; value: LedgerValue; ttlSeconds: number }[]) {
-  if (!entries.length) return;
-  // cache.setMany existe no cache atual para uma transação/evicção só. O loop
-  // mantém o módulo utilizável por implementações antigas usadas em harnesses.
-  if (typeof cache.setMany === 'function') cache.setMany(entries);
-  else for (const entry of entries) cache.set(entry.key, entry.value, entry.ttlSeconds);
+  for (const entry of entries) {
+    if (entry.ttlSeconds > 0) kvSet(entry.key, entry.value, entry.ttlSeconds);
+  }
 }
 
 function peek(hash: string): LedgerState {
@@ -149,7 +155,7 @@ function peek(hash: string): LedgerState {
 function peekQuiet(hash: string): LedgerState {
   const normalized = hashOf(hash);
   if (!config.debrid.rdLedger.enabled || !normalized) return 'unknown';
-  return peekLedgerState(true, cache.peek(key(normalized)) as LedgerValue | null);
+  return peekLedgerState(true, kvPeek(key(normalized)) as LedgerValue | null);
 }
 
 function isHit(hash: string) {
@@ -232,7 +238,7 @@ function renewHits(hashes: string[]) {
   if (!config.debrid.rdLedger.enabled || ttl <= 0) return;
   const stale = [...new Set(hashes.map(hashOf))].filter((hash) => {
     if (!hash || peek(hash) !== 'hit') return false;
-    const remaining = cache.peekRemaining(key(hash));
+    const remaining = kvRemaining(key(hash));
     return remaining == null || remaining < ttl / 2;
   });
   noteHit(stale);
@@ -245,9 +251,9 @@ function status() {
   let misses = 0;
   let blocked = 0;
   for (const [hash, item] of tracked) {
-    // Evicção/forget do cache não notifica o Map — sem o peek a amostra
-    // SUPERCONTA depois que a cota rdc gira (mesmo padrão do magnetdb).
-    if (item.expiresAt <= now || cache.peek(key(hash)) == null) {
+    // Evicção/forget não notifica o Map — sem o peek a amostra SUPERCONTA
+    // depois que a cota rdc gira (mesmo padrão do magnetdb).
+    if (item.expiresAt <= now || kvPeek(key(hash)) == null) {
       tracked.delete(hash);
       continue;
     }
@@ -255,21 +261,16 @@ function status() {
     else if (item.state === 'miss') misses += 1;
     else blocked += 1;
   }
-  // Ocupação real do namespace `rdc` no L1 — snapshot do cache, igual ao mag
-  // do magnetdb. Inclui chaves plantadas antes do processo (L2→L1) e órfãs
-  // sem track; por isso pode diferir da amostra.
-  const ns = cache.snapshot().namespaces as Record<string, { entries?: number; maxEntries?: number }>;
-  const rdcNs = ns?.rdc;
-  // `_origem` aditivo: tracked/hits/… = amostra do processo; l1* = L1 durável
-  // (Mecanismo A — debrid-status / painel).
+  // Ocupação real do namespace `rdc` no KV nativo (linhas vivas). Pode diferir
+  // da amostra: inclui linhas de outros processos e órfãs sem track.
+  // Sem a cota, inventar um número no painel é pior que zero.
   return {
     tracked: hits + misses + blocked,
     hits,
     misses,
     blocked,
-    l1Entries: rdcNs?.entries || 0,
-    // Sem snapshot/QUOTAS, inventar um número no painel é pior que zero.
-    l1Max: rdcNs?.maxEntries || cache.QUOTAS?.rdc || 0,
+    l1Entries: kvKeys(prefix('rdc')).length,
+    l1Max: QUOTAS.rdc || 0,
     _origem: {
       tracked: 'amostra' as const,
       hits: 'amostra' as const,
