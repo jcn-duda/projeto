@@ -155,10 +155,12 @@ segundo dono para assumir**.
 Com o worker **on**, o gateway consome três kinds de trabalho emitidos pelo
 orquestrador — `autofetch_batch`, `br_probe` e `season_key` — mais a represa
 `sup:` e a evicção F6 na passagem do laço. O que segue no Node: `adsub`/`adprot`
-(marcas de posse e retenção que o nativo só LÊ), o `harvester_enqueue` e o
-agendamento das varreduras da AllDebrid. O marker com `obra` e o registro F2 da
-obra são gravados pelo próprio aceite nativo (`enqueue.rs:299-316`,
-`enqueue_obra.rs:294-295`). O painel lê os dois lados (§8.4).
+(marcas de posse e retenção que o nativo só LÊ) e o `harvester_enqueue`. As
+quatro varreduras destrutivas da AllDebrid **não** estão mais aqui: o agendador é
+o do gateway (`al_sweeps`), atrás do freio `DEBRID_AL_SWEEP_APPLY`. O marker com
+`obra` e o registro F2 da obra são gravados pelo próprio aceite nativo
+(`enqueue.rs:299-316`, `enqueue_obra.rs:294-295`). O painel lê os dois lados
+(§8.4).
 
 ### 8.1 Pré-requisitos
 
@@ -241,6 +243,10 @@ O que **não** é rollback:
   o Chupim; não restaura o dono anterior.
 - `EFFECTS_RUST=off` — corta a emissão dos kinds; o Chupim para inteiro. Use só
   como diagnóstico.
+- `DEBRID_AL_SWEEP_APPLY=off` — deixa as quatro varreduras da AllDebrid em
+  **READ-ONLY** (monta o plano e loga; nada sai da conta). Não devolve o
+  agendador ao Node: ele não existe mais lá. Rollback das varreduras é
+  imagem/commit anterior.
 - apagar `docker-data/addon/cache.db` — leva junto fila v3, marker e blacklist
   de mortas; o sintoma piora.
 - tirar a chave do `.env` — não desliga nada: o worker fica `active` com
@@ -293,7 +299,7 @@ está no código.
    | marker com `obra` e registro F2 (`autofetch:v3:o:`) no aceite | nativo (`enqueue.rs:299-316`, `enqueue_obra.rs:294-295`); a ponte napi grava o mesmo marker |
    | `adsub`/`adprot` (posse e retenção que o nativo só LÊ) | Node (`alldebrid-inventory.ts`, `protected.ts`) |
    | painel do Chupim | do Node: config ao vivo (`cfg:v1:autofetch`) e pausa, obras do registro F2 e `lastSkips`/`trace.chupim` do anel do trace (**vazios desde o corte**: não há mais escritor no Node); do worker: os números da admin 8711. Sem a admin, o bloco sai `partial:true` e o card mostra "—", nunca zero |
-   | agendamento das varreduras da AllDebrid | Node, `ReadOnly` |
+   | varreduras destrutivas da AllDebrid (mortos, não-dublados, reconcile e represados) | nativo (`al_sweeps`), gate `DEBRID_AL_SWEEP_APPLY`; o Node não agenda nem executa nenhuma |
 
    **Ficam** (o nativo não cobre): `autofetch.ts` (encolhido — `reindexQueues`/
    `reindexDead` no boot, `markerActive` no `rd-warmer`, `isDeadQuiet` no

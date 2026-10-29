@@ -54,8 +54,7 @@ trabalho de código é em `src/`.
   `non_feature_release`), o **ranking** (dedupe + sortAndLimit), o **💾 de
   episódio** (`annotateEpisodeSizes`), a **fonte de mídia do índice**, a
   **seleção do autofetch** (imediatos e fila; o laço e a cascata são do
-  worker nativo desde a B4 — ao TS sobraram a ponte, o painel e o agendamento
-  das varreduras da AllDebrid) e as
+  worker nativo desde a B4 — ao TS sobraram a ponte e o painel) e as
   decisões de debrid (**`pickFile`**,
   **veredito de cache**, **ledger/gate do RD**, **limpeza**) e, desde a ponte da
   F-1, o **fim da busca** (`search_finish`: commit, promoção tardia, SWR), a
@@ -177,10 +176,15 @@ npm run docker:up / docker:logs
   anterior, não env. Detalhe em `docs/rust-stream-contract.md` §0 e §R de
   `docs/migracao-stream-rust.md`.
   **R3**: a checagem/limpeza da AllDebrid é NATIVA e incondicional (não existe
-  `DEBRID_AL_RUST`; a rota Node `/internal/debrid/check` foi apagada).
-  `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` FICAM como kill-switches das varreduras
-  **destrutivas** (default do código OFF, compose ON; sem holds/inventário a
-  nativa é read-only). Contrato em `docs/debrid-al-check-rust.md`.
+  `DEBRID_AL_RUST`; a rota Node `/internal/debrid/check` foi apagada). As
+  **quatro varreduras destrutivas** (`sweepDead`, `sweepUndubbed`, reconcile da
+  posse e cura dos represados) também são NATIVAS: o agendador é o do gateway
+  (`al_sweeps`) e o Node **não é mais chamador** de nenhuma delas. O freio de
+  APLICAÇÃO é `DEBRID_AL_SWEEP_APPLY` (default do código OFF, compose ON; sem
+  ele a rodada monta o plano e fica read-only); `DEBRID_AL_HOLDS`/
+  `DEBRID_AL_CLEANUP` seguem como kill-switches do hold e do plano (sem
+  holds/inventário a nativa é read-only). Contrato em
+  `docs/debrid-al-check-rust.md`.
   **F4.4a**: o gateway sobe uma API administrativa do store nativo em
   `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
   para invalidar por obra/hash, limpar no `clear-cache` e ler o
@@ -291,14 +295,15 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
   anti-reenchimento `adrm:v1` (SÓ das varreduras de conteúdo — a higiene da
   checagem nunca marca; a ponte nativa `/internal/debrid/marked` leva só a
-  posse), retenção BR `adprot:v1`. Varreduras destrutivas
-  (`sweepDead`, `sweepUndubbed`, reconcile, revalidate) têm kill-switch próprio.
+  posse), retenção BR `adprot:v1`. As varreduras destrutivas (`sweepDead`,
+  `sweepUndubbed`, reconcile, revalidate) são NATIVAS (`al_sweeps`) e o TS não é
+  mais chamador de nenhuma; o gate de aplicação é `DEBRID_AL_SWEEP_APPLY`.
   **R3**: a checagem/limpeza é NATIVA e incondicional — não existe
   `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foi apagada. A nativa
   lê os holds do Node pelo feed `/internal/debrid/holds` e só apaga com
   `holdsComplete` + inventário (`may_delete` fail-closed); sem snapshot é
   read-only (`inventory_missing`). `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` FICAM
-  como kill-switches das varreduras **destrutivas** (código OFF, compose ON).
+  como kill-switches do hold e do plano (código OFF, compose ON).
   Conta em `MAGNET_TOO_MANY` ⇒ `unusable: quota` (lista P2P), nunca ⚡ falso.
   Rollback da fatia: commit/imagem anterior. Contrato em
   `docs/debrid-al-check-rust.md`.
@@ -382,9 +387,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e somados
   em `nativeOnly`, sem executor do outro lado.
 - **Ainda é do Node**: `adsub`/`adprot` (marcas de posse e de retenção que o
-  nativo só LÊ), o `harvester_enqueue` e o agendamento das varreduras da
-  AllDebrid (`ReadOnly`). O marker com `obra` e o registro F2 **não** estão mais
-  aqui: o aceite nativo grava os dois (`enqueue.rs:299-316`,
+  nativo só LÊ) e o `harvester_enqueue`. O agendamento das varreduras da
+  AllDebrid **não** está mais aqui: as quatro rodam no gateway (`al_sweeps`,
+  gate `DEBRID_AL_SWEEP_APPLY`). O marker com `obra` e o registro F2 **não**
+  estão mais aqui: o aceite nativo grava os dois (`enqueue.rs:299-316`,
   `enqueue_obra.rs:294-295`).
 - **Dono por namespace**: fila (`autofetch:v3:q:`), marker (`m:`) e blacklist
   (`dead:`) são escritos pelo worker no KV nativo; a represa `sup:` é escrita e

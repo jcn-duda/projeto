@@ -878,14 +878,15 @@ autofetch subiu (o conteúdo caro de aquecer, sem cache no serviço). A camada
 durável grava `{acceptedAt, readyAt}` por `adapter:conta:hash` (AllDebrid,
 TTL ~10 anos, cota `adprot: 2000`) **só** quando o enqueue do pool `br`
 real (`_br`+`_dubbed`, não `_lied`) é aceito — `any`/`seeds` nunca entram.
-`dropReady`, `dropUncached`, `resolveLink` não-pronto e `sweepUndubbed`
-consultam `isCleanupProtected` (volátil OU durável) e contam
-`debrid.cleanup.protectedBrSkipped`. A retenção **não é eterna cega**:
-`sweepDead` remove estado terminal (unprotect antes do delete),
-`pruneMissing` cata registro de hash que saiu da conta, o `DubLieError` do
-play destrava a liberação, e o `reconcile` (dentro do `checkCached`, na
-conta de QUALQUER busca — a de usuário não tem varredura agendada) destrava
-pending mais velho que o settle (`autoFetchTtl`) e acervo pronto que
+`dropReady`, `dropUncached` e `resolveLink` não-pronto consultam
+`isCleanupProtected` (volátil OU durável) e contam
+`debrid.cleanup.protectedBrSkipped`; as varreduras NATIVAS leem o MESMO
+registro do `cache.db` (a varredura de não-dublados inicialmente só saía pelos
+holds). A retenção **não é eterna cega**: a varredura nativa de mortos remove
+estado terminal (unprotect antes do delete), `pruneMissing` cata registro de
+hash que saiu da conta, o `DubLieError` do play destrava a liberação, e o
+`reconcile` da posse — hoje NATIVO (`al_sweeps`), não mais agendado pelo TS —
+destrava pending mais velho que o settle (`autoFetchTtl`) e acervo pronto que
 regrediu a não-pronto. Kill-switch: `DEBRID_AUTO_FETCH_PROTECT_BR=false`
 (restaura a limpeza sobre registro retido).
 
@@ -1047,27 +1048,30 @@ play explícito.
 etiquetado como nosso que a limpeza da própria checagem **não alcançou** (lote
 que estourou o prazo, delete recusado com 503, hash omitido no eco do upload).
 Ele não está morto (escapa do `sweepDead`) nem provado estrangeiro (escapa do
-`sweepUndubbed`), e ficava pronto na conta para sempre. `alldebrid-reconcile.ts`
-varre exatamente esses, disparado pela checagem — que é quem deposita e quem
-limpa. As sete regras de seleção valem **em conjunção**, e a que menos se adivinha
-é o anti-re-add: `uploadDate` **posterior** à etiqueta significa que o usuário
-readicionou o hash depois, e aí ele nunca sai; sem `uploadDate` também não sai.
-Ausência de dado nunca autoriza remoção, aqui como no resto.
-Kill-switch: `DEBRID_RECONCILE=false` (default) — por apagar pronto sem eco da
-busca, só liga após decisão explícita do operador.
+`sweepUndubbed`), e ficava pronto na conta para sempre. O `reconcile` varre
+exatamente esses, disparado pela checagem — que é quem deposita e quem limpa.
+**Depois do corte do TS ele é NATIVO** (o `alldebrid-reconcile.ts` foi apagado):
+quem monta o plano e aplica é o agendador do gateway (`al_sweeps`), atrás do
+gate `DEBRID_AL_SWEEP_APPLY`. As sete regras de seleção valem **em conjunção**,
+e a que menos se adivinha é o anti-re-add: `uploadDate` **posterior** à etiqueta
+significa que o usuário readicionou o hash depois, e aí ele nunca sai; sem
+`uploadDate` também não sai. Ausência de dado nunca autoriza remoção, aqui como
+no resto.
+Aplicação: só com `DEBRID_AL_SWEEP_APPLY=on` (default do código OFF; compose ON)
+— por apagar pronto sem eco da busca, a rodada nasce read-only.
 
 Lixo que a limpeza por busca nunca alcança (magnet morto que ninguém pesquisa)
-é a varredura periódica `sweepDead` (`DEBRID_SWEEP_DEAD`). Ao contrário do
-`dropReady`, ela **não** poupa o inventário do usuário: estado terminal não é
+é a varredura periódica `sweepDead`, hoje **nativa** (`al_sweeps`). Ao contrário
+do `dropReady`, ela **não** poupa o inventário do usuário: estado terminal não é
 escolha de ninguém. Sem isso, mortos ocupam vaga até a AllDebrid recusar até
 o `/magnet/delete` com 503.
 
-Lixo **tocável** tem a própria varredura: `sweepUndubbed`
-(`DEBRID_SWEEP_UNDUBBED`) remove magnets com mais de
-`DEBRID_SWEEP_UNDUBBED_MIN_AGE_MS` cujo título o `foreignVerdict`
-**condena** — prova positiva de idioma estrangeiro (a lista mínima
-`hasExplicitForeignAudio`) ou grupo de cena EN sem dublagem declarada. O
-critério já foi o balde `lixo` do `audioBucket` e foi aposentado: ausência de
+Lixo **tocável** tem a própria varredura: `sweepUndubbed` (também **nativa**,
+com defaults próprios — 7 dias de idade e teto de 100 por rodada) remove magnets
+cujo título o `foreignVerdict` **condena** — prova positiva de idioma
+estrangeiro (a lista mínima `hasExplicitForeignAudio`) ou grupo de cena EN sem
+dublagem declarada. O critério já foi o balde `lixo` do `audioBucket` e foi
+aposentado: ausência de
 marca PT condenava qualquer release nórdica e a conta inchou. Por apagar
 conteúdo que toca, as travas andam juntas — idade mínima, `held`, inventário
 `knownBefore` — e inventário frio pula a rodada inteira (mesmo fail-safe do
@@ -1356,7 +1360,7 @@ AllDebrid. Nasce **OFF** (`DEBRID_AUTO_FETCH_EVICT_FALLBACK=false`) e é
 **AllDebrid-only** — OFF significa zero rede, zero leitura de status e zero
 delete. A idade mínima é `DEBRID_AUTO_FETCH_EVICT_FALLBACK_MIN_AGE_MS`
 (default 30 min), configurada em `src/config/debrid-evict.ts` (bloco extraído
-do compositor pela catraca de linhas, como `debrid-reconcile.ts`).
+do compositor pela catraca de linhas, como `debrid-autofetch-seeds.ts`).
 
 A política **viveu** em `src/providers/autofetch-evict.ts` (**sem chamador no Node
 desde a B4** — quem decide e apaga é o passo nativo `evict_job.rs`/`evict_step.rs`;
@@ -1429,9 +1433,8 @@ saem rotulados (`duplicate`/`over-limit`, `evict_step.rs:263`, `:288`). A
 cobertura é nativa: `evict_job_tests.rs`, `evict_job_tests_owner.rs`,
 `evict_job_tests_rules.rs` (as regras lidas do KV no passo) e
 `evict_step_tests.rs`, mais o golden de 29 casos
-`rust/golden/autofetch-evict-step.jsonl`; o executor segue com prova em
-`test/alldebrid-evict.test.ts` + `test/alldebrid-delete-gate.test.ts`. F7 fará o
-painel completo.
+`rust/golden/autofetch-evict-step.jsonl`; o executor (gate B-4 de deleção) segue
+com prova em `test/alldebrid-delete-gate.test.ts`. F7 fará o painel completo.
 
 **Observabilidade do Chupim no painel e no trace (Fase 7).** Duas leituras
 quiet fecham o que faltava ver — o bloco `obras` do `/dashboard-status.json` e
@@ -1669,17 +1672,13 @@ remover direto: proteção vigente (`held`/`adprot`) bloqueia, e na AllDebrid o 
 de que o addon o subiu (marker do enqueue ou etiqueta durável `adsub`) E com o snapshot de pré-existentes
 carregado sem ele — a mesma autoridade do `dropReady`/`dropUncached`; snapshot ausente fecha o fail-safe
 (não remove) e o caso não provado vai para represados. O ramo progress-stalled continua represado
-(derivação é prova de parada, não autorização de delete). Para conta BYO, cada `checkCached` posterior agenda
-`alldebrid-suppressed-revalidate.ts`: uma leitura autoritativa por conta, coalescida e com backoff, remove pelo
-gate `deleteMagnets` SÓ quando o texto fica terminal; `ready` cura suppressed+blacklist, ativo permanece e erro
-preserva tudo. A chave da instalação nunca é persistida — após restart a próxima busca retoma a rodada. O módulo
-varre a fila `sup:` INTEIRA (todas as origens, não só progresso), respeita idade mínima e re-add
-(`uploadDate` × `adsub`), e é gateado pelo knob destrutivo `DEBRID_SUPPRESSED_REVALIDATE`
-(**default false** — desligado, zero rede; ligar autoriza delete por hash sem o freio
-`DEBRID_REMOVE_BY_ID`, limitado ao escopo da fila). Nota operacional: sem
-`DEBRID_OPERATOR_ENV_ACCOUNT` no `.env`, `envOperatorAccount` é falso — a conta do `.env` é tratada
-como BYO pelo `isByoAccount` e o `sweepDead` periódico também não roda; nesta configuração, ligar o
-knob é a única varredura de represados da instância. O estado é
+(derivação é prova de parada, não autorização de delete). A revalidação de
+represados **saiu do Node** no corte das varreduras: quem lê a conta, remove
+pelo texto terminal e cura `ready` é o agendador NATIVO (`al_sweeps`), que
+varre a fila `sup:` inteira (todas as origens), respeita idade mínima e re-add
+(`uploadDate` × `adsub`) e só aplica com `DEBRID_AL_SWEEP_APPLY`. Com o TS fora
+não existe mais a rodada BYO por busca (`scheduleSuppressedRevalidate`): a
+varredura é da conta do OPERADOR, a que o gateway usa. O estado é
 limpo em `cleanLotHash`, no fim do lote e na evicção do LRU de settle — que usa o `adapterId` DO PRÓPRIO lote,
 nunca `debrid.current()` de outra request. É o mesmo espírito do contrato `responded` do B1: o que não foi
 medido não condena.
@@ -4081,12 +4080,13 @@ o orçamento com a resposta.
   painel funciona, anônimo fica em P2P. Não re-acople os dois flags: o motivo
   do catálogo quando a chave existe mas o gate está fechado é
   `chave-operador-desativada` (com `hint`), distinto de `sem-conta-operador`.
-  **E as varreduras automáticas são do serviço do `.env`, não do que a
-  instalação usa:** `sweepDeadEnv` resolve o adapter por
-  `config.debrid.service`, então quem instala com outro `ds` na URL e chave
-  própria só é varrido pelo botão do painel (`sweepDeadCurrent`). Medido em
-  produção 2026-09-08 — `.env` em `alldebrid`, instalação em premiumize, fila
-  de paradas crescendo sem timer nenhum alcançá-la.
+  **E as varreduras automáticas são da conta do OPERADOR:** quem as agenda é o
+  gateway (`al_sweeps`), com a chave do `.env`; quem instala com outro `ds` na
+  URL e chave própria **não** é varrido por elas. O botão do painel pede a
+  rodada nativa (`runNativeSweep('sweepDead')`) e recusa a conta BYO; para
+  serviço não-AllDebrid resta o dispatch legado do adaptador. Medido em
+  produção 2026-09-08 (antes do corte): `.env` em `alldebrid`, instalação em
+  premiumize, fila de paradas crescendo sem timer nenhum alcançá-la.
 - **`src/public/` não passa por build.** É HTML/CSS/imagens servido cru. O
   painel e o `/configure` NÃO têm mais JS clássico ali: ambos são clientes
   ESM nativo em `src/client/<nome>/*.ts`, emitidos por `tsconfig.client.json`

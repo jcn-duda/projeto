@@ -127,8 +127,12 @@ no branch). Para desligar só a limpeza, mantendo a checagem nativa:
 3. **`davail`** (`debrid:*` no `cache.db`/`debrid.db`): o Node serve ⚡ de
    memória antes da rede e renova o banco de magnets. A nativa sempre
    pergunta ao serviço.
-4. **Evicção/reconcile/revalidate suprimida** por busca (`scheduleEvict`,
-   `scheduleReconcile`, `scheduleSuppressedRevalidate`): continuam Node.
+4. **Evicção/reconcile/revalidate suprimida** por busca: **saíram do Node** no
+   corte das varreduras (`alldebrid-evict.ts`, `alldebrid-reconcile.ts`,
+   `alldebrid-suppressed-revalidate.ts` e os timers de `src/addon.ts`). Quem
+   monta o plano, grava `adrm`, poda `adprot` e cura a fila `sup:` é o agendador
+   NATIVO (`al_sweeps`), atrás de `DEBRID_AL_SWEEP_APPLY`. Rollback é
+   imagem/commit anterior. Ver §8.7.
 5. **Medição real**: a conta do operador está em `MAGNET_TOO_MANY`; qualquer
    upload devolve quota. Não foi possível medir `cached`/`known` reais. O que
    dá para validar offline é o contrato (fixtures de resposta, lotes, teto,
@@ -142,9 +146,11 @@ no branch). Para desligar só a limpeza, mantendo a checagem nativa:
 6. **R3 (executado)**: a checagem/limpeza é NATIVA e incondicional; a flag
    `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foram **apagadas**
    (sem modo `off`/`on`/`shadow`). `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP`
-   FICAM como kill-switches das varreduras **destrutivas**: default do código
-   `off`, compose `on`; sem holds/inventário a nativa é read-only. Rollback da
-   fatia é **imagem/commit anterior**, não env.
+   FICAM como kill-switches do hold e do plano: default do código `off`, compose
+   `on`; sem holds/inventário a nativa é read-only. O freio de APLICAÇÃO das
+   quatro varreduras é `DEBRID_AL_SWEEP_APPLY` (código `off`, compose `on`) e o
+   intervalo é `DEBRID_AL_SWEEP_MS`. Rollback da fatia é **imagem/commit
+   anterior**, não env.
 
 ## 5. Métricas (`/metrics` do gateway)
 
@@ -290,7 +296,8 @@ Porte de `src/debrid/protected.ts` + `alldebrid-cleanup.ts` para
   `/internal/debrid/marked` gravava `adrm` para tudo o que a higiene apagava, e
   todo candidato fora do cache ficava bloqueado por 3 dias — o Chupim parou de
   baixar o dublado. A ponte hoje só leva `submitted` → `adsub`; o `adrm` é das
-  varreduras de conteúdo do Node (`sweepUndubbed`, evict, reconcile, catálogo).
+  varreduras de conteúdo (nativas: `sweepUndubbed` e reconcile) e do
+  catálogo/painel do Node.
 
 ### 8.3 Métricas (`/metrics` do gateway e da 8710)
 
@@ -363,12 +370,19 @@ exports (nome ⇒ consumidores fora do próprio arquivo, em `src/`, `test/` e
 `scripts/`) voltou a zero depois da redução, e as 31 chaves do objeto default de
 `index.ts` têm chamador (painel, `/debrid-status`, `/addon.ts` ou teste).
 
+O corte seguinte (varreduras da AllDebrid para o nativo) mudou parte deste
+quadro: saíram `alldebrid-reconcile.ts`, `alldebrid-suppressed-revalidate.ts` e
+`alldebrid-evict.ts` (com `config/debrid-reconcile.ts` e
+`config/debrid-suppressed.ts`), e o objeto default de `index.ts` passou de 31
+para **28** chaves (`sweepDeadEnv`/`sweepUndubbedEnv`/`sweepDeadCurrent` não
+existem mais). Ver §8.7.
+
 | Arquivo | Dono hoje | O que mudou |
 |---|---|---|
-| `index.ts` | Node | fica inteiro: objeto default = fachada do registry (31 chaves, todas com consumidor) |
+| `index.ts` | Node | fica inteiro: objeto default = fachada do registry (28 chaves depois do corte — ver acima —, todas com consumidor) |
 | `rust-remote.ts` | Node (ponte HTTP da 8710) | fica: `wrap` (registry), `RustWriteError`/`pullMetrics` (diagnóstico). `remoteOptions` deixou de ser público (auxiliar interno) |
 | `alldebrid-inventory.ts`, `alldebrid-delete-gate.ts`, `protected.ts` | ainda Node | **não** apagados: são `knownBefore`/`adsub`/`adprot` do feed (`§8.4`), lidos a cada checagem nativa |
-| `alldebrid-reupload.ts` | Node com estado do núcleo | fica: é o chamador das varreduras de conteúdo (evict, reconcile, sweepUndubbed, catálogo). Desde a T2-L7 a marca `adrm` é gravada/lida/expurgada pelo KV nativo (`§8.6`) |
+| `alldebrid-reupload.ts` | Node com estado do núcleo | fica: chamador do catálogo/painel e da higiene da checagem. As quatro varreduras são nativas e gravam `adrm` sem passar por aqui (`§8.6`, `§8.7`) |
 | `davail-panel.ts`, `debrid-marked.ts` | — | não existem no checkout (o plano previa; a leitura é `internal-debrid-marked.ts`, viva) |
 
 Superfície pública reduzida em 20 exports sem consumidor, todos mantidos como
@@ -390,7 +404,8 @@ marca no L1 nem regrava no SQLite: `cache.get/peek` devolvem `null` e
 
 | Quem | O quê | Como |
 |---|---|---|
-| Node (`alldebrid-reupload.ts`) | **escreve** em deleção INTENCIONAL (sweepUndubbed, evict, reconcile, fallback-evict, catálogo/painel) | `kvSet` (síncrono) |
+| Node (`alldebrid-reupload.ts`) | **escreve** em deleção INTENCIONAL do que ainda é dele (catálogo/painel) | `kvSet` (síncrono) |
+| Gateway (`al_sweeps`) | **escreve** no `sweepUndubbed` e na cura dos represados; **lê** `adsub`/`adprot` para as travas | `DurablePeek`/KV nativo |
 | Node (mesma unidade) | **lê** (partição do `/magnet/upload`, enqueue/Chupim) e **expurga** (prova no `dinv`, `--unblock`) | `kvPeek` / `kvForget` |
 | Gateway (Rust) | **lê** e tira o hash do `/magnet/upload`; devolve os bloqueados em `blocked` | `DurablePeek` no mesmo arquivo |
 | Higiene da checagem nativa | **nunca** escreve `adrm` | `marks_feed` só leva `submitted` → `adsub` |
@@ -412,3 +427,25 @@ Duas invariantes, ambas com teste:
 Escrita que falha (núcleo ausente/disco) devolve `false` e conta
 `debrid.reupload.markFailed` — nunca `marked`, para o painel não mentir. O memo
 `dinv` é invalidado mesmo nesse caso: o magnet saiu da conta de qualquer jeito.
+
+### 8.7 Dono das quatro varreduras (corte do TS)
+
+O agendador é o **NATIVO** (`al_sweeps` no gateway): monta o plano, grava `adrm`
+no `sweepUndubbed`, poda `adprot`, cura a fila `sup:` e só apaga com o gate
+`DEBRID_AL_SWEEP_APPLY` (default do CÓDIGO `off`; só `on/1/true/yes` libera).
+`DEBRID_AL_SWEEP_MS` é o intervalo por tipo (default 6 h; 0 desliga). Com o TS
+fora, ele é o **dono único** das quatro.
+
+| Varredura | Onde roda | O que sobrou no Node |
+|---|---|---|
+| `sweepDead` | nativo | o botão do painel pede a rodada nativa (`runNativeSweep('sweepDead')`, `src/routes/dashboard-actions-sweep.ts`), e só para a conta do operador |
+| `sweepUndubbed` | nativo | `adrm`/`adsub`/`adprot` pelo KV nativo; a higiene da checagem (`dropReady`/`dropDownload`) segue no Node via `deleteMagnets` |
+| `reconcile` (posse órfã) | nativo | nada |
+| `revalidate` (represados `sup:`) | nativo | nada |
+
+Saíram neste corte: os timers de `src/addon.ts`, `sweepDeadEnv`/`sweepUndubbedEnv`/
+`sweepDeadCurrent` (`env-ops.ts` e a fachada `index.ts`), `sweepDead`/
+`sweepUndubbed` de `alldebrid-cleanup.ts` e os três agendadores por busca. Em
+`alldebrid-cleanup.ts` ficou a higiene da checagem: `skipCleanup` e
+`deleteMagnets`/`deleteMagnetsNow`, atrás do gate B-4 por conta. `warmupEnv`
+continua no Node — é inventário da conta do operador, não varredura.

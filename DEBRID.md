@@ -195,22 +195,23 @@ maquinaria que não existe em nenhum outro adaptador:
   porque o upload é idempotente e não diz se criou ou reaproveitou — sem essa
   referência a limpeza apagaria o filme que o usuário guardou de propósito;
 - `sweepDead` remove os que nunca vão baixar; magnets PRONTOS sem áudio PT
-  têm limpeza própria: a varredura automática `DEBRID_SWEEP_UNDUBBED*`
-  (respeita o acervo via `knownBefore`, idade mínima e `held`) ou
-  `scripts/clean-undubbed.ts` para limpeza manual com preview (`--apply`
-  executa);
+  têm limpeza própria: a varredura `sweepUndubbed` (respeita o acervo via
+  `knownBefore`, idade mínima e `held`) ou `scripts/clean-undubbed.ts` para
+  limpeza manual com preview (`--apply` executa). As quatro varreduras
+  destrutivas são **nativas** (`al_sweeps`, gate `DEBRID_AL_SWEEP_APPLY`);
 - a posse do que o addon subiu é **durável** (`adsub:v1`, TTL 7d): sem isso ela
   morria no restart e o snapshot seguinte adotava o próprio lixo do addon como
   acervo do usuário, tornando-o imortal — a cada deploy;
 - o que a limpeza apaga **de propósito** ganha marcador de "não re-subir"
   (`adrm:v1`, TTL 3d), senão a busca 15 minutos depois re-sobe o mesmo hash
   para checar cache e a conta reenche com o que acabou de sair;
-- `alldebrid-reconcile.ts` varre a posse **órfã**: o que era nosso, está pronto
+- o `reconcile` (nativo) varre a posse **órfã**: o que era nosso, está pronto
   e a limpeza da checagem não conseguiu remover (lote que estourou o prazo,
   delete recusado com 503). Nenhuma outra varredura alcançava esse caso;
-- `DEBRID_EVICT_PER_SEARCH` (default **off**) torna a ocupação estacionária em
-  vez de monotônica: a busca que deposita N magnets remove N dos mais antigos
-  provadamente estrangeiros;
+- a evicção por busca do Node saiu: o caminho que depositava N magnets e
+  removia N dos mais antigos provadamente estrangeiros foi substituído pela
+  evicção **nativa** de fallbacks (F6, `autofetch/evict_step.rs`), com
+  `DEBRID_AUTO_FETCH_EVICT_FALLBACK`;
 - `abortSafeCacheCheck: false`: como a chamada cria estado remoto, ela não pode
   ser simplesmente abortada no deadline — segue em background para limpar.
 
@@ -421,7 +422,7 @@ Dois gates que foram um só até 2026-08-30 (`a33f96a`), agora desacoplados:
   `.env`. O único ponto que lê isso é o `defaults()` em `src/runtime.ts`.
 - **`DEBRID_OPERATOR_ENV_ACCOUNT` (default `false`) liga as features de
   operador** sobre a conta do `.env` — catálogo/limpeza do painel,
-  `sweepDead`/`sweepUndubbed`, aquecimento de inventário no boot, warmer RD,
+  aquecimento de inventário no boot, warmer RD,
   quota-warn do colhedor, conta do operador no painel, sampler F3 — **sem**
   entregar a chave a instalações anônimas.
 - O gate efetivo é `config.debrid.envOperatorAccount` — o **OU** dos dois
@@ -430,13 +431,13 @@ Dois gates que foram um só até 2026-08-30 (`a33f96a`), agora desacoplados:
   real.
 - Instância pública completa = `ALLOW_ENV_KEY=false` + `OPERATOR_ENV_ACCOUNT=true`:
   o painel funciona e o anônimo fica em P2P puro.
-- **As varreduras automáticas são do serviço do `.env`, não do que a
-  instalação usa.** `sweepDeadEnv` resolve o adapter por
-  `config.debrid.service`; quem instala com outro `ds` na URL e chave própria
-  tem a conta varrida **só** pelo botão do painel (`sweepDeadCurrent`), com
-  aquela install URL aberta. Medido em produção 2026-09-08: `.env` em
-  `alldebrid`, instalação em premiumize, e a fila de transferências paradas do
-  Premiumize crescendo sem que timer nenhum a alcançasse.
+- **As varreduras automáticas são da conta do OPERADOR.** Quem as agenda é o
+  gateway (`al_sweeps`), com a chave do `.env`; quem instala com outro `ds` na
+  URL e chave própria **não** é varrido por elas. O botão do painel pede a
+  rodada nativa (`runNativeSweep('sweepDead')`) e recusa a conta BYO. Medido em
+  produção 2026-09-08 (antes do corte): `.env` em `alldebrid`, instalação em
+  premiumize, e a fila de transferências paradas do Premiumize crescendo sem
+  que timer nenhum a alcançasse.
 
 O diagnóstico acompanhou o desacoplamento: com a chave no `.env` mas o gate
 de operador fechado, o catálogo responde `reason: chave-operador-desativada`
