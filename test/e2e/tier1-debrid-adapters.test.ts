@@ -66,56 +66,29 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         assert.ok(res.cached.has(TEST_HASH_1));
         assert.equal(res.cached.has(TEST_HASH_2), false);
 
+        assert.ok(pmAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
         const link = await pmAdapter.resolveLink('pm-key', TEST_HASH_1, {});
         assert.equal(link, 'https://pm.test/dl/Movie.mp4');
       }
     );
   });
 
-  it('10.2: Real-Debrid adapter: checkCached e resolveLink operam fluxo completo', async () => {
+  it('10.2: Real-Debrid adapter: checkCached sem oráculo responde known:false', async () => {
     const rdAdapter = debrid.BY_ID.get('realdebrid');
     assert.ok(rdAdapter);
     assert.equal(rdAdapter.cacheCheck, false);
+    // O play TS saiu na fatia 2 da Fase 2 (produção é nativa no gateway): o
+    // adaptador do BY_ID não expõe mais `resolveLink`, só a checagem honesta.
+    assert.equal(rdAdapter.resolveLink, undefined);
 
-    await withMockFetch(
-      [
-        {
-          match: 'api.real-debrid.com/rest/1.0/torrents/addMagnet',
-          handler: () => fakeResponse({ id: 'rd-torrent-123' }),
-        },
-        {
-          match: 'api.real-debrid.com/rest/1.0/torrents/info/rd-torrent-123',
-          handler: () =>
-            fakeResponse({
-              id: 'rd-torrent-123',
-              status: 'downloaded',
-              files: [{ id: 1, path: '/Movie.mp4', bytes: 1024 * 1024 * 500, selected: 1 }],
-              links: ['https://real-debrid.com/d/LINK123'],
-            }),
-        },
-        {
-          match: 'api.real-debrid.com/rest/1.0/torrents/selectFiles/rd-torrent-123',
-          handler: () => fakeResponse({}, { status: 204 }),
-        },
-        {
-          match: 'api.real-debrid.com/rest/1.0/unrestrict/link',
-          handler: () => fakeResponse({ download: 'https://download.real-debrid.com/file.mp4' }),
-        },
-      ],
-      async () => {
-        const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
-        assert.equal(rawCached.cached.size, 0); assert.equal(rawCached.complete, false);
+    const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
+    assert.equal(rawCached.cached.size, 0); assert.equal(rawCached.complete, false);
 
-        await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
-          const res = await debridCheck.checkCached([TEST_HASH_1]);
-          assert.equal(res.known, false);
-          assert.equal(res.cached.size, 0);
-        });
-
-        const link = await rdAdapter.resolveLink('rd-key', TEST_HASH_1, {});
-        assert.equal(link, 'https://download.real-debrid.com/file.mp4');
-      }
-    );
+    await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
+      const res = await debridCheck.checkCached([TEST_HASH_1]);
+      assert.equal(res.known, false);
+      assert.equal(res.cached.size, 0);
+    });
   });
 
   it('10.3: AllDebrid adapter: resolveLink desbloqueia link direto', async () => {
@@ -165,6 +138,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
+        assert.ok(adAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
         const link = await adAdapter.resolveLink('ad-key', TEST_HASH_1, {});
         assert.equal(link, 'https://stream.alldebrid.com/direct.mp4');
       }
@@ -213,6 +187,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         const cachedRes = await tbAdapter.checkCached('tb-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
         assert.ok(cachedRes.cached.has(TEST_HASH_1));
 
+        assert.ok(tbAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
         const link = await tbAdapter.resolveLink('tb-key', TEST_HASH_1, {});
         assert.equal(link, 'https://dl.torbox.app/direct.mp4');
       }
@@ -229,8 +204,9 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         handler: () => fakeResponse({ success: false, error: 'bad_token' }, { status: 401 }),
       },
       async () => {
+        assert.ok(dlAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
         await assert.rejects(
-          async () => dlAdapter.resolveLink('bad-key', TEST_HASH_1, {}),
+          async () => dlAdapter.resolveLink!('bad-key', TEST_HASH_1, {}),
           /HTTP 401/
         );
       }

@@ -245,9 +245,6 @@ test('a rota /debrid-status.json inclui bloco rd quando o serviço é realdebrid
     assert.equal(typeof body.rd.oracle.enabled, 'boolean');
     assert.equal(typeof body.rd.oracle.stremthru, 'boolean');
     assert.equal(typeof body.rd.oracle.torrentio, 'boolean');
-    assert.equal(typeof body.rd.gate, 'object');
-    assert.equal(typeof body.rd.gate.enabled, 'boolean');
-    assert.ok(Array.isArray(body.rd.gate.accounts));
     // Sem poll/snapshot o diagnóstico é HONESTO: o warmer é nativo e não há
     // estado local para inventar (a rota é síncrona e não fala com o gateway).
     assert.equal(body.rd.warm, null);
@@ -274,7 +271,6 @@ test('com config na URL apontando para realdebrid, /debrid-status.json inclui o 
     assert.ok(body.rd, 'bloco rd deve estar presente');
     assert.equal(typeof body.rd.ledger.tracked, 'number');
     assert.equal(typeof body.rd.oracle.enabled, 'boolean');
-    assert.equal(typeof body.rd.gate.enabled, 'boolean');
     assert.equal(body.rd.warm, null, 'sem snapshot do warmer nativo o bloco é null');
   } finally {
     restore();

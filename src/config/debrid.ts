@@ -9,8 +9,9 @@ export { normalizeRustServices } from './debrid-rust.js';
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.
 // Camada de debrid: serviço, checagem de cache, limpeza, autofetch, sonda e
-// paridade Real-Debrid (gate/ledger/oráculo). O warmer RD é NATIVO: os knobs
-// `DEBRID_RD_WARM*` são lidos pelo Rust direto do `.env`, não passam por aqui.
+// paridade Real-Debrid (ledger/oráculo). O gate de escrita e o warmer RD são
+// NATIVOS: os knobs `DEBRID_RD_GATE*`/`DEBRID_RD_WARM*` são lidos pelo Rust
+// direto do `.env`, não passam por aqui.
 export const debrid = () => ({
   // premiumize | realdebrid | alldebrid | torbox | debridlink. Vazio = P2P puro.
   service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
@@ -289,20 +290,9 @@ export const debrid = () => ({
     // flag `torrentio` nasce false e é o opt-in. Só com ele true a fonte é
     // consultada (e só com credencial efetiva a chamada vai à rede).
     torrentioUrl: (process.env.DEBRID_RD_ORACLE_TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
-    // Vazio usa a chave efetiva da instalação (a mesma que o gate recebe),
-    // nunca a do operador por engano.
+    // Vazio usa a chave efetiva da instalação (a mesma da checagem), nunca a
+    // do operador por engano.
     torrentioKey: process.env.DEBRID_RD_ORACLE_TORRENTIO_KEY || '',
-  },
-  // Governador por conta das escritas no Real-Debrid. false preserva o fluxo
-  // anterior, inclusive o gap e o cooldown próprios da sonda.
-  rdGate: {
-    enabled: String(process.env.DEBRID_RD_GATE || 'true') === 'true',
-    minGapMs: Math.max(0, num(process.env.DEBRID_RD_GATE_MIN_GAP_MS, 1_000)),
-    maxGapMs: Math.max(0, num(process.env.DEBRID_RD_GATE_MAX_GAP_MS, 30_000)),
-    cooldownMs: Math.max(0, num(process.env.DEBRID_RD_GATE_COOLDOWN_MS, 90_000)),
-    // Depois deste teto play fura só gap/cooldown; job já em voo não é
-    // preemptado e ainda precisa terminar.
-    playMaxWaitMs: Math.max(0, num(process.env.DEBRID_RD_GATE_PLAY_MAX_WAIT_MS, 1_500)),
   },
   // Warmer contínuo em fundo para o Real-Debrid (Fase F3) — NATIVO desde a
   // fatia 1 da Fase 2: o dono da fila é o gateway (`/rd-warm`, admin 8711) e

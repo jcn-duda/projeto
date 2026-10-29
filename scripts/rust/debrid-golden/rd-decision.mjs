@@ -1,7 +1,8 @@
 /**
  * Oráculo da Fase D3. Lê test/fixtures/debrid/rd/cases.json, roda as transições
- * puras exportadas do dist (rd-ledger / rd-gate) e grava o golden que o teste
- * Rust compara. Sem rede, sem cache e sem credencial.
+ * puras exportadas do dist (rd-ledger) e do oráculo `../adom-esm` (rd-gate, que
+ * saiu de `src/` na fatia 2 da Fase 2) e grava o golden que o teste Rust
+ * compara. Sem rede, sem cache e sem credencial.
  *
  *   node scripts/rust/debrid-golden/rd-decision.mjs
  *   node scripts/rust/debrid-golden/rd-decision.mjs --dist=dist
@@ -18,7 +19,12 @@ const flag = process.argv.find((arg) => arg.startsWith('--dist='));
 const dist = flag ? path.resolve(flag.slice('--dist='.length)) : path.join(ROOT, 'dist');
 
 const ledger = await import(pathToFileURL(path.join(dist, 'src/debrid/rd-ledger.js')).href);
-const gate = await import(pathToFileURL(path.join(dist, 'src/debrid/rd-gate.js')).href);
+// O gate TS saiu de `src/` na fatia 2 da Fase 2 (o dono passou a ser o
+// `adom-debrid`); o oráculo dele segue no checkout irmão `../adom-esm`, como os
+// demais goldens de corpo removido. Sem o fallback o gerador não roda mais.
+const localGate = path.join(dist, 'src/debrid/rd-gate.js');
+const oracleGate = path.join(path.resolve(ROOT, '../adom-esm/dist'), 'src/debrid/rd-gate.js');
+const gate = await import(pathToFileURL(fs.existsSync(localGate) ? localGate : oracleGate).href);
 const cases = JSON.parse(fs.readFileSync(CASES, 'utf8'));
 
 function retryOf(input) {

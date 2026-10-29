@@ -131,7 +131,6 @@ function makeDiagnosticHandlers(services: AppServices) {
             stremthru: Boolean(services.config.debrid.rdOracle.stremthruUrl),
             torrentio: Boolean(services.config.debrid.rdOracle.torrentio),
           },
-          gate: services.rdGate.status(),
           warm: nativeWarmStatus(),
         };
         return res.json({ ...status, rd });

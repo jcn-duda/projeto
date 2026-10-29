@@ -8,7 +8,10 @@ import { wrap as wrapRust } from './rust-remote.js';
 /**
  * Registry de serviços de debrid. Cada adaptador expõe a mesma forma:
  *
- *   { id, label, cacheCheck, keyUrl, checkCached(apiKey, hashes), resolveLink(apiKey, hash, ep) }
+ *   { id, label, cacheCheck, keyUrl, checkCached(apiKey, hashes), ...opcionais }
+ *
+ * `resolveLink`/`enqueue` são OPCIONAIS: o play e o autofetch de produção são
+ * nativos (gateway) e o Real-Debrid já não tem corpo TS deles.
  *
  * `cacheCheck` é a diferença que mais importa na prática: Real-Debrid e
  * Debrid-Link aposentaram os endpoints de disponibilidade instantânea, então

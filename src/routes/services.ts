@@ -23,7 +23,6 @@ import { accountScope } from '../utils/request-key.js';
 import { verifyResolve } from '../utils/sign.js';
 import { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
-import { rdGate } from '../debrid/rd-gate.js';
 import crawler from '../providers/crawler.js';
 import * as crawlerLive from '../utils/crawler-live.js';
 import type { AppServices } from './types.js';
@@ -65,7 +64,6 @@ function buildServices(): AppServices {
     }),
     publicPath: (file) => path.join(__dirname, '..', 'public', file),
     rdLedger,
-    rdGate,
     crawler,
     crawlerLive,
   };

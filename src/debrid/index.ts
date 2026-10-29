@@ -8,7 +8,8 @@
 //   account-status.ts  saúde da conta para o verificador/painel
 //   inventory.ts       inventário da conta como fonte (memo dinv)
 //   env-ops.ts         warmup da conta do OPERADOR (.env)
-//   actions.ts         resolveLink/enqueue/knownInstant (play e autofetch)
+//   actions.ts         resolveLink/enqueue/knownInstant (cola do oráculo; o
+//                      play e o autofetch de PRODUÇÃO são nativos)
 //   catalog-env.ts     catálogo durável + limpador BR da conta do operador
 //
 // O objeto default preserva MESMA chave, MESMA ordem e MESMO objeto mutável

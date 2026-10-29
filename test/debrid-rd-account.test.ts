@@ -5,9 +5,9 @@ import * as memo from '../src/debrid/inventory-memo.js';
 import * as cache from '../src/utils/cache.js';
 
 /**
- * Conta RD no painel, paginação da listagem e o memo vivo: o play/autofetch
- * atualiza o retrato da conta sem esperar o TTL do inventário, e o play de um
- * hash já pronto resolve pelo memo sem re-listar a conta inteira.
+ * Conta RD no painel, paginação da listagem e o memo vivo. O play/autofetch TS
+ * saiu na fatia 2 da Fase 2 (o de produção é nativo): aqui fica só a conta,
+ * o inventário e a listagem do adaptador.
  */
 
 const H1 = 'a'.repeat(40);
@@ -109,55 +109,4 @@ test('note/forget só mutam memo quente', async () => {
   assert.equal(memo.forget('realdebrid', warm, H1), false, 'segundo forget é no-op');
   assert.deepEqual(memo.peek('realdebrid', warm), []);
   cache.forget(memo.memoKey('realdebrid', warm));
-});
-
-test('resolveLink de hash pronto resolve pelo memo sem re-listar a conta', async () => {
-  const key = 'chave-memo-play';
-  cache.forget(memo.memoKey('realdebrid', key));
-  memo.store('realdebrid', key, [{ title: 'Filme.mkv', infoHash: H1, size: 10, id: 'MEMO-ID' }]);
-  const mock = mockFetch((url) => {
-    if (url.pathname === '/rest/1.0/torrents') {
-      throw new Error('memo quente não pode pagar a listagem completa no play');
-    }
-    if (url.pathname === '/rest/1.0/torrents/info/MEMO-ID') {
-      return ok({ id: 'MEMO-ID', status: 'downloaded', filename: 'Filme.mkv', bytes: 10, files: [{ id: 1, path: '/Filme.mkv', bytes: 10, selected: 1 }], links: ['https://real-debrid.com/d/ABC'] });
-    }
-    if (url.pathname === '/rest/1.0/unrestrict/link') {
-      return ok({ download: 'https://cdn.real-debrid.com/d/ABC/Filme.mkv' });
-    }
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  });
-  try {
-    const link = await realdebrid.resolveLink(key, H1);
-    assert.equal(link, 'https://cdn.real-debrid.com/d/ABC/Filme.mkv');
-    assert.ok(!mock.urls.some((u) => u.pathname === '/rest/1.0/torrents'), 'listagem da conta não pode rodar com memo quente');
-  } finally {
-    mock.restore();
-    cache.forget(memo.memoKey('realdebrid', key));
-  }
-});
-
-test('resolveLink atualiza o memo quente quando o torrent fica pronto', async () => {
-  const key = 'chave-memo-note';
-  cache.forget(memo.memoKey('realdebrid', key));
-  memo.store('realdebrid', key, []);
-  const mock = mockFetch((url) => {
-    if (url.pathname === '/rest/1.0/torrents') return ok([]);
-    if (url.pathname === '/rest/1.0/torrents/addMagnet') return ok({ id: 'NOVO' });
-    if (url.pathname === '/rest/1.0/torrents/info/NOVO') {
-      return ok({ id: 'NOVO', status: 'downloaded', filename: 'Novo.mkv', bytes: 5, files: [{ id: 1, path: '/Novo.mkv', bytes: 5, selected: 1 }], links: ['https://real-debrid.com/d/N'] });
-    }
-    if (url.pathname === '/rest/1.0/unrestrict/link') return ok({ download: 'https://cdn.real-debrid.com/d/N' });
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  });
-  try {
-    await realdebrid.resolveLink(key, H2);
-    const items = memo.peek('realdebrid', key)!;
-    assert.equal(items.length, 1, 'o play semeia o memo para o ⚡ da próxima busca');
-    assert.equal(items[0].infoHash, H2);
-    assert.equal(items[0].id, 'NOVO');
-  } finally {
-    mock.restore();
-    cache.forget(memo.memoKey('realdebrid', key));
-  }
 });

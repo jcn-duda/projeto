@@ -49,7 +49,7 @@ test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async
     const cached = await wrapped.checkCached('chave', ['h']);
     assert.equal(hasHash(cached, 'h'), false, '501 é contrato incompleto');
     assert.equal(checks, 0, '501 não é segunda pergunta ao TS');
-    await assert.rejects(() => wrapped.resolveLink('chave', 'abc'), (err: unknown) => {
+    await assert.rejects(() => wrapped.resolveLink!('chave', 'abc'), (err: unknown) => {
       assert.ok(err instanceof RustWriteError);
       return true;
     });
@@ -138,7 +138,7 @@ test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async
         status: spec.status,
         headers: { 'content-type': 'application/json' },
       })) as typeof fetch);
-      await assert.rejects(() => play.resolveLink(TEST_KEY, 'abc'), (err: unknown) => {
+      await assert.rejects(() => play.resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
         spec.check(err);
         assert.equal(errorMessage(err).includes(TEST_KEY), false, errorMessage(err));
         return true;
@@ -152,7 +152,7 @@ test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async
       evidence: { wantedSeason: 2, wantedEpisode: 5, declaredSeasons: [2], declaredEpisodes: [4, 6], sample: 'Serie.S02E04.mkv' },
       context: { videoCount: 3, samples: ['Serie.S02E04.mkv', 'Serie.S02E06.mkv'] },
     }), { status: 409, headers: { 'content-type': 'application/json' } })) as typeof fetch);
-    await assert.rejects(() => episodePlay.resolveLink(TEST_KEY, 'abc'), (err: unknown) => {
+    await assert.rejects(() => episodePlay.resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
       assert.ok(err instanceof EpisodePickError);
       if (!(err instanceof EpisodePickError)) return false;
       assert.deepEqual(err.evidence?.declaredSeasons, [2]);
@@ -214,13 +214,13 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
   try {
     // Frio que a guarda do delete liberou: a busca seguinte não pinta ⚡ nele.
     const cold = 'c'.repeat(40);
-    const link = await remote(reply(200, { url: null, unavailable: true })).resolveLink(TEST_KEY, cold);
+    const link = await remote(reply(200, { url: null, unavailable: true })).resolveLink!(TEST_KEY, cold);
     assert.equal(link, null);
     assert.equal(peekDavail('alldebrid', TEST_KEY, cold), 0);
 
     // Frio protegido (unavailable false): nada de negativo.
     const held = 'd'.repeat(40);
-    await remote(reply(200, { url: null, unavailable: false })).resolveLink(TEST_KEY, held);
+    await remote(reply(200, { url: null, unavailable: false })).resolveLink!(TEST_KEY, held);
     assert.equal(peekDavail('alldebrid', TEST_KEY, held), null);
 
     // Pronto: devolve o link e grava os tamanhos que a listagem lê.
@@ -228,7 +228,7 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
     const url = await remote(reply(200, {
       url: 'https://cdn.example/ep2', unavailable: false,
       files: [{ path: 'Show/Show.S01E01.1080p.mkv', size: 111 }, { path: 'Show/Show.S01E02.1080p.mkv', size: 222 }],
-    })).resolveLink(TEST_KEY, ready, { season: 1, episode: 2 });
+    })).resolveLink!(TEST_KEY, ready, { season: 1, episode: 2 });
     assert.equal(url, 'https://cdn.example/ep2');
     const sizes = peekFileSizes(ready) as Array<{ path?: string; size?: number }> | null;
     assert.ok(sizes && sizes.some((f) => f.size === 222), 'prova de tamanho gravada');
@@ -238,7 +238,7 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
     await assert.rejects(() => remote(reply(406, {
       error: 'dub_lie', kind: 'dub_lie', message: 'mentira',
       files: [{ path: 'Movie.2024.ENG.1080p.mkv', size: 333 }],
-    })).resolveLink(TEST_KEY, lie));
+    })).resolveLink!(TEST_KEY, lie));
     const lieSizes = peekFileSizes(lie) as Array<{ size?: number }> | null;
     assert.ok(lieSizes && lieSizes.some((f) => f.size === 333));
   } finally {

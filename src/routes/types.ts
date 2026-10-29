@@ -22,7 +22,6 @@ import type { accountScope } from '../utils/request-key.js';
 import type { verifyResolve } from '../utils/sign.js';
 import type { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
 import type * as rdLedger from '../debrid/rd-ledger.js';
-import type { rdGate } from '../debrid/rd-gate.js';
 import type crawler from '../providers/crawler.js';
 import type * as crawlerLive from '../utils/crawler-live.js';
 
@@ -73,7 +72,6 @@ export interface AppServices {
   // nenhum handler populava nem lia. Dedupe de prefetch não mora no Node.
   publicPath(file: string): string;
   rdLedger: typeof rdLedger;
-  rdGate: typeof rdGate;
   crawler: typeof crawler;
   crawlerLive: typeof crawlerLive;
 }

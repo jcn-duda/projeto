@@ -9,12 +9,6 @@ import { json } from './common.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 
-/** Resultado da sonda de disponibilidade (substituto honesto do instantAvailability). */
-export type ProbeInstantResult = {
-  instant: boolean;
-  reason: 'ready' | 'pending' | 'blocked' | 'active' | 'error' | 'memo';
-};
-
 export const id = 'realdebrid';
 export const label = 'Real-Debrid';
 export const short = 'RD';

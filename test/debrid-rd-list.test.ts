@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
-import { rdGate } from '../src/debrid/rd-gate.js';
 
 /**
  * Regressão: o Real-Debrid não tem `/torrents/list` — esse caminho responde
@@ -14,11 +13,6 @@ import { rdGate } from '../src/debrid/rd-gate.js';
  */
 
 const H1 = 'a'.repeat(40);
-
-// Com o governador ativo por padrão, cada cenário do adaptador precisa começar
-// sem admissão anterior da mesma conta; serialização é coberta no arquivo próprio.
-test.beforeEach(() => rdGate.reset());
-test.afterEach(() => rdGate.reset());
 const H2 = 'b'.repeat(40);
 
 function mockRealDebridList(rows: any[]) {
@@ -144,28 +138,6 @@ test('json() classifica 451 como BlockedError', async () => {
   }
 });
 
-test('enqueue do Real-Debrid recusa 451 sem criar limpeza ou exceção', async () => {
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  const calls: string[] = [];
-  AbortSignal.timeout = () => new AbortController().signal;
-  globalThis.fetch = (async (input: any, init: any) => {
-    calls.push(`${init?.method || 'GET'} ${new URL(String(input)).pathname}`);
-    return {
-      ok: false,
-      status: 451,
-      async text() { return '{"error":"infringing_file","error_code":35}'; },
-    };
-  }) as unknown as typeof globalThis.fetch;
-  try {
-    assert.equal(await realdebrid.enqueue('chave', H1), false);
-    assert.deepEqual(calls, ['POST /rest/1.0/torrents/addMagnet']);
-  } finally {
-    globalThis.fetch = realFetch;
-    AbortSignal.timeout = realTimeout;
-  }
-});
-
 test('removeTorrent do Real-Debrid aceita DELETE 204 sem corpo', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
@@ -177,49 +149,6 @@ test('removeTorrent do Real-Debrid aceita DELETE 204 sem corpo', async () => {
   })) as unknown as typeof globalThis.fetch;
   try {
     assert.equal(await realdebrid.removeTorrent('chave', 'RD1'), true);
-  } finally {
-    globalThis.fetch = realFetch;
-    AbortSignal.timeout = realTimeout;
-  }
-});
-
-/**
- * O play de algo que o usuário JÁ baixou não pode passar pelo addMagnet outra
- * vez: além de duplicar o torrent na conta, o Real-Debrid responde 451
- * `infringing_file` nesse re-add — e o filme pronto, 100% na conta, não tocava.
- */
-test('resolveLink reusa o torrent pronto da conta em vez de re-adicionar', async () => {
-  const realFetch = globalThis.fetch;
-  const realTimeout = AbortSignal.timeout;
-  AbortSignal.timeout = () => new AbortController().signal;
-  const paths: string[] = [];
-
-  globalThis.fetch = (async (input: any) => {
-    const url = new URL(String(input));
-    paths.push(url.pathname);
-    if (url.pathname === '/rest/1.0/torrents') {
-      return { ok: true, status: 200, async json() {
-        return [{ id: 'JA-PRONTO', hash: H1, filename: 'Filme.mkv', bytes: 10, status: 'downloaded' }];
-      } };
-    }
-    if (url.pathname === '/rest/1.0/torrents/addMagnet') {
-      return { ok: false, status: 451, async text() { return '{"error":"infringing_file"}'; } };
-    }
-    if (url.pathname === '/rest/1.0/torrents/info/JA-PRONTO') {
-      return { ok: true, status: 200, async json() {
-        return { id: 'JA-PRONTO', status: 'downloaded', files: [{ id: 1, path: '/Filme.mkv', bytes: 10, selected: 1 }], links: ['https://real-debrid.com/d/ABC'] };
-      } };
-    }
-    if (url.pathname === '/rest/1.0/unrestrict/link') {
-      return { ok: true, status: 200, async json() { return { download: 'https://cdn.real-debrid.com/d/ABC/Filme.mkv' }; } };
-    }
-    throw new Error(`URL inesperada no teste: ${url.pathname}`);
-  }) as unknown as typeof globalThis.fetch;
-
-  try {
-    const link = await realdebrid.resolveLink('chave', H1);
-    assert.equal(link, 'https://cdn.real-debrid.com/d/ABC/Filme.mkv');
-    assert.ok(!paths.includes('/rest/1.0/torrents/addMagnet'), 'não pode re-adicionar o que já está pronto');
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;

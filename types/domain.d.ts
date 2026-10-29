@@ -311,7 +311,12 @@ export interface DebridAdapter {
     // externa, senão leitura lenta de pack virava known:false e apagava o ⚡.
     opts?: { timeoutMs?: number; fileHashes?: string[]; fileWaitTimeoutMs?: number },
   ): Promise<Set<string> | { cached: Set<string>; complete?: boolean }>;
-  resolveLink(
+  /**
+   * Play do adaptador TS. OPCIONAL: o play de produção é NATIVO (gateway), e o
+   * Real-Debrid já não tem corpo TS aqui. Só os wrappers do oráculo cobram
+   * presença; quem chama precisa guardar `typeof adapter.resolveLink`.
+   */
+  resolveLink?(
     apiKey: string,
     hash: string,
     episode?: PlayHint,
