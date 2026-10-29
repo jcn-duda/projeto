@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::extract::State;
@@ -73,8 +74,26 @@ async fn metrics_snapshot() -> Json<BTreeMap<String, u64>> {
     Json(snapshot)
 }
 
+/// Tempo que uma conexão OCIOSA fica no pool antes de ser descartada.
+///
+/// Tem que ficar ABAIXO do keep-alive do upstream: o http server do Node usa
+/// 5 s (default), e o pool do hyper_util guarda 90 s. Com o painel fazendo poll
+/// de 10 s, o Node fechava a conexão em 5 s e o gateway a reusava assim mesmo —
+/// a requisição morria com `bad_gateway` (502 em ~100 ms, intermitente: 1 em
+/// ~17 no `/dashboard-status.json`). É mais barato abrir uma conexão nova em
+/// loopback do que retentar um request já escrito.
+pub const POOL_IDLE: Duration = Duration::from_secs(2);
+
 pub fn client() -> ProxyClient {
-    Client::builder(TokioExecutor::new()).build(HttpConnector::new())
+    client_with(POOL_IDLE)
+}
+
+/// `idle` é parâmetro para o teste de regressão: o pool curto deixa a
+/// propriedade observável sem esperar os 2 s de produção.
+pub fn client_with(idle: Duration) -> ProxyClient {
+    Client::builder(TokioExecutor::new())
+        .pool_idle_timeout(idle)
+        .build(HttpConnector::new())
 }
 
 pub async fn run(config: Config) -> Result<(), String> {

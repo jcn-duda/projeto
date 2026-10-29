@@ -303,3 +303,8 @@ fn internal_path_reconhece_exato_e_subcaminho() {
 
 #[path = "tests_routes.rs"]
 mod tests_routes;
+
+// Pool do proxy (`pool_idle_timeout` × keep-alive do Node): arquivo próprio pela
+// catraca de 400 linhas de `tests_routes.rs`.
+#[path = "tests_pool.rs"]
+mod tests_pool;
