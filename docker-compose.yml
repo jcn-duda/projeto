@@ -78,6 +78,12 @@ services:
       # magnets até `MAGNET_TOO_MANY`); é o preço de não ligar limpeza cega.
       DEBRID_AL_HOLDS: "${DEBRID_AL_HOLDS:-on}"
       DEBRID_AL_CLEANUP: "${DEBRID_AL_CLEANUP:-on}"
+      # Com o agendador do Node fora, a nativa é a DONA ÚNICA das quatro
+      # varreduras destrutivas (mortos, não-dublados, reconcile da posse e a
+      # cura da fila `sup:`); sem este gate a rodada fica READ-ONLY. O default
+      # do CÓDIGO é OFF de propósito — quem sobe a limpeza é o compose. Rollback
+      # das varreduras: `off` (read-only) ou a imagem/commit anterior.
+      DEBRID_AL_SWEEP_APPLY: "${DEBRID_AL_SWEEP_APPLY:-on}"
       # O orquestrador nativo fala com o Node pelas rotas internas (loopback).
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
