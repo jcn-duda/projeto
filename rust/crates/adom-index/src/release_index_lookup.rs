@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use adom_core::WorkTarget;
 use rusqlite::params;
 
-use super::{idx_prefix, IndexedRelease, ReleaseIndexStore};
+use super::{idx_prefix, prefix_bounds, IndexedRelease, ReleaseIndexStore};
 
 impl ReleaseIndexStore {
     /// `releaseIndex.lookup` — episódio → temporada → raiz, dedupe por hash com
@@ -80,25 +80,35 @@ impl ReleaseIndexStore {
         .is_ok()
     }
 
-    /// Apaga todo o namespace `idx` (clear-cache do painel e `cache.clear()` dos testes).
+    /// Apaga todo o namespace vivo (`idx:v14:`) — clear-cache do painel e
+    /// `cache.clear()` dos testes.
+    ///
+    /// FAIXA de prefixo ([`prefix_bounds`]), não `substr`: a PK `key` responde
+    /// `SEARCH … USING PRIMARY KEY` e o custo acompanha as linhas do namespace,
+    /// não o acervo inteiro (~93k linhas). O limite superior é o sucessor do
+    /// prefixo (`idx:v14:` → `idx:v14;`), então nada de outro namespace ou da
+    /// versão morta (`idx:v13:`) é alcançado.
     pub fn clear_all(&self) -> Result<usize, String> {
-        let base = idx_prefix();
+        let (lo, hi) = prefix_bounds(idx_prefix());
         let conn = self.lock();
         conn.execute(
-            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
-            params![base],
+            "DELETE FROM cache WHERE key >= ?1 AND key < ?2",
+            params![lo, hi],
         )
         .map_err(|err| err.to_string())
     }
 
     /// Linhas vivas do namespace `idx` (diagnóstico do painel: `status().entries`).
+    ///
+    /// Mesma faixa do `clear_all`: o `expires_at` fica como filtro residual
+    /// sobre as linhas do namespace (nunca vira varredura do acervo).
     pub fn count_live(&self, now_ms: i64) -> Result<usize, String> {
-        let base = idx_prefix();
+        let (lo, hi) = prefix_bounds(idx_prefix());
         let conn = self.lock();
         let total: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM cache WHERE substr(key, 1, length(?1)) = ?1 AND expires_at >= ?2",
-                params![base, now_ms],
+                "SELECT COUNT(*) FROM cache WHERE key >= ?1 AND key < ?2 AND expires_at >= ?3",
+                params![lo, hi, now_ms],
                 |row| row.get(0),
             )
             .map_err(|err| err.to_string())?;
@@ -141,3 +151,8 @@ impl ReleaseIndexStore {
         })
     }
 }
+
+// `count_live`/`clear_all` por faixa: semântica, plano e a medição antes/depois.
+#[cfg(test)]
+#[path = "release_index_lookup_quota_tests.rs"]
+mod quota_tests;

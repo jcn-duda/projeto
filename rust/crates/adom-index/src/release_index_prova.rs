@@ -17,7 +17,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::{enforce_quota, idx_prefix, ReleaseIndexStore, IDX_NAMESPACE};
+use super::{enforce_quota, idx_prefix, prefix_bounds, ReleaseIndexStore, IDX_NAMESPACE};
 
 /// Evidência por ARQUIVO (`idx:v14:file:<hash>`): o que o play viu dentro do
 /// torrent. `e` é ausente quando o episódio não foi provado — o Node omite o
@@ -121,17 +121,21 @@ impl ReleaseIndexStore {
 
     /// Todas as linhas vivas da obra: a chave `base` e as que começam com
     /// `base:`. O `:` evita que `tt1` pegue `tt12`.
+    ///
+    /// Duas faixas SARGÁVEIS em vez de `substr`: `[base:…]`
+    /// ([`prefix_bounds`], não pega `tt12`) mais a chave exata `base`, que fica
+    /// ABAIXO do limite inferior e precisa de um predicado próprio.
     fn vivas_da_obra(&self, base: &str, now_ms: i64) -> Result<Vec<(String, String)>, String> {
-        let filho = format!("{base}:");
+        let (lo, hi) = prefix_bounds(&format!("{base}:"));
         let conn = self.lock();
         let mut stmt = conn
             .prepare(
                 "SELECT key, value FROM cache
-                 WHERE (key = ?1 OR substr(key, 1, length(?2)) = ?2) AND expires_at >= ?3",
+                 WHERE (key = ?1 OR (key >= ?2 AND key < ?3)) AND expires_at >= ?4",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![base, filho, now_ms], |row| {
+            .query_map(params![base, lo, hi, now_ms], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })
             .map_err(|err| err.to_string())?

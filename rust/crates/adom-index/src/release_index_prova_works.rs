@@ -9,7 +9,9 @@ use adom_core::WorkTarget;
 use rusqlite::params;
 
 use super::{chave_obra, imdb_da_chave, imdb_exato};
-use crate::release_index::{idx_prefix, IndexEntry, IndexedRelease, ReleaseIndexStore};
+use crate::release_index::{
+    idx_prefix, prefix_bounds, IndexEntry, IndexedRelease, ReleaseIndexStore,
+};
 
 impl ReleaseIndexStore {
     /// `markLied`: marca o hash nas três chaves da obra (episódio, temporada,
@@ -153,24 +155,30 @@ impl ReleaseIndexStore {
         self.agrega_obras(None, now_ms)
     }
 
-    /// Uma varredura do namespace inteiro. A ordem das releases segue a primeira
-    /// vez que cada hash apareceu, como o `Map` do Node.
+    /// Uma varredura do namespace inteiro, por FAIXA de prefixo
+    /// ([`prefix_bounds`]): a PK `key` responde `SEARCH … USING PRIMARY KEY` e
+    /// o `expires_at` vira filtro residual. O `substr` antigo varria o acervo
+    /// inteiro do `cache.db` (o catálogo chama `snapshotAllWorks`).
+    ///
+    /// A ordem das releases segue a primeira vez que cada hash apareceu, como o
+    /// `Map` do Node.
     fn agrega_obras(
         &self,
         filtro: Option<&HashSet<&str>>,
         now_ms: i64,
     ) -> Result<HashMap<String, Vec<IndexedRelease>>, String> {
         let base = idx_prefix();
+        let (lo, hi) = prefix_bounds(base);
         let linhas: Vec<(String, String)> = {
             let conn = self.lock();
             let mut stmt = conn
                 .prepare(
                     "SELECT key, value FROM cache
-                     WHERE substr(key, 1, length(?1)) = ?1 AND expires_at >= ?2",
+                     WHERE key >= ?1 AND key < ?2 AND expires_at >= ?3",
                 )
                 .map_err(|err| err.to_string())?;
             let out = stmt
-                .query_map(params![base, now_ms], |row| {
+                .query_map(params![lo, hi, now_ms], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
                 })
                 .map_err(|err| err.to_string())?

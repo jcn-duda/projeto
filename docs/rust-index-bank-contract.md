@@ -37,6 +37,57 @@ O JSON é campo a campo o do Node (`undefined` = campo ausente; `size:null`
 quando desconhecido). A fonte de mídia (`mediaSource`) usa o núcleo
 (`release_index_media`), que consulta o acervo em lote.
 
+### Cota, contagem e varredura por faixa de prefixo
+
+Toda consulta de namespace usa a FAIXA `[prefixo, sucessor)` de
+`prefix_bounds` (`idx:` → `idx;`, `idx:v14:` → `idx:v14;`): o prefixo sempre
+termina em `:` (0x3A) e o sucessor é o mesmo prefixo com o último byte
+incrementado. A PK `key` (BINARY) responde por busca, então o custo acompanha as
+linhas do namespace — não as ~90k linhas do `cache.db`.
+
+Onde vale hoje:
+
+- `release_index.rs::enforce_quota` — limpeza do vencido, contagem e despejo;
+- `raw.rs::enforce_quota`/`len`/`clear_all` (namespace `raw:v1`);
+- `release_index_lookup.rs::count_live`/`clear_all` (`status().entries` do
+  painel e `cache.clear()`);
+- `release_index_prova.rs::vivas_da_obra` (`clearPartial`,
+  `forgetAutofetchHash`) — faixa dos filhos `[base:, base;)` **mais** a chave
+  exata `base`, que fica ABAIXO do limite inferior e exige predicado próprio;
+- `release_index_prova_works.rs::agrega_obras` (`snapshotWorks`,
+  `snapshotAllWorks`), a varredura que o catálogo dispara.
+
+Medido em `release_index_lookup_quota_tests.rs` (teste `#[ignore]`, acervo de
+90.802 linhas = 88k `mag` + 2k `idx` + 800 `raw`, 20 iterações:
+`cargo test -p adom-index -- --ignored --nocapture medicao_lookup`):
+
+| Consulta | `substr` | faixa |
+|---|---|---|
+| `count_live` (COUNT do namespace) | 7,7 ms | 0,16 ms |
+| `clear_all` (DELETE do namespace) | 5,5 ms | 0,005 ms |
+| leitura da obra (`vivas_da_obra`) | 9,5 ms | 0,015 ms |
+
+`EXPLAIN QUERY PLAN` (o mesmo teste imprime os planos):
+
+| Consulta | Antes (`substr`) | Depois (faixa) |
+|---|---|---|
+| COUNT do namespace | `SEARCH cache USING INDEX cache_expires (expires_at>?)` | `SEARCH cache USING INDEX sqlite_autoindex_cache_1 (key>? AND key<?)` |
+| DELETE do namespace | `SCAN cache` | `SEARCH cache USING INDEX sqlite_autoindex_cache_1 (key>? AND key<?)` |
+| leitura da obra | `SEARCH cache USING INDEX cache_expires (expires_at>?)` | `MULTI-INDEX OR` com duas buscas na PK: `key=?` e `key>? AND key<?` |
+
+`sqlite_autoindex_cache_1` é o índice da `PRIMARY KEY` de `key` (a tabela tem
+`rowid`, então o SQLite nomeia o índice da PK assim). Note o antes: quando há
+filtro de `expires_at`, o `substr` não vira `SCAN` — vira varredura do índice de
+expiração, isto é, de TODAS as linhas vivas do acervo (`mag`/`streams`),
+revisitando cada uma para aplicar o `substr`. Sem esse filtro
+(`clear_all`) é `SCAN cache` puro.
+
+Fora da faixa, ainda com `substr` sobre `key`: `release_index.rs::drop_stale_idx`
+(uma vez por `open`, com `key NOT LIKE` — o `LIKE` do SQLite é
+case-insensitive, então trocar por faixa mudaria o caso de `idx:V14:`) e o
+`kv.rs` (`keys_matching`/`forget_prefix`, que aceitam prefixo livre, inclusive
+vazio — sem sucessor).
+
 ## Contrato do banco (`magnets.db`)
 
 Schema idêntico ao `src/utils/magnet-bank-rows.ts` (`magnet`, `magnet_source`,
@@ -136,6 +187,8 @@ A sombra do índice/banco foi **removida no R1**: não há mais
 
 ## Testes
 
+- `adom-index`: cota, contagem e limpeza por faixa de prefixo (semântica das
+  bordas, namespace vizinho, `EXPLAIN QUERY PLAN` e a medição `#[ignore]`).
 - `adom-core`: `br_gap`, `release_index_cut`, `instant_bank` (seleção,
   dublado, tetos, dedupe, rótulo BR velho).
 - `adom-store`: leitura/escrita no formato do Node, reabertura/restart,
