@@ -185,6 +185,8 @@ pub fn build_orchestrator_from(
             "[gateway] cache.db indisponível para bad/lie ({err}); build segue sem a poda nativa"
         ),
     }
+    // 💾 pela lista de arquivos/total por hash, lidos do KV nativo a cada build.
+    orch = orch.with_file_sizes(Arc::new(crate::file_sizes_source::NativeFileSizes));
     Ok(wire_native_index(orch))
 }
 

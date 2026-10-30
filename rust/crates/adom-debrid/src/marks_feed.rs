@@ -25,14 +25,17 @@
 //! régua de `ownership_enabled` dos leitores).
 
 use std::collections::HashSet;
-use std::path::Path;
-use std::sync::OnceLock;
 
 use adom_index::kv::KvWrite;
 use adom_index::NativeKv;
 use serde_json::json;
 
 use crate::alldebrid_cleanup::{account_scope, adsub_key, CleanupMode, SUBMITTED_TTL_ENV};
+// KV de produção é compartilhado com `file_sizes` (um só arquivo, uma conexão).
+use crate::native_kv::production_kv;
+// Re-export só para os testes do spawn (`alldebrid_marks_tests.rs`).
+#[cfg(test)]
+pub(crate) use crate::native_kv::test_kv;
 
 /// `ALLDEBRID_SUBMITTED_TTL_MS` default: 7 dias (o mesmo do Node).
 const DEFAULT_SUBMITTED_TTL_MS: f64 = 604_800_000.0;
@@ -49,61 +52,6 @@ impl MarkedBatch {
     pub fn is_empty(&self) -> bool {
         self.submitted.is_empty()
     }
-}
-
-/// KV de produção, aberto UMA vez por processo. Falha de abertura vira `None`
-/// e loga uma vez só (fail-open: sem banco não há posse, e nada entra em pânico).
-static KV: OnceLock<NativeKv> = OnceLock::new();
-
-/// Só a abertura BEM-SUCEDIDA fica guardada: uma falha transitória (lock no
-/// boot) não pode desligar a posse pelo resto da vida do processo — o próximo
-/// lote tenta abrir de novo.
-fn production_kv() -> Option<&'static NativeKv> {
-    if let Some(kv) = KV.get() {
-        return Some(kv);
-    }
-    match NativeKv::open(Path::new(&cache_db_path())) {
-        Ok(kv) => {
-            // Corrida entre dois lotes: o perdedor descarta a própria conexão.
-            let _ = KV.set(kv);
-            KV.get()
-        }
-        Err(err) => {
-            eprintln!("[alldebrid] KV de posse indisponível: {err}");
-            None
-        }
-    }
-}
-
-/// Mesmo default do processo Node (`data/cache.db`, relativo ao cwd).
-#[cfg(not(test))]
-fn cache_db_path() -> String {
-    std::env::var(crate::alldebrid_cleanup::CACHE_DB_ENV)
-        .ok()
-        .filter(|raw| !raw.trim().is_empty())
-        .unwrap_or_else(|| "data/cache.db".to_string())
-}
-
-/// Nos testes o KV é sempre um arquivo temporário do processo: o `OnceLock`
-/// acima prende o primeiro caminho aberto, então nenhum teste pode gravar no
-/// `data/cache.db` do checkout.
-#[cfg(test)]
-fn cache_db_path() -> String {
-    test_db_path().to_string_lossy().into_owned()
-}
-
-/// Arquivo do KV de teste (único por processo).
-#[cfg(test)]
-pub(crate) fn test_db_path() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("adom-marks-test-{}.db", std::process::id()))
-}
-
-/// KV de produção do processo, para os testes lerem o que o `spawn` gravou.
-/// Reusa a MESMA conexão: abrir um segundo `NativeKv` no arquivo concorre com
-/// o `PRAGMA journal_mode = WAL` do schema (SQLITE_BUSY antes do busy_timeout).
-#[cfg(test)]
-pub(crate) fn test_kv() -> Option<&'static NativeKv> {
-    production_kv()
 }
 
 /// Hash válido = 40 caracteres hexadecimais (já em minúsculas).

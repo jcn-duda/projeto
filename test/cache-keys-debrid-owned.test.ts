@@ -44,13 +44,16 @@ test('RUST_OWNED cobre os namespaces da Definição de Pronto (núcleo dono úni
   // fonte, o teste é a catraca. `autofetch` fechou na L6 (ver o caso do fim).
   // `rdc` (ledger do Real-Debrid) entrou depois: o `adom-debrid` lê a linha
   // direto da tabela, então um L1 do Node com a mesma chave viraria segundo escritor.
+  // `fsz`/`tsz` (lista de arquivos e total do torrent) seguem o mesmo desenho:
+  // o gateway grava na checagem e lê na montagem da lista.
   for (const ns of [
     'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adrm', 'adprot', 'harvest', 'autofetch', 'rdc',
+    'fsz', 'tsz',
   ]) {
     assert.ok(RUST_OWNED.includes(ns), `${ns} é dono único do núcleo`);
     assert.equal(isRustOwned(ns), true, `isRustOwned reconhece ${ns}`);
   }
-  for (const owned of [prefix('harvest'), prefix('davail'), prefix('mag'), prefix('mag_meta'), prefix('rdc')]) {
+  for (const owned of [prefix('harvest'), prefix('davail'), prefix('mag'), prefix('mag_meta'), prefix('rdc'), prefix('fsz'), prefix('tsz')]) {
     assert.ok(
       RUST_OWNED_PREFIXES.includes(owned),
       `${owned} bloqueia a leitura do L1 (sem o prefixo, o get devolveria o L1 vazio em vez da ponte)`,

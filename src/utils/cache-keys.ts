@@ -213,6 +213,10 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 //               gravasse pelo L1, a linha só chegaria ao disco no flush e um
 //               `forget`/evicção do L1 poderia apagar ou sobrescrever a
 //               evidência nova; por isso o Node lê e grava só pela ponte.
+//   `fsz`/`tsz` — lista de arquivos e total do torrent (`debrid/file-sizes.ts`):
+//               o gateway grava pela checagem nativa e lê na montagem da lista
+//               do `/stream`. Segundo escritor pelo L1 deixaria o disco
+//               incoerente, e o flush tardio esconderia a lista do gateway.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
 // disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
 // superfície do Node é só a ponte (`streams-store-native.ts` /
@@ -243,7 +247,7 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // deixaria o disco incoerente com o handle do Rust.
 const RUST_OWNED = Object.freeze([
   'idx', 'streams', 'raw', 'davail', 'mag', 'mag_meta', 'adsub', 'adprot', 'adrm', 'adhold', 'harvest',
-  'autofetch', 'rdq', 'rdc',
+  'autofetch', 'rdq', 'rdc', 'fsz', 'tsz',
 ]);
 
 // Dono por PREFIXO dentro de namespace compartilhado:
@@ -335,6 +339,9 @@ const RUST_OWNED_PREFIXES = Object.freeze([
   // `get`/`peek` no L1 e o `set` do Node. `rdc:v1` legado não casa aqui de
   // propósito — o boot já o apaga do disco (migração G1).
   prefix('rdc'),
+  // Lista de arquivos e total do torrent: o prefixo fecha o `get`/`peek` do L1
+  // e o `set` do Node; quem grava e lê é a ponte (`file-sizes.ts`).
+  prefix('fsz'), prefix('tsz'),
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 

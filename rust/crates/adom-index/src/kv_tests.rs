@@ -114,6 +114,53 @@ fn forget_prefix_apaga_so_o_namespace_e_conta_linhas() {
 }
 
 #[test]
+fn prune_expired_apaga_so_vencido_do_prefixo() {
+    let kv = NativeKv::open_memory().unwrap();
+    kv.put_json("fsz:v1:a", &json!([1]), 1, 1_000).unwrap(); // vence em 2_000
+    kv.put_json("fsz:v1:b", &json!([2]), 0, 1_000).unwrap(); // permanente
+    kv.put_json("fsz:v1:c", &json!([3]), 60, 1_000).unwrap(); // vivo até 61_000
+    kv.put_json("tsz:v1:x", &json!(9), 1, 1_000).unwrap(); // outro prefixo
+
+    assert_eq!(kv.prune_expired("fsz:v1:", 5_000).unwrap(), 1);
+    assert_eq!(kv.prune_expired("fsz:v1:", 5_000).unwrap(), 0, "idempotente");
+    assert!(kv.get_json("fsz:v1:b", 5_000).unwrap().is_some());
+    assert!(kv.get_json("fsz:v1:c", 5_000).unwrap().is_some());
+    // Outro prefixo não é tocado: ainda vivo em t=1_500 (expira em 2_000).
+    assert!(kv.get_json("tsz:v1:x", 1_500).unwrap().is_some());
+}
+
+#[test]
+fn get_many_json_pula_ausente_vencido_e_json_invalido() {
+    // Linha com JSON inválido só entra por SQL cru: a API nunca grava isso.
+    let path = std::env::temp_dir().join(format!("adom-kv-many-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    let kv = NativeKv::open(&path).unwrap();
+    kv.put_json("fsz:v1:ok", &json!([1, 2]), 0, 1_000).unwrap();
+    kv.put_json("fsz:v1:velho", &json!(1), 1, 1_000).unwrap();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES ('fsz:v1:ruim', '{nao-json', 0)",
+            [],
+        )
+        .unwrap();
+
+    let keys: Vec<String> = [
+        "fsz:v1:ok",
+        "fsz:v1:velho",
+        "fsz:v1:ruim",
+        "fsz:v1:ausente",
+    ]
+    .iter()
+    .map(|key| key.to_string())
+    .collect();
+    let rows = kv.get_many_json(&keys, 5_000).unwrap();
+    assert_eq!(rows, vec![("fsz:v1:ok".to_string(), json!([1, 2]))]);
+    drop(kv);
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
 fn put_and_forget_rollback_ambas_as_operacoes_se_a_remocao_falhar() {
     let kv = NativeKv::open_memory().unwrap();
     kv.put_json("adhold:v1:account:hash", &json!({"at": 1}), 60, 1_000)

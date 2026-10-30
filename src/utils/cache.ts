@@ -319,11 +319,9 @@ function clear() {
   clearRawStore();
   davailState().clear();
   magnetState().clear();
-  kvClearPrefix(prefix('adsub'));
-  kvClearPrefix(prefix('adprot'));
-  kvClearPrefix(prefix('adhold'));
-  kvClearPrefix(prefix('adrm'));
-  kvClearPrefix(prefix('rdc')); // ledger do RD: o clear global zera a evidência de CDN, como antes
+  // Namespaces do KV nativo que têm dono no Rust: o clear global zera as
+  // evidências (ledger do RD, listas de arquivos e totais), como antes.
+  for (const ns of ['adsub', 'adprot', 'adhold', 'adrm', 'rdc', 'fsz', 'tsz'] as const) kvClearPrefix(prefix(ns));
   clearAutofetchNative();
 }
 
@@ -348,7 +346,7 @@ function clearNamespace(namespace: string) {
               : wanted === 'adrm' ? kvClearPrefix(prefix('adrm'))
                 : wanted === 'autofetch' ? clearAutofetchNative()
                   : 0;
-  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust + (wanted === 'rdc' ? kvClearPrefix(prefix('rdc')) : 0);
+  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust + (wanted === 'rdc' || wanted === 'fsz' || wanted === 'tsz' ? kvClearPrefix(prefix(wanted)) : 0);
 }
 
 /**

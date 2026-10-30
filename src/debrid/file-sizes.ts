@@ -1,5 +1,5 @@
-import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
+import { kvClearPrefix, kvPeek, kvSet } from '../utils/native-kv.js';
 import { VIDEO_EXT, SAMPLE, isSiteAd } from './file-selector.js';
 import type { DebridFile } from './file-selector.js';
 
@@ -12,13 +12,17 @@ import type { DebridFile } from './file-selector.js';
 // sabem ler arquivos (TorBox com `list_files`, AllDebrid pelo id do magnet
 // pronto).
 //
-// Persistido no namespace `fsz` do cache (L1 + cache.db), com cota própria em
-// `cache-quotas.ts`. Antes ficava só em memória e cada restart zerava a lista:
-// a primeira abertura de cada título depois do restart voltava a mostrar o
-// total do pack. Medido em Star Trek (2009), 2026-09-14: três restarts do
-// container no dia, e a FILMOGRAFIA saía com 22.45 GB até a checagem reler os
-// arquivos. O conteúdo de um hash não muda; o TTL só impede que hash esquecido
-// ocupe a cota para sempre.
+// Persistido no KV nativo (`fsz`/`tsz` em `cache.db`), o MESMO que o gateway
+// lê na montagem da lista do `/stream`: a checagem nativa grava pelo próprio
+// Rust e o Node só lê e grava pela ponte `native-kv`, sem L1 — um L1 aqui
+// deixaria a lista do gateway atrás da evidência nova. Antes ficava só em
+// memória e cada restart zerava a lista: a primeira abertura de cada título
+// depois do restart voltava a mostrar o total do pack. Medido em Star Trek
+// (2009), 2026-09-14: três restarts do container no dia, e a FILMOGRAFIA saía
+// com 22.45 GB até a checagem reler os arquivos. O conteúdo de um hash não
+// muda; o TTL só impede que hash esquecido ocupe a cota para sempre. Ponte
+// indisponível: a leitura vira vazio/0 e a gravação não acontece (o próximo
+// pack relê o arquivo).
 const FILE_SIZES_TTL_SECONDS = 30 * 86400;
 
 // `link` só quando o serviço entrega o link do arquivo na lista (AllDebrid): é
@@ -38,15 +42,15 @@ function recordFileSizes(infoHash: string, files: DebridFile[] | null | undefine
     }))
     .filter((file) => file.size > 0 && VIDEO_EXT.test(file.path) && !SAMPLE.test(file.path) && !isSiteAd(file.path));
   if (videos.length === 0) return;
-  // Regravar renova o TTL e move a entrada para o fim do LRU do namespace.
-  cache.set(keyOf(hash), videos, FILE_SIZES_TTL_SECONDS);
+  // Regravar renova o TTL (o `kvSet` substitui a linha inteira).
+  kvSet(keyOf(hash), videos, FILE_SIZES_TTL_SECONDS);
 }
 
-// Leitura sem efeito colateral: sem promover o LRU nem contar hit/miss — a
-// anotação consulta todo pack de toda busca, e isso não é uso do cache.
+// Leitura sem efeito colateral: a anotação consulta todo pack de toda busca, e
+// a leitura pela ponte não conta como uso do cache.
 function peekFileSizes(infoHash: string): SizedFile[] | null {
   if (!infoHash) return null;
-  const value = cache.peek(keyOf(infoHash));
+  const value = kvPeek(keyOf(infoHash));
   const list = Array.isArray(value) && value.length > 0 ? (value as SizedFile[]) : null;
   return list;
 }
@@ -56,8 +60,8 @@ function hasFileSizes(infoHash: string) {
 }
 
 function clearFileSizes() {
-  cache.clearNamespace('fsz');
-  cache.clearNamespace('tsz');
+  kvClearPrefix(prefix('fsz'));
+  kvClearPrefix(prefix('tsz'));
 }
 
 // Tamanho TOTAL do torrent (`tsz`), sem lista de arquivos. O Premiumize devolve
@@ -74,12 +78,12 @@ function recordTorrentTotal(infoHash: string, bytes: unknown) {
   const hash = String(infoHash || '').toLowerCase();
   const size = Number(bytes) || 0;
   if (!hash || size <= 0) return;
-  cache.set(totalKeyOf(hash), size, FILE_SIZES_TTL_SECONDS);
+  kvSet(totalKeyOf(hash), size, FILE_SIZES_TTL_SECONDS);
 }
 
 function peekTorrentTotal(infoHash: string): number {
   if (!infoHash) return 0;
-  return Number(cache.peek(totalKeyOf(infoHash))) || 0;
+  return Number(kvPeek(totalKeyOf(infoHash))) || 0;
 }
 
 export {

@@ -40,6 +40,7 @@ pub(crate) mod debrid_al_metrics;
 mod effects;
 mod fallback;
 mod fast_path;
+mod file_sizes; // Fonte nativa `fsz`/`tsz` por hash: o `💾` de pack sai da lista de arquivos.
 mod finish;
 mod finish_build;
 // Reuso da coleta/gravação de índice FORA do `/stream` (colhedor de fundo do
@@ -119,6 +120,7 @@ pub use config::{
 pub use crate::internal_types::ReleaseEntry;
 pub use crate::raw_item::RawItem;
 pub use debrid_al_metrics::debrid_al_metrics_snapshot;
+pub use file_sizes::FileSizesSource;
 pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;
 pub use index_source::{
@@ -168,15 +170,16 @@ pub struct Orchestrator {
     /// Rotas internas do Node (`/internal/search/*`), para metadados e
     /// efeitos. Coleta, índice e banco são NATIVOS: não há rota Node.
     routes: Option<Arc<dyn InternalRoutes>>,
-    /// Lista de arquivos por hash (o memo `fsz` do Node): o `💾` de pack/item
-    /// que o tracker não publicou e o fill pós-debrid saem daqui. O Node lê o
-    /// cache `fsz`; o núcleo não tem esse cache, então o caller injeta (na
-    /// captura congelada vem de `inputs/files.json`).
+    /// Lista de arquivos por hash injetada ESTATICAMENTE: só o replay
+    /// congelado (`inputs/files.json`) usa. Produção lê por hash na fonte
+    /// `file_sizes`, a cada build, e só preenche o que aqui não existe.
     files_by_hash: Arc<BTreeMap<String, Vec<DebridFile>>>,
-    /// Total do torrent (`tsz`) por hash — o `💾` de quem veio sem tamanho.
-    /// Só o replay congelado injeta hoje (`inputs/totals.json`); em produção o
-    /// Node preenche no build e o gateway ainda não o busca (gap de contrato).
+    /// Total do torrent (`tsz`) por hash injetado estaticamente (replay).
+    /// Produção: `file_sizes`, como `files_by_hash`.
     totals_by_hash: Arc<BTreeMap<String, f64>>,
+    /// Fonte nativa de `fsz`/`tsz` por hash (KV do gateway). `None` = sem
+    /// fonte: o build segue só com o que foi injetado acima.
+    file_sizes: Option<Arc<dyn FileSizesSource>>,
     /// Estado do memo `fsz`/`tsz` na passada PRÉ-debrid (o Node anota duas
     /// vezes). `None` = captura sem o arquivo: a 1ª passada segue a régua
     /// anterior.
@@ -243,6 +246,7 @@ impl Orchestrator {
             routes: None,
             files_by_hash: Arc::new(BTreeMap::new()),
             totals_by_hash: Arc::new(BTreeMap::new()),
+            file_sizes: None,
             files_at_build: None,
             totals_at_build: None,
             account: None,
@@ -265,6 +269,13 @@ impl Orchestrator {
     /// arquivos (o Node preenche com o total).
     pub fn with_totals_by_hash(mut self, totals: BTreeMap<String, f64>) -> Self {
         self.totals_by_hash = Arc::new(totals);
+        self
+    }
+
+    /// Injeta a fonte nativa de `fsz`/`tsz` por hash. Lida a cada build, só
+    /// para hashes que o mapa estático não cobre (ver `file_sizes.rs`).
+    pub fn with_file_sizes(mut self, source: Arc<dyn FileSizesSource>) -> Self {
+        self.file_sizes = Some(source);
         self
     }
 

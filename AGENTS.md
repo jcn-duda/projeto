@@ -283,7 +283,12 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   gasto) e na conta sobe `RustWriteError` — não existe segunda pergunta ao TS.
   Recusa do serviço (`auth`/`quota`/`rate_limit`) segue subindo como o erro dele.
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
-  resolução: TorBox e AllDebrid leem na checagem. Nome sem resolução →
+  resolução. `fsz`/`tsz` são `RUST_OWNED` no KV nativo: a checagem nativa grava
+  (`adom-debrid::file_sizes` — TorBox a lista, Premiumize o total), o play do
+  Node grava pela ponte `native-kv.ts`, e o build do `/stream` lê por hash
+  (`FileSizesSource`, ligado em `adom-server::file_sizes_source`). A checagem
+  nativa ainda não pede a lista (`list_files`) nem lê a da AllDebrid: o 💾 de um
+  pack novo só aparece depois que algo gravou a lista. Nome sem resolução →
   medição do cabeçalho: AllDebrid por `/link/unlock`, outros por `adapter.fileLink`.
 - **"Sumiu o ⚡ de todos" quase nunca é bug de código**: veja
   `/debrid-status.json` (teto de magnets, chave recusada, prazo). Sem veredito

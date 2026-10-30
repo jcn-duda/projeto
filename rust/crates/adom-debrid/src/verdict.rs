@@ -167,14 +167,30 @@ pub async fn check_service_report_with(
             .check_cached(api_key, hashes, timeout)
             .await
         {
-            Ok(report) => (record(report.cached, report.complete), true),
+            Ok(report) => {
+                // Total do torrent (`tsz`), antes do veredito: só grava, nunca espera.
+                let totals = report
+                    .totals
+                    .iter()
+                    .map(|(hash, bytes)| (hash.clone(), *bytes as f64))
+                    .collect();
+                crate::file_sizes::spawn_record(Vec::new(), totals);
+                (record(report.cached, report.complete), true)
+            }
             Err(err) => (err_verdict(&err), true),
         },
         "torbox" => match TorBox::new(client)
             .check_cached(api_key, hashes, &[], timeout)
             .await
         {
-            Ok(report) => (record(report.cached, report.complete), true),
+            Ok(report) => {
+                // Lista de vídeos (`fsz`) que o TorBox leu na checagem.
+                crate::file_sizes::spawn_record(
+                    crate::file_sizes::torbox_files(&report.files),
+                    Vec::new(),
+                );
+                (record(report.cached, report.complete), true)
+            }
             Err(err) => (err_verdict(&err), true),
         },
         "alldebrid" => {

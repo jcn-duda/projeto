@@ -99,7 +99,8 @@ impl Orchestrator {
         let relevant = if items.is_empty() {
             0
         } else {
-            let ctx = self.build_context(input, meta);
+            let mut ctx = self.build_context(input, meta);
+            super::file_sizes::merge_file_sizes(self.file_sizes.as_deref(), items, &mut ctx);
             let opts = super::config::build_options_from(&input.options, &self.config.build);
             crate::list_builder::relevant_count(items, &ctx, &opts)
         };

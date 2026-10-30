@@ -50,6 +50,8 @@ pub mod debridlink;
 /// chamador.
 pub mod enqueue_budget;
 pub mod error;
+/// Tamanhos por hash (`fsz:v1:`/`tsz:v1:`) gravados e lidos no KV nativo.
+pub mod file_sizes;
 /// Feed do hold volátil do autofetch para o seam in-process
 /// (`DEBRID_AL_HOLDS`, default OFF) — rota `/internal/debrid/holds` do Node.
 pub mod holds_feed;
@@ -58,6 +60,9 @@ pub mod http;
 /// Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
 pub mod marks_feed;
 pub mod metrics;
+/// KV nativo de produção (uma conexão por processo) compartilhado por
+/// `marks_feed` e `file_sizes`.
+pub mod native_kv;
 /// Play nativo: dispatch por adaptador (usado pelo `/resolve` do gateway).
 pub mod play;
 /// Prova de áudio no play (`assertDubbedFiles`) compartilhada pelos adaptadores.

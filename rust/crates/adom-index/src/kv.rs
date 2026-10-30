@@ -243,6 +243,55 @@ impl NativeKv {
         Ok(Some(((expires - now_ms) + 500) / 1_000))
     }
 
+    /// Apaga as linhas VENCIDAS com o prefixo (`expires_at` positivo e `<= now`)
+    /// e devolve quantas saíram. Permanentes (`expires_at = 0`) ficam.
+    ///
+    /// Existe porque o TTL só é aplicado na leitura: um namespace que ninguém
+    /// relê (o Node não poda `fsz`/`tsz` gravados pelo Rust) cresceria até a
+    /// cota sem esta poda periódica feita por quem grava.
+    pub fn prune_expired(&self, prefix: &str, now_ms: i64) -> Result<u32, String> {
+        let conn = self.lock();
+        let removed = conn
+            .execute(
+                "DELETE FROM cache
+                 WHERE expires_at > 0 AND expires_at <= ?1
+                   AND substr(key, 1, length(?2)) = ?2",
+                params![now_ms, prefix],
+            )
+            .map_err(|err| err.to_string())?;
+        Ok(u32::try_from(removed).unwrap_or(u32::MAX))
+    }
+
+    /// Leitura em lote numa ÚNICA trava: devolve só as chaves vivas e com JSON
+    /// válido, na ordem pedida. Ausente, vencida (não apagada aqui) e linha com
+    /// JSON inválido saem sem erro — uma linha ruim não derruba o lote inteiro.
+    pub fn get_many_json(
+        &self,
+        keys: &[String],
+        now_ms: i64,
+    ) -> Result<Vec<(String, Value)>, String> {
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare("SELECT value, expires_at FROM cache WHERE key = ?1")
+            .map_err(|err| err.to_string())?;
+        let mut out = Vec::with_capacity(keys.len());
+        for key in keys {
+            let row = stmt.query_row(params![key], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?))
+            });
+            let Ok((raw, expires_at)) = row else {
+                continue;
+            };
+            if is_expired(expires_at, now_ms) {
+                continue;
+            }
+            if let Ok(value) = serde_json::from_str::<Value>(&raw) {
+                out.push((key.clone(), value));
+            }
+        }
+        Ok(out)
+    }
+
     /// Apaga TODAS as chaves com o prefixo (reset de namespace pela ponte) e
     /// devolve quantas linhas saíram — o `clearNamespace` do Node conta o que
     /// removeu, e namespace Rust-owned não tem L1 para contabilizar.

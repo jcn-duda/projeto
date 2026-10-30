@@ -137,7 +137,9 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // tamanho do episódio num pack de temporada e do filme numa coleção. Uma
   // entrada fica em ~0,5–4 KB (13 filmes numa filmografia, 30 episódios numa
   // temporada), então 3.000 ≈ 12 MB no pior caso. Persistir é o motivo do
-  // namespace: em memória, cada restart zerava a lista.
+  // namespace: em memória, cada restart zerava a lista. Desde então o dono é o
+  // KV nativo (`file-sizes.ts`), não o L1 do Node; a cota segue como teto de
+  // referência do namespace.
   fsz: 3000,
   // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
   // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.

@@ -13,6 +13,7 @@ use crate::request::encoded_for_internal;
 use crate::resolve_url::ResolveSigner;
 
 use super::config::{build_options_from, DebridContext, OrchestratorConfig};
+use super::file_sizes::merge_file_sizes;
 pub(super) use super::finish_build::finish_value;
 use super::index_metrics as metrics;
 use super::meta::SearchMeta;
@@ -163,7 +164,10 @@ impl Orchestrator {
         partial: bool,
         deadline_at: Option<i64>,
     ) -> FinishValue {
-        let ctx = self.build_context(input, meta);
+        let mut ctx = self.build_context(input, meta);
+        // A lista de arquivos vem por hash da fonte nativa; o mapa do replay
+        // (já no contexto) continua vencendo. Antes disto o `💾` de pack nunca saía.
+        merge_file_sizes(self.file_sizes.as_deref(), items, &mut ctx);
         let opts = build_options_from(&input.options, &self.config.build);
         let debrid_ctx = self.debrid_context(input, deadline_at);
         let signer = self.resolve_signer(input, meta);

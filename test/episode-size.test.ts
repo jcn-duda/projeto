@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel } from './helpers/pipeline-oracle/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
+import { kvKeys, kvRemaining } from '../src/utils/native-kv.js';
+import { prefix } from '../src/utils/cache-keys.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
@@ -239,9 +241,10 @@ test('lista de arquivos vai ao namespace persistido fsz e guarda só vídeos', (
     ]);
     assert.ok(peekFileSizes('D1'.repeat(20)), 'hash não diferencia maiúscula');
     assert.equal(peekFileSizes('d1'.repeat(20))?.length, 1, 'amostra fica de fora');
-    const keys = cache.keysMatching('fsz:');
+    // `fsz` é Rust-owned: a contagem e o TTL são lidos pela ponte, não pelo L1.
+    const keys = kvKeys(prefix('fsz'));
     assert.equal(keys.length, 1, 'uma entrada por hash no namespace fsz');
-    assert.ok((cache.peekRemaining(keys[0]) ?? 0) > 29 * 86400, 'TTL longo: o conteúdo de um hash não muda');
+    assert.ok((kvRemaining(keys[0]) ?? 0) > 29 * 86400, 'TTL longo: o conteúdo de um hash não muda');
     assert.equal(cache.QUOTAS.fsz, 3000);
     clearFileSizes();
     assert.equal(peekFileSizes('d1'.repeat(20)), null, 'clearFileSizes esvazia só o namespace');
