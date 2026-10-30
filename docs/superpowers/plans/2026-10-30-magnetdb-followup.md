@@ -89,3 +89,25 @@ Quando a pré-condição pousar:
    no processo (só o teste o exercita). Pendência de CÓDIGO registrada aqui:
    dar dono ou remover o `kvPruneExpired` morto na leva que mexer em
    `native-kv.ts`.
+
+## 4. Executado em 2026-10-30
+
+- **Pré-condição cumprida**: o glue de play saiu de `src/debrid/` para
+  `test/helpers/pipeline-oracle/play/`. Conferido por grep: nenhum arquivo de
+  `src/` chama `markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad`/
+  `isAlive`/`isBad`/`isLie`/`peekAlive` do magnetdb (só o próprio
+  `magnetdb.ts`; `debrid-state-native.ts` tem métodos homônimos na ponte, que
+  não são estas funções).
+- **Movido para o oráculo**
+  `test/helpers/pipeline-oracle/play/magnetdb-writes.ts`: `markAlive`,
+  `isAlive`, `markBad`, `isBad`, `forgetBad`, `markLie`, `isLie`, `peekAlive`
+  e `renewAlive`, com os corpos copiados sem alteração.
+- **Importadores migrados**: 12 testes em `test/` e os dois glues do oráculo
+  (`play/davail.ts`, `play/rust-resolve-magnet.ts`) passaram a chamar
+  `magnetdbWrites.*`. Os dois testes que montam scripts-filhos como string
+  (`magnet-db-persistence`, `magnet-db-empirical-challenge`) carregam o módulo
+  novo pela URL absoluta (`MAGNETDB_WRITES_URL`).
+- **`src/utils/magnetdb.ts`: 384 -> 209 linhas.** Ficou com `peekBad`,
+  `peekLie`, `forgetBadOf`, `status`, os tipos e os re-exports de
+  `magnetdb-persist.ts`. `peekAlive` foi para o oráculo (era leitura de
+  decisão, não de painel), e não ficou no `src/`.

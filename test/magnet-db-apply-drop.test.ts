@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import debrid from '../src/debrid/index.js';
@@ -53,8 +54,8 @@ test('applyDebrid descarta hash ruim no banco e morto no autofetch, antes da che
   const badHash = 'd'.repeat(40);
   const deadHash = 'e'.repeat(40);
   const goodHash = 'f'.repeat(40);
-  magnetdb.forgetBad('premiumize', key, badHash);
-  magnetdb.markBad('premiumize', key, badHash);
+  magnetdbWrites.forgetBad('premiumize', key, badHash);
+  magnetdbWrites.markBad('premiumize', key, badHash);
   autofetch.blacklist('premiumize', accountScope(key), deadHash);
   metrics.reset();
   try {
@@ -86,7 +87,7 @@ test('applyDebrid descarta hash ruim no banco e morto no autofetch, antes da che
     assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped'], 2);
   } finally {
     metrics.reset();
-    magnetdb.forgetBad('premiumize', key, badHash);
+    magnetdbWrites.forgetBad('premiumize', key, badHash);
     debrid.BY_ID.set('premiumize', original as any);
   }
 });
@@ -101,8 +102,8 @@ test('applyDebrid descarta hash bad mesmo em item fromFallback (via instantânea
   // Hashes dedicados (não colidem com atalho `7` nem com disk residual).
   const badHash = 'fb'.repeat(20);
   const goodHash = 'fd'.repeat(20);
-  magnetdb.forgetBad('premiumize', key, badHash);
-  magnetdb.markBad('premiumize', key, badHash);
+  magnetdbWrites.forgetBad('premiumize', key, badHash);
+  magnetdbWrites.markBad('premiumize', key, badHash);
   metrics.reset();
   try {
     const fallback = {
@@ -132,7 +133,7 @@ test('applyDebrid descarta hash bad mesmo em item fromFallback (via instantânea
     assert.equal((metrics.snapshot() as any).counters['magnetdb.dropped.bad'], 1);
   } finally {
     metrics.reset();
-    magnetdb.forgetBad('premiumize', key, badHash);
+    magnetdbWrites.forgetBad('premiumize', key, badHash);
     debrid.BY_ID.set('premiumize', original as any);
   }
 });

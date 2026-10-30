@@ -7,7 +7,7 @@
  * `missing-season` é o ramo em que o arquivo não declara episódio nenhum —
  * a temporada daquele hash também fica marcada.
  */
-import * as releaseIndex from '../utils/release-index.js';
+import * as releaseIndex from '../../../../src/utils/release-index.js';
 
 type ResolveLocation = { season: number | null; episode: number | null };
 

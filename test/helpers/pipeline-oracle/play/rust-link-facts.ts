@@ -4,10 +4,14 @@
  * proteção durável moram neste processo; sem o fato o Rust trata o hash como
  * protegido e não apaga. `held: true` significa "não apague".
  */
-import config from '../config.js';
-import { accountScope } from '../utils/request-key.js';
-import { id } from './alldebrid-api.js';
-import { isCleanupProtected } from './protected.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+import config from '../../../../src/config.js';
+import { accountScope } from '../../../../src/utils/request-key.js';
+import { id } from '../../../../src/debrid/alldebrid-api.js';
+import { isCleanupProtected } from '../../../../src/debrid/protected.js';
+
+// Grava davail/posse no MESMO cache.db: sem setup-env o destino seria o banco real.
+assertSafeTestDb('pipeline-oracle/play/rust-link-facts');
 
 export function alldebridLinkFacts(apiKey: string, infoHash: string): { held: boolean; dropUncached: boolean } {
   // Chave vazia não identifica conta. Não consultar a proteção e não apagar.

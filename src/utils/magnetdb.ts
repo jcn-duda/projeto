@@ -19,15 +19,18 @@
 // DONO NATIVO (T2-L5b): as linhas `mag:v1:<side>:<adapter>:<conta>:<hash>` são
 // do `MagnetStateStore` (Rust). Toda escrita e leitura passa pela ponte
 // `debrid-state-native.ts` — este módulo não monta chave nem toca o `cache` do
-// Node, que não é dono desse namespace. Aqui ficam só o AGREGADO persistido
-// (`mag_meta:v1:counts`, em magnetdb-persist.ts) e o TTL, que vem da config.
+// Node, que não é dono desse namespace. A ESCRITA saiu para o oráculo de teste
+// (`test/helpers/pipeline-oracle/play/magnetdb-writes.ts`): quem grava a
+// evidência em produção é o gateway. Aqui ficam a leitura sem efeito, a
+// limpeza do painel e o status; o AGREGADO persistido (`mag_meta:v1:counts`)
+// vive em magnetdb-persist.ts e o TTL vem da config.
 import config from '../config.js';
 import * as metrics from './metrics.js';
 import { magnetState } from './debrid-state-native.js';
 import { QUOTAS } from './cache-quotas.js';
-import { isSupportedHash, type AdapterTotals } from './magnetdb-counts.js';
+import type { AdapterTotals } from './magnetdb-counts.js';
 import {
-  adapterCounts, getOrCreateAdapter, ensureCountsLoaded,
+  adapterCounts, ensureCountsLoaded,
   savePersistentCounts, loadPersistentCounts, schedulePersistentSave, markMutation,
   ttlRemainingBasis, sweepNativeNamespaces, type TtlRemainingBasis,
 } from './magnetdb-persist.js';
@@ -77,134 +80,6 @@ export type MagnetDbStatus = {
 // pública continua aqui (reexportação acima de save/load e do sweep).
 
 /**
- * Grava em lote que os hashes tocariam na hora nesta conta. Chamado quando a
- * checagem de cache do debrid confirma o positivo e quando o /resolve devolve
- * link de verdade. Regravar um hash já vivo só renova o TTL.
- */
-function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
-  const ttl = config.magnetDb.aliveTtl;
-  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
-  // Dedup + minúsculas: o núcleo casa por hash já normalizado, e a métrica de
-  // recusa conta HASHES — duas cópias do mesmo hash inflariam `alive.set`.
-  const candidates = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter(Boolean);
-  // Só grava hash que o parse da chave aceita de volta: gravar o que ele
-  // recusa cria linha física que a enumeração de diagnóstico não reconhece,
-  // e a sentinela de divergência acusa desacordo em todo boot sem nunca
-  // convergir.
-  const unique = candidates.filter(isSupportedHash);
-  const malformed = candidates.length - unique.length;
-  if (malformed > 0) metrics.count('magnetdb.hash.refused', malformed);
-  if (unique.length === 0) return;
-  const now = Date.now();
-  // UMA varredura para saber quais já estão `bad`: a precedência
-  // `bad > lie > alive` é do núcleo, e um `isBad` por hash custaria uma
-  // travessia napi por candidato.
-  const bad = new Set(
-    magnetState().stateSnapshot(adapterId, apiKey, unique, now)
-      .filter((mark) => mark.state === 'bad')
-      .map((mark) => String(mark.hash || '').toLowerCase()),
-  );
-  const allowed = unique.filter((hash) => !bad.has(hash));
-  const refused = unique.length - allowed.length;
-  if (refused > 0) metrics.count('magnetdb.alive.refused-bad', refused);
-  if (allowed.length === 0) return;
-
-  // `born` = quantas chaves NASCERAM; renovação de chave viva não conta.
-  const born = magnetState().markAlive(adapterId, apiKey, allowed, ttl, now);
-
-  // Qualquer escrita degrada a base para estimativa — inclusive a renovação
-  // econômica do renewAlive (born === 0): a soma não sabe o restante
-  // anterior da chave renovada, então `l1-rebuild` não sobrevive nem a ela.
-  markMutation();
-  if (born > 0) {
-    const totals = getOrCreateAdapter(adapterId);
-    totals.alive += born;
-    totals.ttlRemainingSums.alive += born * ttl;
-    schedulePersistentSave();
-  }
-  metrics.count('magnetdb.alive.set', allowed.length);
-}
-
-function isAlive(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'alive'
-    : false;
-}
-
-/**
- * Grava que o hash provou estar quebrado nesta conta (torrent sem arquivo de
- * vídeo no play). TTL próprio: torrent pode ganhar upload novo, então o
- * negativo também envelhece.
- *
- * bad VENCE sobre alive: o núcleo apaga o `alive` do mesmo hash na MESMA
- * transação do `bad`, e `state()` devolve o veredito único pela precedência
- * `bad > lie > alive`. Sem isso as janelas de TTL são distintas (24h contra 7
- * dias) e os dois coexistiriam — o filtro pré-checagem cortaria, mas o
- * instantSet já teria empurrado o hash ao topo do sort, gastando uma vaga do
- * pool de candidatos. Evidência mais recente e específica (play sem vídeo
- * depois da confirmação de cache) manda.
- */
-function markBad(adapterId: string, apiKey: string, hash: string) {
-  const ttl = config.magnetDb.badTtl;
-  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
-  if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
-  const now = Date.now();
-  // `mark_bad` apaga o `alive` do mesmo hash na MESMA transação, mas a ponte
-  // só informa se o `bad` nasceu — sem olhar a janela do alive aqui, o agregado
-  // ficaria contando um vivo que o núcleo já apagou até a sentinela do boot.
-  // `remaining` consulta a chave `alive` direto (não passa pela precedência
-  // bad > lie > alive), então enxerga o alive mesmo quando há `lie`.
-  const hadAlive = magnetState().remaining(adapterId, apiKey, 'alive', hash, now) !== null;
-  // `true` = o bad nasceu agora; o alive do mesmo hash sai na mesma transação.
-  const born = magnetState().markBad(adapterId, apiKey, hash, ttl, now);
-  if (born || hadAlive) {
-    const totals = getOrCreateAdapter(adapterId);
-    if (born) {
-      totals.bad += 1;
-      totals.ttlRemainingSums.bad += ttl;
-    }
-    if (hadAlive) {
-      totals.alive = Math.max(0, totals.alive - 1);
-      totals.ttlRemainingSums.alive = Math.max(0, totals.ttlRemainingSums.alive - config.magnetDb.aliveTtl);
-    }
-    markMutation();
-    schedulePersistentSave();
-  }
-  metrics.count('magnetdb.bad.set');
-}
-
-function isBad(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'bad'
-    : false;
-}
-
-/**
- * Esquece um registro `bad`, SEM tocar em alive/lie do mesmo hash. É a função
- * do REPARO do dano do F3: um ramo antigo do warmer marcava `bad` no hash cuja
- * resposta era `blocked` — recusa legal (HTTP 451/error_code 35) do
- * Real-Debrid, não magnet quebrado. Recusa legal não grava `blocked` no
- * magnetdb, e NoVideoError legítimo não grava blocked no ledger; portanto
- * `bad + blocked` por definição é aquela escrita equivocada e pode ser
- * desfeita com segurança. Retorna true se havia um registro para apagar.
- */
-function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
-  const removed = magnetState().forgetBad(adapterId, apiKey, hash);
-  // O antigo `onForget` do cache decrementava o agregado aqui; a escrita agora
-  // é nativa e não passa pelo Node, então o decremento é explícito.
-  if (removed) {
-    const totals = adapterCounts.get(adapterId);
-    if (totals) {
-      totals.bad = Math.max(0, totals.bad - 1);
-      totals.ttlRemainingSums.bad = Math.max(0, totals.ttlRemainingSums.bad - config.magnetDb.badTtl);
-      markMutation();
-      schedulePersistentSave();
-    }
-  }
-  return removed;
-}
-
-/**
  * Apaga o `bad` de QUALQUER conta do adapter. É o caminho da limpeza do painel,
  * que enumera por adapter e não tem a chave da conta em mãos (o reparo do
  * warmer saiu com o warmer TS). Idempotente: a segunda passada devolve false.
@@ -232,28 +107,6 @@ function forgetBadOf(adapterId: string, hash: string): boolean {
   return removed > 0;
 }
 
-/** Há vídeo, mas o post prometeu áudio PT e os arquivos provaram release EN. */
-function markLie(adapterId: string, apiKey: string, hash: string) {
-  const ttl = config.magnetDb.lieTtl;
-  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
-  if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
-  // `lie` NÃO apaga o alive do mesmo hash: o magnet toca, só não é dublado.
-  const born = magnetState().markLie(adapterId, apiKey, hash, ttl, Date.now());
-  if (born) {
-    const totals = getOrCreateAdapter(adapterId);
-    totals.lie += 1;
-    totals.ttlRemainingSums.lie += ttl;
-    markMutation();
-    schedulePersistentSave();
-  }
-  metrics.count('magnetdb.lie.set');
-}
-
-function isLie(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'lie'
-    : false;
-}
 
 // Variantes de LEITURA SEM EFEITO (P5 diagnóstico): a leitura nativa também não
 // aquece LRU, não conta hit/miss e não promove nada — diagnóstico não pode
@@ -263,11 +116,6 @@ function isLie(adapterId: string, apiKey: string, hash: string) {
 // A precedência `bad > lie > alive` é do NÚCLEO: `state()` devolve o veredito
 // único do hash, então as três leituras nunca divergem entre si nem dependem da
 // ordem em que o pipeline consulta.
-function peekAlive(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'alive'
-    : false;
-}
 function peekBad(adapterId: string, apiKey: string, hash: string) {
   return config.magnetDb.enabled && adapterId && apiKey && hash
     ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'bad'
@@ -279,26 +127,6 @@ function peekLie(adapterId: string, apiKey: string, hash: string) {
     : false;
 }
 
-/**
- * Renovação ECONÔMICA para o atalho do davail: regrava só o hash cujo alive
- * está na segunda metade do TTL. O hit do L1 não é evidência nova — é a mesma
- * confirmação de antes —, e regravar o histórico inteiro em todo hit de título
- * popular virava escrita recorrente sem ganho: quem está no começo do TTL de
- * 7 dias desempata igual. Entrada sem registro (expirou) também renova — o
- * davail acabou de confirmar o positivo; hash com `bad` NÃO renova (bad vence,
- * e a renovação não pode ressuscitá-lo pela janela do davail).
- */
-function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
-  const ttl = config.magnetDb.aliveTtl;
-  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
-  const now = Date.now();
-  const stale = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter((hash) => {
-    if (!hash || isBad(adapterId, apiKey, hash)) return false;
-    const remaining = magnetState().remaining(adapterId, apiKey, 'alive', hash, now);
-    return remaining == null || remaining < ttl / 2;
-  });
-  markAlive(adapterId, apiKey, stale);
-}
 
 /**
  * Estado de diagnóstico do painel.
@@ -377,7 +205,5 @@ function status(): MagnetDbStatus {
 }
 
 export {
-  markAlive, isAlive, peekAlive, markBad, isBad, peekBad,
-  forgetBad, forgetBadOf, markLie, isLie, peekLie,
-  renewAlive, status,
+  peekBad, peekLie, forgetBadOf, status,
 };

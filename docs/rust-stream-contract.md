@@ -36,7 +36,7 @@ configurável:
 |---|---|---|
 | `GATEWAY` | `on` (fixo) | `adom-server` na 7000; Node atrás na 7100 |
 | `ROUTES_RUST` | `stream` (fixo) | corte nativo do `/stream` |
-| `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | rotas internas (meta/effects/holds) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
+| `INTERNAL_SEARCH_URL` | `http://127.0.0.1:7100` | rotas internas (meta/effects; `INTERNAL_CHECK_URL` saiu em 2026-10-30, sem leitor) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
 O `entrypoint.sh` **sempre** inicia o gateway; binário ausente é erro fatal. O
 `docker-compose.gateway.yml` é **só diagnóstico**: publica o Node em
@@ -961,7 +961,7 @@ de paridade BR+cotas, que é dos gates (§0.6).
 | 5 | plano / orçamentos de coleta | decisões no núcleo; a janela roda no nativo (R5) |
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | **feito e incondicional** (R5): as cinco fontes e o inventário da conta no Rust; `SOURCES_RUST`, `NodeCollector` e `/internal/search/collect` não existem; sem fonte nativa montada o gateway não sobe |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador/núcleo; régua no corpus congelado (`parity:frozen` 16/16) e no e2e (`stream_e2e_parity` 51/51) |
-| 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + checagem nativa (R3); `INTERNAL_CHECK_URL` serve só ao feed de holds; autofetch/efeitos de cauda seguem no Node |
+| 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + checagem nativa (R3); a rota de holds saiu do Node em 2026-10-30 (o gateway calcula os fatos; `INTERNAL_CHECK_URL` removida); autofetch/efeitos de cauda seguem no Node |
 | 9 | assinatura `/resolve` no servidor | **feito**: guarda HMAC + play nativo por debrid, incondicionais; o handler Node e o proxy saíram e o rollback é commit/imagem anterior |
 | 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
 | 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |

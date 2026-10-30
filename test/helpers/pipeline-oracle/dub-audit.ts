@@ -10,7 +10,7 @@
 import config from '../../../src/config.js';
 import type { DebridAdapter, Stream, WorkHint } from '../../../types/domain.js';
 import { parseTitleSeasonEpisode } from '../../../src/utils/format.js';
-import debrid from '../../../src/debrid/index.js';
+import { resolveLink } from './play/actions.js';
 import { rawAdapter } from './raw-adapter.js';
 import { magnetState } from '../../../src/utils/debrid-state-native.js';
 import { isSupportedHash } from '../../../src/utils/magnetdb-counts.js';
@@ -150,7 +150,7 @@ export async function runDubAudit(limit = TAIL_MAX) {
   const okImdb = new Set<string>();
   for (const cand of batch) {
     try {
-      await debrid.resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
+      await resolveLink(cand.hash, { season: cand.season, episode: cand.episode, work: cand.work, dubbed: Boolean(cand.dubbed) });
       if (cand.dubbed && cand.needsPromote) {
         if (cand.key) okKeys.add(cand.key);
         for (const extra of cand.extraKeys || []) if (extra) okKeys.add(extra);

@@ -14,8 +14,8 @@
  * o mesmo import, saiu para o oráculo.) Best-effort:
  * falha de anotação nunca derruba o play.
  */
-import * as log from '../utils/logger.js';
-import type { DebridFile } from './common.js';
+import * as log from '../../../../src/utils/logger.js';
+import type { DebridFile } from '../../../../src/debrid/common.js';
 
 /** Só `{path, size}` válidos: o corpo vem de outro processo. */
 function takePlayFiles(value: unknown): DebridFile[] | null {
@@ -42,7 +42,7 @@ export async function applyPlayEffects(
   const list = takePlayFiles(files);
   if (list) {
     try {
-      const { recordFileEvidence } = await import('./audio-audit.js');
+      const { recordFileEvidence } = await import('../../../../src/debrid/audio-audit.js');
       recordFileEvidence(infoHash, list);
     } catch (err) {
       log.warn('[debrid] não consegui gravar a prova do play do Rust:', log.errorMessage(err));
@@ -50,7 +50,7 @@ export async function applyPlayEffects(
   }
   if (unavailable === true) {
     try {
-      const { noteUnavailable } = await import('./cache-check.js');
+      const { noteUnavailable } = await import('./davail.js');
       noteUnavailable(adapterId, apiKey, infoHash);
     } catch (err) {
       log.warn('[debrid] não consegui anotar davail=0 do play do Rust:', log.errorMessage(err));

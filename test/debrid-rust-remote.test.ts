@@ -11,6 +11,7 @@ import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../
 import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as runtime from '../src/runtime.js';
+import { withPlayBridge } from './helpers/pipeline-oracle/play/bridge.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
 
@@ -48,7 +49,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
     const cached = await wrapped.checkCached('chave', ['h']);
     assert.equal(hasHash(cached, 'h'), false, '501 é contrato incompleto');
     assert.equal(checks, 0, '501 não é segunda pergunta ao TS');
-    await assert.rejects(() => wrapped.resolveLink!('chave', 'abc'), (err: unknown) => {
+    await assert.rejects(() => withPlayBridge(wrapped).resolveLink!('chave', 'abc'), (err: unknown) => {
       assert.ok(err instanceof RustWriteError);
       return true;
     });
@@ -137,7 +138,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
         status: spec.status,
         headers: { 'content-type': 'application/json' },
       })) as typeof fetch);
-      await assert.rejects(() => play.resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
+      await assert.rejects(() => withPlayBridge(play).resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
         spec.check(err);
         assert.equal(errorMessage(err).includes(TEST_KEY), false, errorMessage(err));
         return true;
@@ -151,7 +152,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
       evidence: { wantedSeason: 2, wantedEpisode: 5, declaredSeasons: [2], declaredEpisodes: [4, 6], sample: 'Serie.S02E04.mkv' },
       context: { videoCount: 3, samples: ['Serie.S02E04.mkv', 'Serie.S02E06.mkv'] },
     }), { status: 409, headers: { 'content-type': 'application/json' } })) as typeof fetch);
-    await assert.rejects(() => episodePlay.resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
+    await assert.rejects(() => withPlayBridge(episodePlay).resolveLink!(TEST_KEY, 'abc'), (err: unknown) => {
       assert.ok(err instanceof EpisodePickError);
       if (!(err instanceof EpisodePickError)) return false;
       assert.deepEqual(err.evidence?.declaredSeasons, [2]);
@@ -201,14 +202,14 @@ test('harness não finge paridade de serviço ainda não portado', () => {
 
 test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', async () => {
   const { wrap } = await import('../src/debrid/rust-remote.js');
-  const { peekDavail } = await import('../src/debrid/cache-check.js');
+  const { peekDavail } = await import('./helpers/pipeline-oracle/play/davail.js');
   const { peekFileSizes } = await import('../src/debrid/file-sizes.js');
   const adapter = debrid.BY_ID.get('alldebrid');
   if (!adapter) throw new Error('alldebrid ausente');
   const savedTtl = config.debrid.availNegTtl;
   config.debrid.availNegTtl = 3600;
   const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
-  const remote = (impl: typeof fetch) => wrap(adapter, { token: 'tok', fetchImpl: impl });
+  const remote = (impl: typeof fetch) => withPlayBridge(wrap(adapter, { token: 'tok', fetchImpl: impl }), { token: 'tok', fetchImpl: impl });
   try {
     // Frio que a guarda do delete liberou: a busca seguinte não pinta ⚡ nele.
     const cold = 'c'.repeat(40);
@@ -382,7 +383,7 @@ test('current() não tem seletor: todo serviço do registry sai pela ponte', () 
     const wrapped = runtime.run({ opts: { ...runtime.defaults(), debridService: id, debridApiKey: 'k' } }, () => debrid.current());
     assert.ok(wrapped, `${id} devolve adaptador`);
     assert.notEqual(wrapped.checkCached, adapter.checkCached, `${id} embrulhado na ponte`);
-    assert.notEqual(wrapped.resolveLink, adapter.resolveLink, `${id} link pela ponte`);
+    assert.equal(wrapped.resolveLink, undefined, `${id} sem play TS no adaptador de produção`);
   }
 });
 

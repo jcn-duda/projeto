@@ -1,19 +1,16 @@
-import { opts } from '../runtime.js';
 import type { DebridAdapter } from '../../types/domain.js';
-import config from '../config.js';
 import { isAuthError, isQuotaError, isRateLimitError } from './common.js';
-import { davailState } from '../utils/debrid-state-native.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import * as magnetdb from '../utils/magnetdb.js';
 import { notify } from '../utils/notify.js';
 import { cacheVerdict } from '../utils/rust-debrid-cache.js';
-import { current } from './registry.js';
 
 // O `checkCached` orquestrado (davail + coalescência não abortável + alive)
 // saiu para o oráculo de teste (`test/helpers/pipeline-oracle/debrid-check.ts`):
 // a checagem viva é a do gateway. Aqui fica o vocabulário que a produção usa —
-// o veredito de conta inutilizável (painel/diagnóstico) e o davail do play.
+// o veredito de conta inutilizável (painel/diagnóstico). O davail do play
+// (`noteAvailable`/`peekDavail`/`noteUnavailable`) foi para o oráculo
+// (`test/helpers/pipeline-oracle/play/davail.ts`).
 
 type CacheCheckResult = {
   cached: Set<string>;
@@ -103,47 +100,5 @@ function normalizeCacheResult(adapter: DebridAdapter, result: AdapterCacheRespon
   });
 }
 
-/**
- * O recheck acabou de confirmar que o hash ficou pronto. Semeia o positivo para
- * a próxima lista marcar ⚡ sem repetir a consulta ao debrid.
- */
-function noteAvailable(infoHash: string) {
-  const adapter = current();
-  const apiKey = opts().debridApiKey;
-  if (!adapter || !apiKey || !infoHash) return;
-  if (config.debrid.availPosTtl > 0) davailState().put(adapter.id, apiKey, infoHash, true, config.debrid.availPosTtl, Date.now());
-  // Pronto de verdade é evidência durável: entra no banco de magnets além do
-  // davail de TTL curto.
-  magnetdb.markAlive(adapter.id, apiKey, [infoHash]);
-}
-
-/**
- * Leitura de SONDAGEM do davail, sem efeito algum: a ponte lê o store do núcleo
- * direto — não promove LRU, não conta cache.hit e não acorda o L2. Negativo
- * "fresco" aqui foi escrito NESTA instância, que é exatamente o que o consumidor
- * (DEBRID_ALIVE_AS_CACHE) quer para vetar o atalho do histórico; positivo
- * sozinho não pinta ⚡, só o negativo contradiz.
- *
- * @returns {0|1|null} veredito vivo do store, ou null (ausente/expirado).
- */
-function peekDavail(adapterId: string, apiKey: string, hash: string): 0 | 1 | null {
-  const value = davailState().get(adapterId, apiKey, hash, Date.now());
-  if (value === null) return null;
-  return value ? 1 : 0;
-}
-
-/**
- * Negativo MEDIDO pelo play: o /resolve acabou de constatar que o hash não
- * estava pronto no serviço. Grava davail=0 pela janela curta do availNegTtl
- * (a mesma do caminho da checagem) para o atalho do histórico não pintar ⚡
- * no que o play acabou de provar frio — o erro do atalho custa uma janela,
- * não os 7 dias do alive. Não toca no magnetdb: o alive de plays antigos
- * continua de pé, e um play futuro bem-sucedido o renova.
- */
-function noteUnavailable(adapterId: string, apiKey: string, infoHash: string) {
-  if (!adapterId || !apiKey || !infoHash) return;
-  if (config.debrid.availNegTtl > 0) davailState().put(adapterId, apiKey, infoHash, false, config.debrid.availNegTtl, Date.now());
-}
-
-export { noteAvailable, peekDavail, noteUnavailable, UNUSABLE, unusable, failureReason, normalizeCacheResult, unusableReason };
+export { UNUSABLE, unusable, failureReason, normalizeCacheResult, unusableReason };
 export type { CacheCheckResult };

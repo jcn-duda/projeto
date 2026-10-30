@@ -11,6 +11,7 @@ import * as metrics from '../src/utils/metrics.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
 import * as brCoverage from '../src/utils/br-coverage.js';
 import { nextSeeds, popularCohort } from '../src/providers/imdb-seed.js';
@@ -290,7 +291,7 @@ test('3.1: ledger hit, davail=1 e magnetdb alive contam ⚡ (três fontes)', asy
     rdLedger.noteHit([hL]);
     // davail positivo da conta do operador (mesma chave que o módulo lê).
     davailState().put('realdebrid', 'ops-key', hD, true, 3600, Date.now());
-    magnetdb.markAlive('realdebrid', 'ops-key', [hM]);
+    magnetdbWrites.markAlive('realdebrid', 'ops-key', [hM]);
 
     const s = brCoverage.sample();
     assert.equal(s?.worksCached, 3, 'ledger, davail e magnetdb.alive confirmam ⚡');
@@ -335,7 +336,7 @@ test('3.1: blocked NÃO é ressuscitado por alive/davail', async () => {
     releaseIndex.record('tt3000151', {}, [brItem(h, 'Filme B (2020) 1080p DUBLADO')]);
     rdLedger.noteBlocked(h); // 451 legal: recusa permanente
     // Evidência da conta como se tivesse tocado — NÃO pode ressuscitar 451.
-    magnetdb.markAlive('realdebrid', 'ops-key', [h]);
+    magnetdbWrites.markAlive('realdebrid', 'ops-key', [h]);
     davailState().put('realdebrid', 'ops-key', h, true, 3600, Date.now());
 
     const s = brCoverage.sample();
@@ -358,7 +359,7 @@ test('3.1: conta que não é Real-Debrid não colore cobertura RD com davail/ali
     await seedCohort(['tt3000152'], []);
     const h = '7'.repeat(40);
     releaseIndex.record('tt3000152', {}, [brItem(h, 'Filme P (2020) 1080p DUBLADO')]);
-    magnetdb.markAlive('premiumize', 'pm-key', [h]);
+    magnetdbWrites.markAlive('premiumize', 'pm-key', [h]);
     davailState().put('premiumize', 'pm-key', h, true, 3600, Date.now());
 
     const s = brCoverage.sample();

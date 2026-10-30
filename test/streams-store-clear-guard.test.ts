@@ -14,7 +14,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
-import { applyCacheEffect } from '../src/debrid/rust-resolve-cache.js';
+import { applyCacheEffect } from './helpers/pipeline-oracle/play/rust-resolve-cache.js';
 import {
   clearNativeStreams,
   flushNativeStreamStores,

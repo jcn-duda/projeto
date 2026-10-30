@@ -3,44 +3,32 @@
 // vive nos módulos irmãos, em camadas sem ciclo (padrão dos splits §5.1/§5.3):
 //
 //   registry.ts        ADAPTERS/BY_ID/SERVICES + current()
-//   cache-check.ts     davail do play e veredito de conta inutilizável (o
-//                      checkCached orquestrado está no oráculo de teste)
+//   cache-check.ts     veredito de conta inutilizável (o checkCached
+//                      orquestrado e o davail do play estão no oráculo de teste)
 //   account-status.ts  saúde da conta para o verificador/painel
 //   inventory.ts       inventário da conta como fonte (memo dinv)
 //   env-ops.ts         warmup da conta do OPERADOR (.env)
-//   actions.ts         resolveLink/enqueue/knownInstant (cola do oráculo; o
-//                      play e o autofetch de PRODUÇÃO são nativos)
 //   catalog-env.ts     catálogo durável + limpador BR da conta do operador
 //
 // O objeto default preserva MESMA chave, MESMA ordem e MESMO objeto mutável
 // (BY_ID é o Map vivo do registry; nenhum estado é duplicado entre irmãos).
 import * as registry from './registry.js';
-import * as cacheCheck from './cache-check.js';
 import * as accountStatus from './account-status.js';
 import * as inventory from './inventory.js';
 import * as envOps from './env-ops.js';
-import * as actions from './actions.js';
 import * as catalogEnv from './catalog-env.js';
-
-export { knownInstant } from './actions.js';
 
 export default {
   SERVICES: registry.SERVICES,
   BY_ID: registry.BY_ID,
   current: registry.current,
-  noteAvailable: cacheCheck.noteAvailable,
-  peekDavail: cacheCheck.peekDavail,
-  noteUnavailable: cacheCheck.noteUnavailable,
   accountStatus: accountStatus.accountStatus,
   dashboardAccounts: accountStatus.dashboardAccounts,
   testAccount: accountStatus.testAccount,
-  resolveLink: actions.resolveLink,
-  enqueue: actions.enqueue,
   inventory: inventory.inventory,
   inventoryPeek: inventory.inventoryPeek,
   refreshInventory: inventory.refreshInventory,
   warmupEnv: envOps.warmupEnv,
-  knownInstant: actions.knownInstant,
   catalogScanEnv: catalogEnv.catalogScanEnv,
   catalogListEnv: catalogEnv.catalogListEnv,
   manualDeleteEnv: catalogEnv.manualDeleteEnv,

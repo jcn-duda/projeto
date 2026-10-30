@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -56,17 +57,17 @@ test('alive/bad: leitura escopada por serviço e conta', () => {
   const hash = 'a'.repeat(40);
   // bad antes de alive: markBad apaga o alive do MESMO hash (política "bad
   // vence"), então a coexistência aqui só existe em hashes distintos.
-  magnetdb.markBad('premiumize', 'conta-mag-x', hash);
-  magnetdb.markAlive('premiumize', 'conta-mag-x', ['6'.repeat(40)]);
-  assert.equal(magnetdb.isBad('premiumize', 'conta-mag-x', hash), true);
-  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-x', '6'.repeat(40)), true);
+  magnetdbWrites.markBad('premiumize', 'conta-mag-x', hash);
+  magnetdbWrites.markAlive('premiumize', 'conta-mag-x', ['6'.repeat(40)]);
+  assert.equal(magnetdbWrites.isBad('premiumize', 'conta-mag-x', hash), true);
+  assert.equal(magnetdbWrites.isAlive('premiumize', 'conta-mag-x', '6'.repeat(40)), true);
   // Outra conta e outro serviço não veem o histórico — cache do debrid
   // pertence à conta, e "morto" num serviço não vale para outro.
-  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-y', '6'.repeat(40)), false);
-  assert.equal(magnetdb.isBad('torbox', 'conta-mag-x', hash), false);
+  assert.equal(magnetdbWrites.isAlive('premiumize', 'conta-mag-y', '6'.repeat(40)), false);
+  assert.equal(magnetdbWrites.isBad('torbox', 'conta-mag-x', hash), false);
   // Hash é normalizado: marcar em maiúsculas e ler em minúsculas casa.
-  magnetdb.markAlive('premiumize', 'conta-mag-x', ['B'.repeat(40)]);
-  assert.equal(magnetdb.isAlive('premiumize', 'conta-mag-x', 'b'.repeat(40)), true);
+  magnetdbWrites.markAlive('premiumize', 'conta-mag-x', ['B'.repeat(40)]);
+  assert.equal(magnetdbWrites.isAlive('premiumize', 'conta-mag-x', 'b'.repeat(40)), true);
 });
 
 test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () => {
@@ -77,39 +78,39 @@ test('bad vence sobre alive: markBad apaga o histórico vivo do mesmo hash', () 
   const conta = 'conta-bad-vence';
   // L2 residual de rodada anterior (CACHE_PERSIST) deixaria isBad=true e
   // markAlive recusaria — limpa o lado bad antes de provar a política.
-  magnetdb.forgetBad('premiumize', conta, hash);
-  magnetdb.markAlive('premiumize', conta, [hash]);
-  assert.equal(magnetdb.isAlive('premiumize', conta, hash), true);
-  magnetdb.markBad('premiumize', conta, hash);
-  assert.equal(magnetdb.isBad('premiumize', conta, hash), true);
-  assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
+  magnetdbWrites.forgetBad('premiumize', conta, hash);
+  magnetdbWrites.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdbWrites.isAlive('premiumize', conta, hash), true);
+  magnetdbWrites.markBad('premiumize', conta, hash);
+  assert.equal(magnetdbWrites.isBad('premiumize', conta, hash), true);
+  assert.equal(magnetdbWrites.isAlive('premiumize', conta, hash), false, 'alive não sobrevive ao bad no mesmo hash');
 });
 
 test('markAlive recusa hash bad: não ressuscita o alive', () => {
   // Sem o filtro, a checagem seguinte regravava alive e desfazia o forget do markBad.
   const hash = '3'.repeat(40);
   const conta = 'conta-alive-refused-bad';
-  magnetdb.markBad('premiumize', conta, hash);
+  magnetdbWrites.markBad('premiumize', conta, hash);
   metrics.reset();
-  magnetdb.markAlive('premiumize', conta, [hash]);
-  assert.equal(magnetdb.isAlive('premiumize', conta, hash), false, 'markAlive não ressuscita hash bad');
+  magnetdbWrites.markAlive('premiumize', conta, [hash]);
+  assert.equal(magnetdbWrites.isAlive('premiumize', conta, hash), false, 'markAlive não ressuscita hash bad');
   assert.equal((metrics.snapshot() as any).counters['magnetdb.alive.refused-bad'], 1);
   metrics.reset();
 });
 
 test('lie é evidência própria, escopada por conta, sem virar bad', () => {
   const hash = '9'.repeat(40);
-  magnetdb.markLie('premiumize', 'conta-lie', hash);
-  assert.equal(magnetdb.isLie('premiumize', 'conta-lie', hash), true);
-  assert.equal(magnetdb.isLie('premiumize', 'outra-conta', hash), false);
-  assert.equal(magnetdb.isBad('premiumize', 'conta-lie', hash), false);
+  magnetdbWrites.markLie('premiumize', 'conta-lie', hash);
+  assert.equal(magnetdbWrites.isLie('premiumize', 'conta-lie', hash), true);
+  assert.equal(magnetdbWrites.isLie('premiumize', 'outra-conta', hash), false);
+  assert.equal(magnetdbWrites.isBad('premiumize', 'conta-lie', hash), false);
 });
 
 test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   const secretAccount = 'conta-que-nao-pode-vazar';
-  magnetdb.markAlive('premiumize', secretAccount, ['a1'.repeat(20)]);
-  magnetdb.markBad('torbox', secretAccount, 'b1'.repeat(20));
-  magnetdb.markLie('torbox', secretAccount, 'c1'.repeat(20));
+  magnetdbWrites.markAlive('premiumize', secretAccount, ['a1'.repeat(20)]);
+  magnetdbWrites.markBad('torbox', secretAccount, 'b1'.repeat(20));
+  magnetdbWrites.markLie('torbox', secretAccount, 'c1'.repeat(20));
 
   const snapshot = magnetdb.status();
   assert.ok(snapshot.sizeAlive >= 1);
@@ -184,21 +185,21 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
   try {
     await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'primeira passada vai à rede');
-    assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
+    assert.equal(magnetdbWrites.isAlive('premiumize', key, hash), true);
     // Simula o alive expirando enquanto o davail (TTL curto) ainda cobre: não há
     // `forgetAlive` na ponte, então esvaziar o namespace é o equivalente
     // observável — o davail fica intacto e a 2ª passada tem de renovar sem rede.
     magnetState().clear();
-    assert.equal(magnetdb.isAlive('premiumize', key, hash), false);
+    assert.equal(magnetdbWrites.isAlive('premiumize', key, hash), false);
     await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'segunda passada é servida pelo L1 do davail, sem rede');
-    assert.equal(magnetdb.isAlive('premiumize', key, hash), true, 'mesma evidência confirmada, servida da memória, renova o TTL');
+    assert.equal(magnetdbWrites.isAlive('premiumize', key, hash), true, 'mesma evidência confirmada, servida da memória, renova o TTL');
     // Renovação ECONÔMICA: com o alive recém-regravado (TTL cheio pela frente),
     // um novo hit do atalho NÃO regrava — o hit do L1 não é evidência nova.
     metrics.reset();
     await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached([hash]));
     assert.equal(calls.length, 1, 'continua sem rede');
-    assert.equal(magnetdb.isAlive('premiumize', key, hash), true);
+    assert.equal(magnetdbWrites.isAlive('premiumize', key, hash), true);
     const counters = (metrics.snapshot() as any).counters;
     assert.equal(counters['magnetdb.alive.set'] == null, true, 'alive fresco não é regravado no hit do atalho');
   } finally {
@@ -221,7 +222,7 @@ test('checkCached com positivo confirmado grava o histórico alive', async () =>
   try {
     await runWith({ opts: userOpts(key), encoded: '' }, () => debridCheck.checkCached(['c1'.repeat(20)]));
     assert.equal(
-      magnetdb.isAlive('premiumize', key, 'c1'.repeat(20)),
+      magnetdbWrites.isAlive('premiumize', key, 'c1'.repeat(20)),
       true,
       'positivo medido vira histórico durável, independente do TTL curto do davail',
     );
@@ -278,7 +279,7 @@ test('forgetBadOf reporta remoção de bad vencido ainda não podado', async () 
   const originalTtl = config.magnetDb.badTtl;
   try {
     config.magnetDb.badTtl = 1;
-    magnetdb.markBad('premiumize', apiKey, h);
+    magnetdbWrites.markBad('premiumize', apiKey, h);
     await new Promise((r) => setTimeout(r, 1100));
     // `entries` ignora a vencida sem apagá-la (quem apaga é `state`/`sweep`),
     // então esta é a prova de que a linha física ainda existe. Filtra pelo

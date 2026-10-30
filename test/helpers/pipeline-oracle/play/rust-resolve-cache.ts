@@ -6,10 +6,10 @@
  * `invalidateStreamsForObra` (só a obra). Não marca magnet: isso continua
  * sendo decisão de evidência, não de cache.
  */
-import config from '../config.js';
-import { errorMessage } from '../utils/logger.js';
-import { invalidateStreamsForObra } from '../utils/br-gap.js';
-import { clearNativeStreamsSoon } from '../utils/streams-store-native.js';
+import config from '../../../../src/config.js';
+import { errorMessage } from '../../../../src/utils/logger.js';
+import { invalidateStreamsForObra } from '../../../../src/utils/br-gap.js';
+import { clearNativeStreamsSoon } from '../../../../src/utils/streams-store-native.js';
 
 // Rajada de plays bloqueados não pode esfriar o cache de todo mundo
 // repetidamente. O instante fica neste processo — é o cooldown do pedido.

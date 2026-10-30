@@ -169,7 +169,7 @@ p50/p95 e a semana em `stream-shadow`.
    (`GATEWAY=on`) **recusa `/internal/*` antes do proxy** (o Caddy também
    bloqueia): a guarda de loopback do Node não vê o cliente real atrás do proxy,
    então a fachada é quem fecha a porta. No compose gateway,
-   `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` apontam a `127.0.0.1:7100`.
+   `INTERNAL_SEARCH_URL` aponta a `127.0.0.1:7100` (`INTERNAL_CHECK_URL` saiu em 2026-10-30, sem leitor).
 
    **Enriquecimento (`collect`/`index`) — síncrono.** `enrichForRust` anexa só
    a prova de ARQUIVO (`applyFileEvidence`); as rotas **não** chamam
@@ -791,11 +791,11 @@ só "tem stream tocável", não paridade BR+cotas.
   `harvester_enqueue`. Os kinds de trabalho (`autofetch_batch`, `br_probe`,
   `season_key`) têm dono nativo desde a B4: o Node apenas os aceita na forma e
   conta em `nativeOnly`, sem executar.
-- **Feed de holds** da AllDebrid (`/internal/debrid/holds`).
+- **Feed de holds** da AllDebrid (`/internal/debrid/holds`, removida em 2026-10-30; o gateway calcula os fatos em `al_cleanup_facts`).
 - **Banco VIVO** (`magnets.db`), `raw:v1` e `davail` — caminhos que a série R
   não moveu de dono.
 - **Rotas internas vivas**: `POST /internal/search/meta`,
-  `POST /internal/search/effects`, `POST /internal/debrid/holds` e
+  `POST /internal/search/effects` e
   `GET /internal/activity`. O `POST /internal/crawl-result` saiu na T3-L3
   (`src/routes/register.ts:62`): a ingestão da página é nativa.
 
@@ -807,7 +807,7 @@ aplica pela rota `POST /internal/resolve/effects` (loopback + token; *rota remov
 mesmos helpers do modo `DEBRID_RUST_SERVICES` (`applyResolveEffects`,
 `applyPlayEffects`, `markAlive`). No erro o gateway espera a gravação (e o
 flush do store nativo) antes do 404; no sucesso o 302 sai na hora. Na
-AllDebrid o hold do autofetch vem de `POST /internal/resolve/facts` (antes era
+AllDebrid o hold do autofetch vinha de `POST /internal/resolve/facts`, rota removida em 2026-10-30 (hoje `al_cleanup_facts` do gateway; antes era
 `held:true` fixo); sem resposta, o play não apaga o frio. O `i` da dica volta a
 ser lido. Prazo da ponte: `RESOLVE_EFFECTS_TIMEOUT_MS` (2 s).
 

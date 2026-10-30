@@ -12,7 +12,7 @@
 //   posse    → `src/debrid/protected.ts` (`hold`/`release`/`protectBr`): o hold
 //              do candidato é tomado ANTES da checagem (invariante 6 —
 //              autofetch x dropUncached);
-//   disparo  → `debrid.enqueue` + marker/trava/vaga de
+//   disparo  → `enqueue` (play/actions.ts) + marker/trava/vaga de
 //              `src/providers/autofetch.ts` (a única glue que não virou nativa).
 //
 // O QUE O ORÁCULO DEIXOU DE MEDIR depois do corte (e por quê):
@@ -62,7 +62,7 @@ import { decideAutofetch, type AutofetchPick } from '../../../src/utils/rust-aut
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as held from '../../../src/debrid/protected.js';
 import { reuploadBlocked, unblockIfInventoryReady } from '../../../src/debrid/alldebrid-reupload.js';
-import debrid from '../../../src/debrid/index.js';
+import { enqueue } from './play/actions.js';
 import { rawAdapter } from './raw-adapter.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
@@ -240,7 +240,7 @@ const ROLLBACK: Record<SkipReason, Array<'lock' | 'slot' | 'hold'>> = {
 /**
  * Disparo de UM candidato, fire-and-forget (nunca no caminho da resposta):
  * portões na ordem do antigo `enqueueAutofetch`, trava em memória, vaga da
- * busca, orçamento, `debrid.enqueue` e o efeito do aceite. `true` = saiu.
+ * busca, orçamento, `enqueue` (play/actions.ts) e o efeito do aceite. `true` = saiu.
  */
 function dispatchCandidate(candidate: OracleCandidate, req: PostCheckRequest): boolean {
   const adapter = rawAdapter() as DebridAdapter | null;
@@ -277,8 +277,7 @@ function dispatchCandidate(candidate: OracleCandidate, req: PostCheckRequest): b
   // episódio sai nulo) — mesmo predicado do antigo `enqueueAutofetch`.
   const isPack = Boolean(live.autoFetchSeasonFill && adapter.cacheCheck
     && isSeasonPackFillEligible(stream, season ?? null));
-  debrid
-    .enqueue(h, { season, episode: isPack ? null : episode })
+  enqueue(h, { season, episode: isPack ? null : episode })
     .then((ok) => {
       autofetch.release(lockKey);
       if (ok) {

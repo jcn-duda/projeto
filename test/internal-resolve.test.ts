@@ -11,6 +11,7 @@ import { createApp } from '../src/app.js';
 import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 import config from '../src/config.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 
 const TOKEN = 'tok-internal-resolve';
 const KEY = 'chave-de-teste-resolve';
@@ -50,7 +51,7 @@ test('effects: a rota saiu (404) e não grava nada, nem com corpo válido', asyn
     encoded: torbox, service: 'torbox', hash, outcome: 'ok', alive: true,
   });
   assert.equal(res.status, 404);
-  assert.equal(magnetdb.peekAlive('torbox', KEY, hash), false);
+  assert.equal(magnetdbWrites.peekAlive('torbox', KEY, hash), false);
   const semToken = await post('/internal/resolve/effects', {}, { 'X-Indexer-Test-Token': 'errado' });
   assert.equal(semToken.status, 404);
 });

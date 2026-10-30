@@ -286,7 +286,7 @@ export async function checkCached(
  */
 async function annotateUnavailable(apiKey: string, infoHash: string) {
   try {
-    const { noteUnavailable } = await import('../../../../src/debrid/cache-check.js');
+    const { noteUnavailable } = await import('../play/davail.js');
     noteUnavailable(id, apiKey, infoHash);
   } catch (err) {
     log.warn('[alldebrid] não consegui anotar davail=0 do play:', log.errorMessage(err));

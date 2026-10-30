@@ -15,6 +15,7 @@ import * as bank from '../src/utils/magnet-bank.js';
 import { engine } from '../src/utils/magnet-bank-rows.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -223,7 +224,7 @@ test('lie global: recém-marcado é visto, OR em linha existente, expirado é ig
   bank.captureItems([{ title: 'X', infoHash: h, lied: false, magnet: magnet(h) }], 'x', {});
   bank.flushNow();
   assert.equal(bank.lookup(h)!.lied, 0);
-  magnetdb.markLie('alldebrid', 'chave-de-teste', h);
+  magnetdbWrites.markLie('alldebrid', 'chave-de-teste', h);
   bank.captureItems([{ title: 'X', infoHash: h, lied: false, magnet: magnet(h) }], 'x', {});
   bank.flushNow();
   assert.equal(bank.lookup(h)!.lied, 1, 'lie global recém-gravado é visto sem janela');

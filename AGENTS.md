@@ -233,8 +233,8 @@ npm run docker:up / docker:logs
   `ttl<=0` grava permanente — gate `ttl>0` obrigatório). O relógio de 10 min
   é o `setInterval` PRÓPRIO do `magnetdb-persist` (`sweepNativeNamespaces`):
   a varredura de `mag`/`davail` é NATIVA (o núcleo devolve a contagem
-  removida por lado) e NÃO chama o `kvPruneExpired` da ponte — esse ficou sem
-  chamador no processo (só teste). Órfãos do Chupim na mesma régua: o
+  removida por lado); a ponte não tem mais `kvPruneExpired` (o `prune_expired`
+  do `NativeKv` é só do Rust). Órfãos do Chupim na mesma régua: o
   **resumo da obra** lê SÓ pela ponte nativa (`listObraKeysNative`/
   `readObraNative`; quem grava o registro é o commit nativo — `dd6f1f97`). E
   a **régua do magnetdb**: a mescla do import do acervo está congelada no

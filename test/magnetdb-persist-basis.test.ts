@@ -17,6 +17,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as persist from '../src/utils/magnetdb-persist.js';
 import * as cache from '../src/utils/cache.js';
 import { magMetaCountsKey } from '../src/utils/cache-keys.js';
@@ -43,7 +44,7 @@ test('fachada pública: magnetdb reexporta save/load e a base do TTL', () => {
 });
 
 test('mutação normal usa aggregate-estimate e sobrevive ao status()', () => {
-  magnetdb.markAlive('premiumize', 'conta-basis-1', [H('a')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-1', [H('a')]);
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
   assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
   assert.ok(magnetdb.status().sizeAlive >= 1);
@@ -54,8 +55,8 @@ test('mutação normal usa aggregate-estimate e sobrevive ao status()', () => {
 test('agregado: a escrita é nativa e o valor mantém o formato de sempre', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-formato', [H('a'), H('b')]);
-  magnetdb.markBad('torbox', 'conta-formato', H('c'));
+  magnetdbWrites.markAlive('premiumize', 'conta-formato', [H('a'), H('b')]);
+  magnetdbWrites.markBad('torbox', 'conta-formato', H('c'));
   const before = Date.now();
   persist.savePersistentCounts();
 
@@ -81,7 +82,7 @@ test('agregado: a escrita é nativa e o valor mantém o formato de sempre', () =
 test('boot com agregado presente NÃO rebuild-a: restaura sem pagar O(n)', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-confere', [H('4'), H('5')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-confere', [H('4'), H('5')]);
   persist.savePersistentCounts();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
@@ -94,7 +95,7 @@ test('boot com agregado presente NÃO rebuild-a: restaura sem pagar O(n)', () =>
 test('boot sem agregado rebuild-a o L1 e marca l1-rebuild até a primeira mutação', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-basis-2', [H('b')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-2', [H('b')]);
   magnetState().forgetCounts();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
@@ -105,7 +106,7 @@ test('boot sem agregado rebuild-a o L1 e marca l1-rebuild até a primeira mutaç
   const st = magnetdb.status();
   assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do L1, não de soma nominal');
   // A primeira mutação degrada para estimativa — a precisão do rebuild já era.
-  magnetdb.markBad('premiumize', 'conta-basis-2', H('c'));
+  magnetdbWrites.markBad('premiumize', 'conta-basis-2', H('c'));
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
   assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
 });
@@ -114,7 +115,7 @@ test('boot sem agregado rebuild-a o L1 e marca l1-rebuild até a primeira mutaç
 test('o Node não grava mais mag_meta no cache — escrita só pela ponte nativa', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-via', [H('e')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-via', [H('e')]);
   magnetState().forgetCounts();
   cache.forget(magMetaCountsKey());
   persist.savePersistentCounts();
@@ -124,7 +125,7 @@ test('o Node não grava mais mag_meta no cache — escrita só pela ponte nativa
 });
 
 test('restauração do agregado persistido (payload válido) é aggregate-estimate', () => {
-  magnetdb.markAlive('premiumize', 'conta-basis-3', [H('d')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-3', [H('d')]);
   persist.savePersistentCounts();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
@@ -144,7 +145,7 @@ test('painel: o status expõe ttlRemainingBasis consumível pelo modelo do paine
 });
 
 test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimate', () => {
-  magnetdb.markAlive('premiumize', 'conta-basis-4', [H('e')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-4', [H('e')]);
   magnetState().forgetCounts();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
@@ -156,13 +157,13 @@ test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimat
   magnetState().markAlive('premiumize', 'conta-basis-4', [H('f')], 60, Date.now() - 45_000);
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
-  magnetdb.renewAlive('premiumize', 'conta-basis-4', [H('f')]);
+  magnetdbWrites.renewAlive('premiumize', 'conta-basis-4', [H('f')]);
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'renovação sem gravação nova também degrada');
   assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
 });
 
 test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', () => {
-  magnetdb.markAlive('premiumize', 'conta-basis-6', [H('2')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-6', [H('2')]);
   magnetState().forgetCounts();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
@@ -183,8 +184,8 @@ test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', ()
 test('agregado legível mas divergente do L1 cai no rebuild em vez de virar verdade', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-deriva', [H('1'), H('2')]);
-  magnetdb.markBad('alldebrid', 'conta-deriva', H('3'));
+  magnetdbWrites.markAlive('premiumize', 'conta-deriva', [H('1'), H('2')]);
+  magnetdbWrites.markBad('alldebrid', 'conta-deriva', H('3'));
   const l1 = magnetdb.status().l1Entries;
   assert.equal(l1, 3, 'três registros físicos no namespace mag');
 
@@ -209,7 +210,7 @@ test('agregado legível mas divergente do L1 cai no rebuild em vez de virar verd
 test('sentinela é de divergência TOTAL: distribuição errada com soma igual passa', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-torta', [H('6'), H('7')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-torta', [H('6'), H('7')]);
   assert.equal(magnetdb.status().l1Entries, 2);
 
   // Soma bate (2 = 2), lados trocados: 1 alive + 1 bad onde o L1 tem 2 alive.
@@ -229,7 +230,7 @@ test('sentinela é de divergência TOTAL: distribuição errada com soma igual p
 test('restauração envelhece a soma de TTL pelo updatedAt gravado', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-idade', [H('9')]);
+  magnetdbWrites.markAlive('premiumize', 'conta-idade', [H('9')]);
   const umaHoraAtras = Date.now() - 3_600_000;
   plantCounts({
     premiumize: { alive: 1, bad: 0, lie: 0, ttlRemainingSums: { alive: 7_200, bad: 0, lie: 0 } },
@@ -247,9 +248,9 @@ test('restauração envelhece a soma de TTL pelo updatedAt gravado', () => {
 test('hash fora do formato não vira chave física nem contador', () => {
   clearMag();
   persist.adapterCounts.clear();
-  magnetdb.markAlive('premiumize', 'conta-hash', ['nao-e-hash', 'ABC', H('8')]);
-  magnetdb.markBad('premiumize', 'conta-hash', 'tambem-nao');
-  magnetdb.markLie('premiumize', 'conta-hash', 'nem-esse');
+  magnetdbWrites.markAlive('premiumize', 'conta-hash', ['nao-e-hash', 'ABC', H('8')]);
+  magnetdbWrites.markBad('premiumize', 'conta-hash', 'tambem-nao');
+  magnetdbWrites.markLie('premiumize', 'conta-hash', 'nem-esse');
 
   const st = magnetdb.status();
   assert.equal(st.l1Entries, 1, 'só o hash de 40-hex virou chave');

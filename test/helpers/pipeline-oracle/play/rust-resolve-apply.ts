@@ -7,13 +7,13 @@
 import { applyMagnetEffect } from './rust-resolve-magnet.js';
 import { applyCacheEffect } from './rust-resolve-cache.js';
 import { applyIndexEffect } from './rust-resolve-index.js';
-import * as rdLedger from './rd-ledger.js';
+import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
 import {
   isBlockedError,
   isDubLieError,
   isEpisodePickError,
   isNoVideoError,
-} from './common.js';
+} from '../../../../src/debrid/common.js';
 
 export type RustResolveEffect = {
   magnet: { mark: 'bad' | 'lie' | null; unprotect?: boolean };

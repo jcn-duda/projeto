@@ -8,6 +8,7 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { createTestServer } from './e2e/e2e-harness.js';
@@ -34,11 +35,11 @@ let server: any;
 const saved: Record<string, any> = {};
 
 function seed() {
-  magnetdb.markAlive(ADAPTER, API_KEY, [HASH_ALIVE]);
-  magnetdb.markBad(ADAPTER, API_KEY, HASH_BAD_1);
-  magnetdb.markBad(ADAPTER, API_KEY, HASH_BAD_2);
-  magnetdb.markLie(ADAPTER, API_KEY, HASH_LIE);
-  magnetdb.markBad('magfake2', API_KEY, HASH_BAD_OUTRO);
+  magnetdbWrites.markAlive(ADAPTER, API_KEY, [HASH_ALIVE]);
+  magnetdbWrites.markBad(ADAPTER, API_KEY, HASH_BAD_1);
+  magnetdbWrites.markBad(ADAPTER, API_KEY, HASH_BAD_2);
+  magnetdbWrites.markLie(ADAPTER, API_KEY, HASH_LIE);
+  magnetdbWrites.markBad('magfake2', API_KEY, HASH_BAD_OUTRO);
 }
 
 /** Só HASH_BAD_1 tem URI no banco: prova que a view vê o banco por hash. */
@@ -213,7 +214,7 @@ test('magnet-clear-bad com confirm apaga só bad, preserva alive/lie e é idempo
 
     assert.equal(magnetdb.peekBad('magfake2', API_KEY, HASH_BAD_OUTRO), false);
     assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_1), true, 'bad de outro adapter permanece');
-    assert.equal(magnetdb.peekAlive(ADAPTER, API_KEY, HASH_ALIVE), true, 'alive não é tocado');
+    assert.equal(magnetdbWrites.peekAlive(ADAPTER, API_KEY, HASH_ALIVE), true, 'alive não é tocado');
     assert.equal(magnetdb.peekLie(ADAPTER, API_KEY, HASH_LIE), true, 'lie não é tocado');
 
     // Idempotência: segunda passada no mesmo escopo não tem o que apagar.
@@ -246,7 +247,7 @@ test('magnet-clear-bad respeita filtro de hash, teto e valida side alheio', asyn
     // side !== 'bad' é recusado: a ação só apaga bad.
     const recusado = await post({ action: 'magnet-clear-bad', confirm: true, side: 'alive' });
     assert.equal(recusado.status, 400);
-    assert.equal(magnetdb.peekAlive(ADAPTER, API_KEY, HASH_ALIVE), true);
+    assert.equal(magnetdbWrites.peekAlive(ADAPTER, API_KEY, HASH_ALIVE), true);
 
     // Teto por passagem: max 1 derruba só um bad e reporta o restante.
     const limitado = await post({ action: 'magnet-clear-bad', confirm: true, max: 1 });

@@ -344,7 +344,6 @@ stremio adom/
 │   │   ├── register.ts       # único ponto que monta as rotas (ordem importa)
 │   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
 │   │   ├── stream.ts         # /stream do Node: 410 com gateway nativo, 503 sem
-│   │   ├── internal-resolve.ts # efeitos/fatos do /resolve (o play é do gateway)
 │   │   ├── public.ts         # /configure, /painel, /seal-config
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/

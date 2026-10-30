@@ -65,7 +65,6 @@ test('applyDebrid responde sem esperar o enqueue lento (disparo é efeito colate
 test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/known:false liberam', async () => {
   const originalCheck = debridCheck.checkCached;
   const originalPublicUrl = config.debrid.publicUrl;
-  const originalRegistryEnqueue = debrid.enqueue;
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalAdapterEnqueue = pmAdapter.enqueue;
   const account = accountScope('chave-holds');
@@ -123,15 +122,16 @@ test('holds: protege antes da checagem, sobrevive ao aceite, e recusa/falha/know
     assert.equal(held.isHeld(h3, account), false, 'recusa libera o hold');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h3)), null, 'recusa não grava marker');
 
-    // (4) Falha do enqueue (rejeição) também libera hold, marker e trava de busca.
-    debrid.enqueue = async () => { throw new Error('falha simulada'); };
+    // (4) Falha do enqueue (rejeição) também libera hold e não grava marker.
+    // O enqueue do oráculo (`play/actions.ts`) engole a exceção e devolve false,
+    // então cai na recusa; o efeito observado é o mesmo.
+    pmAdapter.enqueue = async () => { throw new Error('falha simulada'); };
     await run(h4, 'hold-falha');
     await sleep(20);
     assert.equal(held.isHeld(h4, account), false, 'falha libera o hold');
     assert.equal(kvPeek(autofetch.markerKey('premiumize', account, h4)), null, 'falha não grava marker');
   } finally {
     debridCheck.checkCached = originalCheck;
-    debrid.enqueue = originalRegistryEnqueue;
     config.debrid.publicUrl = originalPublicUrl;
     pmAdapter.enqueue = originalAdapterEnqueue;
     for (const h of [h1, h2, h3, h4]) {

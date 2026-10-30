@@ -14,7 +14,7 @@ import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { isCleanupProtected } from '../src/debrid/protected.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
-import { alldebridLinkFacts } from '../src/debrid/rust-link-facts.js';
+import { alldebridLinkFacts } from './helpers/pipeline-oracle/play/rust-link-facts.js';
 
 const API_KEY = 'chave-de-teste-link-facts';
 

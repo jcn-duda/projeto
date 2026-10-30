@@ -1,20 +1,21 @@
-import { opts } from '../runtime.js';
-import type { PlayHint } from '../../types/domain.js';
-import * as log from '../utils/logger.js';
-import * as rdLedger from './rd-ledger.js';
-import { current } from './registry.js';
+import { opts } from '../../../../src/runtime.js';
+import type { PlayHint } from '../../../../types/domain.js';
+import * as log from '../../../../src/utils/logger.js';
+import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
+import { current } from '../../../../src/debrid/registry.js';
+import { bridgedResolveLink } from './bridge.js';
 
 /**
- * Resolve o link no adaptador CORRENTE. O play/enqueue de PRODUÇÃO é nativo
- * (gateway): estes wrappers existem como COLA DO ORÁCULO/testes, que ainda
- * exercitam os adaptadores não-RD pelo mesmo ponto de entrada. Por isso o
- * guarda: adaptador sem `resolveLink` (o Real-Debrid hoje) devolve `null` em
- * vez de estourar `TypeError` num teste remoto.
+ * Resolve o link no adaptador CORRENTE, pela ponte de play do oráculo
+ * (`bridge.ts`, o mesmo POST /debrid/link que o `wrap` fazia). O play de
+ * PRODUÇÃO é nativo (gateway): isto é COLA DO ORÁCULO/testes. O Real-Debrid não
+ * tem play TS (o /resolve dele é nativo), então devolve `null` em vez de
+ * estourar num teste remoto.
  */
 async function resolveLink(infoHash: string, episode?: PlayHint) {
   const adapter = current();
-  if (!adapter || typeof adapter.resolveLink !== 'function') return null;
-  return adapter.resolveLink(opts().debridApiKey, infoHash, episode);
+  if (!adapter || adapter.id === 'realdebrid') return null;
+  return bridgedResolveLink(adapter)(opts().debridApiKey, infoHash, episode);
 }
 
 /**

@@ -126,14 +126,15 @@ test('cachedOnly nao corta nada quando o inventario esta frio', async () => {
  *
  * O Real-Debrid não responde mais pelo cache global dele, então o inventário da
  * conta cobria só o que o usuário já tinha baixado. Mas todo play que dá certo
- * já grava `magnetdb.markAlive` — o addon sabia, e usava esse histórico só para
+ * já grava `magnetdbWrites.markAlive` — o addon sabia, e usava esse histórico só para
  * ORDENAR, nunca para rotular. Ligado no ⚡, o raio cresce sozinho: o que você
  * tocou uma vez volta marcado nas próximas buscas.
  */
 test('hash com play comprovado nesta conta volta com ⚡ pelo histórico', async () => {
   const magnetdb = await import('../src/utils/magnetdb.js');
+  const magnetdbWrites = await import('./helpers/pipeline-oracle/play/magnetdb-writes.js');
   cache.forget(`${prefix('dinv')}realdebrid:${accountScope(KEY)}`);
-  magnetdb.markAlive('realdebrid', KEY, [FORA]);
+  magnetdbWrites.markAlive('realdebrid', KEY, [FORA]);
 
   const out = await comConfig({ dc: false }, [
     stream(NA_CONTA, 'Nunca Tocado 1080p'),
@@ -152,10 +153,11 @@ test('hash com play comprovado nesta conta volta com ⚡ pelo histórico', async
  */
 test('histórico não inventa ⚡ em adaptador que sabe checar cache', async () => {
   const magnetdb = await import('../src/utils/magnetdb.js');
+  const magnetdbWrites = await import('./helpers/pipeline-oracle/play/magnetdb-writes.js');
   const alldebrid = await import('../src/debrid/alldebrid.js');
   assert.equal(alldebrid.cacheCheck, true, 'premissa do teste: a AllDebrid checa cache');
 
-  magnetdb.markAlive('alldebrid', KEY, [FORA]);
+  magnetdbWrites.markAlive('alldebrid', KEY, [FORA]);
   const seg = Buffer.from(JSON.stringify({ ds: 'alldebrid', dk: KEY, dc: false }), 'utf8').toString('base64url');
 
   const realFetch = globalThis.fetch;

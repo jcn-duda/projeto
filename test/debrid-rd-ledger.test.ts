@@ -4,7 +4,7 @@ import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as ledger from '../src/debrid/rd-ledger.js';
-import debrid from '../src/debrid/index.js';
+import { knownInstant } from './helpers/pipeline-oracle/play/actions.js';
 import * as runtime from '../src/runtime.js';
 import { kvForget, kvRemaining } from '../src/utils/native-kv.js';
 
@@ -116,30 +116,30 @@ test('knownInstant despacha para rdLedger quando RD + ledger ativos e false para
   try {
     // Com Real-Debrid ativo e ledger ativo
     runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' }, encoded: '' }, () => {
-      assert.equal(debrid.knownInstant(H1), true, 'hit deve ser true');
-      assert.equal(debrid.knownInstant(H2), false, 'miss deve ser false');
-      assert.equal(debrid.knownInstant(H3), false, 'blocked deve ser false');
-      assert.equal(debrid.knownInstant(H4), false, 'unknown deve ser false');
+      assert.equal(knownInstant(H1), true, 'hit deve ser true');
+      assert.equal(knownInstant(H2), false, 'miss deve ser false');
+      assert.equal(knownInstant(H3), false, 'blocked deve ser false');
+      assert.equal(knownInstant(H4), false, 'unknown deve ser false');
 
       // Com ledger desativado
       config.debrid.rdLedger.enabled = false;
-      assert.equal(debrid.knownInstant(H1), false, 'com ledger disabled deve ser false');
+      assert.equal(knownInstant(H1), false, 'com ledger disabled deve ser false');
       config.debrid.rdLedger.enabled = true;
 
       // Com oráculo desativado
       config.debrid.rdOracle.enabled = false;
-      assert.equal(debrid.knownInstant(H1), false, 'com oracle disabled deve ser false');
+      assert.equal(knownInstant(H1), false, 'com oracle disabled deve ser false');
       config.debrid.rdOracle.enabled = true;
     });
 
     // Com AllDebrid ativo
     runtime.run({ opts: { debridService: 'alldebrid', debridApiKey: 'ad-key' }, encoded: '' }, () => {
-      assert.equal(debrid.knownInstant(H1), false, 'alldebrid deve ser false');
+      assert.equal(knownInstant(H1), false, 'alldebrid deve ser false');
     });
 
     // Sem debrid configurado
     runtime.run({ opts: {}, encoded: '' }, () => {
-      assert.equal(debrid.knownInstant(H1), false, 'sem debrid deve ser false');
+      assert.equal(knownInstant(H1), false, 'sem debrid deve ser false');
     });
   } finally {
     config.debrid.rdOracle.enabled = prevOracleEnabled;

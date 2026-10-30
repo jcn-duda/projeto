@@ -20,13 +20,14 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
-import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
+import { peekDavail, noteUnavailable } from './helpers/pipeline-oracle/play/davail.js';
 import { enrichInstantWithoutCacheCheck } from './helpers/pipeline-oracle/debrid-instant-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import { markReuploadBlocked, forgetReuploadBlock, unblockIfInventoryReady } from '../src/debrid/alldebrid-reupload.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
+import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
 import * as held from '../src/debrid/protected.js';
@@ -109,7 +110,7 @@ test('knob off (default): alive NÃO infla o cached', () => {
   const HASH = 'a'.repeat(40);
   const restore = withDebrid({ aliveAsCache: false });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const antes = counter('debrid.instant.fromAliveAsCache');
     const adapter = makeAdapter('alldebrid', () => ({}));
     // O contrato é MUTAR o Set do chamador (dono do cached é o applyDebrid);
@@ -130,7 +131,7 @@ test('knob on + alive + sem davail: entra, mas accountKnown false e fora do cach
   const HASH = 'b'.repeat(40);
   const restore = withDebrid({ aliveAsCache: true });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const antes = counter('debrid.instant.fromAliveAsCache');
     const adapter = makeAdapter('alldebrid', () => ({}));
     const cached = new Set<string>();
@@ -149,7 +150,7 @@ test('knob on + alive + davail=0 fresco: negativo medido vence', async () => {
   const HASH = 'c'.repeat(40);
   const restore = withDebrid({ aliveAsCache: true, availNegTtl: 120 });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const check = await seedDavail('alldebrid', KEY, HASH, false);
     assert.equal(check.known, true);
     assert.equal(peekDavail('alldebrid', KEY, HASH), 0, 'a checagem mediu fora do cache');
@@ -173,7 +174,7 @@ test('knob on + checagem completa (known=true): bloco de sobra nem roda, com ali
   const HASH = 'd'.repeat(40);
   const restore = withDebrid({ aliveAsCache: true, availNegTtl: 120 });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const antes = counter('debrid.instant.fromAliveAsCache');
     const adapter = makeAdapter('alldebrid', () => ({}));
     const cached = new Set([HASH]);
@@ -209,7 +210,7 @@ test('knob on + cacheCheck:false: caminho existente do RD/DL inalterado', () => 
   const HASH = 'f'.repeat(40);
   const restore = withDebrid({ aliveAsCache: true });
   try {
-    magnetdb.markAlive('realdebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('realdebrid', KEY, [HASH]);
     // Sem autofetchSource: o bloco de inventário nem roda — sobra exatamente o
     // caminho legado de histórico, que o knob novo não pode alterar.
     const adapter = {
@@ -239,7 +240,7 @@ test('knob on + availNegTtl=0: guarda do negativo desligada, alive-⚡ aplica', 
     // Negativo "presente" na memória: com a guarda desligada ele não pode
     // vetar. Semente direta na chave — noteUnavailable não gravaria com TTL 0.
     cache.set(`${prefix('davail')}alldebrid:${accountScope(KEY)}:${HASH}`, 0, 60);
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const antes = counter('debrid.instant.fromAliveAsCache');
     const adapter = makeAdapter('alldebrid', () => ({}));
     const cached = new Set<string>();
@@ -259,7 +260,7 @@ test('knob on + alive + hash marcado "não re-subir" (8.14): o atalho não pinta
   const HASH = '7'.repeat(40);
   const restore = withDebrid({ aliveAsCache: true });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     assert.equal(
       markReuploadBlocked(accountScope(KEY), HASH, 'Old Foreign Movie 2019 TrueFrench 1080p'),
       true,
@@ -286,7 +287,7 @@ test('8.14+: bloqueado destravado pelo inventário (dinv pronto) volta a ser ele
   // Pin do 8.14: o verde não pode depender do .env de quem roda.
   const restore = withDebrid({ aliveAsCache: true, reuploadBlock: true, alldebridReuploadBlockTtlMs: 3 * 24 * 3600 * 1000 });
   try {
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     assert.equal(markReuploadBlocked(accountScope(KEY), HASH, 'Old Foreign Movie 2019 TrueFrench 1080p'), true, 'precondição: hash marcado');
     // Memo dinv quente com o hash pronto: destrava (peek síncrono, sem rede).
     inventoryMemo.store('alldebrid', KEY, [{ title: 'De volta pronto na conta', infoHash: HASH, size: 4096 }]);
@@ -312,16 +313,13 @@ test('noteUnavailable: davail=0 escopado por conta, sem bad e sem apagar alive',
   const HASH = '2'.repeat(40);
   const restore = withDebrid({ availNegTtl: 120 });
   try {
-    // Contrato da fachada: os dois nascem no cache-check e reaparecem nela.
-    assert.equal(typeof debrid.noteUnavailable, 'function');
-    assert.equal(typeof debrid.peekDavail, 'function');
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     assert.equal(peekDavail('alldebrid', KEY, HASH), null, 'sem registro ainda');
     noteUnavailable('alldebrid', KEY, HASH);
     assert.equal(peekDavail('alldebrid', KEY, HASH), 0, 'negativo gravado na conta que mediu não-ready');
     assert.equal(peekDavail('alldebrid', OUTRA, HASH), null, 'escopo por conta: a outra não herda o negativo');
-    assert.equal(magnetdb.isAlive('alldebrid', KEY, HASH), true, 'o histórico permanece como memória');
-    assert.equal(magnetdb.isBad('alldebrid', KEY, HASH), false, 'recusa no play não é NoVideoError');
+    assert.equal(magnetdbWrites.isAlive('alldebrid', KEY, HASH), true, 'o histórico permanece como memória');
+    assert.equal(magnetdbWrites.isBad('alldebrid', KEY, HASH), false, 'recusa no play não é NoVideoError');
   } finally {
     restore();
   }
@@ -368,13 +366,13 @@ test('play AllDebrid não-ready grava o negativo junto do delete; hold preserva 
   const restore = withDebrid({ aliveAsCache: true, availNegTtl: 120, dropUncached: true });
   try {
     // Parte A: sem proteção — delete E negativo na mesma guarda.
-    magnetdb.markAlive('alldebrid', KEY, [HASH]);
+    magnetdbWrites.markAlive('alldebrid', KEY, [HASH]);
     const link = await alldebridBodies.resolveLink(KEY, HASH);
     assert.equal(link, null, 'sem cache o play não resolve');
     assert.ok(deleted.includes(901), 'download fantasma removido da conta');
     assert.equal(peekDavail('alldebrid', KEY, HASH), 0, 'o atalho que errou grava o negativo e autocorrige');
-    assert.equal(magnetdb.isAlive('alldebrid', KEY, HASH), true, 'negativo do play não apaga o histórico');
-    assert.equal(magnetdb.isBad('alldebrid', KEY, HASH), false, 'não-ready não é play sem vídeo');
+    assert.equal(magnetdbWrites.isAlive('alldebrid', KEY, HASH), true, 'negativo do play não apaga o histórico');
+    assert.equal(magnetdbWrites.isBad('alldebrid', KEY, HASH), false, 'não-ready não é play sem vídeo');
 
     // Parte B: hash segurado pelo autofetch — NENHUM dos dois efeitos.
     held.hold(HELD_HASH, 60, accountScope(HELD_KEY));

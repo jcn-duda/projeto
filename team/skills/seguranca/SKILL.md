@@ -22,7 +22,6 @@ rotas. Nunca expor credencial.
 - `src/utils/secret-box.ts`
 - `src/utils/sign.ts`
 - `src/routes/register.ts`
-- `src/routes/internal-resolve.ts`
 - `rust/crates/adom-server/src/resolve_native.rs`
 - `src/routes/diagnostics.ts`
 

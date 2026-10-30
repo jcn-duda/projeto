@@ -11,7 +11,7 @@ anterior**, não env.
 
 O motivo histórico do adiamento era objetivo: o nativo era read-only sem o
 feed de holds do autofetch. Esse feed existe agora nos DOIS caminhos (corpo do
-sidecar na 8710 e rota `/internal/debrid/holds` para o seam in-process,
+sidecar na 8710 e rota `/internal/debrid/holds` para o seam in-process (rota removida em 2026-10-30; hoje o gateway lê os fatos por `al_cleanup_facts`),
 `DEBRID_AL_HOLDS`), e a limpeza nativa só apaga com `holdsComplete` +
 inventário (`may_delete` fail-closed). O que **não** mudou: a conta do
 operador segue em `MAGNET_TOO_MANY`, então não há medição real de
@@ -35,7 +35,7 @@ Caminho real da busca (`cache-check.checkCached` → adaptador
 | `known` | `complete = failures === 0` (lotes) | idem; `known:false` nunca vira "nada em cache" |
 | `unusable` | auth (`AUTH_*`, 401/403) e quota (`MAGNET_TOO_MANY*`) | mesmas réguas no `unwrap_payload`/`from_http`; rate limit **não** é unusable |
 | Falha de lote | `allSettled`; todos falharam ⇒ auth/quota/rate do conjunto, senão "nenhum lote" | idem (agora inclui rate limit com `retry_after`) |
-| Limpeza | remove prontos (`dropReady`) e frios (`dropUncached`), com hold/`knownBefore`/inventário | **portada** (`alldebrid_cleanup`/`alldebrid_delete`), atrás de `DEBRID_AL_CLEANUP` (kill-switch destrutivo: default do código `off`, compose `on`). Só executa com `holdsComplete` + inventário; sem isso é read-only. Os fatos do Node chegam pelo corpo da 8710 (sidecar) ou pelo feed `/internal/debrid/holds` (seam in-process, `DEBRID_AL_HOLDS`). Ver §8 |
+| Limpeza | remove prontos (`dropReady`) e frios (`dropUncached`), com hold/`knownBefore`/inventário | **portada** (`alldebrid_cleanup`/`alldebrid_delete`), atrás de `DEBRID_AL_CLEANUP` (kill-switch destrutivo: default do código `off`, compose `on`). Só executa com `holdsComplete` + inventário; sem isso é read-only. Os fatos do Node chegam pelo corpo da 8710 (sidecar) ou pelo feed de holds (seam in-process, `DEBRID_AL_HOLDS`; a rota `/internal/debrid/holds` saiu em 2026-10-30). Ver §8 |
 | Falha da limpeza | só loga; não muda o veredito | idem (fila em fundo, não segura a resposta) |
 | Nota por hash | `/magnet/status` só para `fileHashes` (fsz/resolução) | **fora** (ver §4) |
 | Chave | `Authorization: Bearer` (nunca na URL/log) | idem; hashes vão na query, chave só no header |
@@ -73,7 +73,7 @@ O `debrid_seam` / `FrozenDebridCheck` consomem apenas
 | Env | Default do corte (compose) | Default do código | Efeito |
 |---|---|---|---|
 | `DEBRID_AL_CLEANUP` | `on` | vazio/`off` | kill-switch das varreduras **destrutivas**: `off` = read-only de verdade (`drop_*` ignorado, inventário não é carregado); `on` habilita o plano, que ainda exige os fatos (§8) |
-| `DEBRID_AL_HOLDS` | `on` | vazio/`off` | liga o feed do seam in-process (`/internal/debrid/holds`): hold volátil + `adprot` + `knownBefore` + drops. Só tem efeito com `DEBRID_AL_CLEANUP=on` e AllDebrid; fora disso a nativa é read-only |
+| `DEBRID_AL_HOLDS` | `on` | vazio/`off` | liga o feed de holds do seam in-process (rota `/internal/debrid/holds` removida em 2026-10-30; hoje `al_cleanup_facts` do gateway): hold volátil + `adprot` + `knownBefore` + drops. Só tem efeito com `DEBRID_AL_CLEANUP=on` e AllDebrid; fora disso a nativa é read-only |
 | `DEBRID_BATCH_SIZE` | `25` | `25` | lote da checagem (já existia no Node) |
 | `DEBRID_CACHE_CHECK_TIMEOUT_MS` | `10000` | `10000` | teto por lote |
 | `DEBRID_AL_HOLDS_TIMEOUT_MS` | `800` | `800` | prazo do POST interno do feed (mínimo 1 ms; falha = read-only) |
@@ -104,8 +104,8 @@ no branch). Para desligar só a limpeza, mantendo a checagem nativa:
      preparados não custam leitura extra, porque a auditoria do Node usa o MESMO
      snapshot. Ver `src/debrid/alldebrid-cleanup-facts.ts` e §8.4.
    - **Seam in-process (`DEBRID_AL_HOLDS`, default ON no corte):**
-     `adom-search::debrid_seam` pergunta os fatos à nova rota
-     `POST /internal/debrid/holds` (loopback + token, corpo
+     `adom-search::debrid_seam` pergunta os fatos à rota
+     `POST /internal/debrid/holds` (removida em 2026-10-30; descrição histórica; loopback + token, corpo
      `{encoded, service, hashes}`, sem apiKey) ANTES do `/magnet/upload` nativo
      e os entrega a `verdict::check_service_report_with`. A rota responde
      `{account, inventoryLoaded, knownBefore, heldHashes, evaluated,
@@ -194,7 +194,7 @@ real com a conta fora de quota. Roteiro:
    lote perdido/prazo.
 2. Para a limpeza nativa: a limpeza segura já está portada (§8) e o feed de
    holds cobre o sidecar (corpo do `/debrid/check`) e o seam in-process
-   (`/internal/debrid/holds`, `DEBRID_AL_HOLDS=on`). Com
+   (rota `/internal/debrid/holds` removida em 2026-10-30; `DEBRID_AL_HOLDS=on` segue como kill-switch). Com
    `DEBRID_RUST_SERVICES=alldebrid` + `DEBRID_AL_CLEANUP=on`, a nativa limpa
    com os fatos do Node; conferir `debrid.al.cleanup.*` e
    `rust.debrid.cleanup.holds_incomplete` (tem que ficar em 0 nesse caminho).
@@ -352,7 +352,7 @@ A rota `POST /debrid/check` aceita, para AllDebrid:
   `src/debrid/alldebrid-cleanup-facts.ts`) quando `DEBRID_AL_CLEANUP=on` — com
   a flag OFF nada é enviado e o caminho nativo de paridade fica idêntico ao
   anterior (nenhuma leitura extra de `/magnet/status`).
-- O seam in-process recebe os MESMOS fatos pela rota
+- O seam in-process recebia os MESMOS fatos pela rota (removida em 2026-10-30)
   `POST /internal/debrid/holds` (guardada por loopback + token), com dois
   campos a mais: `account` (sha256 da chave, conferido contra
   `account_scope(apiKey)` no Rust) e `evaluated` (hashes do lote realmente

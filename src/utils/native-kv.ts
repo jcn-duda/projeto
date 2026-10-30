@@ -89,19 +89,6 @@ export function kvRemaining(key: string, nowMs = Date.now()): number | null {
   }
 }
 
-/**
- * Poda as chaves VENCIDAS do namespace Rust-owned (o TTL só é aplicado na
- * leitura: namespace que ninguém relê cresce até a cota sem esta poda).
- * Permanentes (`ttlSeconds <= 0`) ficam; devolve quantas linhas saíram.
- */
-export function kvPruneExpired(prefix: string, nowMs = Date.now()): number {
-  try {
-    return nativeKv().pruneExpired(String(prefix || ''), nowMs);
-  } catch {
-    return 0;
-  }
-}
-
 /** Reset de namespace Rust-owned; devolve quantas linhas saíram. */
 export function kvClearPrefix(prefix: string): number {
   try {

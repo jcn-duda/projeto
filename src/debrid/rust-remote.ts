@@ -20,12 +20,9 @@ import {
   RateLimitError,
   WorkPickError,
 } from './common.js';
-import { alldebridLinkFacts } from './rust-link-facts.js';
 import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
 import { adoptBlockedReady } from './rust-check-blocked.js';
-import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
 import { isAccountRefusal, playKind } from './rust-remote-kinds.js';
-import { applyPlayEffects } from './rust-play-effects.js';
 import { pullNativeMetrics } from '../utils/native-metrics.js';
 
 class RustWriteError extends Error {
@@ -246,8 +243,6 @@ function playError(remote: RemoteFailure, secrets: readonly string[]): Error {
     default:
       error = new RustWriteError(`debrid rust não resolveu o link (${jsonMessage || fallback})`);
   }
-  const effect = takeResolveEffect(remote.effect);
-  if (effect) (error as Error & { effect?: RustResolveEffect }).effect = effect;
   return error;
 }
 
@@ -280,18 +275,17 @@ function checkFetchOptions(opts: RemoteOptions, timeoutMs: number | undefined): 
 }
 
 /**
- * Adaptador com a ponte por cima: `checkCached` e `resolveLink` são SEMPRE os
- * dela. Os corpos TS desses dois métodos saíram de `src/` (ficaram no oráculo
- * de teste), então o tipo de saída os exige para os chamadores de `current()`.
+ * Adaptador com a ponte por cima: `checkCached` é SEMPRE o dela. O play
+ * (`resolveLink`) não passa mais pelo Node — o `/resolve` e os efeitos são do
+ * gateway —, e a ponte de play que os testes exercitam mora no oráculo
+ * (`test/helpers/pipeline-oracle/play/bridge.ts`).
  */
-export type BridgedAdapter = DebridAdapter & Required<Pick<DebridAdapter, 'checkCached' | 'resolveLink'>>;
+export type BridgedAdapter = DebridAdapter & Required<Pick<DebridAdapter, 'checkCached'>>;
 
-/** Fecha o tipo: `wrap` define os dois métodos em toda montagem; o guarda só prova isso sem cast. */
+/** Fecha o tipo: `wrap` define a checagem em toda montagem; o guarda só prova isso sem cast. */
 function bridged(out: DebridAdapter): BridgedAdapter {
-  if (typeof out.checkCached !== 'function' || typeof out.resolveLink !== 'function') {
-    throw new Error('ponte nativa sem checagem ou link');
-  }
-  return { ...out, checkCached: out.checkCached, resolveLink: out.resolveLink };
+  if (typeof out.checkCached !== 'function') throw new Error('ponte nativa sem checagem');
+  return { ...out, checkCached: out.checkCached };
 }
 
 function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): BridgedAdapter {
@@ -338,26 +332,6 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): B
       throw new RustWriteError(`debrid rust não leu a conta (${redact(remote.message, [apiKey, opts.token])})`);
     };
   }
-  // HMAC (infoHash + S/E + dica w) fica na rota, antes deste POST.
-  out.resolveLink = async (apiKey, hash, episode) => {
-    // held true = não apagar. Ausente no Rust protege; aqui o Node diz a verdade.
-    const held = adapter.id === 'alldebrid' ? alldebridLinkFacts(apiKey, hash).held : undefined;
-    const remote = await post(opts, '/debrid/link', {
-      service: adapter.id,
-      apiKey,
-      hash,
-      episode: episode ?? null,
-      ...(held === undefined ? {} : { held }),
-    });
-    if (!remote.ok) {
-      // Mentira de dublagem: o TS grava a prova antes de lançar.
-      if (remote.files !== undefined) await applyPlayEffects(adapter.id, apiKey, hash, { files: remote.files });
-      throw playError(remote, [apiKey, opts.token]);
-    }
-    const body = remote.json as { url?: unknown } | null;
-    await applyPlayEffects(adapter.id, apiKey, hash, body);
-    return body && typeof body.url === 'string' ? body.url : null;
-  };
   return bridged(out);
 }
 
@@ -378,3 +352,5 @@ async function pullMetrics(): Promise<Record<string, number>> {
 }
 
 export { RustWriteError, wrap, pullMetrics };
+// Só a ponte de play do oráculo (`test/helpers/pipeline-oracle/play/bridge.ts`) usa estes.
+export { post, remoteOptions, playError, type RemoteOptions, type RemoteFailure };
