@@ -168,7 +168,6 @@ export function applyResolveEffects(source: unknown, ctx: ResolveApplyContext): 
   const magnet: RustResolveEffect['magnet'] = effect.noteBlocked ? { mark: null } : effect.magnet;
   applyMagnetEffect(magnet, ctx.adapterId, ctx.apiKey, ctx.infoHash);
   const cleared = applyCacheEffect(effect.cache, ctx.imdbId, {
-    cache: ctx.services.cache,
     metrics: ctx.services.metrics,
     log: {
       info: (message) => ctx.services.log.info(message),

@@ -16,7 +16,6 @@ import { clearNativeStreamsSoon } from '../utils/streams-store-native.js';
 let lastBlockedInvalidateAt = 0;
 
 interface CacheEffectServices {
-  cache: { clearNamespace(namespace: string): number };
   metrics: { count(name: string, n?: number): void };
   log: { info(msg: string): void; warn(msg: string): void };
 }
@@ -52,19 +51,17 @@ function invalidateStreamsOnBlocked(services: CacheEffectServices): number {
   if (now - lastBlockedInvalidateAt < cooldown) return 0;
   lastBlockedInvalidateAt = now;
   try {
-    const removed = services.cache.clearNamespace('streams');
-    // F4.4a — o SWR do corte vive no `streams.db` nativo; limpar só o L1 do
-    // Node deixava a lista bloqueada no ar até o TTL. Best-effort: o efeito do
-    // play é síncrono e a ponte tem timeout curto.
+    // F4.4a — a lista pronta vive só no `streams.db` do gateway: o L1 do Node
+    // não guarda `streams` (ninguém escreve o namespace aqui), então NÃO há
+    // `cache.clearNamespace` a chamar — o efeito INTEIRO é o pedido à ponte.
+    // Best-effort: o play é síncrono e a ponte tem timeout curto.
     clearNativeStreamsSoon();
-    // `removed` mede o L1 legado (normalmente 0 — ninguém mais escreve o
-    // namespace aqui); o efeito real é o pedido ao store nativo.
     services.metrics.count('resolve.streamsInvalidated.blocked');
     services.log.info(
-      `[resolve] clear do streams.db solicitado por bloqueio legal ` +
-      `(${removed} entrada(s) no L1 legado); a próxima abertura não oferece mais este hash pelo debrid (ledger blocked)`,
+      `[resolve] clear do streams.db solicitado por bloqueio legal; ` +
+      `a próxima abertura não oferece mais este hash pelo debrid (ledger blocked)`,
     );
-    return removed;
+    return 0;
   } catch (err) {
     services.log.warn(`[resolve] falhou ao invalidar streams após 451: ${errorMessage(err)}`);
     return 0;

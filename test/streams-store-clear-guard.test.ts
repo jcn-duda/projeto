@@ -150,12 +150,15 @@ test('play 451: o efeito de cache limpa o nativo com confirm e credencial destru
   config.debrid.resolveBlockedInvalidateCooldownMs = 1;
   const stub = stubFetch(() => fakeResponse({ ok: true, removed: 5, entries: 0 }));
   try {
+    // C2 do F5.11: o efeito NÃO toca mais `cache.clearNamespace` — o campo
+    // `cache` saiu de `CacheEffectServices` (o L1 do Node não guarda `streams`
+    // desde a F4.4a); qualquer reintrodução da chamada nem compila. O dublê do
+    // caminho REAL é o stub de fetch: o efeito é o POST do clear no gateway.
     const cleared = applyCacheEffect({ invalidate: 'streams' }, 'tt451', {
-      cache: { clearNamespace: () => 0 },
       metrics: { count: () => {} },
       log: { info: () => {}, warn: () => {} },
     });
-    assert.equal(cleared, 0, 'o L1 do Node não conta mais como limpeza');
+    assert.equal(cleared, 0, 'o efeito não conta limpeza própria: não há L1 de streams');
     await flushNativeStreamStores();
     assert.equal(stub.calls.length, 1);
     assert.equal(new URL(stub.calls[0].url).pathname, '/streams/clear');
