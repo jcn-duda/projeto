@@ -5,16 +5,16 @@
 //! AllDebrid é nativa e INCONDICIONAL desde a R3 (não há mais rota Node).
 //! A limpeza segura (`alldebrid_cleanup` + `alldebrid_delete`) é opt-in
 //! por `DEBRID_AL_CLEANUP` e só age com `holds_complete` + inventário; sem
-//! isso a nativa é read-only. O hold volátil do autofetch mora no Node: o
-//! sidecar recebe os fatos no corpo e o seam in-process pelo feed de holds
+//! isso a nativa é read-only. O hold volátil do autofetch mora no KV do gateway:
+//! O sidecar recebe os fatos no corpo; o seam in-process lê os do gateway
 //! (`holds_feed`, `DEBRID_AL_HOLDS`, default OFF).
 //! A costura AD em `verdict::check_service` segue para o adom-search
 //! in-process. `account` cobre os quatro adaptadores que publicam
 //! `accountStatus`; `files` só o Premiumize e o link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! O Node chama esta API SEMPRE (`registry.current()` embrulha todo adaptador).
-//! `holds_feed.rs` é o ÚNICO que fala com rota interna do Node
-//! (`/internal/debrid/holds`, fatos do hold). A posse `adsub` é gravada
+//! `holds_feed.rs` guarda só o tipo `HoldsFacts` (cobertura) e a flag; os fatos
+//! são calculados pelo gateway (`al_cleanup_facts`, sem rota Node). A posse `adsub` é gravada
 //! direto no KV nativo (`marks_feed.rs`, mesma tabela `cache` do `cache.db`),
 //! sem rota: a rota `/internal/debrid/marked` deixou de existir.
 //! `play.rs` é o dispatch do play nativo (`/resolve` do gateway, incondicional):
@@ -53,7 +53,7 @@ pub mod error;
 /// Tamanhos por hash (`fsz:v1:`/`tsz:v1:`) gravados e lidos no KV nativo.
 pub mod file_sizes;
 /// Feed do hold volátil do autofetch para o seam in-process
-/// (`DEBRID_AL_HOLDS`, default OFF) — rota `/internal/debrid/holds` do Node.
+/// (`DEBRID_AL_HOLDS`, default OFF); os fatos vêm do gateway, sem rota Node.
 pub mod holds_feed;
 pub mod http;
 /// Posse da checagem nativa (`adsub:v1`) gravada direto no KV nativo.

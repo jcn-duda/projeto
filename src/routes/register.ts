@@ -4,8 +4,6 @@ import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
-import { registerInternalDebridHolds } from './internal-debrid-holds.js';
-import { registerInternalResolve } from './internal-resolve.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -66,13 +64,10 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Índice e banco de magnets são NATIVOS desde o R4: as rotas Node de
   // índice/fallback saíram, e falha de abertura degrada sem índice.
   registerInternalSearch(app, services);
-  // Feed do hold volátil do autofetch para o seam in-process do gateway
-  // (`DEBRID_AL_HOLDS=on`). Mesma guarda das rotas /internal/* acima.
-  registerInternalDebridHolds(app, services);
-  // Fatos do play nativo (hold da AllDebrid). O `/resolve` NÃO é montado aqui:
-  // quem atende o cliente é o gateway (7000, `resolve_native` sem flag). Os
-  // efeitos do play saíram deste processo: o gateway os grava nos stores nativos.
-  registerInternalResolve(app, services);
+  // Sem rota de holds nem de resolve/facts: os fatos de limpeza da AllDebrid
+  // (hold do autofetch, `knownBefore`, `adprot`) e o `held` do play são
+  // calculados pelo gateway (`al_cleanup_facts`, `resolve_bridge`). O `/resolve`
+  // também não é montado aqui: quem atende o cliente é o gateway.
 
   app.use((req, _res, next) => services.runtime.run({
     origin: originOf(req),

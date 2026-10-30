@@ -1,5 +1,5 @@
-//! Fatos da limpeza AllDebrid lidos no PRÓPRIO processo do gateway, sem o feed
-//! `POST /internal/debrid/holds` do Node.
+//! Fatos da limpeza AllDebrid lidos no PRÓPRIO processo do gateway, sem rota
+//! `POST /internal/debrid/holds` do Node (a rota saiu; o gateway calcula sozinho).
 //!
 //! Porte de `buildCleanupFacts` (`src/debrid/alldebrid-cleanup-facts.ts`),
 //! `heldHashesFor`/`isCleanupProtected` (`src/debrid/protected.ts`) e
@@ -212,8 +212,8 @@ pub fn play_held(api_key: &str, hash: &str) -> bool {
     )
 }
 
-/// Feed de holds nativo (`HoldsFeed` do seam). Substitui a rota
-/// `/internal/debrid/holds` do Node; montado só com `DEBRID_AL_HOLDS` ligado.
+/// Feed de holds nativo (`HoldsFeed` do seam). Substitui a rota antiga do Node
+/// (`/internal/debrid/holds`, já removida); montado só com `DEBRID_AL_HOLDS` ligado.
 pub struct NativeHoldsFeed {
     ad: AllDebrid,
     durable: Arc<DurablePeek>,

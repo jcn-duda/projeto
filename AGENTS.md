@@ -161,10 +161,9 @@ npm run docker:up / docker:logs
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
   **`/test-indexer.json` responde 410** (busca de teste): coleta e colheita são
   nativas — o estado do colhedor mora em `GET /harvest` na admin do gateway.
-  **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process,
-  resolve/facts do play nativo e a rota do sidecar (os efeitos do play saíram
-  do Node: o gateway os grava nos stores nativos):
-  activity) só existe em loopback + token; a
+  **`/internal/*`** (meta e effects da busca e a rota do sidecar (activity);
+  os fatos de limpeza da AllDebrid e o `held` do play são do gateway, não há
+  rota Node para eles) só existe em loopback + token; a
   fachada Rust recusa `/internal/*` antes do proxy (o Caddy também bloqueia). A
   guarda de loopback do Node **não** distingue o cliente atrás do proxy — a
   recusa tem que estar na fachada. **O corte nativo é FIXO**: o
@@ -239,7 +238,7 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
-`/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
+a rota do sidecar (`/internal/activity`),
 painel/config e as pontes do Chupim (o crawl é do sidecar). O
 `harvester_enqueue` entra direto na fila do colhedor do gateway
 (`adom-server::harvest_effect`); se chegar ao Node, é só contado em `nativeOnly`.
@@ -248,10 +247,12 @@ enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
 efeitos do play (magnetdb, proteção, ledger, listas) são gravados pelo PRÓPRIO
 gateway nos stores nativos (`play_effects_native*.rs`); a rota
-`/internal/resolve/effects` saiu (responde 404). O Node só responde o hold da
-AllDebrid por `/internal/resolve/facts` (sem resposta o play não apaga o frio). As rotas
-`/internal/search/state|config|collect|index|index-write|fallback` e
-`/internal/debrid/check` **não existem mais**.
+`/internal/resolve/effects` saiu (responde 404). Os fatos de limpeza da AllDebrid
+(hold do autofetch, `knownBefore`, `adprot`) e o `held` do play são calculados
+PELO GATEWAY (`adom-server::al_cleanup_facts` e `resolve_bridge`, a partir do KV
+nativo): as rotas `/internal/debrid/holds` e `/internal/resolve/facts` saíram e
+respondem 404. As rotas `/internal/search/state|config|collect|index|index-write|fallback`
+e `/internal/debrid/check` também **não existem mais**.
 
 Pontos que mordem:
 - **Host nunca vai para o cache.** Aviso de lista vazia e URL de `/resolve` são
@@ -336,7 +337,7 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   mais chamador de nenhuma; o gate de aplicação é `DEBRID_AL_SWEEP_APPLY`.
   **R3**: a checagem/limpeza é NATIVA e incondicional — não existe
   `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foi apagada. A nativa
-  lê os holds do Node pelo feed `/internal/debrid/holds` e só apaga com
+  lê os holds pelo gateway (`al_cleanup_facts`, KV nativo) e só apaga com
   `holdsComplete` + inventário (`may_delete` fail-closed); sem snapshot é
   read-only (`inventory_missing`). `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` FICAM
   como kill-switches do hold e do plano (código OFF, compose ON).
@@ -661,7 +662,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos e o feed de holds (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos (o feed de holds saiu: o gateway calcula os fatos; `applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
 | Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |

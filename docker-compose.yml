@@ -68,7 +68,7 @@ services:
       AUTOFETCH_WORKER: "${AUTOFETCH_WORKER:-on}"
       # R3: a checagem/cache da AllDebrid é NATIVA e incondicional. HOLDS e
       # CLEANUP são os kill-switches das varreduras DESTRUTIVAS:
-      #   DEBRID_AL_HOLDS=on ...... feed in-process dos holds (`/internal/debrid/holds`):
+      #   DEBRID_AL_HOLDS=on ...... fatos in-process dos holds (calculados pelo gateway):
       #                             hold volátil + `adprot` + `knownBefore` + drops;
       #   DEBRID_AL_CLEANUP=on .... habilita o PLANO de limpeza, que só apaga com
       #                             `holdsComplete` + inventário (`may_delete`

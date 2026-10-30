@@ -45,7 +45,7 @@ pub struct AppState {
     pub resolve_secret: String,
     /// Resolvedor do play nativo; teste injeta stub sem rede.
     pub resolver: Arc<dyn PlayResolver>,
-    /// Ponte com o Node para o `held` do play (`/internal/resolve/facts`).
+    /// Fatos do play (`held`) lidos do KV do próprio gateway (`resolve_bridge`).
     pub bridge: Arc<dyn PlayBridge>,
     /// Efeitos do play, gravados neste processo (teste injeta um falso).
     pub effects: Arc<dyn PlayEffects>,

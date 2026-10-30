@@ -1,36 +1,35 @@
 /**
- * Feed de holds do gateway in-process: `POST /internal/debrid/holds`
- * (`DEBRID_AL_HOLDS=on`).
+ * Contrato do feed de holds da AllDebrid, agora SEM rota Node.
  *
- * O que se prova aqui é a PONTE que faltava para o seam do `adom-search`: o
- * hold volátil do autofetch + o `adprot` durável saem por hash do lote,
- * `evaluated` cobre o lote (prova que o Rust confere), o inventário quente vira
- * `knownBefore`, e o que não dá para provar sai `holdsComplete:false`
- * (fail-closed) — nunca um "completo" por omissão. A chave vem do `encoded`,
- * nunca do `.env` do operador.
+ * O `POST /internal/debrid/holds` saiu: o gateway calcula os mesmos fatos
+ * (`al_cleanup_facts`). O que se prova aqui é a régua TS (oráculo em
+ * `test/helpers/pipeline-oracle/alldebrid-holds-feed.ts`): o hold volátil do
+ * autofetch + o `adprot` durável saem por hash do lote, `evaluated` cobre o
+ * lote, o inventário quente vira `knownBefore`, e o que não dá para provar sai
+ * `holdsComplete:false` (fail-closed). Também se prova que a rota não voltou
+ * (404 no app real), para o gateway não ter um destino Node a chamar.
  *
- * O caminho Node default e o corpo do sidecar (`/debrid/check`) NÃO mudam: o
- * último teste confere que `account`/`evaluated` são exclusivos deste feed.
+ * O caminho do sidecar (`/debrid/check`) NÃO recebe `account`/`evaluated`.
  * Sem rede real: `/magnet/status` é dublê de `fetch`.
  */
 import './setup-env.js';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import express from 'express';
-import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
+// Persistência desligada ANTES do app real ser carregado (ver app-routes.test.ts).
+process.env.CACHE_PERSIST = 'false';
+import { createApp } from '../src/app.js';
+import { createTestServer } from './e2e/e2e-harness.js';
 import config from '../src/config.js';
-import { buildServices } from '../src/routes/services.js';
-import { registerInternalDebridHolds } from '../src/routes/internal-debrid-holds.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
 import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
 import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
 import { alldebridCleanupFacts } from '../src/debrid/alldebrid-cleanup-facts.js';
+import { alldebridHoldsFeedFacts } from './helpers/pipeline-oracle/alldebrid-holds-feed.js';
 
 const TOKEN = 'tok-internal-debrid-holds';
 const KEY = 'chave-do-usuario-holds';
-const encoded = encodeConfig({ dk: KEY });
 const newHash = () => randomBytes(20).toString('hex');
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -51,39 +50,11 @@ function statusStub(magnets: Array<{ hash: string }> = []) {
 
 let server: any;
 const saved: Record<string, any> = {};
-/** Chave do contexto: trocada entre casos ('' = instalação sem debrid). */
-let apiKeyOf = () => KEY;
-
-const post = (body: unknown, headers: Record<string, string> = {}) =>
-  server.request('POST', '/internal/debrid/holds', {
-    headers: { 'X-Indexer-Test-Token': TOKEN, ...headers },
-    body,
-  });
 
 before(async () => {
   saved.testToken = config.jackett.testToken;
   config.jackett.testToken = TOKEN;
-
-  const app = express();
-  // Só de teste: personifica um cliente NÃO loopback (mesmo molde das rotas
-  // internas de busca).
-  app.use((req, res, next) => {
-    const spoof = req.get('x-test-remote-addr');
-    if (!spoof) return next();
-    const original = req.socket.remoteAddress;
-    Object.defineProperty(req.socket, 'remoteAddress', { value: spoof, configurable: true, writable: true });
-    res.on('finish', () => {
-      Object.defineProperty(req.socket, 'remoteAddress', { value: original, configurable: true, writable: true });
-    });
-    return next();
-  });
-  const services = buildServices();
-  // Sem override de `factsFor`: os testes de contrato usam o levantamento REAL
-  // (protected/inventory) com o `/magnet/status` dublado.
-  registerInternalDebridHolds(app as unknown as express.Router, services, {
-    apiKeyOf: () => apiKeyOf(),
-  });
-  server = await createTestServer(app);
+  server = await createTestServer(createApp().app);
 });
 
 after(async () => {
@@ -92,30 +63,19 @@ after(async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Guarda e validação de entrada
+// A rota saiu
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('fora do loopback com token certo → 403; sem token → 401', async () => {
-  const body = { encoded, service: 'alldebrid', hashes: [newHash()] };
-  const out = await post(body, { 'x-test-remote-addr': '203.0.113.9' });
-  assert.equal(out.status, 403);
-  const noToken = await server.request('POST', '/internal/debrid/holds', { body });
-  assert.equal(noToken.status, 401);
-});
-
-test('entrada inválida → 400 (encoded, serviço, hashes e teto)', async () => {
-  const hash = newHash();
-  assert.equal((await post({ service: 'alldebrid', hashes: [hash] })).status, 400);
-  assert.equal((await post({ encoded, service: 'torbox', hashes: [hash] })).status, 400);
-  assert.equal((await post({ encoded, service: 'alldebrid', hashes: hash })).status, 400);
-  assert.equal((await post({
-    encoded, service: 'alldebrid',
-    hashes: Array.from({ length: 501 }, () => newHash()),
-  })).status, 400);
+test('POST /internal/debrid/holds saiu: 404 mesmo com o token certo, sem fato devolvido', async () => {
+  const out = await server.request('POST', '/internal/debrid/holds', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: { encoded: 'x', service: 'alldebrid', hashes: [newHash()] },
+  });
+  assert.equal(out.status, 404);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Contrato do feed
+// Contrato do feed (régua TS no oráculo)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 test('hold volátil + adprot saem por hash do lote; evaluated cobre o lote', async () => {
@@ -135,37 +95,30 @@ test('hold volátil + adprot saem por hash do lote; evaluated cobre o lote', asy
     hold(volatileHash, 600, account);
     protectBr(alldebridId, account, durableHash);
 
-    const out = await post({
-      encoded,
-      service: 'alldebrid',
-      hashes: [volatileHash.toUpperCase(), durableHash, plainHash],
-    });
-    assert.equal(out.status, 200);
-    assert.equal(out.json.ok, true);
-    assert.equal(out.json.service, 'alldebrid');
-    // Identidade: sha256 da chave (o Rust confere antes de aceitar).
-    assert.equal(out.json.account, account, 'account = accountScope(apiKey)');
     // O hash do lote chega em caixa alta; a auditoria normaliza.
+    const out = alldebridHoldsFeedFacts(KEY, [volatileHash.toUpperCase(), durableHash, plainHash]);
+    // Identidade: sha256 da chave (o Rust confere antes de aceitar).
+    assert.equal(out.account, account, 'account = accountScope(apiKey)');
     assert.deepEqual(
-      new Set(out.json.heldHashes),
+      new Set(out.heldHashes),
       new Set([volatileHash, durableHash]),
       'hold volátil e adprot entram; hash sem proteção não',
     );
-    assert.equal(out.json.heldHashes.length, 2, 'sem duplicata');
+    assert.equal(out.heldHashes.length, 2, 'sem duplicata');
     assert.deepEqual(
-      new Set(out.json.evaluated),
+      new Set(out.evaluated),
       new Set([volatileHash, durableHash, plainHash]),
       'avaliados = todos os hashes válidos do lote',
     );
-    assert.equal(out.json.holdsComplete, true, 'todos os hashes do lote foram avaliados');
+    assert.equal(out.holdsComplete, true, 'todos os hashes do lote foram avaliados');
     // Flags do config viajam mesmo sem drop: quem ignora é o Rust.
-    assert.equal(out.json.dropReady, false);
-    assert.equal(out.json.dropUncached, true);
+    assert.equal(out.dropReady, false);
+    assert.equal(out.dropUncached, true);
     // Inventário frio nesta rodada: fail-safe do lado do Rust, não invenção.
-    assert.equal(out.json.inventoryLoaded, false);
-    assert.deepEqual(out.json.knownBefore, []);
+    assert.equal(out.inventoryLoaded, false);
+    assert.deepEqual(out.knownBefore, []);
     await warmInventory(KEY);
-    assert.equal(status.calls.length, 1, 'a rota só pede o inventário que o caminho Node já pediria');
+    assert.equal(status.calls.length, 1, 'o caminho TS pede só o inventário que já pediria');
   } finally {
     release(volatileHash, account);
     unprotect(alldebridId, account, durableHash);
@@ -187,14 +140,10 @@ test('lote não comprovável vira holdsComplete:false sem perder o que foi prova
     // Lote vazio não prova nada.
     assert.equal(alldebridCleanupFacts(KEY, []).holdsComplete, false);
     // Hash ilegível no lote: não dá para provar cobertura do lote inteiro.
-    const out = await post({
-      encoded, service: 'alldebrid',
-      hashes: ['', protectedHash, '   '],
-    });
-    assert.equal(out.status, 200);
-    assert.equal(out.json.holdsComplete, false, 'cobertura parcial nunca vira prova');
-    assert.deepEqual(out.json.heldHashes, [protectedHash], 'o que deu para provar continua listado');
-    assert.deepEqual(out.json.evaluated, [protectedHash]);
+    const out = alldebridHoldsFeedFacts(KEY, ['', protectedHash, '   ']);
+    assert.equal(out.holdsComplete, false, 'cobertura parcial nunca vira prova');
+    assert.deepEqual(out.heldHashes, [protectedHash], 'o que deu para provar continua listado');
+    assert.deepEqual(out.evaluated, [protectedHash]);
   } finally {
     release(protectedHash, account);
     globalThis.fetch = realFetch;
@@ -202,45 +151,35 @@ test('lote não comprovável vira holdsComplete:false sem perder o que foi prova
 });
 
 test('inventário quente vira knownBefore; frio nunca é inventado', async () => {
-  // Conta própria: o snapshot de `knownBefore` é por conta e sobrevive entre
-  // casos (os outros já aqueceram a chave dele).
+  // Conta própria: o snapshot de `knownBefore` é por conta.
   const key = 'chave-inventario-holds';
-  apiKeyOf = () => key;
   const knownHash = newHash();
   const realFetch = globalThis.fetch;
   const status = statusStub([{ hash: knownHash }]);
   globalThis.fetch = status.impl;
   try {
-    const cold = await post({ encoded, service: 'alldebrid', hashes: [newHash()] });
-    assert.equal(cold.json.inventoryLoaded, false, 'snapshot ainda não chegou não pode ser inventado');
-    assert.deepEqual(cold.json.knownBefore, []);
+    const cold = alldebridHoldsFeedFacts(key, [newHash()]);
+    assert.equal(cold.inventoryLoaded, false, 'snapshot ainda não chegou não pode ser inventado');
+    assert.deepEqual(cold.knownBefore, []);
 
     await warmInventory(key);
     assert.equal(status.calls.length, 1);
-    const warm = await post({ encoded, service: 'alldebrid', hashes: [newHash()] });
-    assert.equal(warm.json.inventoryLoaded, true);
-    assert.deepEqual(warm.json.knownBefore, [knownHash], 'snapshot vigente vira o knownBefore do feed');
+    const warm = alldebridHoldsFeedFacts(key, [newHash()]);
+    assert.equal(warm.inventoryLoaded, true);
+    assert.deepEqual(warm.knownBefore, [knownHash], 'snapshot vigente vira o knownBefore do feed');
     assert.equal(status.calls.length, 1, 'snapshot vigente não refaz a leitura');
   } finally {
-    apiKeyOf = () => KEY;
     globalThis.fetch = realFetch;
   }
 });
 
-test('encoded sem chave de debrid → fatos fail-closed (ninguém prova nada)', async () => {
-  apiKeyOf = () => '';
-  try {
-    const out = await post({ encoded: encodeConfig({}), service: 'alldebrid', hashes: [newHash()] });
-    assert.equal(out.status, 200);
-    assert.equal(out.json.ok, true);
-    assert.equal(out.json.account, '');
-    assert.equal(out.json.holdsComplete, false);
-    assert.deepEqual(out.json.evaluated, []);
-    assert.deepEqual(out.json.heldHashes, []);
-    assert.equal(out.json.inventoryLoaded, false);
-  } finally {
-    apiKeyOf = () => KEY;
-  }
+test('sem chave de debrid → fatos fail-closed (ninguém prova nada)', async () => {
+  const out = alldebridHoldsFeedFacts('', [newHash()]);
+  assert.equal(out.account, '');
+  assert.equal(out.holdsComplete, false);
+  assert.deepEqual(out.evaluated, []);
+  assert.deepEqual(out.heldHashes, []);
+  assert.equal(out.inventoryLoaded, false);
 });
 
 test('corpo do sidecar (/debrid/check) segue sem account/evaluated', async () => {
@@ -254,8 +193,8 @@ test('corpo do sidecar (/debrid/check) segue sem account/evaluated', async () =>
     const facts = alldebridCleanupFacts(KEY, [hash]);
     assert.deepEqual(facts.heldHashes, [hash]);
     assert.equal(facts.holdsComplete, true);
-    assert.equal('account' in facts, false, 'account é exclusivo do feed in-process');
-    assert.equal('evaluated' in facts, false, 'evaluated é exclusivo do feed in-process');
+    assert.equal('account' in facts, false, 'account é exclusivo do feed do oráculo');
+    assert.equal('evaluated' in facts, false, 'evaluated é exclusivo do feed do oráculo');
   } finally {
     release(hash, account);
     globalThis.fetch = realFetch;

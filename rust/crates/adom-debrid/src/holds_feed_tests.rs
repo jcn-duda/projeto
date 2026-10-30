@@ -1,13 +1,9 @@
-//! Feed de holds: parsing estrito, cobertura fail-closed, contrato do POST
-//! (token no header, `encoded`/`service`/`hashes` no corpo, sem apiKey) e o
-//! gate da flag. Servidor falso em loopback; sem rede real.
+//! Feed de holds: cobertura fail-closed do lote, normalização dos conjuntos e o
+//! gate da flag `DEBRID_AL_HOLDS`. Sem rede: os fatos são montados em memória
+//! (a rota Node que os entregava saiu; quem calcula é o gateway).
 
-use serde_json::json;
+use super::HoldsFacts;
 
-use super::{parse_holds_response, HoldsFacts};
-
-const TOKEN: &str = "token-interno-holds";
-const ENCODED: &str = "eyJwIjoiamFja2V0dCJ9";
 const HIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const MISS: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const ACCOUNT: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -98,100 +94,32 @@ fn covers_exige_prova_de_avaliacao_do_lote() {
 }
 
 #[test]
-fn parse_aceita_contrato_completo() {
-    let parsed = parse_holds_response(&json!({
-        "ok": true,
-        "service": "alldebrid",
-        "account": ACCOUNT,
-        "inventoryLoaded": true,
-        "knownBefore": [HIT],
-        "heldHashes": [MISS],
-        "evaluated": [HIT, MISS],
-        "holdsComplete": true,
-        "dropReady": true,
-        "dropUncached": false,
-    }))
-    .unwrap();
-    assert_eq!(parsed.account, ACCOUNT);
-    assert!(parsed.inventory_loaded);
-    assert!(parsed.holds_complete);
-    assert_eq!(parsed.known_before, vec![HIT]);
-    assert_eq!(parsed.held, vec![MISS]);
-    assert_eq!(parsed.evaluated.len(), 2);
-    assert_eq!(parsed.drop_ready, Some(true));
-    assert_eq!(parsed.drop_uncached, Some(false));
-    assert!(parsed.covers(&[HIT.to_string(), MISS.to_string()]));
+fn conjuntos_saem_em_minusculas_sem_vazios() {
+    let parsed = HoldsFacts {
+        known_before: vec![HIT.to_uppercase(), "  ".into()],
+        held: vec![MISS.to_uppercase(), MISS.to_string()],
+        ..HoldsFacts::default()
+    };
     assert_eq!(parsed.known_before_set().len(), 1);
-    assert_eq!(parsed.held_set().len(), 1);
-
-    // Flags ausentes ficam `None` (o `verdict` usa o default do ambiente).
-    let without_drops = parse_holds_response(&json!({
-        "ok": true,
-        "service": "alldebrid",
-        "account": ACCOUNT,
-        "inventoryLoaded": false,
-        "knownBefore": [],
-        "heldHashes": [],
-        "evaluated": [HIT],
-        "holdsComplete": true,
-    }))
-    .unwrap();
-    assert_eq!(without_drops.drop_ready, None);
-    assert_eq!(without_drops.drop_uncached, None);
+    assert!(parsed.known_before_set().contains(HIT));
+    assert_eq!(
+        parsed.held_set().len(),
+        1,
+        "duplicata de caixa vira um hash"
+    );
+    assert!(parsed.held_set().contains(MISS));
 }
 
 #[test]
-fn parse_recusa_corpo_que_nao_prova_nada() {
-    // `ok:false` → erro com a mensagem do Node.
-    let err = parse_holds_response(&json!({ "ok": false, "error": "boom" })).unwrap_err();
-    assert_eq!(err, "boom");
-    // Serviço errado não é feed de holds.
-    let err = parse_holds_response(&json!({
-        "ok": true, "service": "torbox", "account": ACCOUNT,
-        "inventoryLoaded": false, "knownBefore": [], "heldHashes": [],
-        "evaluated": [HIT], "holdsComplete": true,
-    }))
-    .unwrap_err();
-    assert!(err.contains("serviço inesperado"), "{err}");
-    // Sem `evaluated` (Node antigo) NÃO autoriza: é erro, não "completo".
-    for key in [
-        "service",
-        "account",
-        "inventoryLoaded",
-        "holdsComplete",
-        "knownBefore",
-        "heldHashes",
-        "evaluated",
-    ] {
-        let mut body = json!({
-            "ok": true,
-            "service": "alldebrid",
-            "account": ACCOUNT,
-            "inventoryLoaded": true,
-            "knownBefore": [HIT],
-            "heldHashes": [],
-            "evaluated": [HIT],
-            "holdsComplete": true,
-        });
-        body.as_object_mut().unwrap().remove(key);
-        assert!(
-            parse_holds_response(&body).is_err(),
-            "sem {key} o feed não pode ser aceito"
-        );
+fn flag_default_off_e_apelidos() {
+    {
+        let _env = EnvGuard::set(&[(super::ENV, None)]);
+        assert!(!super::holds_feed_enabled());
     }
-    // Lista com item não textual é corpo estranho.
-    assert!(parse_holds_response(&json!({
-        "ok": true,
-        "service": "alldebrid",
-        "account": ACCOUNT,
-        "inventoryLoaded": true,
-        "knownBefore": [],
-        "heldHashes": [],
-        "evaluated": [1],
-        "holdsComplete": true,
-    }))
-    .is_err());
+    for raw in ["on", "1", "true", "yes", "RUST"] {
+        let _env = EnvGuard::set(&[(super::ENV, Some(raw))]);
+        assert!(super::holds_feed_enabled(), "{raw}");
+    }
+    let _env = EnvGuard::set(&[(super::ENV, Some("off"))]);
+    assert!(!super::holds_feed_enabled());
 }
-
-#[path = "holds_feed_tests_part2.rs"]
-mod part2;

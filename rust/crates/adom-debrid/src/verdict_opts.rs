@@ -17,8 +17,8 @@ use super::now_ms;
 ///   ignorados. O filtro de upload (`adrm`) continua valendo;
 /// - ON **sem** fatos: `inventory_loaded:false` + `holds_complete:false` — a
 ///   nativa segue read-only (`holds_incomplete`), como antes do feed;
-/// - ON **com** fatos: drops do Node (ou env), inventário/`knownBefore` e held
-///   do lote; `holds_complete` só com [`HoldsFacts::covers`] (o flag do Node
+/// - ON **com** fatos: drops do gateway (ou env), inventário/`knownBefore` e held
+///   do lote; `holds_complete` só com [`HoldsFacts::covers`] (o flag
 ///   sozinho não autoriza).
 ///
 /// `durable` é o leitor do `cache.db` do Node e é lido ANTES do early return:

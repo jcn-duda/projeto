@@ -23,8 +23,8 @@
 //! segura mora em `alldebrid_cleanup`: `DEBRID_AL_CLEANUP` (default OFF),
 //! hold/`adprot`, `knownBefore` e a fila com backoff. Só nasce plano com a
 //! flag **e** `holds_complete` e inventário. O hold volátil do autofetch mora
-//! no processo Node, então o seam in-process entrega os fatos por
-//! [`check_service_report_with`] (feed `/internal/debrid/holds`, ligado por
+//! no KV do gateway, e o seam in-process entrega os fatos por
+//! [`check_service_report_with`] (fatos do gateway, ligados por
 //! `DEBRID_AL_HOLDS`, default OFF). Sem os fatos — ou com cobertura
 //! incompleta — o `holds_complete` fica falso e a nativa é READ-ONLY: nenhum
 //! hash sai. O HTTP público `/debrid/check` responde a AllDebrid como os
