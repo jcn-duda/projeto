@@ -9,7 +9,7 @@ import debrid from '../../../src/debrid/index.js';
 import { peekDavail } from '../../../src/debrid/cache-check.js';
 import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
 import { accountScope } from '../../../src/utils/request-key.js';
-import * as magnetdb from '../../../src/utils/magnetdb.js';
+import { magnetState } from '../../../src/utils/debrid-state-native.js';
 import * as rdLedger from '../../../src/debrid/rd-ledger.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as log from '../../../src/utils/logger.js';
@@ -18,6 +18,16 @@ import { assertSafeTestDb } from '../db-guard.js';
 
 // Lê `magnetdb`/ledger/KV: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/debrid-instant-steps');
+
+// Leitura LOCAL do banco de magnets: o oráculo chama a PONTE nativa
+// (`magnetState()`) direto, com a MESMA guarda da régua que estava em
+// `src/utils/magnetdb.ts` (o módulo vivo conservou só leitura/reparo do
+// painel — a escrita de produção é do gateway e do play_effects nativo).
+function isAlive(adapterId: string, apiKey: string, hash: string) {
+  return config.magnetDb.enabled && adapterId && apiKey && hash
+    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'alive'
+    : false;
+}
 
 /** Resultado da complementação de ⚡ para adaptador sem `cacheCheck`. */
 export type InstantEnrichment = {
@@ -101,7 +111,7 @@ export function enrichInstantWithoutCacheCheck(
     for (const s of streams) {
       const hash = String(s.infoHash || '').toLowerCase();
       if (!hash || cached.has(hash)) continue;
-      if (magnetdb.isAlive(adapter.id, apiKey, hash)) {
+      if (isAlive(adapter.id, apiKey, hash)) {
         cached.add(hash);
         doHistorico += 1;
         aliveHashes.push(hash);
@@ -147,7 +157,7 @@ export function enrichInstantWithoutCacheCheck(
       // um play que o serviço não tem (o enqueue dele já é recusado). Para
       // adaptador não-AD não há registro — a guarda é um peek síncrono, sem rede.
       if (reuploadBlocked(account, hash)) continue;
-      if (magnetdb.isAlive(adapter.id, apiKey, hash) && !negativoFresco) {
+      if (isAlive(adapter.id, apiKey, hash) && !negativoFresco) {
         cached.add(hash);
         doHistorico += 1;
       }

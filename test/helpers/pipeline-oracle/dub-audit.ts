@@ -12,7 +12,8 @@ import type { DebridAdapter, Stream, WorkHint } from '../../../types/domain.js';
 import { parseTitleSeasonEpisode } from '../../../src/utils/format.js';
 import debrid from '../../../src/debrid/index.js';
 import { rawAdapter } from './raw-adapter.js';
-import * as magnetdb from '../../../src/utils/magnetdb.js';
+import { magnetState } from '../../../src/utils/debrid-state-native.js';
+import { isSupportedHash } from '../../../src/utils/magnetdb-counts.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
@@ -28,6 +29,27 @@ import { assertSafeTestDb } from '../db-guard.js';
 // O oráculo grava no KV/cache: sem setup-env o destino seria o banco real.
 // (Guarda de bancada, não mudança de comportamento — o congelado segue igual.)
 assertSafeTestDb('pipeline-oracle/dub-audit');
+
+// Régua LOCAL de leitura/escrita de `lie`: o oráculo chama a PONTE nativa
+// (`magnetState()`) direto, com as MESMAS guardas e métricas da régua que
+// estava em `src/utils/magnetdb.ts` (o módulo vivo conservou só leitura/reparo
+// do painel — a escrita de produção é do gateway e do play_effects nativo).
+// Sem o bookkeeping do agregado do painel: nenhum teste do oráculo o lê.
+function isLie(adapterId: string, apiKey: string, hash: string) {
+  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash
+    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'lie'
+    : false;
+}
+
+/** Há vídeo, mas o post prometeu áudio PT e os arquivos provaram release EN. */
+function markLie(adapterId: string, apiKey: string, hash: string) {
+  const ttl = config.magnetDb.lieTtl;
+  if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
+  if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
+  // `lie` NÃO apaga o alive do mesmo hash: o magnet toca, só não é dublado.
+  magnetState().markLie(adapterId, apiKey, hash, ttl, Date.now());
+  metrics.count('magnetdb.lie.set');
+}
 
 type DubAuditCandidate = {
   hash: string;
@@ -89,7 +111,7 @@ export function queueDubAudit(adapterId: string, apiKey: string, candidates: Dub
   if (!config.audioAudit.enabled || TAIL_MAX <= 0) return;
   let added = false;
   for (const cand of candidates) {
-    if (magnetdb.isLie(adapterId, apiKey, cand.hash)) continue;
+    if (isLie(adapterId, apiKey, cand.hash)) continue;
     const candHash = String(cand.hash || '').toLowerCase();
     const prev = dubAuditPending.find((p) => String(p.hash || '').toLowerCase() === candHash
       && p.season === cand.season && p.episode === cand.episode);
@@ -138,7 +160,7 @@ export async function runDubAudit(limit = TAIL_MAX) {
       if (isDubLieError(err)) {
         lies += 1;
         const adapter = rawAdapter() as DebridAdapter | null;
-        if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
+        if (adapter) markLie(adapter.id, opts().debridApiKey, cand.hash);
         if (adapter) {
           protectedApi.unprotect(adapter.id, accountScope(opts().debridApiKey), cand.hash);
         }

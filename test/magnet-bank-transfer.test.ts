@@ -14,9 +14,11 @@ import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { engine } from '../src/utils/magnet-bank-rows.js';
 import type { MagnetRow, SourceRow, WorkRow } from '../src/utils/magnet-bank-rows.js';
-import {
-  TRANSFER_FORMAT, exportLines, importLines, mergeMagnetRows, mergeWorkRows, readMagnet, readWork,
-} from '../src/utils/magnet-bank-transfer.js';
+// O lado EXPORT vem do módulo vivo; o lado IMPORT congelou no oráculo
+// (test/helpers/pipeline-oracle/magnet-bank-import.ts) — quem mescla/grava em
+// produção é o gateway (`POST /magnet-bank/import` na admin 8711).
+import { TRANSFER_FORMAT, exportLines } from '../src/utils/magnet-bank-transfer.js';
+import { importLines, mergeMagnetRows, mergeWorkRows, readMagnet, readWork } from './helpers/pipeline-oracle/magnet-bank-import.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 const DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'bank-xfer-'));

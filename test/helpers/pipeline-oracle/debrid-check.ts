@@ -9,10 +9,10 @@ import config from '../../../src/config.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { raceWithDeadline } from '../../../src/utils/deadline.js';
 import { isRateLimitError } from '../../../src/debrid/common.js';
-import { davailState, type DavailFlag } from '../../../src/utils/debrid-state-native.js';
+import { davailState, magnetState, type DavailFlag } from '../../../src/utils/debrid-state-native.js';
+import { isSupportedHash } from '../../../src/utils/magnetdb-counts.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import * as log from '../../../src/utils/logger.js';
-import * as magnetdb from '../../../src/utils/magnetdb.js';
 import { rawAdapter, type CheckableAdapter } from './raw-adapter.js';
 import { cacheVerdict } from '../../../src/utils/rust-debrid-cache.js';
 import {
@@ -26,6 +26,65 @@ import { assertSafeTestDb } from '../db-guard.js';
 
 // Grava davail e magnetdb: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/debrid-check');
+
+// Régua LOCAL do banco de magnets: o oráculo chama a PONTE nativa
+// (`magnetState()`) direto, com as MESMAS guardas e métricas da régua que
+// estava em `src/utils/magnetdb.ts` (o módulo vivo conservou só leitura/reparo
+// do painel — a escrita de produção é do gateway e do play_effects nativo).
+// Sem o bookkeeping do agregado do painel: nenhum teste do oráculo o lê.
+function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
+  const ttl = config.magnetDb.aliveTtl;
+  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
+  // Dedup + minúsculas: o núcleo casa por hash já normalizado, e a métrica de
+  // recusa conta HASHES — duas cópias do mesmo hash inflariam `alive.set`.
+  const candidates = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter(Boolean);
+  // Só grava hash que o parse da chave aceita de volta: gravar o que ele
+  // recusa cria linha física que a enumeração de diagnóstico não reconhece.
+  const unique = candidates.filter(isSupportedHash);
+  const malformed = candidates.length - unique.length;
+  if (malformed > 0) metrics.count('magnetdb.hash.refused', malformed);
+  if (unique.length === 0) return;
+  const now = Date.now();
+  // UMA varredura para saber quais já estão `bad`: a precedência
+  // `bad > lie > alive` é do núcleo, e um `isBad` por hash custaria uma
+  // travessia napi por candidato.
+  const bad = new Set(
+    magnetState().stateSnapshot(adapterId, apiKey, unique, now)
+      .filter((mark) => mark.state === 'bad')
+      .map((mark) => String(mark.hash || '').toLowerCase()),
+  );
+  const allowed = unique.filter((hash) => !bad.has(hash));
+  const refused = unique.length - allowed.length;
+  if (refused > 0) metrics.count('magnetdb.alive.refused-bad', refused);
+  if (allowed.length === 0) return;
+  magnetState().markAlive(adapterId, apiKey, allowed, ttl, now);
+  metrics.count('magnetdb.alive.set', allowed.length);
+}
+
+function isBad(adapterId: string, apiKey: string, hash: string) {
+  return config.magnetDb.enabled && adapterId && apiKey && hash
+    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'bad'
+    : false;
+}
+
+/**
+ * Renovação ECONÔMICA para o atalho do davail: regrava só o hash cujo alive
+ * está na segunda metade do TTL. O hit do L1 não é evidência nova. Entrada
+ * sem registro (expirou) também renova — o davail acabou de confirmar o
+ * positivo; hash com `bad` NÃO renova (bad vence, e a renovação não pode
+ * ressuscitá-lo pela janela do davail).
+ */
+function renewAlive(adapterId: string, apiKey: string, hashes: string[]) {
+  const ttl = config.magnetDb.aliveTtl;
+  if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey) return;
+  const now = Date.now();
+  const stale = [...new Set(hashes.map((h) => String(h || '').toLowerCase()))].filter((hash) => {
+    if (!hash || isBad(adapterId, apiKey, hash)) return false;
+    const remaining = magnetState().remaining(adapterId, apiKey, 'alive', hash, now);
+    return remaining == null || remaining < ttl / 2;
+  });
+  markAlive(adapterId, apiKey, stale);
+}
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
 // a mesma promise quando o conjunto de hashes é idêntico; se o balde cresceu,
@@ -156,7 +215,7 @@ async function checkCached(
       metrics.count('davail.fileRefetch', refetch.length);
     }
     if (toAsk.length === 0) {
-      magnetdb.renewAlive(adapter.id, apiKey, [...fromCache]);
+      renewAlive(adapter.id, apiKey, [...fromCache]);
       return { cached: fromCache, known: true };
     }
   }
@@ -202,7 +261,7 @@ async function checkCached(
     if (positives.length) davailState().putMany(adapter.id, apiKey, positives, config.debrid.availPosTtl, now);
     if (negatives.length) davailState().putMany(adapter.id, apiKey, negatives, config.debrid.availNegTtl, now);
   }
-  if (!result.unusable) magnetdb.markAlive(adapter.id, apiKey, [...result.cached]);
+  if (!result.unusable) markAlive(adapter.id, apiKey, [...result.cached]);
   if (result.known && result.cached.size > 0) metrics.count('debrid.check.cached', result.cached.size);
   result.cached = new Set([...fromCache, ...result.cached]);
   return result;

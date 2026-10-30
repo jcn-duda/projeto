@@ -4,7 +4,7 @@
 import config from '../../../src/config.js';
 import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import debrid from '../../../src/debrid/index.js';
-import * as magnetdb from '../../../src/utils/magnetdb.js';
+import { magnetState } from '../../../src/utils/debrid-state-native.js';
 import * as rdLedger from '../../../src/debrid/rd-ledger.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';
@@ -17,6 +17,34 @@ import { assertSafeTestDb } from '../db-guard.js';
 
 // O oráculo chama `cache.set`/KV: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/debrid-cache-steps');
+
+// Régua LOCAL de leitura/reparo do banco de magnets: o oráculo chama a PONTE
+// nativa (`magnetState()`) direto, com as MESMAS guardas da régua que estava
+// em `src/utils/magnetdb.ts` (o módulo vivo conservou só leitura/reparo do
+// painel — a escrita de produção é do gateway e do play_effects nativo).
+// A precedência `bad > lie > alive` é do NÚCLEO: `state()` devolve o veredito
+// único do hash. Sem bookkeeping do agregado: nenhum teste do oráculo o lê.
+function isBad(adapterId: string, apiKey: string, hash: string) {
+  return config.magnetDb.enabled && adapterId && apiKey && hash
+    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'bad'
+    : false;
+}
+
+function isLie(adapterId: string, apiKey: string, hash: string) {
+  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash
+    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'lie'
+    : false;
+}
+
+/**
+ * Esquece um registro `bad`, SEM tocar em alive/lie do mesmo hash. É a função
+ * do REPARO do dano do F3 (bad + blocked do RD por recusa legal). Retorna
+ * true se havia um registro para apagar — mesmo comportamento observável da
+ * régua viva, sem o decremento do agregado do painel.
+ */
+function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
+  return magnetState().forgetBad(adapterId, apiKey, hash);
+}
 
 // I0 — observabilidade do funil da primeira resposta BR no corte do debrid.
 // O brFound agora é contado no buildStreams (funil pré-debrid); aqui ficam
@@ -107,7 +135,7 @@ export function pruneKnownBroken(
     // Corta por infoHash puro: item `fromFallback` / via instantânea do
     // magnet-bank (selo 📦) também sai — não há exceção por origem. Sem isto
     // a reserva reapresentaria hash que o play já provou sem vídeo.
-    if (magnetdb.isBad(adapterId, apiKey, s.infoHash)) {
+    if (isBad(adapterId, apiKey, s.infoHash)) {
       // Autocorreção tardia do dano F3: um ramo antigo marcava `bad` no hash
       // que o Real-Debrid recusou por lei (HTTP 451/error_code 35). Recusa
       // legal não é magnet quebrado, e NoVideoError legítimo não grava
@@ -116,7 +144,7 @@ export function pruneKnownBroken(
       // volta como P2P/sem ⚡; no cachedOnly o corte ternário o remove logo
       // abaixo pelo próprio ledger.
       if (config.debrid.rdLedger.enabled && adapterId === 'realdebrid' && rdLedger.peek(s.infoHash) === 'blocked') {
-        if (magnetdb.forgetBad(adapterId, apiKey, s.infoHash)) {
+        if (forgetBad(adapterId, apiKey, s.infoHash)) {
           metrics.count('magnetdb.bad.clearedBlocked');
           log.info(`[debrid] bad RD de recusa legal recuperado (${String(s.infoHash).slice(0, 8)})`);
         }
@@ -126,7 +154,7 @@ export function pruneKnownBroken(
       dropTrace(trace, s, 'bad');
       return false;
     }
-    if (s._lied || magnetdb.isLie(adapterId, apiKey, s.infoHash)) {
+    if (s._lied || isLie(adapterId, apiKey, s.infoHash)) {
       droppedLie += 1;
       dropTrace(trace, s, 'lie');
       return false;
