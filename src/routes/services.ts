@@ -3,7 +3,6 @@ import path from 'node:path';
 import config from '../config.js';
 import * as runtime from '../runtime.js';
 import debrid from '../debrid/index.js';
-import * as jackettCatalog from '../providers/jackett-catalog.js';
 import * as secretBox from '../utils/secret-box.js';
 import * as metrics from '../utils/metrics.js';
 import * as cache from '../utils/cache.js';
@@ -34,7 +33,6 @@ function buildServices(): AppServices {
     config,
     runtime,
     debrid,
-    jackettCatalog,
     secretBox,
     metrics,
     cache,

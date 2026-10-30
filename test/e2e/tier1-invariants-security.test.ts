@@ -9,12 +9,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import {
-  fakeResponse,
   makeTorznabXml,
   makeCinemetaMeta,
   makeTmdbFind,
   createMockFetch,
-  withMockFetch,
   createTestApp,
   createTestServer,
   encodeConfig,
@@ -29,7 +27,6 @@ import * as format from '../../src/utils/format.js';
 import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
-import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import type { Stream } from '../../types/domain.js';
@@ -37,79 +34,6 @@ import type { Stream } from '../../types/domain.js';
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const TEST_HASH_2 = '11223344556677889900aabbccddeeff00112233';
 const TEST_HASH_3 = '99887766554433221100ffeeddccbbaa99887766';
-
-// ════════════════════════════════════════════════════════════════════════════════
-describe('Feature 11: Torznab XML CDATA Resilience', () => {
-  it('11.1: parseXml decodifica corretamente títulos e atributos em tags XML do Torznab', () => {
-    const xml = `<?xml version="1.0"?>
-    <indexers>
-      <indexer id="bludv-cardigann" name="BLUDV Filmes &amp; Séries">
-        <language>pt-BR</language>
-      </indexer>
-    </indexers>`;
-
-    const items = jackettCatalog.parseXml(xml);
-    assert.equal(items.length, 1);
-    assert.equal(items[0].id, 'bludv-cardigann');
-    assert.equal(items[0].label, 'BLUDV Filmes & Séries');
-  });
-
-  it('11.2: parseXml decodifica entidades XML numéricas e nomeadas (&amp;, &#39;, &quot;)', () => {
-    const xml = `<?xml version="1.0"?>
-    <indexers>
-      <indexer id="comandotorrents">
-        <title>Comando &amp; Torrents &#8211; HD</title>
-        <language>pt-BR</language>
-      </indexer>
-    </indexers>`;
-
-    const items = jackettCatalog.parseXml(xml);
-    assert.equal(items.length, 1);
-    assert.equal(items[0].label, 'Comando & Torrents – HD');
-  });
-
-  it('11.3: parseXml tolera tags vazias sem erro de sintaxe usando id como fallback', () => {
-    const xml = `<?xml version="1.0"?>
-    <indexers>
-      <indexer id="nerdfilmes">
-        <title></title>
-      </indexer>
-    </indexers>`;
-
-    const items = jackettCatalog.parseXml(xml);
-    assert.equal(items.length, 1);
-    assert.equal(items[0].id, 'nerdfilmes');
-    assert.equal(items[0].label, 'nerdfilmes');
-  });
-
-  it('11.4: fallback() fornece catálogo seguro a partir das configurações do .env', () => {
-    const items = jackettCatalog.fallback();
-    assert.ok(Array.isArray(items));
-    assert.ok(items.length > 0);
-    assert.ok(items.some((i) => i.id === 'bludv-cardigann' || i.isBr !== undefined));
-  });
-
-  it('11.5: load() armazena catálogo em cache em memória pelo tempo de TTL configurado', async () => {
-    await withMockFetch(
-      {
-        match: '/results/torznab/api',
-        handler: () =>
-          fakeResponse(`<?xml version="1.0"?><indexers><indexer id="custom-idx"><title>Custom</title></indexer></indexers>`),
-      },
-      async () => {
-        const savedKey = config.jackett.apiKey;
-        config.jackett.apiKey = 'test-key';
-        try {
-          const list1 = await jackettCatalog.load();
-          const list2 = await jackettCatalog.load();
-          assert.deepEqual(list1, list2);
-        } finally {
-          config.jackett.apiKey = savedKey;
-        }
-      }
-    );
-  });
-});
 
 // ════════════════════════════════════════════════════════════════════════════════
 // FEATURE 12: Architecture & Invariants Preservation

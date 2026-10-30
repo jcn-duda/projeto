@@ -212,8 +212,9 @@ function makePublicHandlers(services: AppServices) {
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();
-    // Catálogo: ponte nativa do gateway primeiro; sem ela, o TS consulta o Jackett.
-    const jackettIndexers = (await loadNativeCatalog()) ?? (await services.jackettCatalog.load());
+    // Catálogo: a ponte nativa do gateway é a ÚNICA fonte (F4.6); sem ela,
+    // lista vazia — mesma degradação de um gateway degradado.
+    const jackettIndexers = (await loadNativeCatalog()) ?? [];
     res.json({
       ...safe,
       jackettIndexersSelected: safe.jackettIndexers,

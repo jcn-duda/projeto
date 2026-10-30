@@ -17,7 +17,6 @@ import { createDiagnosticGate, authorized } from '../../src/utils/diagnostic-gua
 import debrid from '../../src/debrid/index.js';
 import * as debridCommon from '../../src/debrid/common.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
-import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';
@@ -34,83 +33,6 @@ function withSecret(secret: any, fn: any) {
 }
 
 describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
-
-  // =========================================================================
-  describe('Feature 11: Torznab XML CDATA Resilience', () => {
-    it('F11-BND-01: Decodes XML catalog items and attributes cleanly', () => {
-      const xml = `
-        <indexers>
-          <indexer id="bludv-cardigann" name="BLUDV Releases" language="pt-BR">
-          </indexer>
-        </indexers>
-      `;
-      const parsed = jackettCatalog.parseXml(xml);
-      assert.equal(parsed.length, 1);
-      assert.equal(parsed[0].id, 'bludv-cardigann');
-      assert.equal(parsed[0].label, 'BLUDV Releases');
-      assert.equal(parsed[0].language, 'pt-BR');
-    });
-
-    it('F11-BND-02: Decodes HTML entities in Torznab XML titles and labels', () => {
-      const xml = `
-        <indexers>
-          <indexer id="comandotorrents" name="Comando Torrents &#8211; Filmes &amp; S&#233;ries" language="pt-BR">
-          </indexer>
-        </indexers>
-      `;
-      const parsed = jackettCatalog.parseXml(xml);
-      assert.equal(parsed.length, 1);
-      assert.equal(parsed[0].id, 'comandotorrents');
-      assert.ok(parsed[0].label.includes('Comando Torrents – Filmes & Séries'));
-    });
-
-    it('F11-BND-03: Empty tags and whitespace-only tags do not break parsing', () => {
-      const xml = `
-        <indexers>
-          <indexer id="yts">
-            <language></language>
-          </indexer>
-        </indexers>
-      `;
-      const parsed = jackettCatalog.parseXml(xml);
-      assert.equal(parsed.length, 1);
-      assert.equal(parsed[0].id, 'yts');
-      assert.equal(parsed[0].label, 'yts');
-    });
-
-    it('F11-BND-04: Torznab XML with unclosed tags skips malformed entries', () => {
-      const malformedXml = '<indexers><indexer id="bad"><title>Unclosed';
-      const parsed = jackettCatalog.parseXml(malformedXml);
-      assert.deepEqual(parsed, []);
-    });
-
-    it('F11-BND-05: Non-safe indexer IDs are skipped in Torznab XML catalog', () => {
-      const xml = `
-        <indexers>
-          <indexer id="../unsafe-path">
-            <title>Unsafe Path</title>
-          </indexer>
-          <indexer id="safe-id-123">
-            <title>Safe Indexer</title>
-          </indexer>
-        </indexers>
-      `;
-      const parsed = jackettCatalog.parseXml(xml);
-      assert.equal(parsed.length, 1);
-      assert.equal(parsed[0].id, 'safe-id-123');
-    });
-
-    it('F11-BND-06: Catalog fallback() returns safe default indexers from .env', () => {
-      const fb = jackettCatalog.fallback();
-      assert.ok(Array.isArray(fb));
-      assert.ok(fb.length > 0);
-      for (const item of fb) {
-        assert.ok(item.id);
-        assert.ok(item.label);
-        assert.ok(typeof item.isBr === 'boolean');
-      }
-    });
-  });
 
   // =========================================================================
   // Feature 12: Architecture & Invariants Preservation

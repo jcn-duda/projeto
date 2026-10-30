@@ -2,7 +2,6 @@ import type express from 'express';
 import type config from '../config.js';
 import type * as runtime from '../runtime.js';
 import type debrid from '../debrid/index.js';
-import type * as jackettCatalog from '../providers/jackett-catalog.js';
 import type * as secretBox from '../utils/secret-box.js';
 import type * as metrics from '../utils/metrics.js';
 import type * as cache from '../utils/cache.js';
@@ -39,7 +38,6 @@ export interface AppServices {
   config: typeof config;
   runtime: typeof runtime;
   debrid: typeof debrid;
-  jackettCatalog: typeof jackettCatalog;
   secretBox: typeof secretBox;
   metrics: typeof metrics;
   cache: typeof cache;

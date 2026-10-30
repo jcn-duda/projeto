@@ -2,10 +2,10 @@
 //
 // Desde a F4.2 o gateway (Rust) consulta o Jackett, guarda o memo/TTL e
 // publica `{ok, cards, source}` na admin: cards camelCase `id/label/language/
-// isBr` (+ `virtual` só no Mico) e `source: live|fallback` da coleta. Esta
-// ponte lê a rota; quem consumia `services.jackettCatalog.load()`
-// (/defaults.json e os blocos general/indexers do painel) tenta aqui primeiro
-// e cai no TS (`jackett-catalog.ts`) só quando a ponte devolve null.
+// isBr` (+ `virtual` só no Mico) e `source: live|fallback` da coleta. Desde a
+// F4.6 esta ponte é a ÚNICA fonte do catálogo (/defaults.json e os blocos
+// general/indexers do painel) — o coletor TS (`jackett-catalog.ts`) saiu; sem
+// a ponte, o consumidor segue com a lista vazia.
 //
 // Os cards voltam JÁ decorados com o status de saúde (`indexerStatus.decorate`)
 // e com o `source` do gateway anexado — exatamente o shape do `load()` do TS
@@ -31,7 +31,7 @@ interface NativeCatalogCard {
   virtual?: boolean;
 }
 
-/** Mesmo tipo do `CatalogList` do `jackett-catalog.ts`: array + `source`. */
+/** Mesmo tipo do antigo `CatalogList` do TS: array + `source`. */
 export type NativeCatalogList = ReturnType<typeof indexerStatus.decorate> & { source: CatalogSource };
 
 function baseUrl(): string {
@@ -57,7 +57,7 @@ function safeCard(raw: unknown): NativeCatalogCard | null {
   };
 }
 
-/** Catálogo do gateway; `null` = ponte fora (o chamador cai no TS). */
+/** Catálogo do gateway; `null` = ponte fora (o chamador segue com a lista vazia). */
 export async function loadNativeCatalog(): Promise<NativeCatalogList | null> {
   try {
     const res = await fetch(`${baseUrl()}/indexers/catalog`, {

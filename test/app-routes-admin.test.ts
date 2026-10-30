@@ -37,8 +37,8 @@ after(async () => {
 });
 
 test('/defaults.json nunca expõe a chave de debrid do operador', async () => {
-  // O jackettCatalog.load() da rota faz fetch; o mock garante que nenhum
-  // pedido saia do processo.
+  // A ponte do catálogo (`loadNativeCatalog`) da rota faz fetch; o mock garante
+  // que nenhum pedido saia do processo.
   await withMockFetch([{ match: '/api/v2.0/indexers', handler: () => fakeResponse([]) }], async () => {
     config.debrid.apiKey = 'segredo-do-operador';
     try {

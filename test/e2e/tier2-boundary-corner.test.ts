@@ -16,7 +16,6 @@ import { createDiagnosticGate, authorized } from '../../src/utils/diagnostic-gua
 import debrid from '../../src/debrid/index.js';
 import * as debridCommon from '../../src/debrid/common.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
-import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';

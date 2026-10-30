@@ -30,7 +30,6 @@ import * as format from '../../src/utils/format.js';
 import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
-import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import type { Stream } from '../../types/domain.js';

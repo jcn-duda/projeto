@@ -184,8 +184,8 @@ export async function computeStatusPayload(
   let memoIndexers: Promise<any> | null = null;
   const getIndexers = () => {
     // O status vivo é medido no gateway: lê o placar antes de decorar o catálogo.
-    // O catálogo também sai do gateway (ponte nativa); sem ela, o TS consulta o Jackett.
-    if (!memoIndexers) memoIndexers = refreshNativeIndexerStatus().then(() => loadNativeCatalog()).then((native) => native ?? services.jackettCatalog.load());
+    // O catálogo também só sai do gateway (ponte nativa, F4.6); sem ela, lista vazia.
+    if (!memoIndexers) memoIndexers = refreshNativeIndexerStatus().then(() => loadNativeCatalog()).then((native) => native ?? []);
     return memoIndexers;
   };
 

@@ -17,10 +17,10 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import * as metrics from '../src/utils/metrics.js';
-import { resetCatalogCache } from '../src/providers/jackett-catalog.js';
 import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
 import { pullNativeMetrics } from '../src/utils/native-metrics.js';
 import { createTestServer } from './e2e/e2e-harness.js';
+import { stubFetch } from './helpers/stub.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-bank-'));
 const TOKEN = 'tok-magnet-bank';
@@ -65,7 +65,6 @@ before(async () => {
 after(async () => {
   await server.close();
   bank.resetForTests();
-  resetCatalogCache();
   config.jackett.testToken = saved.testToken;
   config.magnetBank.enabled = saved.bankEnabled;
   config.jackett.indexers = saved.indexers;
@@ -222,23 +221,45 @@ test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contado
   // A chave `fallback.indexer.<id>` é do `adom_core::metric_id` (o golden
   // `metric-id` mede a normalização contra o oráculo do esm).
 
-  config.jackett.apiKey = '';
-  config.jackett.indexers = ['bank_test_id'];
-  config.jackett.ptBrIndexers = [];
-  config.jackett.slowIndexers = [];
-  resetCatalogCache();
-  // Nem com um valor no balde o bloco pode publicar medida: sem produtor, a
-  // contagem é resíduo — publicar 5 afirmaria um histórico que ninguém escreve.
-  metrics.count('fallback.indexer.bank_test_id', 5);
+  // O catálogo é ÚNICO da ponte nativa (F4.6): o card semeado vem do dublê do
+  // gateway, não do .env do Node. O `/indexers/status` corre antes do catálogo
+  // no mesmo bloco — o dublê responde os dois.
+  const savedStream = { url: config.streamStore.url, token: config.streamStore.token };
+  config.streamStore.url = 'http://127.0.0.1:8711';
+  config.streamStore.token = 'tok-magnet-bank-catalog';
+  const stub = stubFetch((url) => {
+    if (url.endsWith('/indexers/status')) {
+      return { ok: true, status: 200, json: async () => ({ indexers: [] }) };
+    }
+    assert.match(url, /\/indexers\/catalog$/);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        cards: [{ id: 'bank_test_id', label: 'Bank Test', language: '', isBr: false }],
+        source: 'live',
+      }),
+    };
+  });
+  try {
+    // Nem com um valor no balde o bloco pode publicar medida: sem produtor, a
+    // contagem é resíduo — publicar 5 afirmaria um histórico que ninguém escreve.
+    metrics.count('fallback.indexer.bank_test_id', 5);
 
-  const res = await get('?blocos=indexers');
-  assert.equal(res.status, 200);
-  const row = res.json.indexers.find((indexer: any) => indexer.id === 'bank_test_id');
-  assert.ok(row, 'o indexer semeado aparece no catálogo');
-  assert.equal(row.fallbackServed, null, 'sem produtor: não medido, nunca 0');
+    const res = await get('?blocos=indexers');
+    assert.equal(res.status, 200);
+    const row = res.json.indexers.find((indexer: any) => indexer.id === 'bank_test_id');
+    assert.ok(row, 'o indexer semeado aparece no catálogo');
+    assert.equal(row.fallbackServed, null, 'sem produtor: não medido, nunca 0');
 
-  // A leitura seria HISTÓRICO, não o estado online: o campo é separado de `status`.
-  assert.equal('status' in row, true, 'o status de saúde continua no próprio campo');
+    // A leitura seria HISTÓRICO, não o estado online: o campo é separado de `status`.
+    assert.equal('status' in row, true, 'o status de saúde continua no próprio campo');
+  } finally {
+    stub.restore();
+    config.streamStore.url = savedStream.url;
+    config.streamStore.token = savedStream.token;
+  }
 });
 
 test('painel: gateway fora não inventa metrics.native e o KPI I0 se declara não medido', async () => {

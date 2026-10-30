@@ -1,6 +1,5 @@
 import config from './config.js';
 import * as brResolvers from './br-resolvers.js';
-import * as jackettCatalog from './providers/jackett-catalog.js';
 import * as secretBox from './utils/secret-box.js';
 import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
@@ -48,11 +47,9 @@ brResolvers.load();
 // O scrypt do selo custa ~100ms e o resultado fica em cache. Derivar aqui tira
 // esse custo da primeira requisição de quem instalar.
 if (secretBox.enabled()) secretBox.seal('warmup');
-// Catálogo é usado na primeira abertura de /configure; aquecer só com credencial
-// evita uma chamada inútil para instalações em modo demo/P2P.
-// Também é quem preenche a lista automática de indexers (sem JACKETT_INDEXERS),
-// com nova tentativa a cada 30s até o Jackett responder.
-jackettCatalog.startAutoRefresh();
+// O catálogo de indexers é sob demanda pela ponte nativa (`catalog-native.ts`,
+// memo/TTL no próprio gateway) — sem aquecedor nem lista automática no Node
+// (F4.6). Quem coleta é o gateway; sem ele, /configure e painel mostram vazio.
 // Antes do primeiro /magnet/upload, para a conta do operador não classificar
 // os uploads da primeira busca como magnets que já eram do usuário.
 debrid.warmupEnv();
