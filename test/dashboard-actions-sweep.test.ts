@@ -3,7 +3,7 @@
 //
 //   AllDebrid do OPERADOR → varredura NATIVA no gateway (POST /sweeps/run)
 //   AllDebrid BYO         → erro explícito, SEM tocar no adaptador TS
-//   outros serviços       → adaptador (`sweepDead(apiKey)`), caminho legado
+//   outros serviços       → ponte nativa `/debrid/sweep-dead` (8710)
 //
 // O handler é chamado direto com um `services` mínimo: nada de subir o app, o
 // que também garante que nenhum teste daqui depende da conta real.
@@ -15,16 +15,20 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import type { AppServices } from '../src/routes/types.js';
-import type { DebridAdapter } from '../types/domain.js';
 import { sweepDead } from '../src/routes/dashboard-actions-sweep.js';
 import { flushPendingSweeps, resetSweepsBridgeForTests } from '../src/utils/sweeps-native.js';
 import { stubFetch, type FetchResponse } from './helpers/stub.js';
 
 const BASE = 'http://127.0.0.1:8771';
 const saved: Record<string, any> = {};
+const BRIDGE = 'http://127.0.0.1:8772';
 
 beforeEach(() => {
   resetSweepsBridgeForTests();
+  saved.bridgeUrl = process.env.DEBRID_INTERNAL_URL;
+  saved.bridgeToken = process.env.DEBRID_INTERNAL_TOKEN;
+  process.env.DEBRID_INTERNAL_URL = BRIDGE;
+  process.env.DEBRID_INTERNAL_TOKEN = 'tok-bridge';
   saved.service = config.debrid.service;
   saved.apiKey = config.debrid.apiKey;
   saved.allowEnvKey = config.debrid.allowEnvKey;
@@ -41,6 +45,8 @@ beforeEach(() => {
 
 afterEach(() => {
   resetSweepsBridgeForTests();
+  restoreEnv('DEBRID_INTERNAL_URL', saved.bridgeUrl);
+  restoreEnv('DEBRID_INTERNAL_TOKEN', saved.bridgeToken);
   config.debrid.service = saved.service;
   config.debrid.apiKey = saved.apiKey;
   config.debrid.allowEnvKey = saved.allowEnvKey;
@@ -50,6 +56,11 @@ afterEach(() => {
   config.streamStore.timeoutMs = saved.storeTimeoutMs;
   config.streamStore.sweepTimeoutMs = saved.sweepTimeoutMs;
 });
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
 
 function json(body: unknown, status = 200): FetchResponse {
   return { ok: status < 400, status, json: async () => body };
@@ -156,63 +167,65 @@ test('AllDebrid BYO continua barrado com a conta do operador sem o gate ligado',
   }
 });
 
-test('outro serviço: dispatch legado no adaptador corrente, com a chave da instalação', async () => {
-  const chamadas: Array<{ apiKey: string }> = [];
-  const FAKE = {
-    id: 'sweepfake',
-    label: 'SweepFake',
-    short: 'SW',
-    cacheCheck: false,
-    keyUrl: '' as unknown as string,
-    checkCached: async () => new Set<string>(),
-    resolveLink: async () => null,
-    sweepDead: async (apiKey: string) => {
-      chamadas.push({ apiKey });
-      return { varridos: 2, falhas: 1 };
-    },
-  } as DebridAdapter;
-  debrid.BY_ID.set(FAKE.id, FAKE);
-  config.debrid.service = FAKE.id;
+test('premiumize (outro serviço): varredura pela ponte nativa /debrid/sweep-dead, sem adaptador TS', async () => {
+  config.debrid.service = 'premiumize';
   config.debrid.apiKey = 'chave-da-instalacao';
   config.debrid.allowEnvKey = true;
   const { services, metrics } = makeServices();
   const { res, out } = makeRes();
-  const stub = stubFetch(() => json({ ok: true }));
+  const stub = stubFetch((url) => (url.endsWith('/debrid/sweep-dead')
+    ? json({ varridos: 2, falhas: 1, observados: 4 })
+    : json({ ok: true })));
   try {
     await sweepDead({ services, res, action: 'sweep-dead' });
-    assert.equal(stub.calls.length, 0, 'serviço não-AllDebrid não passa pela ponte nativa');
+    assert.equal(stub.calls.length, 1, 'uma única chamada: a ponte');
+    assert.equal(stub.calls[0].url, `${BRIDGE}/debrid/sweep-dead`);
+    assert.equal(stub.calls[0].options?.method, 'POST');
+    assert.deepEqual(JSON.parse(String(stub.calls[0].options?.body)), {
+      service: 'premiumize',
+      apiKey: 'chave-da-instalacao',
+      minAgeMs: config.debrid.sweepDeadMinAgeMs,
+    });
     assert.equal(out.body.ok, true);
-    assert.deepEqual(out.body.result, { varridos: 2, falhas: 1 });
-    assert.deepEqual(chamadas, [{ apiKey: 'chave-da-instalacao' }]);
-    assert.deepEqual(metrics, ['dashboard.sweep-dead'], 'sem métrica nativa no ramo legado');
+    assert.deepEqual(out.body.result, { varridos: 2, falhas: 1, observados: 4 });
+    assert.deepEqual(metrics, ['dashboard.sweep-dead'], 'sucesso não conta métrica de indisponível');
   } finally {
     stub.restore();
-    debrid.BY_ID.delete(FAKE.id);
   }
 });
 
-test('outro serviço sem varredura implementada: ok:false e motivo legível', async () => {
-  const FAKE = {
-    id: 'nosweepfake',
-    label: 'NoSweepFake',
-    short: 'NS',
-    cacheCheck: false,
-    keyUrl: '' as unknown as string,
-    checkCached: async () => new Set<string>(),
-    resolveLink: async () => null,
-  } as DebridAdapter;
-  debrid.BY_ID.set(FAKE.id, FAKE);
-  config.debrid.service = FAKE.id;
+test('premiumize: ponte responde 501 (sem varredura nativa) -> ok:false, indisponível', async () => {
+  config.debrid.service = 'premiumize';
   config.debrid.apiKey = 'chave-da-instalacao';
   config.debrid.allowEnvKey = true;
-  const { services } = makeServices();
+  const { services, metrics } = makeServices();
   const { res, out } = makeRes();
+  const stub = stubFetch(() => json({ error: 'service_not_ported' }, 501));
   try {
     await sweepDead({ services, res, action: 'sweep-dead' });
+    assert.equal(stub.calls.length, 1);
     assert.equal(out.body.ok, false);
     assert.equal(out.body.result, null);
     assert.match(String(out.body.error), /indisponível/);
+    assert.deepEqual(metrics, ['dashboard.sweep-dead'], 'a métrica de indisponível é da ponte (contador global), não do services');
   } finally {
-    debrid.BY_ID.delete(FAKE.id);
+    stub.restore();
+  }
+});
+
+test('sem chave da instalação: nenhuma chamada à ponte, indisponível', async () => {
+  config.debrid.service = 'premiumize';
+  config.debrid.apiKey = '';
+  config.debrid.allowEnvKey = false;
+  const { services } = makeServices();
+  const { res, out } = makeRes();
+  const stub = stubFetch(() => json({ varridos: 1, falhas: 0, observados: 1 }));
+  try {
+    await sweepDead({ services, res, action: 'sweep-dead' });
+    assert.equal(stub.calls.length, 0);
+    assert.equal(out.body.ok, false);
+    assert.equal(out.body.result, null);
+  } finally {
+    stub.restore();
   }
 });

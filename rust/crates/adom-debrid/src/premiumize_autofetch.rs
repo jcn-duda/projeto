@@ -117,10 +117,10 @@ static SRC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)btih:([a-f0-9]{4
 static NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)(?:^|[\s._-])([a-f0-9]{40})(?:[\s._-]|$)").unwrap());
 static HASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[a-f0-9]{40}$").unwrap());
-static STALLED: LazyLock<Regex> =
+pub(crate) static STALLED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)0 bytes of 0 bytes|from 0 peer").unwrap());
 
-fn transfer_hash(t: &Value, by_id: &HashMap<String, String>) -> Option<(String, bool)> {
+pub(crate) fn transfer_hash(t: &Value, by_id: &HashMap<String, String>) -> Option<(String, bool)> {
     let src = t.get("src").and_then(Value::as_str).unwrap_or("");
     if let Some(c) = SRC.captures(src) {
         return Some((c[1].to_lowercase(), false));
@@ -142,7 +142,7 @@ fn transfer_hash(t: &Value, by_id: &HashMap<String, String>) -> Option<(String, 
         .then(|| (direct.to_lowercase(), false))
 }
 
-fn scalar(value: &Value) -> Option<String> {
+pub(crate) fn scalar(value: &Value) -> Option<String> {
     match value {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
@@ -151,7 +151,7 @@ fn scalar(value: &Value) -> Option<String> {
     }
 }
 
-fn number(value: &Value) -> Option<f64> {
+pub(crate) fn number(value: &Value) -> Option<f64> {
     match value {
         Value::Number(n) => n.as_f64(),
         Value::String(s) => s.parse().ok(),

@@ -10,6 +10,7 @@ import { streamsCacheKey, streamsCacheScope } from '../src/utils/request-key.js'
 import { createTestServer, decodeConfig, encodeConfig, fakeResponse, withMockFetch } from './e2e/e2e-harness.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
 import { harvestDashboardRoutes } from './helpers/harvest-dashboard-mock.js';
+import { stubFetch } from './helpers/stub.js';
 
 const SWEEP_ADAPTER = {
   id: 'sweepfake',
@@ -19,7 +20,6 @@ const SWEEP_ADAPTER = {
   keyUrl: '' as unknown as string,
   checkCached: async () => new Set<string>(),
   resolveLink: async () => null,
-  sweepDead: async () => ({ varridos: 2, falhas: 0 }),
 } as DebridAdapter;
 
 const TOKEN = 'tok-dashboard';
@@ -146,19 +146,28 @@ test('POST clear-cache rejeita escopo inválido sem apagar entradas', async () =
   }
 });
 
-test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem config (com confirm: true)', async () => {
+test('POST sweep-dead: 200 ok:true pela ponte nativa /debrid/sweep-dead e ok:false sem config (com confirm: true)', async () => {
   config.jackett.testToken = TOKEN;
   config.debrid.service = 'sweepfake';
   config.debrid.apiKey = 'chave-operador';
+  const savedBridge = { url: process.env.DEBRID_INTERNAL_URL, token: process.env.DEBRID_INTERNAL_TOKEN };
+  process.env.DEBRID_INTERNAL_URL = 'http://127.0.0.1:8772';
+  process.env.DEBRID_INTERNAL_TOKEN = 'tok-bridge';
+  const stub = stubFetch((url) => (url.endsWith('/debrid/sweep-dead')
+    ? { ok: true, status: 200, json: async () => ({ varridos: 2, falhas: 0, observados: 2 }) }
+    : { ok: true, status: 200, json: async () => ({}) }));
   try {
     const com = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'sweep-dead', confirm: true },
     });
     assert.equal(com.status, 200);
-    assert.equal(com.json.ok, true, 'o adaptador corrente varriu de verdade');
+    assert.equal(com.json.ok, true, 'a ponte nativa varreu de verdade');
     assert.equal(com.json.action, 'sweep-dead');
-    assert.deepEqual(com.json.result, { varridos: 2, falhas: 0 });
+    assert.deepEqual(com.json.result, { varridos: 2, falhas: 0, observados: 2 });
+    const bridgeCall = stub.calls.find((c) => c.url.endsWith('/debrid/sweep-dead'));
+    assert.equal(bridgeCall?.url, 'http://127.0.0.1:8772/debrid/sweep-dead');
+    assert.equal(JSON.parse(String(bridgeCall?.options?.body)).service, 'sweepfake');
 
     config.debrid.service = '';
     const semConfig = await server.request('POST', '/dashboard-action.json', {
@@ -170,6 +179,9 @@ test('POST sweep-dead: 200 ok:true con adaptador configurado e ok:false sem conf
     assert.equal(semConfig.json.result, null);
     assert.match(semConfig.json.error, /indisponível/);
   } finally {
+    stub.restore();
+    if (savedBridge.url === undefined) delete process.env.DEBRID_INTERNAL_URL; else process.env.DEBRID_INTERNAL_URL = savedBridge.url;
+    if (savedBridge.token === undefined) delete process.env.DEBRID_INTERNAL_TOKEN; else process.env.DEBRID_INTERNAL_TOKEN = savedBridge.token;
     config.debrid.service = '';
     config.debrid.apiKey = '';
     config.jackett.testToken = '';

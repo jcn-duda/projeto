@@ -352,5 +352,6 @@ async function pullMetrics(): Promise<Record<string, number>> {
 }
 
 export { RustWriteError, wrap, pullMetrics };
-// Só a ponte de play do oráculo (`test/helpers/pipeline-oracle/play/bridge.ts`) usa estes.
+// A ponte de play do oráculo (`test/helpers/pipeline-oracle/play/bridge.ts`) e a da
+// varredura (`rust-sweep.ts`, `/debrid/sweep-dead`) usam estes.
 export { post, remoteOptions, playError, type RemoteOptions, type RemoteFailure };

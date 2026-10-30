@@ -8,8 +8,9 @@
 //                            Node não tem adaptador de varredura da AllDebrid)
 //   AllDebrid BYO          → erro explícito, SEM cair no adaptador TS (a rota
 //                            nativa usa a conta do processo, não a `dk` da URL)
-//   outros serviços        → dispatch legado (Premiumize e companhia seguem no
-//                            caminho TS até a fase que os remover)
+//   outros serviços        → ponte nativa `/debrid/sweep-dead` na 8710 (Premiumize
+//                            e companhia; o Rust responde 501 se o serviço não
+//                            tem varredura, e aí o painel mostra "indisponível")
 //
 // O `confirm` da ação destrutiva já rodou no despacho (DESTRUCTIVE_ACTIONS), e o
 // corpo nativo manda `confirm:true` de novo porque a rota manual do gateway só
@@ -17,6 +18,7 @@
 import type express from 'express';
 import type { AppServices } from './types.js';
 import { refreshSweepsStatus, runNativeSweep } from '../utils/sweeps-native.js';
+import { sweepDeadNative } from '../debrid/rust-sweep.js';
 
 type SweepDeps = {
   services: AppServices;
@@ -28,23 +30,20 @@ const OPERATOR_ONLY =
   'varredura nativa atende só a conta do operador: a chave desta instalação (BYO) não é varrida pelo gateway; use a conta do operador no .env';
 
 /**
- * Varredura do ADAPTADOR (serviços não-AllDebrid).
+ * Varredura de serviços não-AllDebrid, pela ponte nativa (`/debrid/sweep-dead`).
  *
- * ramo legado: removido no corte TS — os atalhos `sweepDeadCurrent`/`sweepDeadEnv`
- * de `debrid/env-ops` saíram com a virada nativa. O que sobreviveu é o método
- * opcional `sweepDead(apiKey)` do adaptador (`types/domain.d.ts`), que era
- * exatamente o que o `sweepDeadCurrent` chamava: adaptador corrente + a chave da
- * instalação corrente (`opts().debridApiKey`, a `dk` da URL ou a herdada).
- * Sem adaptador que implemente a varredura — ou sem chave —, o painel responde
- * "indisponível" como antes; nada aqui cai no caminho da AllDebrid.
+ * A chave é a da instalação corrente (`opts().debridApiKey`, a `dk` da URL ou a
+ * herdada) e o serviço é o adaptador corrente. Sem chave, ou se a ponte não
+ * responde (501 = serviço sem varredura nativa, ou falha), o painel responde
+ * "indisponível"; nada aqui cai no caminho da AllDebrid.
  */
 async function legacySweep(services: AppServices): Promise<unknown> {
   const apiKey = String(services.runtime.opts().debridApiKey || '');
   if (!apiKey) return null;
   const adapter = services.debrid.current();
-  if (!adapter || typeof adapter.sweepDead !== 'function') return null;
+  if (!adapter) return null;
   try {
-    return await adapter.sweepDead(apiKey);
+    return await sweepDeadNative(adapter.id, apiKey, services.config.debrid.sweepDeadMinAgeMs);
   } catch (err) {
     services.log.warn(`[${adapter.id}] varredura de mortos falhou: ${services.log.errorMessage(err)}`);
     return null;

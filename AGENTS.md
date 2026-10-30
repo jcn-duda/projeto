@@ -339,6 +339,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   mais `DEBRID_RUST_SERVICES` nem seletor por serviço (o `.env` antigo com a
   variável é ignorado). O oráculo de teste pega o adaptador cru por
   `test/helpers/pipeline-oracle/raw-adapter.ts`.
+- **Varredura manual de mortos do painel (não-AllDebrid) é nativa**: o Node
+  chama `POST /debrid/sweep-dead` na 8710 (`src/debrid/rust-sweep.ts`); a régua
+  é `adom-debrid::premiumize_sweep` (error sai sempre; parado só na 2ª
+  observação após `DEBRID_SWEEP_DEAD_MIN_AGE_MS`; hold ilegível = segurado).
+  Outros serviços → 501 → painel "indisponível". O TS ficou no oráculo.
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
   resolução. `fsz`/`tsz` são `RUST_OWNED` no KV nativo: a checagem nativa grava
   (`adom-debrid::file_sizes` — TorBox a lista, Premiumize o total), o play do

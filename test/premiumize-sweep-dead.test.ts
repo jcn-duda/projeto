@@ -4,7 +4,8 @@
 // que tem dublê e payload próprios. Fetch dublado, sem rede.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as premiumize from '../src/debrid/premiumize.js';
+// A varredura saiu de src/ (vira ponte nativa); a régua TS congelada mora no oráculo.
+import * as premiumize from './helpers/pipeline-oracle/debrid-bodies/premiumize-sweep.js';
 import * as held from '../src/debrid/protected.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as autofetch from '../src/providers/autofetch.js';

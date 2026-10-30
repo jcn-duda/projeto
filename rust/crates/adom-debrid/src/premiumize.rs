@@ -226,6 +226,18 @@ impl Premiumize {
         Ok(content_of(&data))
     }
 
+    /// `/transfer/list` cru, para a varredura decidir (`premiumize_sweep`).
+    pub(crate) async fn list_transfers(&self, key: &str) -> Result<Vec<Value>, DebridError> {
+        let data = self
+            .get(key, "/transfer/list", &[], None, CALL_TIMEOUT)
+            .await?;
+        Ok(data
+            .get("transfers")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    }
+
     async fn get(
         &self,
         api_key: &str,
@@ -258,7 +270,7 @@ mod http_support;
 use http_support::*;
 
 #[path = "premiumize_autofetch.rs"]
-mod autofetch;
+pub(crate) mod autofetch;
 pub use autofetch::{TransferState, TransferStatus, TransferStatusReport};
 
 #[cfg(test)]

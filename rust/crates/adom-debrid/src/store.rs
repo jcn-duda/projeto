@@ -139,6 +139,32 @@ impl Store {
         Ok(n > 0)
     }
 
+    /// Linhas VIVAS com `prefix` (chave e valor), numa consulta. Só leitura:
+    /// o leitor do `cache.db` não expira nada. `expires_at = 0` é permanente
+    /// (convenção do `NativeKv`) e conta como viva. Erro vira `Err`; quem chama
+    /// decide o lado seguro.
+    pub fn prefix_values(
+        &self,
+        prefix: &str,
+        now_ms: i64,
+    ) -> Result<Vec<(String, String)>, String> {
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare(
+                "SELECT key, value FROM cache
+                 WHERE substr(key, 1, length(?1)) = ?1
+                   AND (expires_at = 0 OR expires_at > ?2)",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map(params![prefix, now_ms], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|err| err.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())
+    }
+
     fn quota_for(&self, prefix: &str) -> Option<u64> {
         self.quotas
             .iter()

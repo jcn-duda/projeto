@@ -8,9 +8,10 @@
 //! Premiumize e Debrid-Link segue 501 nas duas.
 //! `/debrid/resolve` usa o `play` (cinco adaptadores) e não grava estado.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axum::extract::State;
 use axum::http::{Request, StatusCode};
@@ -22,6 +23,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+use crate::alldebrid_cleanup::DurablePeek;
 use crate::http::HttpClient;
 use crate::metrics::Metrics;
 use crate::store::Store;
@@ -44,6 +46,11 @@ struct AppState {
     /// Leitor do ledger (`rdc:v2`) usado pelo `/debrid/check` do RD.
     store: Option<Store>,
     http: Option<HttpClient>,
+    /// Leitor do `cache.db` para os holds (`adhold:v1`) da varredura.
+    durable: DurablePeek,
+    /// Memória de paradas do `sweep-dead` (`<conta>:<hash>` -> epoch ms da 1ª vista).
+    /// Por processo, como o `stallSeenAt` do TS; cada conta poda só a sua.
+    sweep_memory: Mutex<HashMap<String, i64>>,
 }
 
 pub fn parse_listen(listen: &str) -> Result<SocketAddr, String> {
@@ -102,6 +109,8 @@ pub fn router(cfg: &InternalConfig) -> Router {
         metrics: Metrics::new(),
         store,
         http,
+        durable: DurablePeek::new(cfg.cache_db.clone()),
+        sweep_memory: Mutex::new(HashMap::new()),
     });
     Router::new()
         .route("/metrics", get(metrics))
@@ -110,6 +119,7 @@ pub fn router(cfg: &InternalConfig) -> Router {
         .route("/debrid/resolve", post(api_resolve::post))
         .route("/debrid/account", post(dispatch::account))
         .route("/debrid/files", post(dispatch::files))
+        .route("/debrid/sweep-dead", post(dispatch::sweep_dead))
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -182,3 +192,7 @@ mod api_test_support;
 #[cfg(test)]
 #[path = "api_tests.rs"]
 mod api_tests;
+
+#[cfg(test)]
+#[path = "api_sweep_tests.rs"]
+mod api_sweep_tests;

@@ -68,6 +68,9 @@ pub mod play;
 /// Prova de áudio no play (`assertDubbedFiles`) compartilhada pelos adaptadores.
 pub mod play_audit;
 pub mod premiumize;
+/// Varredura de transferências mortas ou paradas do Premiumize (porte de
+/// `sweepDead`): decisão pura; a rota e a memória de paradas moram em `api`.
+pub mod premiumize_sweep;
 pub mod realdebrid;
 /// Primitivos RD de autofetch; requer NativeKv compartilhado antes de ligar rede.
 pub mod realdebrid_autofetch;

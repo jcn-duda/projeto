@@ -35,6 +35,9 @@ use alldebrid_check::check_alldebrid;
 mod api_hint;
 use api_hint::play_hint;
 
+#[path = "api_sweep.rs"]
+mod sweep;
+
 fn known(service: &str) -> bool {
     matches!(
         service,
@@ -159,6 +162,10 @@ pub(super) async fn account(State(state): State<Arc<AppState>>, raw: Bytes) -> R
         return not_ported(&state, &body.service);
     };
     status
+}
+
+pub(super) async fn sweep_dead(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {
+    sweep::post(state, raw).await
 }
 
 pub(super) async fn files(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {

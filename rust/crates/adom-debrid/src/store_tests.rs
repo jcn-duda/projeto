@@ -75,3 +75,29 @@ fn davail_no_arquivo_do_node_e_somente_leitura() {
     assert!(err.contains("somente leitura"), "{err}");
     assert!(!store.contains("davail:v1:a").unwrap());
 }
+
+#[test]
+fn prefix_values_traz_vivas_e_permanentes_do_prefixo() {
+    let store = Store::open_memory(&[("autofetch:v3:m:", 10)]).unwrap();
+    store
+        .put("autofetch:v3:m:pm:a:1", "{\"id\":1}", 100, 0)
+        .unwrap();
+    store
+        .put("autofetch:v3:m:pm:a:2", "{\"id\":2}", 0, 0)
+        .unwrap();
+    store
+        .put("autofetch:v3:m:pm:a:3", "{\"id\":3}", 10, 0)
+        .unwrap();
+    store
+        .put("autofetch:v3:m:pm:b:4", "{\"id\":4}", 100, 0)
+        .unwrap();
+    let mut keys: Vec<String> = store
+        .prefix_values("autofetch:v3:m:pm:a:", 50)
+        .unwrap()
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect();
+    keys.sort();
+    // `:3` venceu em 10; `:2` é permanente (expires_at = 0); `:4` é de outra conta.
+    assert_eq!(keys, vec!["autofetch:v3:m:pm:a:1", "autofetch:v3:m:pm:a:2"]);
+}
