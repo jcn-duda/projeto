@@ -6,6 +6,7 @@
 import config from '../../../src/config.js';
 import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import debrid from '../../../src/debrid/index.js';
+import { inventory } from './inventory-for.js';
 import { peekDavail } from './play/davail.js';
 import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
 import { accountScope } from '../../../src/utils/request-key.js';
@@ -90,7 +91,7 @@ export function enrichInstantWithoutCacheCheck(
       return { cachedForAutofetch: inv, knownForAutofetch, accountKnown };
     }
     knownForAutofetch = false;
-    debrid.inventory().catch((err: unknown) =>
+    inventory().catch((err: unknown) =>
       log.warn(`[${adapter.id}] aquecimento de inventário em fundo falhou:`, log.errorMessage(err)),
     );
   }

@@ -344,7 +344,6 @@ export interface DebridAdapter {
     hash: string,
     episode?: unknown,
   ): Promise<boolean | string>;
-  warmInventory?(apiKey: string): Promise<unknown>;
   sweepDead?(apiKey: string): Promise<unknown>;
   /** Remove magnets antigos sem áudio PT da conta; ausente = não suportado. */
   sweepUndubbed?(apiKey: string): Promise<unknown>;

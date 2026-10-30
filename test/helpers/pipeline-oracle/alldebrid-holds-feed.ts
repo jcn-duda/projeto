@@ -10,7 +10,7 @@
 import { accountScope } from '../../../src/utils/request-key.js';
 import { id as alldebridId } from '../../../src/debrid/alldebrid-api.js';
 import { heldHashesFor } from '../../../src/debrid/protected.js';
-import { alldebridCleanupFacts } from '../../../src/debrid/alldebrid-cleanup-facts.js';
+import { alldebridCleanupFacts } from './alldebrid-cleanup-facts.js';
 import { assertSafeTestDb } from '../db-guard.js';
 
 // Os fatos leem o inventário e a posse no KV nativo: sem setup-env o destino

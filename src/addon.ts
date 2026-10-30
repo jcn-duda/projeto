@@ -4,7 +4,6 @@ import * as secretBox from './utils/secret-box.js';
 import * as cache from './utils/cache.js';
 import * as log from './utils/logger.js';
 import * as metrics from './utils/metrics.js';
-import debrid from './debrid/index.js';
 import { createApp } from './app.js';
 import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.js';
 import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
@@ -50,9 +49,6 @@ if (secretBox.enabled()) secretBox.seal('warmup');
 // O catálogo de indexers é sob demanda pela ponte nativa (`catalog-native.ts`,
 // memo/TTL no próprio gateway) — sem aquecedor nem lista automática no Node
 // (F4.6). Quem coleta é o gateway; sem ele, /configure e painel mostram vazio.
-// Antes do primeiro /magnet/upload, para a conta do operador não classificar
-// os uploads da primeira busca como magnets que já eram do usuário.
-debrid.warmupEnv();
 // As varreduras destrutivas da AllDebrid (mortos, não-dublados, reconcile da
 // posse e revalidação de represados) saíram daqui: o agendador é o NATIVO do
 // gateway (`al_sweeps`, gate `DEBRID_AL_SWEEP_APPLY`), dono único das quatro.

@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as alldebrid from '../src/debrid/alldebrid.js';
+import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -93,7 +93,7 @@ test('proteção durável sem hold pula dropUncached e dropReady, e conta protec
   const api = mockAccountWith([], [BR_PRONTO]);
   metrics.reset();
   try {
-    await alldebrid.warmInventory(CHAVE);
+    await warmInventory(CHAVE);
     await settle();
     await flushImmediate();
 

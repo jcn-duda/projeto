@@ -20,8 +20,8 @@ import * as alldebrid from '../src/debrid/alldebrid.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
 import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
 import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
-import { alldebridCleanupFacts } from '../src/debrid/alldebrid-cleanup-facts.js';
-import { wrap } from '../src/debrid/rust-remote.js';
+import { alldebridCleanupFacts } from './helpers/pipeline-oracle/alldebrid-cleanup-facts.js';
+import { withCheckBridge } from './helpers/pipeline-oracle/check-bridge.js';
 
 const newHash = () => randomBytes(20).toString('hex');
 
@@ -137,7 +137,7 @@ test('inventário: frio manda inventoryLoaded:false; quente manda o knownBefore 
   }
 });
 
-test('wrap só envia os fatos com a limpeza ligada e preserva os campos do contrato', async () => {
+test('a ponte de checagem só envia os fatos com a limpeza ligada e preserva os campos do contrato', async () => {
   const apiKey = 'chave-fatos-wrap';
   const account = accountScope(apiKey);
   const infoHash = newHash();
@@ -162,7 +162,7 @@ test('wrap só envia os fatos com a limpeza ligada e preserva os campos do contr
     // Flag OFF (default): caminho nativo de paridade idêntico ao anterior —
     // nenhum campo de limpeza e NENHUMA leitura extra de inventário.
     config.debridRust.alCleanup = false;
-    const off = wrap(adapter, { token: 'tok', fetchImpl: impl });
+    const off = withCheckBridge(adapter, { token: 'tok', fetchImpl: impl });
     await off.checkCached(apiKey, [infoHash], { timeoutMs: 5000 });
     const offBody = bodies[0]!;
     assert.equal(offBody.service, 'alldebrid');
@@ -175,7 +175,7 @@ test('wrap só envia os fatos com a limpeza ligada e preserva os campos do contr
     // Flag ON: fatos completos + contrato anterior intacto.
     config.debridRust.alCleanup = true;
     hold(infoHash, 600, account);
-    const wrapped = wrap(adapter, { token: 'tok', fetchImpl: impl });
+    const wrapped = withCheckBridge(adapter, { token: 'tok', fetchImpl: impl });
     const result = await wrapped.checkCached(apiKey, [infoHash], {
       timeoutMs: 5000,
       fileHashes: [infoHash],
@@ -209,7 +209,7 @@ test('wrap só envia os fatos com a limpeza ligada e preserva os campos do contr
       checkCached: async () => new Set<string>(),
       resolveLink: async () => null,
     } as DebridAdapter;
-    const other = wrap(torbox, { token: 'tok', fetchImpl: impl });
+    const other = withCheckBridge(torbox, { token: 'tok', fetchImpl: impl });
     await other.checkCached('chave', [newHash()]);
     const otherBody = bodies[2]!;
     assert.equal(otherBody.service, 'torbox');

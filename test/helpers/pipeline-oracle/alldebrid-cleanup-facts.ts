@@ -26,12 +26,15 @@
  * volátil deste processo é o único existente hoje (o `Holds` do Rust ainda não
  * tem chamador de produção) e é chaveado por conta+hash, sem coringa.
  */
-import config from '../config.js';
-import { accountScope } from '../utils/request-key.js';
-import * as metrics from '../utils/metrics.js';
-import { id } from './alldebrid-api.js';
-import { heldHashesFor } from './protected.js';
-import { inventoryFacts } from './alldebrid-inventory.js';
+import config from '../../../src/config.js';
+import { accountScope } from '../../../src/utils/request-key.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { id } from '../../../src/debrid/alldebrid-api.js';
+import { heldHashesFor } from '../../../src/debrid/protected.js';
+import { inventoryFacts } from '../../../src/debrid/alldebrid-inventory.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+assertSafeTestDb('pipeline-oracle/alldebrid-cleanup-facts');
 
 interface CleanupFacts {
   /** Snapshot `knownBefore` desta rodada saiu da memória do Node. */
@@ -50,7 +53,7 @@ interface CleanupFacts {
  * Fatos para o corpo do check NATIVO; `null` quando não há o que mandar:
  * serviço que não os aceita (Premiumize/TorBox/RD/Debrid-Link) ou limpeza
  * nativa desligada (`DEBRID_AL_CLEANUP`, default OFF). É o ponto que o
- * `rust-remote` chama: a contagem de diagnóstico mora aqui para o adaptador
+ * ponte de checagem do oráculo (`check-bridge.ts`) chama: a contagem de diagnóstico mora aqui para o adaptador
  * continuar sendo só transporte.
  */
 export function alldebridCheckFacts(adapterId: string, apiKey: string, hashes: readonly string[]): CleanupFacts | null {

@@ -330,15 +330,14 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   cache" (lista passa sem ⚡, `cachedOnly` ignorado, passe tardio refaz).
   `unusable` (`auth`/`quota`) → lista volta como P2P, sem autofetch nem refresh.
   `partial:false` não prova que o debrid foi perguntado (`debridKnown`).
-- **Checagem e conta vêm da ponte nativa** (`src/debrid/rust-remote.ts`, API
-  8710), não do corpo TS do adaptador. `501` não é mais "ainda não portado": na
-  checagem devolve `unchecked()` (`known:false`, o prazo da resposta já foi
-  gasto) e na conta sobe `RustWriteError` — não existe segunda pergunta ao TS.
-  Recusa do serviço (`auth`/`quota`/`rate_limit`) segue subindo como o erro dele.
-  A ponte é **incondicional**: `current()` sempre embrulha o adaptador; não existe
-  mais `DEBRID_RUST_SERVICES` nem seletor por serviço (o `.env` antigo com a
-  variável é ignorado). O oráculo de teste pega o adaptador cru por
-  `test/helpers/pipeline-oracle/raw-adapter.ts`.
+- **O Node não checa cache nem toca play**: a busca e o `/resolve` são do
+  gateway. O `wrap` de `src/debrid/rust-remote.ts` só põe a CONTA
+  (`accountStatus`, 8710) por cima do adaptador — 501/queda sobem
+  `RustWriteError`, recusa (`auth`/`quota`/`rate_limit`) sobe como o erro dele.
+  A checagem e o play da ponte que os testes exercitam moram no oráculo
+  (`check-bridge.ts`, `play/bridge.ts`); o adaptador cru, em `raw-adapter.ts`.
+  Também saiu o aquecimento de inventário no boot (`warmupEnv`): só alimentava
+  essa checagem do Node.
 - **Varredura manual de mortos do painel (não-AllDebrid) é nativa**: o Node
   chama `POST /debrid/sweep-dead` na 8710 (`src/debrid/rust-sweep.ts`); a régua
   é `adom-debrid::premiumize_sweep` (error sai sempre; parado só na 2ª

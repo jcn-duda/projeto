@@ -1,11 +1,13 @@
 /**
  * Adaptador que fala com a API interna do adom-debrid (127.0.0.1:8710).
  *
- * O Rust é a implementação — não existe segunda pergunta ao TypeScript. Prazo
- * vencido, rede, 5xx e 501 devolvem cache incompleto (`known:false`): o tempo
- * da resposta já foi gasto e, na AllDebrid, a checagem é um upload de verdade.
- * Chave recusada, cota e rate limit sobem como o erro do TypeScript. O play
- * nunca chama o adaptador TypeScript.
+ * O Node usa a 8710 para a CONTA (`accountStatus`) e para a varredura do painel
+ * (`rust-sweep.ts`). A checagem de cache não passa mais por aqui: em produção
+ * ela é do gateway, e a ponte de checagem mora no oráculo de teste
+ * (`test/helpers/pipeline-oracle/check-bridge.ts`). Na conta, recusa (chave,
+ * cota, rate limit) sobe como o erro do TypeScript e queda ou 501 viram
+ * `RustWriteError`, sem segunda pergunta ao TypeScript. O play nunca chama o
+ * adaptador TypeScript.
  */
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
@@ -20,8 +22,6 @@ import {
   RateLimitError,
   WorkPickError,
 } from './common.js';
-import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
-import { adoptBlockedReady } from './rust-check-blocked.js';
 import { isAccountRefusal, playKind } from './rust-remote-kinds.js';
 import { pullNativeMetrics } from '../utils/native-metrics.js';
 
@@ -246,81 +246,18 @@ function playError(remote: RemoteFailure, secrets: readonly string[]): Error {
   return error;
 }
 
-/** `unusable` do envelope nativo: só motivo textual classifica (`null` = sem recusa). */
-function asUnusable(value: unknown): { reason: string; message: string } | undefined {
-  const raw = value && typeof value === 'object' ? value as { reason?: unknown; message?: unknown } : {};
-  const reason = textField(raw.reason);
-  return reason ? { reason, message: textField(raw.message) ?? reason } : undefined;
-}
-
-function asCheck(json: unknown): { cached: Set<string>; complete: boolean; unusable?: { reason: string; message: string } } {
-  const body = json && typeof json === 'object' ? json as { cached?: unknown; complete?: unknown; unusable?: unknown } : {};
-  const hashes = Array.isArray(body.cached) ? body.cached.map((hash) => String(hash)) : [];
-  const unusable = asUnusable(body.unusable);
-  return { cached: new Set(hashes), complete: body.complete !== false, ...(unusable ? { unusable } : {}) };
-}
-
-function unchecked(): { cached: Set<string>; complete: false } {
-  return { cached: new Set(), complete: false };
-}
-
 /**
- * Prazo da resposta no fetch. Sem timeoutMs fica o DEBRID_TIMEOUT_MS.
- * Prazo já vencido não abre HTTP.
- */
-function checkFetchOptions(opts: RemoteOptions, timeoutMs: number | undefined): RemoteOptions | null {
-  if (timeoutMs == null) return opts;
-  if (timeoutMs <= 0) return null;
-  return { ...opts, timeoutMs };
-}
-
-/**
- * Adaptador com a ponte por cima: `checkCached` é SEMPRE o dela. O play
- * (`resolveLink`) não passa mais pelo Node — o `/resolve` e os efeitos são do
- * gateway —, e a ponte de play que os testes exercitam mora no oráculo
+ * Adaptador com a ponte da CONTA por cima. `checkCached` é o do adaptador cru
+ * (a ponte de checagem é do oráculo, `test/helpers/pipeline-oracle/check-bridge.ts`)
+ * e o play (`resolveLink`) não passa pelo Node: o `/resolve` e os efeitos são do
+ * gateway, e a ponte de play dos testes mora no oráculo
  * (`test/helpers/pipeline-oracle/play/bridge.ts`).
  */
-export type BridgedAdapter = DebridAdapter & Required<Pick<DebridAdapter, 'checkCached'>>;
-
-/** Fecha o tipo: `wrap` define a checagem em toda montagem; o guarda só prova isso sem cast. */
-function bridged(out: DebridAdapter): BridgedAdapter {
-  if (typeof out.checkCached !== 'function') throw new Error('ponte nativa sem checagem');
-  return { ...out, checkCached: out.checkCached };
-}
+export type BridgedAdapter = DebridAdapter;
 
 function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): BridgedAdapter {
   const opts = remoteOptions(overrides);
   const out: DebridAdapter = { ...adapter };
-  out.checkCached = async (apiKey, hashes, checkOpts) => {
-    const fetchOpts = checkFetchOptions(opts, checkOpts?.timeoutMs);
-    if (!fetchOpts) return unchecked();
-    const facts = alldebridCheckFacts(adapter.id, apiKey, hashes);
-    const remote = await post(fetchOpts, '/debrid/check', {
-      service: adapter.id,
-      apiKey,
-      hashes,
-      timeoutMs: checkOpts?.timeoutMs,
-      fileHashes: checkOpts?.fileHashes,
-      fileWaitTimeoutMs: checkOpts?.fileWaitTimeoutMs,
-      ...(facts ?? {}),
-    });
-    if (remote.ok) {
-      const result = asCheck(remote.json);
-      // ⚡ que o filtro nativo escondeu: só com prova de PRONTO no inventário da
-      // conta o hash volta ao `cached` e a marca `adrm` é expurgada.
-      adoptBlockedReady(adapter.id, apiKey, remote.json, result.cached);
-      return result;
-    }
-    // 501 = sem braço nativo: contrato INCOMPLETO, não segunda pergunta ao TS.
-    if (remote.status === 501) return unchecked();
-    const kind = playKind(remote);
-    if (kind === 'auth' || kind === 'quota' || kind === 'rate_limit') {
-      throw playError(remote, [apiKey, fetchOpts.token]);
-    }
-    // Uma vez por checagem: a 8710 não respondeu e o TS não repete o upload.
-    metrics.count('rust.debrid.check.unreachable');
-    return unchecked();
-  };
   if (typeof adapter.accountStatus === 'function') {
     out.accountStatus = async (apiKey) => {
       const remote = await post(opts, '/debrid/account', { service: adapter.id, apiKey });
@@ -332,7 +269,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): B
       throw new RustWriteError(`debrid rust não leu a conta (${redact(remote.message, [apiKey, opts.token])})`);
     };
   }
-  return bridged(out);
+  return out;
 }
 
 /**

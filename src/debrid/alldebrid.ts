@@ -33,7 +33,7 @@ export {
   inventory,
 } from './alldebrid-api.js';
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
-export { warmInventory, preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
+export { preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
 export { deleteMagnets } from './alldebrid-cleanup.js';
 export { enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 

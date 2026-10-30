@@ -23,8 +23,8 @@ export const debrid = () => ({
   // installs: instância pública com ALLOW_ENV_KEY=false + OPERATOR_ENV_ACCOUNT
   // = true deixa o painel/catálogo funcionando e o anônimo em P2P puro.
   operatorEnvAccount: String(process.env.DEBRID_OPERATOR_ENV_ACCOUNT || 'false') === 'true',
-  // Gate das features de OPERADOR (catalog-env, env-ops, account-status,
-  // inventory warmup, harvester quota-warn, br-coverage). Getter
+  // Gate das features de OPERADOR (catalog-env, account-status,
+  // harvester quota-warn, br-coverage). Getter
   // (não valor congelado) porque o OU precisa refletir os campos vivos — os
   // testes mutam os campos do singleton, e um booleano pré-calculado na
   // fábrica dessincronizaria do par de flags real.

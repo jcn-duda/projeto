@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -108,7 +109,7 @@ test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download et
 
   try {
     // Referência ANTES do upload: o snapshot resolve com a conta vazia.
-    await alldebrid.warmInventory(KEY);
+    await warmInventory(KEY);
     await settle();
     await flushImmediate();
 
@@ -132,25 +133,18 @@ test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download et
   }
 });
 
-test('inventário aquecido no boot deixa a primeira checagem limpar os prontos que criou', async () => {
-  // O warm-up no boot é o que fecha o furo do fail-safe: sem ele, a primeira
-  // busca do operador gasta a checagem inteira sem apagar nada de pronto (o
-  // snapshot ainda não existe). Aquecido, o snapshot já está lá ANTES de
-  // qualquer upload — a primeira checagem remove os prontos normalmente.
+test('inventário pré-carregado (warmInventory) deixa a primeira checagem limpar os prontos que criou', async () => {
+  // O pré-carregamento é o que fecha o furo do fail-safe: sem ele, a primeira
+  // checagem gasta a conta inteira sem apagar nada de pronto (o snapshot ainda
+  // não existe). Carregado, o snapshot já está lá ANTES de qualquer upload — a
+  // primeira checagem remove os prontos normalmente. Nenhum boot chama mais
+  // isto (o warmup saiu); o teste mede a função em si.
   const KEY = 'chave-aquecido-boot';
   const NOVO = '9a'.repeat(20);
   const api = mockAccountWith([], [NOVO]);
 
-  // Contrato novo do adaptador: disparar o inventário da conta sem checagem,
-  // para o boot chamar ao lado do seal de warmup e do load do catálogo.
-  assert.equal(
-    typeof alldebrid.warmInventory,
-    'function',
-    'contrato: alldebrid expõe warmInventory(apiKey) para aquecer o inventário no boot',
-  );
-
   try {
-    alldebrid.warmInventory(KEY);
+    warmInventory(KEY);
     await settle();
     await flushImmediate();
 

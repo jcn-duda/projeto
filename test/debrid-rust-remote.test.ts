@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import config from '../src/config.js';
-import { abortDelay, errorCode, errorMessage, hasHash, unreachableCount, withPremiumize } from './helpers/rust-remote-stub.js';
+import { abortDelay, currentChecked, errorCode, errorMessage, hasHash, unreachableCount, withPremiumize } from './helpers/rust-remote-stub.js';
 import debrid from '../src/debrid/index.js';
 import { normalizeCacheResult } from '../src/debrid/cache-check.js';
 import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
@@ -12,6 +12,7 @@ import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as runtime from '../src/runtime.js';
 import { withPlayBridge } from './helpers/pipeline-oracle/play/bridge.js';
+import { withCheckBridge } from './helpers/pipeline-oracle/check-bridge.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
 
@@ -27,7 +28,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
     // Sem seletor: o adaptador entregue por current() é SEMPRE o da ponte.
     const plain = withPremiumize(() => debrid.current());
     assert.ok(plain, 'current() devolve o adaptador');
-    assert.notEqual(plain.checkCached, adapter.checkCached, 'current() embrulha na ponte');
+    assert.equal(plain.checkCached, adapter.checkCached, 'current() não embrulha a checagem (ponte é do oráculo)');
 
     let checks = 0;
     let links = 0;
@@ -44,7 +45,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
       calls += 1;
       return new Response(JSON.stringify({ error: 'service_not_ported' }), { status: 501 });
     }) as typeof fetch;
-    const wrapped = withPremiumize(() => debrid.current());
+    const wrapped = currentChecked();
     if (!wrapped) throw new Error('sem adaptador');
     const cached = await wrapped.checkCached('chave', ['h']);
     assert.equal(hasHash(cached, 'h'), false, '501 é contrato incompleto');
@@ -58,7 +59,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
 
     checks = 0;
     globalThis.fetch = (async () => new Response(JSON.stringify({ cached: ['abc'], complete: true }), { status: 200 })) as typeof fetch;
-    const again = withPremiumize(() => debrid.current());
+    const again = currentChecked();
     if (!again) throw new Error('sem adaptador');
     const direct = await again.checkCached('chave', ['abc']);
     const remoteHit = direct instanceof Set ? direct.has('abc') : direct.cached.has('abc');
@@ -73,7 +74,7 @@ test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
     };
     const useFetch = (impl: typeof fetch) => {
       globalThis.fetch = impl;
-      const next = withPremiumize(() => debrid.current());
+      const next = currentChecked();
       if (!next) throw new Error('sem adaptador');
       return next;
     };
@@ -266,7 +267,6 @@ test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', a
 
 // Fase 0.2 (`adrm`): `blocked` do outcome nativo só vira ⚡ com PROVA no `dinv`.
 test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡', async () => {
-  const { wrap } = await import('../src/debrid/rust-remote.js');
   const adrm = await import('../src/debrid/alldebrid-reupload.js');
   const memo = await import('../src/debrid/inventory-memo.js');
   const { accountScope } = await import('../src/utils/request-key.js');
@@ -280,7 +280,7 @@ test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡',
   Object.assign(config.debrid, { reuploadBlock: true, alldebridReuploadBlockTtlMs: 3600_000 });
   config.debridRust.alCleanup = false; // sem fatos: o teste mede o escape
   const reply = (async () => new Response(JSON.stringify({ cached: [], blocked: [provado, semProva], complete: true }), { status: 200 })) as unknown as typeof fetch;
-  const native = wrap(adapter, { token: 'tok', fetchImpl: reply });
+  const native = withCheckBridge(adapter, { token: 'tok', fetchImpl: reply });
   const unblocked = () => metrics.snapshot().counters['rust.debrid.check.unblockedByInventory'] || 0;
   try {
     for (const hash of [provado, semProva]) assert.equal(adrm.markReuploadBlocked(account, hash, 'Some.Movie.2024.1080p.WEB-DL.mkv'), true);
@@ -315,7 +315,7 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
   // Chave e hash únicos: o veredito (normalizeCacheResult, como no caminho de
   // produção) é lido do envelope da ponte, nunca do corpo TS.
   const run = async (tag: string) => {
-    const wrapped = withPremiumize(() => debrid.current(), tag);
+    const wrapped = currentChecked(tag);
     if (!wrapped) throw new Error('sem adaptador');
     return normalizeCacheResult(adapter, await wrapped.checkCached(tag, [`${tag}${'0'.repeat(39)}`]));
   };
@@ -382,7 +382,7 @@ test('current() não tem seletor: todo serviço do registry sai pela ponte', () 
     if (!adapter) throw new Error(`${id} ausente`);
     const wrapped = runtime.run({ opts: { ...runtime.defaults(), debridService: id, debridApiKey: 'k' } }, () => debrid.current());
     assert.ok(wrapped, `${id} devolve adaptador`);
-    assert.notEqual(wrapped.checkCached, adapter.checkCached, `${id} embrulhado na ponte`);
+    assert.equal(wrapped.checkCached, adapter.checkCached, `${id} sem ponte de checagem no current()`);
     assert.equal(wrapped.resolveLink, undefined, `${id} sem play TS no adaptador de produção`);
   }
 });

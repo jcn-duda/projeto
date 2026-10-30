@@ -5,7 +5,7 @@ import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as torbox from '../src/debrid/torbox.js';
-import debrid from '../src/debrid/index.js';
+import { inventory as oracleInventory } from './helpers/pipeline-oracle/inventory-for.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
@@ -101,7 +101,7 @@ const runWith = <T>(patch: object, fn: () => unknown) => runtime.run(patch, fn) 
 const inventoryOf = (apiKey: string, service = 'alldebrid'): Promise<InventoryItem[]> =>
   runtime.run(
     { opts: { ...runtime.defaults(), debridService: service, debridApiKey: apiKey }, encoded: 'seginv' },
-    () => debrid.inventory(),
+    () => oracleInventory(),
   ) as Promise<InventoryItem[]>;
 
 test('adaptador AllDebrid: só item pronto e com filename de verdade', async () => {

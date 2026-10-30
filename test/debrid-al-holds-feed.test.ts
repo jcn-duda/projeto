@@ -25,7 +25,7 @@ import { accountScope } from '../src/utils/request-key.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
 import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
 import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
-import { alldebridCleanupFacts } from '../src/debrid/alldebrid-cleanup-facts.js';
+import { alldebridCleanupFacts } from './helpers/pipeline-oracle/alldebrid-cleanup-facts.js';
 import { alldebridHoldsFeedFacts } from './helpers/pipeline-oracle/alldebrid-holds-feed.js';
 
 const TOKEN = 'tok-internal-debrid-holds';

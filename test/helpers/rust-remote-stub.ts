@@ -6,8 +6,9 @@
  */
 import * as runtime from '../../src/runtime.js';
 import * as metrics from '../../src/utils/metrics.js';
-import { BY_ID } from '../../src/debrid/registry.js';
+import { BY_ID, current } from '../../src/debrid/registry.js';
 import { isAuthError, isQuotaError, isRateLimitError } from '../../src/debrid/common.js';
+import { withCheckBridge } from './pipeline-oracle/check-bridge.js';
 
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
@@ -44,6 +45,12 @@ function abortDelay(signal: AbortSignal | undefined, ceilingMs: number): Promise
 function withPremiumize<T>(fn: () => T, apiKey = 'k'): T {
   const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: apiKey };
   return runtime.run({ opts }, fn);
+}
+
+/** `current()` do Premiumize com a ponte de checagem do oráculo por cima (o registry não a monta). */
+function currentChecked(apiKey?: string) {
+  const adapter = withPremiumize(() => current(), apiKey);
+  return adapter ? withCheckBridge(adapter) : null;
 }
 
 /**
@@ -88,4 +95,4 @@ async function viaAccountBridge<T>(run: () => T | Promise<T>): Promise<T> {
   }
 }
 
-export { abortDelay, bridgeAccountReply, errorCode, errorMessage, hasHash, unreachableCount, viaAccountBridge, withPremiumize };
+export { abortDelay, bridgeAccountReply, currentChecked, errorCode, errorMessage, hasHash, unreachableCount, viaAccountBridge, withPremiumize };

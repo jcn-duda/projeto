@@ -9,13 +9,16 @@
  *
  * Paridade com o corpo TS da checagem, que só existe no oráculo
  * (`test/helpers/pipeline-oracle/debrid-bodies/alldebrid.ts`: destrava antes do
- * upload e injeta no `cached`). A adoção vive aqui (e não no `rust-remote.ts`) para
- * manter o adaptador como transporte e respeitar o teto de linhas por arquivo.
+ * upload e injeta no `cached`). A adoção vive aqui, chamada pela ponte de checagem
+ * do oráculo (`check-bridge.ts`), e não no adaptador de produção.
  */
-import * as metrics from '../utils/metrics.js';
-import { accountScope } from '../utils/request-key.js';
-import { unblockIfInventoryReady } from './alldebrid-reupload.js';
-import { id as alldebridId } from './alldebrid-api.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { accountScope } from '../../../src/utils/request-key.js';
+import { unblockIfInventoryReady } from '../../../src/debrid/alldebrid-reupload.js';
+import { id as alldebridId } from '../../../src/debrid/alldebrid-api.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+assertSafeTestDb('pipeline-oracle/rust-check-blocked');
 
 /**
  * Hashes que o Rust tirou do upload (`blocked` do outcome nativo), lower-case e
