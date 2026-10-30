@@ -15,8 +15,8 @@ pub use davail_state::{davail_key, DavailAnswer, DavailStore, DavailSweep};
 pub use kv::NativeKv;
 pub use magnet_meta::{MagMetaCounts, MagMetaSums, MagMetaTotals, MAG_META_VERSION};
 pub use magnet_state::{
-    magnet_key, magnet_key_scoped, MagCount, MagEntry, MagPage, MagSweep, MagnetMark,
-    MagnetState, MagnetStateStore,
+    magnet_key, magnet_key_scoped, MagCount, MagEntry, MagPage, MagSweep, MagnetMark, MagnetState,
+    MagnetStateStore,
 };
 pub use raw::{default_raw_quota, is_raw_key, raw_prefix, RawCacheStore};
 pub use release_index::{
