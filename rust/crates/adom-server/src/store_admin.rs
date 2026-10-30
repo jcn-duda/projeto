@@ -24,7 +24,7 @@
 //! | `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que mencionam o hash — token da superfície |
 //! | `POST /streams/clear` `{}` | limpa o namespace todo (`clear-cache` global) — DESTRUTIVA + `confirm` |
 //! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) — DESTRUTIVA + `confirm` |
-//! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) |
+//! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) + recompute nativo quando `found` sem ledger |
 //! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
 //! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
@@ -41,7 +41,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -57,7 +57,10 @@ use crate::{al_sweeps::SweepAdmin, autofetch::AutofetchHandle, harvest::HarvestH
 mod util;
 // Reexportada: `auth` e a rota DESTRUTIVA comparam tokens pela MESMA função.
 pub(crate) use util::tokens_match;
-use util::{now_ms, stream_hash};
+// Handler do ledger (+ recompute nativo da dívida 4.2(b)): veio para cá pela
+// catraca e para amarrar o `crate::stream::trace_recompute` num módulo só.
+#[path = "trace_recompute_handler.rs"]
+mod trace_handler;
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
@@ -174,7 +177,7 @@ pub(crate) fn router_with_ownership(
         // O handler mora no `util`: as duas guardas desta rota não cabiam aqui
         // sem estourar a catraca de 400 linhas.
         .route("/streams/clear", post(util::clear))
-        .route("/streams/trace", get(trace))
+        .route("/streams/trace", get(trace_handler::trace))
         .route("/streams/stats", get(stats))
         .route("/indexers/status", get(indexer_status))
         .merge(crate::autofetch::admin_router())
@@ -287,88 +290,6 @@ async fn invalidate(State(state): State<Arc<AdminState>>, Json(body): Json<Value
         )
             .into_response(),
     }
-}
-
-async fn trace(
-    State(state): State<Arc<AdminState>>,
-    Query(params): Query<std::collections::BTreeMap<String, String>>,
-) -> Response {
-    let kind = params.get("type").map(String::as_str).unwrap_or("");
-    let id = params.get("id").map(String::as_str).unwrap_or("");
-    if kind != "movie" && kind != "series" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "ok": false, "error": "type deve ser movie ou series" })),
-        )
-            .into_response();
-    }
-    if id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "ok": false, "error": "id obrigatório" })),
-        )
-            .into_response();
-    }
-    let now = now_ms();
-    let grace = state.grace_seconds;
-    // Chave exata quando o Node manda a dele (mesma `streamsCacheKey`); senão a
-    // leitura do operador, que escolhe a build mais recente da obra.
-    let exact = params.get("key").map(String::as_str).unwrap_or("");
-    let mut hit = None;
-    if !exact.is_empty() {
-        match state.store.trace_entry(exact, grace, now) {
-            Ok(found) => hit = found,
-            Err(err) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "ok": false, "error": err })),
-                )
-                    .into_response()
-            }
-        }
-    }
-    if hit.is_none() {
-        match state.store.latest_trace(kind, id, grace, now) {
-            Ok(found) => hit = found,
-            Err(err) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "ok": false, "error": err })),
-                )
-                    .into_response()
-            }
-        }
-    }
-    let Some(hit) = hit else {
-        return Json(json!({ "ok": true, "found": false, "source": "rust" })).into_response();
-    };
-    let entry = &hit.value;
-    Json(json!({
-        "ok": true,
-        "found": true,
-        "source": "rust",
-        "cache": {
-            "remainingS": hit.remaining_s,
-            "partial": entry.partial,
-            "debridKnown": entry.debrid_known == Some(true),
-            "stale": hit.stale,
-        },
-        // O ledger vai CRU (é o mesmo JSON que o Node serializa) e os itens só
-        // com `name`/`infoHash` — a sonda `mode=live` do painel precisa dos
-        // hashes, e nada de URL/magnet/apiKey sai daqui.
-        "trace": entry.trace,
-        "searchMeta": entry.search_meta,
-        "streams": entry
-            .streams
-            .iter()
-            .map(|item| json!({
-                "name": item.name,
-                "infoHash": stream_hash(item.info_hash.as_deref(), item.url.as_deref()),
-            }))
-            .filter(|item| item["infoHash"].as_str().is_some_and(|h| !h.is_empty()))
-            .collect::<Vec<_>>(),
-    }))
-    .into_response()
 }
 
 async fn stats(State(state): State<Arc<AdminState>>) -> Response {

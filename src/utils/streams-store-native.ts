@@ -26,6 +26,10 @@ export type NativeStreamTrace = {
   cache?: { remainingS?: number; partial?: boolean; debridKnown?: boolean; stale?: boolean };
   trace?: unknown;
   searchMeta?: { names?: string[]; year?: number | null } | null;
+  // 4.2(b) — o recompute offline é NATIVO: quando a entrada TEM lista mas NÃO
+  // tem ledger, o gateway recomputa e devolve o `RecomputeOutcome` pronto (o
+  // Node só repassa; `null` quando não dá para recomputar honestamente).
+  recompute?: unknown;
   streams?: Array<{ name?: string | null; infoHash?: string | null }>;
 };
 

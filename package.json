@@ -357,7 +357,6 @@
     "test/short-name-tail.test.js",
     "test/sign.test.js",
     "test/stream-trace-live.test.js",
-    "test/stream-trace-recompute.test.js",
     "test/stream-trace-route.test.js",
     "test/stream-trace.test.js",
     "test/streams-store-clear-guard.test.js",
@@ -369,7 +368,6 @@
     "test/tmdb-br-aliases.test.js",
     "test/tmdb-english-title.test.js",
     "test/tmdb.test.js",
-    "test/torrent-total-size.test.js",
-    "test/warm-cache-contract.test.js"
+    "test/torrent-total-size.test.js"
   ]
 }

@@ -22,6 +22,9 @@ export type BridgeEntry = {
   cache?: { remainingS?: number; partial?: boolean; debridKnown?: boolean; stale?: boolean };
   trace?: unknown;
   searchMeta?: { names?: string[]; year?: number | null } | null;
+  /** 4.2(b): o recompute é NATIVO — o dublê entrega o outcome pronto como o
+   * gateway faria (found sem ledger); `undefined` = como antes (null). */
+  recompute?: unknown;
   streams?: Array<{ name?: string; infoHash?: string; url?: string }>;
 };
 
@@ -117,6 +120,7 @@ export function createStreamsBridge(options: StreamsBridgeOptions = {}): Streams
           cache: { remainingS: 900, partial: false, debridKnown: false, stale: false, ...(chosen.cache || {}) },
           trace: chosen.trace ?? null,
           searchMeta: chosen.searchMeta ?? null,
+          recompute: chosen.recompute ?? null,
           streams: chosen.streams ?? [],
         });
       }

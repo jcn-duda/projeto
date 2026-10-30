@@ -263,6 +263,11 @@ fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
 mod stream_config;
 pub use stream_config::*;
 
+/// Recompute NATIVO do trace da admin (dívida 4.2(b)); o handler da rota mora
+/// no `store_admin::trace_handler` e consome `trace_recompute::core`.
+#[path = "trace_recompute.rs"]
+pub(crate) mod trace_recompute;
+
 #[path = "stream_meta.rs"]
 mod stream_meta;
 

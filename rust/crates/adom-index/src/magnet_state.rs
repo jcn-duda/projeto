@@ -64,6 +64,17 @@ pub fn magnet_key(field: &str, adapter: &str, api_key: &str, hash: &str) -> Stri
     )
 }
 
+/// Variante com o ESCOPO pronto (o SHA-256 da conta): o recompute do trace
+/// (`/streams/trace`) não tem a API key — ela não viaja no `streamsCacheKey`, só
+/// o scope — e recomputar `account_scope(scope)` seria outro hash.
+pub fn magnet_key_scoped(field: &str, adapter: &str, scope: &str, hash: &str) -> String {
+    format!(
+        "{}{field}:{adapter}:{scope}:{}",
+        prefix("mag"),
+        hash.to_ascii_lowercase()
+    )
+}
+
 /// Hash de 40 hex **minúsculo** — a única forma que a enumeração do
 /// [`query`](self::query) lê de volta como `mag:v1:<side>:<adapter>:<scope>:<hash>`.
 /// Fora disso a escrita é ignorada (não grava, não lê, não apaga).
@@ -290,6 +301,29 @@ impl MagnetStateStore {
             });
         }
         Ok(out)
+    }
+
+    /// Leitura QUIET de UMA marca por campo (`bad`/`lie`), viva no instante —
+    /// com o ESCOPO pronto (ver [`magnet_key_scoped`]). As leituras são
+    /// independentes de propósito: `bad` e `lie` podem coexistir (há vídeo, o
+    /// áudio faltou) e o recompute do Node (`peekBad`+`peekLie`) lê as duas —
+    /// `state` aqui devolveria só a mais específica.
+    pub fn peek_mark_scoped(
+        &self,
+        field: &str,
+        adapter: &str,
+        scope: &str,
+        hash: &str,
+        now_ms: i64,
+    ) -> Result<bool, String> {
+        if adapter.is_empty() || scope.is_empty() || !is_valid_hash(hash) {
+            return Ok(false);
+        }
+        live_flag(
+            &self.lock(),
+            &magnet_key_scoped(field, adapter, scope, hash),
+            now_ms,
+        )
     }
 }
 

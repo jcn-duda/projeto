@@ -158,7 +158,7 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
 ///
 /// O coletor Jackett resolve a mesma lista por `JackettConfig::from_env` — as
 /// duas leituras são de boot, nunca por requisição; o log sai só aqui.
-fn operator_jackett_indexers() -> Vec<String> {
+pub(crate) fn operator_jackett_indexers() -> Vec<String> {
     let raw = std::env::var("JACKETT_INDEXERS").ok();
     let from_env = raw.as_deref().is_some_and(|value| !value.trim().is_empty());
     let dir = jackett_config_dir_from_env();
@@ -189,7 +189,7 @@ fn operator_jackett_indexers() -> Vec<String> {
 /// só ausente e `""` são falsy (`env || default`). `"   "` é TRUTHY e o
 /// `list()` apara para `[]`, então aqui também vira lista VAZIA, nunca o
 /// default (senão a sonda do colhedor e a busca viva leem knobs diferentes).
-fn indexer_list(raw: Option<&str>, default: &str) -> Vec<String> {
+pub(crate) fn indexer_list(raw: Option<&str>, default: &str) -> Vec<String> {
     let source = match raw {
         None | Some("") => default,
         Some(value) => value,

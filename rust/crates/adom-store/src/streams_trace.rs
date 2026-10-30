@@ -8,13 +8,18 @@ use rusqlite::{params, Connection};
 use super::{decode_entry, read_row, streams_prefix, StreamsStore};
 
 /// Entrada lida PARA DIAGNÓSTICO (`/stream-trace.json`): o valor, se está na
-/// graça e o TTL restante em segundos.
+/// graça e o TTL restante em segundos. A `key` é a da linha que venceu — o
+/// recompute do trace (`/streams/trace`) dela extrai a instalação (shape +
+/// escopo da conta), que o valor em si não carrega.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TraceHit {
     pub value: StreamsEntry,
     pub stale: bool,
     /// Segundos até o TTL vencer (`0` quando já venceu e está na graça).
     pub remaining_s: u64,
+    /// Chave do cache que produziu este hit (a exata pedida ou a mais recente
+    /// da obra achada pela varredura).
+    pub key: String,
 }
 
 impl StreamsStore {
@@ -92,6 +97,7 @@ fn trace_hit(
         } else {
             expires_at.saturating_sub(now_ms) / 1000
         },
+        key: key.to_string(),
     }))
 }
 

@@ -117,7 +117,8 @@ test('rota mode=live: sonda de capacidade + execução só no segmento torbox', 
   // é debridService e `dk` a apiKey (texto puro sem RESOLVE_SECRET).
   const segment = encodeConfig({ p: ['jackett'], ds: 'torbox', dk: 'k' });
   const debridCalls: string[] = [];
-  // Seed no store NATIVO: lista + searchMeta, SEM trace (o recompute explica).
+  // Seed no store NATIVO: lista + searchMeta, SEM trace (o gateway devolve o
+  // recompute pronto — o dublê entrega um outcome legítimo de no-material).
   const bridge = createStreamsBridge({
     entries: [{
       type: 'movie',
@@ -125,6 +126,7 @@ test('rota mode=live: sonda de capacidade + execução só no segmento torbox', 
       cache: { partial: false, debridKnown: true },
       streams: [{ name: 'Filme 2024\n1080p', infoHash: HASH, url: `https://x/resolve/${HASH}?sig=1` }],
       searchMeta: { names: ['Filme 2024'], year: 2024 },
+      recompute: { attempted: true, basis: [], built: false, builtAt: null, note: 'no-material', items: [] },
     }],
     onOther: (url) => {
       debridCalls.push(url);
@@ -164,7 +166,7 @@ test('rota mode=live: sonda de capacidade + execução só no segmento torbox', 
     });
     assert.equal(liveRes.status, 200);
     assert.equal(liveRes.json.live.allowed, true, `reason: ${liveRes.json.live.reason}`);
-    assert.equal(liveRes.json.origin, 'recompute', 'entrada sem trace dispara o recompute também');
+    assert.equal(liveRes.json.origin, 'recompute', 'o gateway mandou o recompute (found sem trace) também');
     assert.equal(debridCalls.length, 1);
     assert.match(debridCalls[0], /torrents\/checkcached/);
   } finally {

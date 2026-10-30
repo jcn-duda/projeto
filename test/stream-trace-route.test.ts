@@ -18,7 +18,6 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
-import { rawSetForTest } from '../src/utils/raw-store-native.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
 import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 import { createStreamsBridge, type BridgeEntry, type StreamsBridge } from './helpers/streams-bridge.js';
@@ -346,29 +345,36 @@ test('/stream-trace.json: resumo do Chupim (Fase 7) sai no payload e é compatí
   }
 });
 
-test('/stream-trace.json: ramo NATIVO sem trace recomputa com o searchMeta do store', async () => {
-  const savedIndexers = config.jackett.indexers;
-  config.jackett.indexers = ['torrentleech'];
+test('/stream-trace.json: ramo NATIVO sem trace repassa o recompute do gateway', async () => {
+  // 4.2(b): o recompute offline é NATIVO — o gateway recomputa found-sem-ledger
+  // a partir da matéria quente DELE (instalação extraída da própria chave) e
+  // devolve o outcome pronto. Os CAMPOS do outcome (label sanitizada com
+  // `<hash>`/`<magnet>`, basis, teto de 300, estados) são provados pelos
+  // testes Rust do `trace_recompute`; aqui a rota prova o REPASSE fiel.
   const bridge = createStreamsBridge({
     entries: [{
       type: 'movie',
       id: 'tt333',
       cache: { partial: false, debridKnown: true },
       searchMeta: { names: ['Filme'], year: 2020 },
+      trace: null,
+      recompute: {
+        attempted: true,
+        basis: ['raw'],
+        built: true,
+        builtAt: 1_700_000_000_000,
+        note: null,
+        items: [{ id: 'r1', label: '<hash> Filme <magnet>', br: true, now: { state: 'tocável' } }],
+      },
       streams: [],
     }],
   });
   try {
-    const hash = 'a'.repeat(40);
-    const sujo = `Filme 2020 ${hash} magnet:?xt=urn:btih:${hash}&dn=Filme [${hash}] ${'X'.repeat(200)}`;
-    // Chave do raw no formato legado do escritor (`raw:v1:jackett:<idx>:<type>:<query>`).
-    const rawKey = 'raw:v1:jackett:torrentleech:movie:Filme 2020';
-    rawSetForTest(rawKey, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
     const res = await server.request('GET', '/stream-trace.json?type=movie&id=tt333', {
       headers: { 'X-Indexer-Test-Token': bridge.token },
     });
     assert.equal(res.status, 200);
-    // F4.2(c): o Rust guarda a lista; a EXPLICAÇÃO vem do recompute do Node.
+    // O ledger continua null; o origin aponta o recompute (repasse fiel).
     assert.equal(res.json.origin, 'recompute');
     assert.equal(res.json.trace, null);
     assert.equal(res.json.recompute?.built, true);
@@ -381,7 +387,6 @@ test('/stream-trace.json: ramo NATIVO sem trace recomputa com o searchMeta do st
     assert.match(label, /<hash>/);
     assert.match(label, /<magnet>/);
   } finally {
-    config.jackett.indexers = savedIndexers;
     bridge.restore();
     cache.clear();
   }
