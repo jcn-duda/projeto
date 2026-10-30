@@ -67,6 +67,7 @@ mod native_index;
 mod native_index_instant;
 mod native_index_wire;
 mod pack;
+mod proven_quality; // `provenQuality`: resolução pelo nome do arquivo do torrent.
 mod prowlarr_collector;
 mod refresh;
 mod respond;

@@ -168,6 +168,10 @@ impl Orchestrator {
         // A lista de arquivos vem por hash da fonte nativa; o mapa do replay
         // (já no contexto) continua vencendo. Antes disto o `💾` de pack nunca saía.
         merge_file_sizes(self.file_sizes.as_deref(), items, &mut ctx);
+        // Título sem resolução ganha a do arquivo que o play tocaria (mesma
+        // lista de arquivos do 💾); sem isso o item saía sem chip de qualidade.
+        let items = super::proven_quality::stamp_proven_quality(items, &ctx.files_by_hash, meta);
+        let items: &[RawItem] = &items;
         let opts = build_options_from(&input.options, &self.config.build);
         let debrid_ctx = self.debrid_context(input, deadline_at);
         let signer = self.resolve_signer(input, meta);
