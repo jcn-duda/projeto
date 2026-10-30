@@ -2,7 +2,10 @@
 // (posse do que o addon subiu), `adprot:v1` (retenção BR durável) e `adrm:v1`
 // (hash apagado de propósito) passaram a ser do núcleo Rust — o mesmo
 // `cache.db`, pelo `NativeKv` do `adom-index`. O Node só fala pela ponte
-// (`native-kv.ts`).
+// (`native-kv.ts`). `adhold:v1` (hold curto do Chupim) segue o mesmo desenho
+// por paridade: leitura e escrita vivas são da ponte (`protected.ts`) e o
+// PREFIXO é o que torna `cache.get`/`peek` estrangeiros silenciosos — sem ele,
+// a leitura contaria `cache.miss` no metricSnapshot.
 //
 // Por que o dono importa: as chaves decidem o que a limpeza da conta pode
 // apagar e o que volta ao `/magnet/upload`. Segundo escritor no L1 faria um
@@ -11,12 +14,13 @@
 // `cache.set` do Node só despeja no SQLite no próximo tick, e a marca
 // recém-gravada podia não barrar o upload que o gateway fazia em seguida.
 //
-// Invariantes: `cache.set/forget` recusam as três; `cache.get/peek` devolvem
+// Invariantes: `cache.set/forget` recusam os quatro; `cache.get/peek` devolvem
 // `null` (nada de valor velho no L1); a ponte faz roundtrip com TTL e
 // `clearNamespace`/prefixo apagam o namespace inteiro.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
+import * as metrics from '../src/utils/metrics.js';
 import { RUST_OWNED, isForeignKey, isRustOwned, prefix } from '../src/utils/cache-keys.js';
 import { kvClearPrefix, kvForget, kvKeys, kvPeek, kvRemaining, kvSet } from '../src/utils/native-kv.js';
 
@@ -27,11 +31,36 @@ const subKey = `${prefix('adsub')}${conta}:${HASH}`;
 const protKey = `${prefix('adprot')}alldebrid:${conta}:${HASH}`;
 const rmKey = `${prefix('adrm')}${conta}:${HASH}`;
 
-test('adsub, adprot e adrm são dono único do núcleo por namespace e por prefixo', () => {
-  for (const ns of ['adsub', 'adprot', 'adrm'] as const) {
+test('adsub, adprot, adrm e adhold são dono único do núcleo por namespace e por prefixo', () => {
+  for (const ns of ['adsub', 'adprot', 'adrm', 'adhold'] as const) {
     assert.equal(isRustOwned(ns), true, `${ns} é RUST_OWNED`);
     assert.ok(RUST_OWNED.includes(ns), `${ns} está na lista do dono`);
     assert.equal(isForeignKey(`${prefix(ns)}alldebrid:${conta}:${HASH}`), true, `${ns} bloqueia o L1`);
+  }
+});
+
+// Paridade do adhold: `isRustOwned` já recusava a escrita/forget do Node; o
+// PREFIXO é o que silencia a LEITURA (`get`/`peek` sem `cache.miss`). O hold
+// real é lido e gravado pela ponte (`kvPeek`/`kvSet` em `debrid/protected.ts`),
+// que não passa pelo cache do Node — o forget dele não pode derrubar a linha.
+test('adhold é estrangeiro silencioso: get não conta miss e a ponte segue intacta', () => {
+  const holdKey = `${prefix('adhold')}${conta}:${HASH}`;
+  try {
+    cache.set(holdKey, { at: 1 }, 600);
+    assert.equal(cache.has(holdKey), false, 'set do Node recusa adhold');
+
+    assert.equal(kvSet(holdKey, { at: 2 }, 600), true, 'semeia o hold pela ponte');
+    const missAntes = metrics.snapshot().counters['cache.miss'] ?? 0;
+    assert.equal(cache.get(holdKey), null, 'get do Node não inventa valor');
+    assert.equal(cache.peek(holdKey), null, 'peek do Node também não');
+    const countersDepois = metrics.snapshot().counters;
+    assert.equal(countersDepois['cache.miss'] ?? 0, missAntes, 'leitura de chave estrangeira não conta cache.miss');
+    assert.equal(countersDepois['cache.miss.adhold'], undefined, 'nem o balde do namespace');
+
+    cache.forget(holdKey);
+    assert.deepEqual(kvPeek(holdKey), { at: 2 }, 'forget do Node não apaga a linha da ponte');
+  } finally {
+    kvForget(holdKey);
   }
 });
 

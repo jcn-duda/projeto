@@ -272,6 +272,13 @@ const RUST_OWNED = Object.freeze([
 // síncrono) fecha a janela em que a marca recém-gravada ainda não barrava o
 // `/magnet/upload`.
 //
+// `adhold:v1` (hold curto do Chupim) fecha o mesmo caminho por paridade: a
+// linha vive no KV nativo, o Node lê e grava só pela ponte (`kvPeek`/`kvSet`
+// em `debrid/protected.ts`) e o gateway lê direto no `cache.db`. Hoje ninguém
+// lê o namespace pelo L1 — o prefixo é preventivo: sem ele, um `cache.get`/
+// `peek` de chave `adhold:v1:...` contaria `cache.miss` em vez de ser
+// estrangeira silenciosa, como os irmãos de posse do AllDebrid.
+//
 // A fila (`q:`), o marker (`m:`) e a blacklist (`dead:`) do Chupim são do
 // `NativeKv` (mesma tabela `cache` do `cache.db`): o Node não os lê nem grava
 // no L1, e o prefixo é o que impede o L1 velho de responder no `get`/`peek`.
@@ -329,6 +336,10 @@ const AUTOFETCH_NATIVE_PREFIXES = Object.freeze([
 const RUST_OWNED_PREFIXES = Object.freeze([
   prefix('harvest'), 'autofetch-worker:v1:', prefix('davail'), prefix('mag'), prefix('mag_meta'),
   prefix('adsub'), prefix('adprot'), prefix('adrm'),
+  // Hold curto do Chupim: mesma régua dos irmãos de posse do AllDebrid — a
+  // leitura do Node cai na ponte (`kvPeek`), nunca no L1; o prefixo é o que
+  // fecha o `get`/`peek` do cache.
+  prefix('adhold'),
   // Fila e quota do warmer RD: a leitura do Node também cai na ponte (`kvPeek`),
   // nunca no L1 — o prefixo é o que fecha o `get`/`peek` do cache.
   prefix('rdq'),
