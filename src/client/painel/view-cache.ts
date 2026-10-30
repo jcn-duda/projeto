@@ -1,5 +1,5 @@
 import { html, useState } from './vendor/preact.js';
-import { Card, StatNumber, ProgressBar } from './kit.js';
+import { Badge, Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatBytes } from './fmt.js';
 
@@ -8,11 +8,32 @@ export interface ViewCacheProps {
   metrics?: Record<string, any>;
 }
 
+/** Foto nativa do `streams.db` (`cache.native` do bloco `cache`): campos
+ * opcionais de verdade — ausente no gateway fica ausente aqui ('—', nunca 0). */
+export interface CacheNativeSummary {
+  source: 'gateway';
+  entries?: number;
+  quota?: number;
+  hit?: number;
+  staleServed?: number;
+  miss?: number;
+  writes?: number;
+  hitRate?: number | null;
+  degraded?: boolean;
+}
+
 export interface CacheSummary {
   hits: number;
   misses: number;
   totalQueries: number;
-  hitRate: number;
+  /**
+   * Hit-rate EXIBIDO: o do gateway (`native.hitRate`) quando medido — quem
+   * mede o SWR do corte é o `data/streams.db`; sem fonte nativa, o rate do L1
+   * local só existe com consultas reais; sem NENHUMA é `null` — '—' no card,
+   * nunca 0% inventado.
+   */
+  hitRate: number | null;
+  hitRateSource: 'gateway' | 'local' | null;
   l1Entries: number;
   l1Max: number;
   l2Bytes: number;
@@ -20,6 +41,7 @@ export interface CacheSummary {
   l2Pending: number;
   l2Enabled: boolean;
   persistent: boolean;
+  native: CacheNativeSummary | null;
 }
 
 /** Contrato real: `cache.snapshot()` devolve `entries`/`maxEntries` (L1);
@@ -30,11 +52,20 @@ export function cacheSummary(c: Record<string, any> | null | undefined): CacheSu
   const hits = Number(x.hits || 0);
   const misses = Number(x.misses || 0);
   const totalQueries = hits + misses;
+  const native = x.native && typeof x.native === 'object' && x.native.source === 'gateway'
+    ? (x.native as CacheNativeSummary)
+    : null;
+  const gatewayRate = native != null
+    && typeof native.hitRate === 'number' && Number.isFinite(native.hitRate)
+    ? native.hitRate
+    : null;
+  const hitRate = gatewayRate != null ? gatewayRate : totalQueries > 0 ? hits / totalQueries : null;
   return {
     hits,
     misses,
     totalQueries,
-    hitRate: totalQueries > 0 ? hits / totalQueries : 0,
+    hitRate,
+    hitRateSource: gatewayRate != null ? 'gateway' : totalQueries > 0 ? 'local' : null,
     l1Entries: Number(x.entries || 0),
     l1Max: Number(x.maxEntries || 0),
     l2Bytes: Number(x.l2?.fileSizeBytes || 0),
@@ -42,7 +73,77 @@ export function cacheSummary(c: Record<string, any> | null | undefined): CacheSu
     l2Pending: Number(x.l2?.pendingWrites || 0),
     l2Enabled: Boolean(x.l2?.enabled ?? x.persistent),
     persistent: Boolean(x.persistent),
+    native,
   };
+}
+
+/** Número com fonte ou '—' (honestidade: ausente nunca vira 0). */
+function orDash(value: number | undefined | null): string | number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : '—';
+}
+
+/**
+ * Cards de NÚMEROS da aba cache — função pura (sem hooks), o teste renderiza
+ * direto. O hit-rate prefere o gateway (`cache.native.hitRate`, badge com a
+ * nota "gateway"); sem NATIVO e sem consultas locais é '—' com badge neutro,
+ * nunca 0% falso. O card "Store nativo (gateway)" só existe com a ponte viva;
+ * os dois cards locais ficam rotulados para não se passarem pelo SWR.
+ */
+export function cacheCards(c: Record<string, any> | null | undefined) {
+  const { hits, misses, totalQueries, hitRate, hitRateSource, l1Entries, l1Max, l2Bytes, l2WalBytes, l2Pending, l2Enabled, native } = cacheSummary(c);
+  const pct = hitRate != null ? Math.round(hitRate * 100) : null;
+  const badgeVariant: 'ok' | 'warn' | 'neutral' = pct == null ? 'neutral' : pct >= 70 ? 'ok' : 'warn';
+  const badgeText = pct != null ? `${pct}% HIT${hitRateSource === 'gateway' ? ' (gateway)' : ''}` : '—';
+
+  return html`
+    <div class="painel-grid">
+      <${Card}
+        title="Hit-Rate e Eficiência"
+        badge=${{ text: badgeText, variant: badgeVariant }}
+      >
+        <${StatNumber}
+          value=${pct != null ? `${pct}%` : '—'}
+          target=${totalQueries > 0 ? totalQueries : undefined}
+          label=${pct != null ? (hitRateSource === 'gateway' ? 'hits (gateway)' : 'hits (local)') : 'sem medição'}
+        />
+        ${pct != null ? html`<${ProgressBar} percent=${pct} variant=${pct >= 70 ? 'ok' : 'warn'} />` : null}
+        <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+          Misses: ${misses}
+        </p>
+      </${Card}>
+
+      ${native ? html`
+        <${Card}
+          title="Store nativo (gateway)"
+          badge=${{ text: native.degraded ? 'degradado' : 'streams.db', variant: native.degraded ? 'warn' : 'ok' }}
+        >
+          <${StatNumber} value=${orDash(native.entries)} target=${native.quota} label="entradas / cota" />
+          <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+            SWR servido stale: ${orDash(native.staleServed)} · escritas: ${orDash(native.writes)}
+          </p>
+          ${native.degraded ? html`
+            <p style="margin-top: var(--space-1);">
+              <${Badge} text="gateway degradado — estatísticas possivelmente parciais" variant="warn" />
+            </p>
+          ` : null}
+        </${Card}>
+      ` : null}
+
+      <${Card} title="Ocupação L1 — local (Node)">
+        <${StatNumber} value=${l1Entries} target=${l1Max} label="entradas" />
+        <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+          Teto configurado: ${l1Max} slots voláteis
+        </p>
+      </${Card}>
+
+      <${Card} title="Persistência L2 — local (Node)">
+        <${StatNumber} value=${formatBytes(l2Bytes)} label="${l2Enabled ? 'banco ativo' : 'desligado'}" />
+        <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+          WAL: ${formatBytes(l2WalBytes)} · ${l2Pending} escrita(s) pendente(s)
+        </p>
+      </${Card}>
+    </div>
+  `;
 }
 
 export function ViewCache({ cache, metrics }: ViewCacheProps) {
@@ -50,9 +151,6 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const { pending, run } = useAction();
   const [targetNamespace, setTargetNamespace] = useState('');
-
-  const { hits, misses, totalQueries, l1Entries, l1Max, l2Bytes, l2WalBytes, l2Pending, l2Enabled } = cacheSummary(c);
-  const hitRate = totalQueries > 0 ? Math.round((hits / totalQueries) * 100) : 0;
 
   const handleClear = async (scope?: { namespace?: string; installation?: boolean }) => {
     const confirmMsg = scope?.namespace
@@ -95,35 +193,7 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
         </div>
       ` : null}
 
-      <div class="painel-grid">
-        <${Card}
-          title="Hit-Rate e Eficiência"
-          badge=${{
-            text: `${hitRate}% HIT`,
-            variant: hitRate >= 70 ? 'ok' : hitRate > 0 ? 'warn' : 'neutral',
-          }}
-        >
-          <${StatNumber} value=${hits} target=${totalQueries} label="${hitRate}% hits" />
-          <${ProgressBar} percent=${hitRate} variant=${hitRate >= 70 ? 'ok' : 'warn'} />
-          <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Misses: ${misses}
-          </p>
-        </${Card}>
-
-        <${Card} title="Ocupação L1 (Memória)">
-          <${StatNumber} value=${l1Entries} target=${l1Max} label="entradas" />
-          <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Teto configurado: ${l1Max} slots voláteis
-          </p>
-        </${Card}>
-
-        <${Card} title="Persistência L2 (Disco / SQLite)">
-          <${StatNumber} value=${formatBytes(l2Bytes)} label="${l2Enabled ? 'banco ativo' : 'desligado'}" />
-          <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            WAL: ${formatBytes(l2WalBytes)} · ${l2Pending} escrita(s) pendente(s)
-          </p>
-        </${Card}>
-      </div>
+      ${cacheCards(c)}
 
       <div class="painel-grid" style="margin-top: var(--space-4);">
         <${Card} title="Gerenciamento e Limpeza Seletiva">

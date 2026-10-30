@@ -11,6 +11,10 @@ import { autofetchBlock } from './dashboard-autofetch-block.js';
 // Bloco `debrid` (inclui a foto das varreduras nativas da AllDebrid): extraído
 // pela catraca, o arquivo estava exatamente no teto de 400 linhas.
 import { debridBlock } from './dashboard-debrid-block.js';
+// Bloco `cache` (C4): extraído pela catraca; a foto nativa do `streams.db`
+// entra pela ponte de leitura `GET /streams/stats`.
+import { cacheBlock } from './dashboard-cache-block.js';
+import { fetchNativeStreamsStats, type NativeStreamsStats } from '../utils/streams-stats-native.js';
 import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
 import { loadNativeCatalog } from '../providers/catalog-native.js';
 
@@ -168,6 +172,14 @@ export async function computeStatusPayload(
   let memoNative: Promise<NativeMetrics | null> | null = null;
   const getNative = () => (memoNative ??= pullNativeMetrics());
 
+  // Foto do `streams.db` nativo memoizada (C4): mesmo prazo curto e fail-open
+  // das outras pontes. `null` = gateway velho/fora (a rota não existe ou não
+  // responde) — o bloco `cache` segue só com o L1 local e SEM `native`, nunca
+  // zero inventado. A leitura não alimenta backoff nenhum (é stateless), então
+  // não congela a invalidação por obra.
+  let memoStats: Promise<NativeStreamsStats | null> | null = null;
+  const getStreamsStats = () => (memoStats ??= fetchNativeStreamsStats());
+
   // Lazy loaders memoizados por ciclo de requisição
   let memoAccount: Promise<any> | null = null;
   const getAccount = () => {
@@ -241,19 +253,9 @@ export async function computeStatusPayload(
     out.metrics = panelMetrics(getMetrics(), await getNative());
   }
 
-  // Bloco: cache
+  // Bloco: cache — L1 local + foto nativa do `streams.db` (aditiva, C4).
   if (isReq('cache')) {
-    const metricSnapshot = getMetrics();
-    const hits = metricSnapshot.counters['cache.hit'] || 0;
-    const misses = metricSnapshot.counters['cache.miss'] || 0;
-    out.cache = {
-      ...services.cache.snapshot(),
-      persistent: services.config.cache.persist,
-      l2: services.cache.l2Stats(),
-      hits,
-      misses,
-      hitRate: hits + misses > 0 ? hits / (hits + misses) : null,
-    };
+    out.cache = cacheBlock(services, getMetrics(), await getStreamsStats());
   }
 
   // Bloco: debrid — `sweeps` é a foto síncrona das varreduras NATIVAS.

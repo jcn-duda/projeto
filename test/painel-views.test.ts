@@ -10,25 +10,7 @@ import { ViewChupim, autoFetchTeto } from '../src/client/painel/view-chupim.js';
 import { ViewCache, cacheSummary } from '../src/client/painel/view-cache.js';
 import { ViewLimpeza, dedupPreviewSummary, catalogSummary, nextCatalogState } from '../src/client/painel/view-limpeza.js';
 import { ViewMagnets, magnetdbSummary, sideStyle, formatTtlRemaining } from '../src/client/painel/view-magnets.js';
-
-/** Texto visível de um VNode já expandido (a função do componente foi chamada
- * direto). Percorre children e também title/badge/label dos componentes do kit —
- * é assim que uma asserção de conteúdo deixa de ser "typeof object". */
-function vnodeText(node: any): string {
-  if (node == null || node === false) return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(vnodeText).join(' ');
-  if (typeof node === 'object') {
-    const props = node.props || {};
-    return [
-      typeof props.title === 'string' ? props.title : '',
-      typeof props.badge?.text === 'string' ? props.badge.text : '',
-      typeof props.label === 'string' ? props.label : '',
-      vnodeText(props.children),
-    ].join(' ');
-  }
-  return '';
-}
+import { vnodeText } from './helpers/vnode-text.js';
 
 test('ViewSaude retorna VNode válido com veredito e serviços', () => {
   const vnode = ViewSaude({
@@ -264,6 +246,7 @@ test('cacheSummary lê maxEntries e l2.fileSizeBytes reais', () => {
   assert.equal(s.l2Enabled, true);
   assert.equal(s.hits, 450);
   assert.equal(s.misses, 50);
+  assert.ok(s.hitRate != null, 'com consultas o rate existe (nunca vira null por omissão)');
   assert.ok(Math.abs(s.hitRate - 0.9) < 1e-9);
   assert.equal('max' in s, false);
 });
