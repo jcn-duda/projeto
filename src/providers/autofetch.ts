@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { prefix } from '../utils/cache-keys.js';
-import * as cache from '../utils/cache.js';
 import config from '../config.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import * as metrics from '../utils/metrics.js';

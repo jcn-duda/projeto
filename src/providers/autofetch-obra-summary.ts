@@ -9,16 +9,16 @@
 // durável de BR-ready (Fase 6) e a idade da entrada mais recente.
 //
 // Contrato de leitura:
-// - QUIET: `keysMatching` (L1) + `peek`, como o painel de magnets. NÃO usa
-//   `cache.get` (que promove LRU e conta `cache.hit`) — um diagnóstico não pode
-//   reordenar o cache nem inflar o hit-rate que ele mesmo mostra. A leitura
-//   canônica do registro é a do nativo (`readObraNative`, ponte): desde a leva
+// - QUIET e SÓ pela ponte nativa (`readObraNative`/`listObraKeysNative`): o
+//   namespace `autofetch:v3:o:` é RUST_OWNED (quem grava é o commit nativo do
+//   gateway), então o L1 do Node nasce sem essas linhas — `cache.peek` e
+//   `cache.keysMatching` devolvem vazio SEMPRE para elas e nenhum acesso aqui
+//   promove LRU, conta hit/miss nem mexe em métrica. Desde a leva
 //   6e (2026-10-29) não existe mais leitor TS do registro por obra.
 // - Ausência de dado nunca autoriza afirmação: só entra obra com ao menos uma
 //   entrada dentro da janela (`autoFetchTtl`); o resto é ruído expirado.
 // - Payload limitado às N mais recentes (`OBRA_SUMMARY_MAX`) para o teto de
 //   resposta do `/dashboard-status.json` não crescer com o acervo.
-import * as cache from '../utils/cache.js';
 import autofetchLive from '../utils/autofetch-live.js';
 import { OBRA_PREFIX } from './autofetch-obra.js';
 import { hasBrReady } from './autofetch-evict.js';
@@ -38,26 +38,23 @@ export interface ObraSummary {
   ageMs: number;
 }
 
-/** Parse quiet de `{ entries: [...] }`; formato estranho conta como vazio. */
+/** Parse quiet de `{ entries: [...] }`; formato estranho conta como vazio.
+ * Registro ausente (`null`) ou ponte fora (`undefined`) = vazio: o L1 não tem a
+ * linha (RUST_OWNED), e a leitura canônica é só a ponte nativa. */
 function peekEntries(key: string): Array<Record<string, unknown>> {
   const native = readObraNative(key);
-  if (native != null) {
-    return (native || []).filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
-  }
-  const raw = cache.peek(key) as { entries?: unknown } | null;
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entries)) return [];
-  return raw.entries.filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
+  return (native || []).filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
 }
 
 /**
- * Obras ativas no teto, mais recentes primeiro. O(namespace `o:`) sobre o L1 —
- * mesma ordem da varredura do painel de magnets, só no status, nunca na busca.
+ * Obras ativas no teto, mais recentes primeiro. Varredura do namespace `o:` pela
+ * ponte nativa (`listObraKeysNative`) — só no status, nunca na busca.
  */
 export function obraSummaries(limit = OBRA_SUMMARY_MAX): ObraSummary[] {
   const now = Date.now();
   const span = Math.max(0, Number(autofetchLive.effective().autoFetchTtl) || 0) * 1000;
   const out: ObraSummary[] = [];
-  const keys = new Set([...cache.keysMatching(OBRA_PREFIX), ...(listObraKeysNative(now) || [])]);
+  const keys = new Set(listObraKeysNative(now) || []);
   for (const key of keys) {
     const digest = key.slice(OBRA_PREFIX.length);
     if (!digest) continue;
