@@ -348,8 +348,7 @@ está no código.
    | varreduras destrutivas da AllDebrid (mortos, não-dublados, reconcile e represados) | nativo (`al_sweeps`), gate `DEBRID_AL_SWEEP_APPLY`; o Node não agenda nem executa nenhuma |
 
    **Ficam** (o nativo não cobre): `autofetch.ts` (encolhido — `reindexQueues`/
-   `reindexDead` no boot, `markerActive` no `rd-warmer`, `isDeadQuiet` no
-   `trace-recompute`), `autofetch-obra.ts` e família (registro F2: o aceite
+   `reindexDead` no boot, `markerActive` no `rd-warmer`), `autofetch-obra.ts` e família (registro F2: o aceite
    nativo grava, o Node lê no resumo), `autofetch-marker.ts` (chave, valor e
    `forget` do marker — a gravação de produção é do aceite nativo),
    `autofetch-gate.ts`,

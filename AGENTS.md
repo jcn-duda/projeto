@@ -189,7 +189,16 @@ npm run docker:up / docker:logs
   `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
   para invalidar por obra/hash, limpar no `clear-cache` e ler o
   `/stream-trace.json`; ela é incondicional no corte. Contrato em
-  `docs/migracao-stream-rust.md` §F4 (F4.4a). O **status por indexer** do
+  `docs/migracao-stream-rust.md` §F4 (F4.4a). O **recompute do trace é
+  NATIVO do gateway** (2026-10-30, `eeb02b94`): a admin 8711 recomputa
+  quando `found && trace == null` e devolve o `RecomputeOutcome`
+  (`attempted/basis/built/builtAt/note/items`) SEM gravar no store (leitura
+  quiet); o caminho offline do Node e o `src/utils/trace-recompute.ts`
+  saíram — o porte vivo é
+  `rust/crates/adom-server/src/trace_recompute_core.rs`. Limitação
+  conhecida: o `basis` do recompute nativo não inclui itens
+  só-de-inventário (`dinv`); nesse caso o adapter cai no default do
+  operador. O **status por indexer** do
   painel também sai dela: o cliente Jackett nativo grava a última consulta
   viva e a foto do circuito (`adom-sources::jackett::status_board`), `GET
   /indexers/status` expõe, e `src/providers/indexer-status-native.ts` lê a
@@ -198,16 +207,32 @@ npm run docker:up / docker:logs
   O **catálogo de indexers** (`/configure` e painel) também saiu da coleta do
   Node: o gateway coleta o XML do Jackett (`adom-sources::jackett::catalog`),
   guarda memo/TTL com retry de fallback (`catalog_admin`), expõe `GET
-  /indexers/catalog` na mesma admin, e `src/providers/catalog-native.ts` lê —
-  `/defaults.json` e os blocos do painel tentam a ponte primeiro e caem no
-  `jackett-catalog.ts` do TS só com ela fora (fail-open, mesmo shape).
+  /indexers/catalog` na mesma admin, e `src/providers/catalog-native.ts` lê.
+  F4.6 (2026-10-30) apagou o fallback TS `jackett-catalog.ts` e o aquecedor
+  `startAutoRefresh` do `src/addon.ts`: a ponte é a ÚNICA fonte do catálogo
+  (`/defaults.json`, blocos general/indexers do painel) — com a admin fora,
+  mostram lista VAZIA (degradação de gateway degradado, não erro). Sem
+  `JACKETT_INDEXERS` explícita, quem define a lista de busca é o GATEWAY (ele
+  consulta o Jackett no modo automático); no Node o array nasce vazio e o
+  catálogo exibido vem só da ponte.
   O **KV persistente do Node é só a ponte nativa** (`src/utils/native-kv.ts`):
   órfãos do L1 (`notify`, `imdb-seed`, `indexer-status`, `magnetdb-persist`)
   e as chaves `cfg:v1:*` (`autofetch-live*`, `harvester-*`, `crawler-live`)
   leem/escrevem pela mesma tabela `cache` do `data/cache.db` (kvSet com
-  `ttl<=0` grava permanente — gate `ttl>0` obrigatório); o podador é
-  `prune_expired` do napi (`kvPruneExpired`), chamado pelo sweep de 10 min do
-  `magnetdb-persist`.
+  `ttl<=0` grava permanente — gate `ttl>0` obrigatório). O relógio de 10 min
+  é o `setInterval` PRÓPRIO do `magnetdb-persist` (`sweepNativeNamespaces`):
+  a varredura de `mag`/`davail` é NATIVA (o núcleo devolve a contagem
+  removida por lado) e NÃO chama o `kvPruneExpired` da ponte — esse ficou sem
+  chamador no processo (só teste). Órfãos do Chupim na mesma régua: o
+  **resumo da obra** lê SÓ pela ponte nativa (`listObraKeysNative`/
+  `readObraNative`; quem grava o registro é o commit nativo — `dd6f1f97`). E
+  a **régua do magnetdb**: a mescla do import do acervo está congelada no
+  oráculo `test/helpers/pipeline-oracle/magnet-bank-import.ts` (quem
+  mescla/grava o acervo é o gateway) e os helpers do oráculo falam com a
+  ponte `magnetState()`; a metade de ESCRITA do `magnetdb.ts`
+  (`markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad` e derivadas) é
+  régua pendente da leva de debrid — plano em
+  `docs/superpowers/plans/2026-10-30-magnetdb-followup.md`.
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
@@ -433,7 +458,7 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 - **O corpo TS do Chupim SAIU** (leva B4, 2026-10-28), como antes o dos
   resolvers e o do raspador. Em `src/providers/` o assunto virou **ponte e
   painel**: `autofetch.ts` (encolhido — reindexação no boot, `markerActive` de
-  `autofetch-marker.ts`, `isDeadQuiet` do trace), `autofetch-obra*` (registro F2: o aceite
+  `autofetch-marker.ts`), `autofetch-obra*` (registro F2: o aceite
   NATIVO grava e o Node lê no resumo do painel), `autofetch-marker.ts` (chave,
   valor e `forget` do marker — a gravação de produção é do aceite nativo),
   `autofetch-gate.ts`,
