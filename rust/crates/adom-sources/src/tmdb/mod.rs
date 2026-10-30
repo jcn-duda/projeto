@@ -68,7 +68,8 @@ struct FindResult {
 }
 
 struct AliasResult {
-    titles: Vec<String>,
+    /// Título e `type` do TMDB ("DVD Title" afrouxa a trava no `adom-core`).
+    titles: Vec<(String, Option<String>)>,
     ok: bool,
 }
 
@@ -203,9 +204,12 @@ impl TmdbClient {
             item.original.as_deref(),
             en_title.as_deref(),
         ];
-        let candidates: Vec<Option<&str>> =
-            aliases.titles.iter().map(|t| Some(t.as_str())).collect();
-        let aliases_br = adom_core::filter_br_aliases(&candidates, &canonical);
+        let candidates: Vec<(Option<&str>, Option<&str>)> = aliases
+            .titles
+            .iter()
+            .map(|(title, kind)| (Some(title.as_str()), kind.as_deref()))
+            .collect();
+        let aliases_br = adom_core::filter_br_aliases_typed(&candidates, &canonical);
 
         let titles = Titles {
             pt: if pt_ok { item.title } else { None },
@@ -377,10 +381,12 @@ impl TmdbClient {
                     && entry.get("title").and_then(Value::as_str).is_some()
             })
             .filter_map(|entry| {
-                entry
-                    .get("title")
+                let title = entry.get("title").and_then(Value::as_str)?.to_string();
+                let kind = entry
+                    .get("type")
                     .and_then(Value::as_str)
-                    .map(str::to_string)
+                    .map(str::to_string);
+                Some((title, kind))
             })
             .collect();
         AliasResult { titles, ok: true }

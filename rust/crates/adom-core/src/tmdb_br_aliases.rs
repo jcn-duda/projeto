@@ -61,6 +61,26 @@ fn significant_tokens(text: &str) -> Vec<String> {
 /// `None`/`""` são `null`/`undefined`/vazio, nunca um valor a coagir. O
 /// `canonical` conserva o valor CRU aceito (com espaços), como no TS.
 pub fn filter_br_aliases(candidates: &[Option<&str>], canonical: &[Option<&str>]) -> Vec<String> {
+    let typed: Vec<(Option<&str>, Option<&str>)> = candidates.iter().map(|c| (*c, None)).collect();
+    filter_br_aliases_typed(&typed, canonical)
+}
+
+/// Tipo do `alternative_titles` do TMDB que o Brasil usa para o título
+/// COMERCIAL em vídeo doméstico — é o nome com que os sites BR publicam.
+const DVD_TITLE: &str = "dvd title";
+
+/// `filter_br_aliases` com o `type` de cada candidato (`alternative_titles`).
+///
+/// Alias marcado "DVD Title" dispensa a trava de conter TODAS as palavras do
+/// canônico: é o nome comercial do lançamento no Brasil e costuma trocar uma
+/// palavra ("A Canção do Mar" × "A Canção do Oceano", medido em Song of the Sea
+/// 2026-10-30: os sites BR só têm o segundo). Ainda precisa dividir ao menos UMA
+/// palavra significativa com algum canônico — título de DVD sem relação nenhuma
+/// continua fora. Sem tipo (`None`), a régua é exatamente a do TS.
+pub fn filter_br_aliases_typed(
+    candidates: &[(Option<&str>, Option<&str>)],
+    canonical: &[Option<&str>],
+) -> Vec<String> {
     // `canonical.filter(Boolean)`: `None`/`""` caem; o resto (inclusive espaço) fica.
     let truthy: Vec<&str> = canonical
         .iter()
@@ -80,7 +100,7 @@ pub fn filter_br_aliases(candidates: &[Option<&str>], canonical: &[Option<&str>]
     let canon_norm: HashSet<String> = truthy.iter().map(|n| title_tokens(n).join(" ")).collect();
 
     let mut out: Vec<String> = Vec::new();
-    for raw in candidates {
+    for (raw, kind) in candidates {
         let title = js_trim(raw.unwrap_or(""));
         if title.is_empty() {
             continue;
@@ -93,10 +113,17 @@ pub fn filter_br_aliases(candidates: &[Option<&str>], canonical: &[Option<&str>]
             continue;
         }
         let own: HashSet<String> = significant_tokens(title).into_iter().collect();
-        if !canon_sets
-            .iter()
-            .any(|toks| toks.iter().all(|t| own.contains(t.as_str())))
-        {
+        let dvd = kind.is_some_and(|k| js_trim(k).eq_ignore_ascii_case(DVD_TITLE));
+        let admitted = if dvd {
+            canon_sets
+                .iter()
+                .any(|toks| toks.iter().any(|t| own.contains(t.as_str())))
+        } else {
+            canon_sets
+                .iter()
+                .any(|toks| toks.iter().all(|t| own.contains(t.as_str())))
+        };
+        if !admitted {
             continue;
         }
         out.push(title.to_string());
@@ -106,3 +133,7 @@ pub fn filter_br_aliases(candidates: &[Option<&str>], canonical: &[Option<&str>]
     }
     out
 }
+
+#[cfg(test)]
+#[path = "tmdb_br_aliases_tests.rs"]
+mod tmdb_br_aliases_tests;

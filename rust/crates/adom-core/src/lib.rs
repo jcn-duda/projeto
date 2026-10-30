@@ -389,7 +389,7 @@ pub use stream_trace::{
 };
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
-pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
+pub use tmdb_br_aliases::{filter_br_aliases, filter_br_aliases_typed, MAX_BR_ALIASES};
 pub use video_header::{
     is_mp4, parse_mp4_tail, parse_video_resolution, quality_from_resolution, VideoResolution,
 };
