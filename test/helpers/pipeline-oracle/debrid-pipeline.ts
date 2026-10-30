@@ -19,7 +19,7 @@ import {
   filterKnownCache,
 } from './autofetch-ranking.js';
 import { kvPeek } from '../../../src/utils/native-kv.js';
-import debrid from '../../../src/debrid/index.js';
+import { rawAdapter } from './raw-adapter.js';
 import debridCheck from './debrid-check.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { signResolve } from '../../../src/utils/sign.js';
@@ -75,7 +75,7 @@ export async function applyDebrid(input: Array<Stream | null>, {
     metrics.count('search.lie.pre-debrid', preLieStreams.length);
   }
   if (streams.length === 0) return streams;
-  const adapter = debrid.current();
+  const adapter = rawAdapter();
   // Sem debrid nenhum, pack multiobra não tem play possível (o torrent P2P
   // inteiro baixaria a coleção): a lista sai sem ele.
   if (!adapter) return streams.filter((s) => !s._multiWorkAdmitted);

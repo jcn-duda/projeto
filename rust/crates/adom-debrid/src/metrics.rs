@@ -1,5 +1,5 @@
 //! Contadores `rust.debrid.*` da API interna. O `/metrics.json` do Node só
-//! mistura estes números quando algum serviço está em `DEBRID_RUST_SERVICES`.
+//! lê estes números pelo recorte `rust.debrid.*` (`rust-remote.ts::pullMetrics`).
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;

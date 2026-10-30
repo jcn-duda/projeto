@@ -670,8 +670,9 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   explícito). O item cru do Jackett não traz os dois campos, e até 2026-09-30
   eles ficaram vazios em 182 mil magnets. "sem resolução" é ausência: no merge
   não bloqueia a qualidade real que chega depois. O acervo antigo é preenchido
-  no boot por `magnet-bank-backfill.ts` (lotes, conexão própria, idempotente
-  por `quality = ''`): local, 182.161 em ~2 min no volume do Windows, 50.661
+  no boot do gateway (`adom-store::magnet_bank_import`, `backfill_classification`;
+  a régua TS antiga ficou no oráculo `test/helpers/pipeline-oracle/magnet-bank-backfill.ts`)
+  (lotes, idempotente por `quality = ''`): local, 182.161 em ~2 min no volume do Windows, 50.661
   dublados em 120 mil BR. É a PROMESSA do post — a lista servida reclassifica
   pelo título de todo modo, então isto muda o dado guardado, não o stream.
   A busca das pendentes usa o índice PARCIAL `magnet_quality_pending`

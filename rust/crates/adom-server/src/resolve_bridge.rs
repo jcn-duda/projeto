@@ -4,7 +4,7 @@
 //! `magnetdb` (alive/bad/lie), proteção durável, ledger do RD, `davail`, prova
 //! de arquivo e o L1 das listas. A decisão sai pronta do núcleo
 //! (`adom_debrid::resolve_effects`); a rota interna só a aplica, com os mesmos
-//! helpers do modo `DEBRID_RUST_SERVICES`.
+//! helpers da ponte de play do Node (`rust-resolve-apply.ts`).
 //!
 //! Dois sentidos, ambos fail-safe:
 //! - `held` (só AllDebrid): o hold do autofetch. Sem resposta = `true`, ou

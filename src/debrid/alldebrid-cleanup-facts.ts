@@ -8,8 +8,8 @@
  * a cada busca. O hold do autofetch em voo e o snapshot `knownBefore` moram na
  * memória deste processo — o Rust não os enxerga. Este módulo é a ponte.
  *
- * Só é montado no caminho do adaptador Rust (`DEBRID_RUST_SERVICES=alldebrid`)
- * e com `DEBRID_AL_CLEANUP=on`; o caminho Node default nem chama a função, e o
+ * Só é montado com `DEBRID_AL_CLEANUP=on` (a ponte é a única via de checagem);
+ * com a flag OFF nem chama a função, e o
  * modo de paridade **sem** limpeza não ganha a leitura de `/magnet/status` que
  * o inventário custa. Com a flag OFF o sidecar também ignora os campos
  * (read-only): quem decide apagar é sempre o Rust.

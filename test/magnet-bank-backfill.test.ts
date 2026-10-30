@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { inputFromItem, classifiedDubbed } from '../src/utils/magnet-bank-merge.js';
-import { backfillClassification } from '../src/utils/magnet-bank-backfill.js';
+import { backfillClassification } from './helpers/pipeline-oracle/magnet-bank-backfill.js';
 
 const _require = createRequire(import.meta.url);
 const hex = (c: string) => c.repeat(40);

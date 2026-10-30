@@ -1,5 +1,5 @@
 /**
- * Efeitos do play quando o adaptador está em `debrid.rustServices`.
+ * Efeitos do play da ponte nativa (`rust-remote.ts`), que é o único caminho.
  * A assinatura (infoHash + S/E + dica w) continua na rota, antes do POST.
  * Daqui só sai o que o catch do TypeScript gravaria: magnet, cache, índice
  * e, no Real-Debrid bloqueado, o ledger. 451 nunca vira markBad.

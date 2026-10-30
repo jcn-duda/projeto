@@ -19,8 +19,8 @@
 # `phase:"prepared"` e TODO efeito de trabalho segue ao Node
 # (`rust/crates/adom-server/src/tail_effects.rs:136-156`). Depois do corte do TS
 # do Chupim (leva B4) o Node NÃO executa mais esses kinds: a rota
-# `/internal/search/effects` só aceita `rd_warmer` e `harvester_enqueue`, então o
-# lote é rejeitado e morre — `prepared` deixou de significar "segundo dono" e
+# `/internal/search/effects` não executa nenhum kind (só valida a forma e conta
+# em `nativeOnly`), então o lote morre — `prepared` deixou de significar "segundo dono" e
 # virou trabalho perdido. No log de boot os dois
 # estados são indistinguíveis (nenhum canal é criado em `prepared`), então
 # "subiu" passaria por "ligado". Esta sonda separa os casos.

@@ -13,7 +13,7 @@ import { davailState, type DavailFlag } from '../../../src/utils/debrid-state-na
 import * as metrics from '../../../src/utils/metrics.js';
 import * as log from '../../../src/utils/logger.js';
 import * as magnetdb from '../../../src/utils/magnetdb.js';
-import { current } from '../../../src/debrid/registry.js';
+import { rawAdapter } from './raw-adapter.js';
 import { cacheVerdict } from '../../../src/utils/rust-debrid-cache.js';
 import {
   unusable,
@@ -115,7 +115,7 @@ async function checkCached(
   infoHashes: string[],
   { timeoutMs, forceFresh, fileHashes }: { timeoutMs?: number; forceFresh?: boolean; fileHashes?: string[] } = {},
 ): Promise<CacheCheckResult> {
-  const adapter = current();
+  const adapter = rawAdapter();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
   if (timeoutMs != null && timeoutMs <= 0) return { cached: new Set(), known: false };

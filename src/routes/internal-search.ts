@@ -27,7 +27,6 @@ import * as log from '../utils/logger.js';
 // (extraídos pela catraca de linhas); este arquivo continua o ponto de montagem.
 import { rejectedByGuard, decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
 import { registerInternalSearchEffects } from './internal-search-effects.js';
-import type { InternalSearchEffectsCollaborators } from './internal-search-effects.js';
 
 export { isLoopbackAddress } from './internal-search-shared.js';
 
@@ -117,7 +116,6 @@ export function registerInternalSearch(
   router: Router,
   services: AppServices,
   overrides: Partial<InternalSearchCollaborators> = {},
-  effectsOverrides: Partial<InternalSearchEffectsCollaborators> = {},
 ): void {
   const deps: InternalSearchCollaborators = {
     getMeta: overrides.getMeta ?? getMeta,
@@ -133,5 +131,5 @@ export function registerInternalSearch(
   // Efeitos do orquestrador (effects) — mesmo guarda, mesma posição no
   // roteador (antes do overlay /:userConfig). A escrita do índice é nativa
   // desde o R4: a antiga rota `index-write` saiu junto com os ramos Node.
-  registerInternalSearchEffects(router, services, effectsOverrides);
+  registerInternalSearchEffects(router, services);
 }

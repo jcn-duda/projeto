@@ -348,8 +348,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
 
 /**
  * Recorte `rust.debrid.*` para o `/metrics.json`. Não gateia mais por
- * `rustServices` (o adaptador nativo existe independente do corte de busca) e
- * lê a 8710 pelo leitor comum das duas superfícies — com token só quando
+ * modo (a ponte é incondicional) e lê a 8710 pelo leitor comum das duas superfícies — com token só quando
  * configurado e fail-open. Sem a 8710, o marcador `unreachable` substitui a
  * ausência, como antes.
  */

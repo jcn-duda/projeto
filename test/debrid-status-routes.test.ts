@@ -1,3 +1,4 @@
+import { bridgeAccountReply } from './helpers/rust-remote-stub.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
@@ -17,6 +18,8 @@ function mockAccount(total: any, ready = 0) {
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
   globalThis.fetch = (async (url: any, init: any) => {
+    const bridged = await bridgeAccountReply(String(url), init);
+    if (bridged) return bridged;
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,
@@ -77,6 +80,8 @@ function mockRealDebridAccount(torrents = [{ id: '1', status: 'downloaded' }, { 
   AbortSignal.timeout = () => new AbortController().signal;
   globalThis.fetch = (async (url: any, init: any) => {
     const strUrl = String(url);
+    const bridged = await bridgeAccountReply(String(url), init);
+    if (bridged) return bridged;
     if (strUrl.includes('127.0.0.1')) return realFetch(url, init);
     if (strUrl.includes('/user')) {
       return {
@@ -147,6 +152,8 @@ test('com config na URL o verificador olha a chave DAQUELA instalação', async 
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
   globalThis.fetch = (async (url: any, init: any) => {
+    const bridged = await bridgeAccountReply(String(url), init);
+    if (bridged) return bridged;
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     const auth = String((init && init.headers && (init.headers.Authorization || init.headers.authorization)) || '');
     const total = auth.includes('chave-da-instalacao') ? 500 : 999;
@@ -205,6 +212,8 @@ test('warnAt do fair-use carrega a unidade explícita no corpo', async () => {
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
   globalThis.fetch = (async (url: any, init: any) => {
+    const bridged = await bridgeAccountReply(String(url), init);
+    if (bridged) return bridged;
     if (String(url).includes('127.0.0.1')) return realFetch(url, init);
     return {
       ok: true,

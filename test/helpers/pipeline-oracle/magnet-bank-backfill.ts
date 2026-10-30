@@ -1,3 +1,8 @@
+// Oráculo congelado do backfill de `dubbed`/`quality` do banco de magnets.
+// Saiu de `src/utils/magnet-bank-backfill.ts`: nenhum caminho de produção o
+// chama, porque o backfill do boot roda no gateway (`adom-store::magnet_bank_import`,
+// desde o commit 8855c61b). Fica aqui como régua TS para
+// `test/magnet-bank-backfill.test.ts` continuar exigindo a mesma classificação.
 // Preenche `dubbed`/`quality` do acervo que nasceu sem eles (2026-09-30): a
 // captura copiava os campos do item cru do Jackett, que não os traz, e as duas
 // colunas ficaram vazias em 182 mil magnets. A captura agora classifica pelo
@@ -10,8 +15,11 @@
 // lotes de uma transação e a vez devolvida ao event loop entre eles — medido
 // no import: no volume do Windows um lote grande travava o processo.
 import { createRequire } from 'node:module';
-import { qualityFromTitle } from './audio-quality.js';
-import { classifiedDubbed } from './magnet-bank-merge.js';
+import { qualityFromTitle } from '../../../src/utils/audio-quality.js';
+import { classifiedDubbed } from '../../../src/utils/magnet-bank-merge.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+assertSafeTestDb('pipeline-oracle/magnet-bank-backfill');
 
 const _require = createRequire(import.meta.url);
 

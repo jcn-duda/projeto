@@ -11,11 +11,10 @@ TS saiu e `EFFECTS_RUST` virou **default on** — estas são as únicas emissõe
 O transporte é a rota interna já existente `POST /internal/search/effects`
 (`src/routes/internal-search-effects.ts`), fire-and-forget, resposta **202** com
 `{ ok, accepted, rejected, nativeOnly }`. O handler valida a forma de TODOS os
-kinds conhecidos, mas só EXECUTA dois (`rd_warmer` e `harvester_enqueue`):
-`autofetch`, `autofetch_batch`, `br_probe` e `season_key` entram em `nativeOnly`
-e não chamam nada (`internal-search-effects.ts:50-52`, `:148-151`). Cada efeito
-executado roda dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem
-do `encoded` do corpo, nunca do `.env`.
+kinds conhecidos e NÃO executa nenhum: todos entram em `nativeOnly` (os donos
+são o worker do Chupim, o sink do warmer RD e o colhedor do gateway). O lote com
+`nativeOnly > 0` sai com um `warn`, porque chegar aqui significa que o dono
+nativo recusou ou está desligado.
 
 ## Flag e rollback
 
@@ -45,8 +44,8 @@ consumido quando o dono está LIGADO **e** aceitou; a recusa produz `Deferred`
 | `autofetch_batch` | **gateway** (worker nativo, `AUTOFETCH_WORKER=on`) | sem a trava, `prepared` ou canal cheio: vai ao Node, que **não executa** (só `nativeOnly`) |
 | `br_probe` | idem `autofetch_batch` (mesmo canal, `Job` do worker) | idem |
 | `season_key` | idem `autofetch_batch` (escopo sai do próprio payload) | idem |
-| `rd_warmer` | **gateway** (`NativeEffectSink` registrado em `stream.rs`) | escopo de conta não derivável (sem cofre/chave): o Node executa (`queueRdWarmForRelevant`) |
-| `harvester_enqueue` | **Node** (único dono; a rota executa) | sempre `Forward` — o Node executa |
+| `rd_warmer` | **gateway** (`NativeEffectSink` registrado em `stream.rs`) | escopo de conta não derivável (sem cofre/chave): vai ao Node, que **não executa** (só `nativeOnly`) |
+| `harvester_enqueue` | **gateway** (`adom-server::harvest_effect`, fila do colhedor) | sem colhedor (`HARVEST_ENABLED=false`): vai ao Node, que **não executa** (só `nativeOnly`) |
 
 **`Deferred` não é execução.** Depois do corte da B4 o seam ainda produz
 `Deferred` para os kinds de trabalho (`tail_effects.rs:136-156`), mas o destino

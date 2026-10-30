@@ -11,6 +11,7 @@ import config from '../../../src/config.js';
 import type { DebridAdapter, Stream, WorkHint } from '../../../types/domain.js';
 import { parseTitleSeasonEpisode } from '../../../src/utils/format.js';
 import debrid from '../../../src/debrid/index.js';
+import { rawAdapter } from './raw-adapter.js';
 import * as magnetdb from '../../../src/utils/magnetdb.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';
 import * as log from '../../../src/utils/logger.js';
@@ -136,7 +137,7 @@ export async function runDubAudit(limit = TAIL_MAX) {
     } catch (err) {
       if (isDubLieError(err)) {
         lies += 1;
-        const adapter = debrid.current() as DebridAdapter | null;
+        const adapter = rawAdapter() as DebridAdapter | null;
         if (adapter) magnetdb.markLie(adapter.id, opts().debridApiKey, cand.hash);
         if (adapter) {
           protectedApi.unprotect(adapter.id, accountScope(opts().debridApiKey), cand.hash);

@@ -291,17 +291,23 @@ describe('corte do Chupim: o corpo TS saiu e não volta por conveniência', () =
     const nativeKinds = [...setLiteral[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     assert.deepEqual(
       nativeKinds,
-      ['autofetch', 'autofetch_batch', 'br_probe', 'rd_warmer', 'season_key'],
-      'NATIVE_ONLY_KINDS tem que conter os quatro kinds do worker nativo do Chupim e o warmer RD',
+      ['autofetch', 'autofetch_batch', 'br_probe', 'harvester_enqueue', 'rd_warmer', 'season_key'],
+      'NATIVE_ONLY_KINDS tem que conter os kinds do gateway (Chupim, warmer RD e o colhedor)',
     );
 
-    const runEffect = code.match(/function runEffect\(([\s\S]*?)\n\}/);
-    assert.ok(runEffect, 'runEffect sumiu: a rota não enfileira mais nada');
-    const runnable = [...runEffect[1].matchAll(/case '([a-z_]+)'/g)].map((m) => m[1]).sort();
-    assert.deepEqual(
-      runnable,
-      ['harvester_enqueue'],
-      'a rota executa só harvester_enqueue; rd_warmer e kind de trabalho aceito aqui é dono duplicado',
+    // Nenhum kind é executado aqui: o `runEffect` saiu e a rota não tem mais
+    // `case` de execução. Reintroduzir um executor seria dono duplicado do lote.
+    assert.equal(
+      /function runEffect\b/.test(code),
+      false,
+      'runEffect voltou: a rota não executa kind nenhum; o dono é o gateway',
+    );
+    // O `switch` que sobra é o de FORMA (`parseEffects`); o de execução tinha
+    // como discriminante o `effect.kind` do lote já aceito.
+    assert.equal(
+      /switch \(effect\.kind\)/.test(code),
+      false,
+      'a rota ganhou um switch de execução sobre effect.kind: todo kind é só contado em nativeOnly',
     );
   });
 

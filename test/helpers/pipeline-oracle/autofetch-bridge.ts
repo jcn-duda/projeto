@@ -63,6 +63,7 @@ import * as autofetch from '../../../src/providers/autofetch.js';
 import * as held from '../../../src/debrid/protected.js';
 import { reuploadBlocked, unblockIfInventoryReady } from '../../../src/debrid/alldebrid-reupload.js';
 import debrid from '../../../src/debrid/index.js';
+import { rawAdapter } from './raw-adapter.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
@@ -149,7 +150,7 @@ export function oracleAutoFetchCandidates(
   { season }: CandidatesRequest = {},
 ): OracleCandidate[] {
   const user = opts();
-  const adapter = debrid.current();
+  const adapter = rawAdapter();
   if (!adapter || !canAutoFetchBr({ autoFetchBr: user.autoFetchBr }, adapter)) return [];
   const live = autofetchLive.effective();
   const account = accountScope(user.debridApiKey);
@@ -242,7 +243,7 @@ const ROLLBACK: Record<SkipReason, Array<'lock' | 'slot' | 'hold'>> = {
  * busca, orçamento, `debrid.enqueue` e o efeito do aceite. `true` = saiu.
  */
 function dispatchCandidate(candidate: OracleCandidate, req: PostCheckRequest): boolean {
-  const adapter = debrid.current() as DebridAdapter | null;
+  const adapter = rawAdapter() as DebridAdapter | null;
   if (!adapter) return false;
   const h = String(candidate.stream.infoHash || '').toLowerCase();
   if (!h) return false;
@@ -320,7 +321,7 @@ export function oracleAutoFetchBrDubbed(
   candidates: OracleCandidate[],
   req: PostCheckRequest,
 ): number {
-  const adapter = debrid.current() as DebridAdapter | null;
+  const adapter = rawAdapter() as DebridAdapter | null;
   if (!candidates || candidates.length === 0) return 0;
   // Sem resposta confiável de cache não há como saber o que falta.
   if (!req.known || !adapter) {

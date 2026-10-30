@@ -6,29 +6,28 @@ import { spawnSync } from 'node:child_process';
 import config from '../src/config.js';
 import { abortDelay, errorCode, errorMessage, hasHash, unreachableCount, withPremiumize } from './helpers/rust-remote-stub.js';
 import debrid from '../src/debrid/index.js';
-import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
+import { normalizeCacheResult } from '../src/debrid/cache-check.js';
 import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
 import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
-import { normalizeRustServices } from '../src/config/debrid.js';
+import * as runtime from '../src/runtime.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
 
 config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
 
-test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async () => {
-  const previous = config.debrid.rustServices.slice();
+test('sem modo: 501 devolve incompleto; 200 não chama o TS', async () => {
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
   const savedCheck = adapter.checkCached;
   const savedLink = adapter.resolveLink;
   const realFetch = globalThis.fetch;
   try {
-    config.debrid.rustServices = [];
+    // Sem seletor: o adaptador entregue por current() é SEMPRE o da ponte.
     const plain = withPremiumize(() => debrid.current());
-    assert.equal(plain, adapter);
+    assert.ok(plain, 'current() devolve o adaptador');
+    assert.notEqual(plain.checkCached, adapter.checkCached, 'current() embrulha na ponte');
 
-    config.debrid.rustServices = ['premiumize'];
     let checks = 0;
     let links = 0;
     let calls = 0;
@@ -189,7 +188,6 @@ test('flag vazia fica no TS; 501 devolve incompleto; 200 não chama o TS', async
     adapter.checkCached = savedCheck;
     adapter.resolveLink = savedLink;
     globalThis.fetch = realFetch;
-    config.debrid.rustServices = previous;
   }
 });
 
@@ -310,14 +308,18 @@ test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡',
 test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () => {
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
-  const saved = { services: config.debrid.rustServices.slice(), check: adapter.checkCached, fetch: globalThis.fetch };
+  const saved = { check: adapter.checkCached, fetch: globalThis.fetch };
   const counter = (name: string) => metrics.snapshot().counters[name] || 0;
   const reply = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
-  // Chave e hash únicos: davail e memo de checagem casam por conta+hash.
-  const run = (tag: string) => withPremiumize(() => debridCheck.checkCached([`${tag}${'0'.repeat(39)}`]), tag);
+  // Chave e hash únicos: o veredito (normalizeCacheResult, como no caminho de
+  // produção) é lido do envelope da ponte, nunca do corpo TS.
+  const run = async (tag: string) => {
+    const wrapped = withPremiumize(() => debrid.current(), tag);
+    if (!wrapped) throw new Error('sem adaptador');
+    return normalizeCacheResult(adapter, await wrapped.checkCached(tag, [`${tag}${'0'.repeat(39)}`]));
+  };
   let tsChecks = 0;
   try {
-    config.debrid.rustServices = ['premiumize'];
     adapter.checkCached = async (_key, hashes) => { tsChecks += 1; return new Set(hashes); };
     globalThis.fetch = reply({ cached: [], known: false, complete: false, unusable: { reason: 'auth', message: 'invalid key' } });
     const authBefore = counter('debrid.auth.invalid');
@@ -336,7 +338,6 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
   } finally {
     adapter.checkCached = saved.check;
     globalThis.fetch = saved.fetch;
-    config.debrid.rustServices = saved.services;
   }
 });
 
@@ -346,11 +347,10 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
 test('conta: recusa sobe sem segunda pergunta; 501 e queda viram erro', async () => {
   const adapter = debrid.BY_ID.get('premiumize');
   if (!adapter) throw new Error('premiumize ausente');
-  const saved = { services: config.debrid.rustServices.slice(), account: adapter.accountStatus, fetch: globalThis.fetch };
+  const saved = { account: adapter.accountStatus, fetch: globalThis.fetch };
   const counter = (name: string) => metrics.snapshot().counters[name] || 0;
   let tsAccount = 0;
   try {
-    config.debrid.rustServices = ['premiumize'];
     adapter.accountStatus = async () => { tsAccount += 1; return { magnets: 3 }; };
     const reply = (status: number, body: unknown) =>
       (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -372,19 +372,18 @@ test('conta: recusa sobe sem segunda pergunta; 501 e queda viram erro', async ()
   } finally {
     adapter.accountStatus = saved.account;
     globalThis.fetch = saved.fetch;
-    config.debrid.rustServices = saved.services;
   }
 });
 
-test('DEBRID_RUST_SERVICES aceita id com hifen e sem hifen', () => {
-  assert.deepEqual(normalizeRustServices('real-debrid,debrid-link,alldebrid'), [
-    'realdebrid',
-    'debridlink',
-    'alldebrid',
-  ]);
-  assert.deepEqual(normalizeRustServices(' RealDebrid , TORBOX '), ['realdebrid', 'torbox']);
-  assert.deepEqual(normalizeRustServices(''), []);
-  assert.deepEqual(normalizeRustServices(undefined), []);
+test('current() não tem seletor: todo serviço do registry sai pela ponte', () => {
+  for (const id of ['premiumize', 'realdebrid', 'alldebrid', 'torbox', 'debridlink']) {
+    const adapter = debrid.BY_ID.get(id);
+    if (!adapter) throw new Error(`${id} ausente`);
+    const wrapped = runtime.run({ opts: { ...runtime.defaults(), debridService: id, debridApiKey: 'k' } }, () => debrid.current());
+    assert.ok(wrapped, `${id} devolve adaptador`);
+    assert.notEqual(wrapped.checkCached, adapter.checkCached, `${id} embrulhado na ponte`);
+    assert.notEqual(wrapped.resolveLink, adapter.resolveLink, `${id} link pela ponte`);
+  }
 });
 
 // Contrato da fatia T2-L3: serviço coberto pelo Rust não volta 501 em

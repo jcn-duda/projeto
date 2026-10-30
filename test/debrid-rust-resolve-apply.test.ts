@@ -1,5 +1,5 @@
 /**
- * Efeitos do play quando o adaptador está em rustServices.
+ * Efeitos do play pela ponte nativa (rust-remote.ts), o único caminho de play.
  * O catch antigo do /resolve não roda: 451 tem de chegar no ledger do
  * Real-Debrid aqui, e nunca vira markBad (esconderia fonte tocável noutro debrid).
  * Cache em memória (setup-env); sem rede e sem conta real.

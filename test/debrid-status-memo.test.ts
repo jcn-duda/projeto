@@ -1,9 +1,13 @@
+import { viaAccountBridge } from './helpers/rust-remote-stub.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
 import { resetAccountStatusMemo } from '../src/debrid/account-status.js';
 import config from '../src/config.js';
+
+// A ponte da conta exige token (post sem token nem chama a 8710).
+config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
 
 interface AccountStatusResult {
   ok: boolean;
@@ -27,14 +31,16 @@ interface AccountStatusResult {
   fix?: string | null;
 }
 
+// A conta passa pela ponte (8710): o dublê dela responde com o corpo TS do
+// adaptador, por cima do mock de API que cada teste instalou (o `mocked`).
 const withKey = (fn: () => unknown) =>
-  runtime.run(
+  viaAccountBridge(() => runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'chave-de-teste' },
       encoded: 'cfg',
     },
     fn,
-  ) as Promise<AccountStatusResult>;
+  )) as Promise<AccountStatusResult>;
 
 function mockAccountCounting(payload: () => any) {
   const realFetch = globalThis.fetch;
@@ -129,10 +135,10 @@ test('memo: chaves distintas nunca dividem entrada', async () => {
   try {
     const primeira = await withKey(() => debrid.accountStatus());
     const umaChave = mock.count();
-    const outra = await runtime.run(
+    const outra = await viaAccountBridge(() => runtime.run(
       { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'outra-chave' }, encoded: 'cfg' },
       () => debrid.accountStatus(),
-    ) as AccountStatusResult;
+    )) as AccountStatusResult;
     assert.equal(outra.cached, false, 'chave nova não herda memo da anterior');
     assert.equal(mock.count(), umaChave * 2, 'cada conta pagou a própria consulta');
     const repetida = await withKey(() => debrid.accountStatus());

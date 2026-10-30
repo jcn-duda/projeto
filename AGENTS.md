@@ -228,7 +228,7 @@ caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
 painel/config e as pontes do Chupim (o crawl é do sidecar). O
 `harvester_enqueue` entra direto na fila do colhedor do gateway
-(`adom-server::harvest_effect`); só vai ao Node com o colhedor desligado.
+(`adom-server::harvest_effect`); se chegar ao Node, é só contado em `nativeOnly`.
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
@@ -283,6 +283,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   checagem devolve `unchecked()` (`known:false`, o prazo da resposta já foi
   gasto) e na conta sobe `RustWriteError` — não existe segunda pergunta ao TS.
   Recusa do serviço (`auth`/`quota`/`rate_limit`) segue subindo como o erro dele.
+  A ponte é **incondicional**: `current()` sempre embrulha o adaptador; não existe
+  mais `DEBRID_RUST_SERVICES` nem seletor por serviço (o `.env` antigo com a
+  variável é ignorado). O oráculo de teste pega o adaptador cru por
+  `test/helpers/pipeline-oracle/raw-adapter.ts`.
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
   resolução. `fsz`/`tsz` são `RUST_OWNED` no KV nativo: a checagem nativa grava
   (`adom-debrid::file_sizes` — TorBox a lista, Premiumize o total), o play do
@@ -418,11 +422,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   desde o corte**: os dois anéis ficam vazios, os números do laço vêm do
   worker nativo pela admin 8711) e
   as pontes (`utils/autofetch-native.ts`, `autofetch-state-native.ts`,
-  `rust-autofetch.ts`). A rota `/internal/search/effects` só executa o
-  `harvester_enqueue` quando o gateway está sem colhedor (com ele, o efeito é
-  enfileirado no próprio gateway); `rd_warmer` e os três de trabalho
-  (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e somados
-  em `nativeOnly`, sem executor do outro lado.
+  `rust-autofetch.ts`). A rota `/internal/search/effects` não executa mais
+  nenhum kind: `harvester_enqueue` (o gateway o enfileira no colhedor),
+  `rd_warmer` e os três de trabalho (`autofetch_batch`, `br_probe`,
+  `season_key`) são aceitos na forma e somados em `nativeOnly`, sem executor
+  do outro lado.
 - **Não é mais do Node**: a posse `adsub` é gravada pela checagem nativa
   (`adom-debrid::marks_feed`) e a retenção `adprot` pelo aceite/auditoria
   nativos; o Node só lê pela ponte. O agendamento das varreduras da

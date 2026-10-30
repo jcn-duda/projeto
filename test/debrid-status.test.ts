@@ -1,4 +1,5 @@
 // Rodada 2: checagem ligada.
+import { viaAccountBridge } from './helpers/rust-remote-stub.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
@@ -86,14 +87,16 @@ interface AccountStatusResult {
   fix?: string | null;
 }
 
+// A conta passa pela ponte (8710): o dublê dela responde com o corpo TS do
+// adaptador, por cima do mock de API que cada teste instalou.
 const withKey = (fn: () => unknown) =>
-  runtime.run(
+  viaAccountBridge(() => runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'chave-de-teste' },
       encoded: 'cfg',
     },
     fn,
-  ) as Promise<AccountStatusResult>;
+  )) as Promise<AccountStatusResult>;
 
 test('conta folgada: ok, sem aviso, com a ocupação medida', async () => {
   const restore = mockAccount(120, 30);
@@ -179,13 +182,13 @@ test('chave recusada é reportada como auth, e o verificador não explode', asyn
 });
 
 const withPremiumize = (fn: () => unknown) =>
-  runtime.run(
+  viaAccountBridge(() => runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'chave-pm' },
       encoded: 'cfg',
     },
     fn,
-  ) as Promise<AccountStatusResult>;
+  )) as Promise<AccountStatusResult>;
 
 test('premiumize folgado: ok, sem aviso, com o fair-use medido', async () => {
   const realFetch = globalThis.fetch;
@@ -260,22 +263,22 @@ test('premiumize em rate limit no verificador é reason=rate, não falha genéri
 });
 
 const withTorbox = (fn: () => unknown) =>
-  runtime.run(
+  viaAccountBridge(() => runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'torbox', debridApiKey: 'chave-tb' },
       encoded: 'cfg',
     },
     fn,
-  ) as Promise<AccountStatusResult>;
+  )) as Promise<AccountStatusResult>;
 
 const withRealDebrid = (fn: () => unknown) =>
-  runtime.run(
+  viaAccountBridge(() => runtime.run(
     {
       opts: { ...runtime.defaults(), debridService: 'realdebrid', debridApiKey: 'chave-rd' },
       encoded: 'cfg',
     },
     fn,
-  ) as Promise<AccountStatusResult & { rd?: any }>;
+  )) as Promise<AccountStatusResult & { rd?: any }>;
 
 function mockRealDebridAccount(torrents = [{ id: '1', status: 'downloaded' }, { id: '2', status: 'downloading' }]) {
   const realFetch = globalThis.fetch;

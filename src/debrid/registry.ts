@@ -51,6 +51,10 @@ const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
 
 /**
  * Adaptador da requisição corrente, ou null quando o usuário está em P2P puro.
+ *
+ * Checagem, conta e link SEMPRE passam pela ponte nativa (8710, `rust-remote.ts`):
+ * não existe modo TS para escolher. O corpo TS dos adaptadores só é usado pelo
+ * oráculo de teste, que monta o adaptador cru por conta própria.
  */
 function current(): DebridAdapter | null {
   const { debridService, debridApiKey } = opts();
@@ -68,8 +72,7 @@ function current(): DebridAdapter | null {
     // sem apiKey (P2P puro) o RD honesto não promete cacheCheck.
     adapter = { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available(debridApiKey) };
   }
-  if (config.debrid.rustServices.includes(adapter.id)) return wrapRust(adapter);
-  return adapter;
+  return wrapRust(adapter);
 }
 
 export { ADAPTERS, BY_ID, SERVICES, current };

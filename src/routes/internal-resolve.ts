@@ -5,7 +5,7 @@
 // grava estado que mora neste processo: `magnetdb`, proteção durável, ledger
 // do RD, `davail`, prova de arquivo e o L1 das listas. As decisões já vêm
 // prontas do núcleo (`adom_debrid::resolve_effects`); aqui só se aplica, com os
-// MESMOS helpers do modo `DEBRID_RUST_SERVICES` (`applyResolveEffects`,
+// MESMOS helpers da ponte `rust-remote.ts` (`applyResolveEffects`,
 // `applyPlayEffects`).
 //
 // - POST /internal/resolve/facts   `{ encoded?, service, hash }`

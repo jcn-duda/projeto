@@ -341,9 +341,9 @@ está no código.
    | sonda dirigida (`br_probe`) e chave de temporada (`season_key`) | nativo (mesmo canal, despacho por `Job.kind`) |
    | represa `sup:` e evicção F6 (com o `adrm` que ela grava) | nativo (passagem do laço) |
    | interrogatório de áudio (`dub_audit`), warmer do RD (`rd_warmer`), colhedor | nativo — `rd_warmer` só volta ao Node se o sink recusar por falta de escopo |
-   | ponte `/internal/search/effects` no Node | **só executa** `rd_warmer` e `harvester_enqueue`; os três kinds de trabalho são aceitos na forma e somados em `nativeOnly` |
+   | ponte `/internal/search/effects` no Node | **não executa nada**: todos os kinds (inclusive `rd_warmer` e `harvester_enqueue`) são aceitos na forma e somados em `nativeOnly` |
    | marker com `obra` e registro F2 (`autofetch:v3:o:`) no aceite | nativo (`enqueue.rs:299-316`, `enqueue_obra.rs:294-295`); a ponte napi grava o mesmo marker |
-   | `adsub`/`adprot` (posse e retenção que o nativo só LÊ) | Node (`alldebrid-inventory.ts`, `protected.ts`) |
+   | `adsub`/`adprot` (posse e retenção) | nativo (`adom-debrid::marks_feed` e aceite/auditoria); o Node só lê pela ponte |
    | painel do Chupim | do Node: config ao vivo (`cfg:v1:autofetch`) e pausa, obras do registro F2 e `lastSkips`/`trace.chupim` do anel do trace (**vazios desde o corte**: não há mais escritor no Node); do worker: os números da admin 8711. Sem a admin, o bloco sai `partial:true` e o card mostra "—", nunca zero |
    | varreduras destrutivas da AllDebrid (mortos, não-dublados, reconcile e represados) | nativo (`al_sweeps`), gate `DEBRID_AL_SWEEP_APPLY`; o Node não agenda nem executa nenhuma |
 
@@ -379,8 +379,8 @@ está no código.
    `test/` (`:214-229`, `:284-299`); `LIVE_BOUNDARY` é a fronteira VIVA que
    precisa continuar existindo e exportando (`:231-247`). Reintroduzir um dos
    arquivos reprova o teste em vez de passar batido. A lista é a definição do
-   corte: quem mexer no contrato da rota (`rd_warmer`/`harvester_enqueue`, testado
-   em `:249-282`) mexe nela junto.
+   corte: quem mexer no contrato da rota (hoje só validação de forma, todos os
+   kinds em `nativeOnly`) mexe nela junto.
 6. **Rollback = imagem anterior** — com o TS fora da imagem,
    `AUTOFETCH_WORKER=off` não devolve o trabalho a ninguém: o efeito vai ao Node,
    a forma é aceita e o `kind` só soma em `nativeOnly` (sem executor), e o lote

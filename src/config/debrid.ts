@@ -1,9 +1,6 @@
 import { list, num } from './helpers.js';
 import { autofetchSeeds } from './debrid-autofetch-seeds.js';
 import { evictFallback } from './debrid-evict.js';
-import { normalizeRustServices } from './debrid-rust.js';
-
-export { normalizeRustServices } from './debrid-rust.js';
 
 // Fábrica (não objeto pronto): módulo ESM é cacheado, e cada re-avaliação do
 // compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
@@ -16,7 +13,6 @@ export const debrid = () => ({
   // premiumize | realdebrid | alldebrid | torbox | debridlink. Vazio = P2P puro.
   service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
   apiKey: process.env.DEBRID_API_KEY || '',
-  rustServices: normalizeRustServices(process.env.DEBRID_RUST_SERVICES),
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
   // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk

@@ -92,7 +92,7 @@ process.env.STREAM_STORE_ADMIN_URL = 'http://127.0.0.1:1';
 // nativo — portas fechadas em loopback, falha imediata, nenhum teste depende de
 // um gateway/sidecar local. Os testes do painel apontam `config.nativeMetrics`
 // para o próprio dublê. A 8710 (sidecar) é pinada junto porque `pullMetrics`
-// passou a lê-la sem o gate de `rustServices`; sem o pin, uma máquina com o
+// passou a lê-la sem gate algum (a ponte é incondicional); sem o pin, uma máquina com o
 // sidecar vivo faria o `/metrics.json` da suíte ler métricas reais.
 process.env.GATEWAY_METRICS_URL = 'http://127.0.0.1:1';
 process.env.DEBRID_INTERNAL_URL = 'http://127.0.0.1:1';

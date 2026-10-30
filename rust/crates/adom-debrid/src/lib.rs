@@ -12,7 +12,7 @@
 //! in-process. `account` cobre os quatro adaptadores que publicam
 //! `accountStatus`; `files` só o Premiumize e o link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
-//! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
+//! O Node chama esta API SEMPRE (`registry.current()` embrulha todo adaptador).
 //! `holds_feed.rs` é o ÚNICO que fala com rota interna do Node
 //! (`/internal/debrid/holds`, fatos do hold). A posse `adsub` é gravada
 //! direto no KV nativo (`marks_feed.rs`, mesma tabela `cache` do `cache.db`),
