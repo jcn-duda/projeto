@@ -1,4 +1,4 @@
-import * as cache from './cache.js';
+import { kvForget, kvPeek, kvSet } from './native-kv.js';
 import { prefix } from './cache-keys.js';
 import * as log from './logger.js';
 import { envDefaults, schema, type AutofetchSchemaField } from './autofetch-live-schema.js';
@@ -80,7 +80,11 @@ function ensureInitialized() {
   if (isInitialized) return;
   isInitialized = true;
   try {
-    const raw = (cache.peek(CONFIG_KEY) || cache.get(CONFIG_KEY)) as Partial<AutofetchLiveConfig> | null;
+    // Leitura quiet única: o `peek || get` do L1 existia para ler sem promover
+    // LRU nem contar métrica — a ponte não tem nada disso, `kvPeek` já é a
+    // leitura sem efeito sobre a MESMA tabela `cache` do `data/cache.db` que
+    // o worker Rust (autofetch/live.rs) abre por conta própria.
+    const raw = kvPeek(CONFIG_KEY) as Partial<AutofetchLiveConfig> | null;
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       const sanitized: Partial<AutofetchLiveConfig> = {};
       for (const [k, v] of Object.entries(raw)) {
@@ -140,9 +144,14 @@ function clampValue(key: string, value: any): any {
 
 function persistState() {
   if (Object.keys(inMemoryOverrides).length === 0) {
-    cache.forget(CONFIG_KEY);
-  } else {
-    cache.set(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
+    kvForget(CONFIG_KEY);
+  } else if (INFINITE_TTL > 0) {
+    // `kvSet` com TTL <= 0 gravaria PERMANENTE (o L1 do cache ignorava esse
+    // caso): o gate ttl>0 fica aqui, como no rd-ledger, para a config nunca
+    // criar linha sem validade. A escrita é SÍNCRONA na tabela `cache` — a
+    // janela de flush do L1 (setImmediate do cache-db) sumiu: queda logo após
+    // o clique do painel não perde mais o override do tick.
+    kvSet(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
   }
 }
 

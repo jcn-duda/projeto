@@ -1,6 +1,7 @@
 // Config ao vivo do CRAWLER (Fase 4 do plano "Raspagem total"): estado
-// (overrides em memória) + persistência no SQLite sob `cfg:v1:crawler`, com
-// cópia em memória para leitura sem rede. Molde exato do `harvester-live.ts` —
+// (overrides em memória) + persistência no KV nativo sob `cfg:v1:crawler` (a
+// MESMA tabela `cache` do `data/cache.db` que o L1 escrevia), com cópia em
+// memória para leitura sem rede. Molde exato do `harvester-live.ts` —
 // o contrato (tipos, schema e clamps) mora em `crawler-live-schema.ts`.
 //
 // O motor (crawler.ts) lê `effective()` para TODO knob que decide o ciclo
@@ -8,7 +9,7 @@
 // incremental) e registra `onConfigChange` para rearmar o timer sem restart.
 // A pausa manual fica no motor (volátil por desenho); este módulo persiste só
 // os knobs — ver o cabeçalho do schema.
-import * as cache from './cache.js';
+import { kvForget, kvPeek, kvSet } from './native-kv.js';
 import { prefix } from './cache-keys.js';
 import * as log from './logger.js';
 // Só a lista de ids com adaptador (a tabela não importa nada deste módulo).
@@ -62,7 +63,7 @@ function initIfNeeded(): void {
   if (isInitialized) return;
   isInitialized = true;
   try {
-    const raw = cache.get(CONFIG_KEY);
+    const raw = kvPeek(CONFIG_KEY) as Record<string, unknown> | null;
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       const { clean, errors } = sanitizeStoredConfig(raw);
       inMemoryOverrides = clean;
@@ -116,7 +117,7 @@ export function reset(): CrawlerEffectiveConfig {
   initIfNeeded();
   inMemoryOverrides = {};
   try {
-    cache.forget(CONFIG_KEY);
+    kvForget(CONFIG_KEY);
     log.info('[crawl-live] todos os overrides foram restaurados para os padrões do .env');
   } catch (err: unknown) {
     log.warn('[crawl-live] falha ao limpar overrides do cache:', log.errorMessage(err));
@@ -129,9 +130,14 @@ export function reset(): CrawlerEffectiveConfig {
 function persist(): void {
   try {
     if (Object.keys(inMemoryOverrides).length === 0) {
-      cache.forget(CONFIG_KEY);
-    } else {
-      cache.set(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
+      kvForget(CONFIG_KEY);
+    } else if (INFINITE_TTL > 0) {
+      // `kvSet` com TTL <= 0 gravaria PERMANENTE (o L1 do cache ignorava esse
+      // caso): o gate ttl>0 fica aqui, como no rd-ledger, para a config nunca
+      // criar linha sem validade. A escrita é SÍNCRONA — a janela de flush do
+      // L1 (setImmediate do cache-db) sumiu: queda logo após o clique do
+      // painel não perde mais o override do tick.
+      kvSet(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
     }
   } catch (err: unknown) {
     log.warn('[crawl-live] erro ao persistir overrides no cache:', log.errorMessage(err));
@@ -229,7 +235,8 @@ export function _resetForTest(): void {
   inMemoryOverrides = {};
   isInitialized = false;
   configChangeListener = null;
-  try { cache.forget(CONFIG_KEY); } catch { /* sem cache em teste */ }
+  // A ponte já engole falha (idempotente): sem try/catch de "cache derrubado".
+  kvForget(CONFIG_KEY);
 }
 
 export default {

@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import * as secretBox from '../src/utils/secret-box.js';
 import * as harvesterDebrid from '../src/utils/harvester-debrid-live.js';
@@ -142,12 +143,12 @@ test('harvester-debrid: set grava selo, resposta é segura e get confirma', asyn
     assert.equal(cfg.capabilities.brWarm, true);
     assert.equal(JSON.stringify(res.json).includes(PANEL_KEY), false, 'resposta não ecoa a chave crua');
 
-    // Persistido selado (memória + cache), nunca em claro.
+    // Persistido selado (memória + ponte nativa, mesma tabela `cache`), nunca em claro.
     const stored = harvesterDebrid.get();
     assert.ok(stored);
     assert.equal(stored!.service, 'realdebrid');
     assert.equal(secretBox.open(stored!.sealedKey), PANEL_KEY);
-    const rawCache = cache.get(`${prefix('cfg')}harvesterDebrid`) as { sealedKey?: string } | null;
+    const rawCache = kvPeek(`${prefix('cfg')}harvesterDebrid`) as { sealedKey?: string } | null;
     assert.ok(rawCache);
     assert.equal(secretBox.isSealed(rawCache!.sealedKey), true);
 

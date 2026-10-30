@@ -14,7 +14,7 @@
 // threads de fundo — nunca entra no registry.current() nem no play de
 // instalação alguma. Não importa runtime.ts/opts() de propósito.
 import config from '../config.js';
-import * as cache from './cache.js';
+import { kvForget, kvPeek, kvSet } from './native-kv.js';
 import { prefix } from './cache-keys.js';
 import * as log from './logger.js';
 import * as secretBox from './secret-box.js';
@@ -42,7 +42,7 @@ function initIfNeeded(): void {
   if (loaded) return;
   loaded = true;
   try {
-    const raw = cache.get(CONFIG_KEY);
+    const raw = kvPeek(CONFIG_KEY);
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       const service = String((raw as Record<string, unknown>).service || '').toLowerCase();
       const sealedKey = String((raw as Record<string, unknown>).sealedKey || '');
@@ -58,8 +58,16 @@ function initIfNeeded(): void {
 
 function persist(): void {
   try {
-    if (!stored) cache.forget(CONFIG_KEY);
-    else cache.set(CONFIG_KEY, stored, INFINITE_TTL);
+    if (!stored) kvForget(CONFIG_KEY);
+    else if (INFINITE_TTL > 0) {
+      // O blob selado NÃO muda de formato (o `unseal_dk` do warmer abre o
+      // MESMO valor): aqui só o transporte saiu do L1 para a ponte.
+      // `kvSet` com TTL <= 0 gravaria PERMANENTE (o L1 do cache ignorava esse
+      // caso), então o gate ttl>0 fica aqui, como no rd-ledger, para a conta
+      // nunca criar linha sem validade. A escrita é SÍNCRONA — a janela de
+      // flush do L1 (setImmediate do cache-db) sumiu.
+      kvSet(CONFIG_KEY, stored, INFINITE_TTL);
+    }
   } catch (err: unknown) {
     log.warn('[harvest-debrid] erro ao persistir conta no cache:', log.errorMessage(err));
   }
@@ -332,11 +340,9 @@ export function resetMemory(): void {
 /** Zera memória E persistência (uso em testes/limpeza). */
 export function resetForTest(): void {
   resetMemory();
-  try {
-    cache.forget(CONFIG_KEY);
-  } catch {
-    /* cache derrubado em teste não impede reset */
-  }
+  // `kvForget` já é idempotente e engole falha de disco: o reset de teste não
+  // depende da ponte estar de pé.
+  kvForget(CONFIG_KEY);
 }
 
 export default {

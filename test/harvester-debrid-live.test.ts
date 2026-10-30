@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import * as secretBox from '../src/utils/secret-box.js';
 import { defaults } from '../src/runtime.js';
@@ -104,8 +104,8 @@ test('harvesterDebrid: set grava selo AES (nunca a chave crua) e o snapshot só 
   assert.equal(secretBox.isSealed(stored!.sealedKey), true);
   assert.equal(secretBox.open(stored!.sealedKey), PANEL_KEY);
 
-  // O cache persistido também carrega só o blob selado.
-  const raw = cache.get(`${prefix('cfg')}harvesterDebrid`) as { sealedKey?: string } | null;
+  // O persistido (ponte nativa, mesma tabela `cache`) também carrega só o blob selado.
+  const raw = kvPeek(`${prefix('cfg')}harvesterDebrid`) as { sealedKey?: string } | null;
   assert.ok(raw);
   assert.equal(secretBox.isSealed(raw!.sealedKey), true);
 
@@ -133,7 +133,7 @@ test('harvesterDebrid: reset via chave vazia limpa sem gate nem segredo', () => 
   const r = harvesterDebrid.set('', '   ');
   assert.equal(r.ok, true, 'chave vazia é reset, não validação');
   assert.equal(harvesterDebrid.get(), null);
-  assert.equal(cache.get(`${prefix('cfg')}harvesterDebrid`), null, 'registro removido do cache');
+  assert.equal(kvPeek(`${prefix('cfg')}harvesterDebrid`), null, 'registro removido do cache');
 });
 
 test('harvesterDebrid: resolveQuota — painel vence o .env e o clear volta ao .env', () => {

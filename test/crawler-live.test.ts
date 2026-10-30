@@ -8,7 +8,9 @@ process.env.CACHE_PERSIST = 'false';
 
 const config = (await import('../src/config.js')).default;
 const live = await import('../src/utils/crawler-live.js');
-const cache = await import('../src/utils/cache.js');
+// A persistência é do KV nativo agora (mesma tabela `cache`): a espionagem é
+// contra a ponte, não contra o L1 — `kvSetForTest` semeia sem caminho vivo.
+const { kvPeek, kvSetForTest } = await import('../src/utils/native-kv.js');
 const { prefix } = await import('../src/utils/cache-keys.js');
 
 const savedCrawl = { ...config.crawl };
@@ -39,7 +41,7 @@ describe('crawler-live: config ao vivo', () => {
     const eff = live.effective();
     assert.equal(eff.enabled, true);
     assert.equal(eff.delayMs, 2000);
-    const persisted = cache.get(`${prefix('cfg')}crawler`) as Record<string, unknown>;
+    const persisted = kvPeek(`${prefix('cfg')}crawler`) as Record<string, unknown>;
     assert.equal(persisted.enabled, true);
     assert.equal(persisted.delayMs, 2000);
   });
@@ -73,7 +75,7 @@ describe('crawler-live: config ao vivo', () => {
   test('reset() restaura os padrões do .env e limpa a persistência', () => {
     live.set({ enabled: true, delayMs: 9999 });
     live.reset();
-    assert.equal(cache.get(`${prefix('cfg')}crawler`), null);
+    assert.equal(kvPeek(`${prefix('cfg')}crawler`), null);
     assert.equal(live.effective().delayMs, config.crawl.delayMs);
   });
 
@@ -113,17 +115,17 @@ describe('crawler-live: config ao vivo', () => {
     const outcome = live.set({ enabled: true });
     assert.equal(outcome.ok, true);
     const key = `${prefix('cfg')}crawler`;
-    const persisted = cache.get(key) as Record<string, unknown>;
+    const persisted = kvPeek(key) as Record<string, unknown>;
     assert.equal(persisted.enabled, true);
 
     // "Restart": a memória some, o disco fica. O motor relê o override.
     live._resetForTest();
-    cache.set(key, persisted, 315_360_000);
+    kvSetForTest(key, persisted, 315_360_000);
     assert.equal(live.effective().enabled, true, 'o habilitado pelo painel sobrevive ao restart');
 
     // Reset volta ao default do `.env` (desligado) e limpa o override.
     live.reset();
     assert.equal(live.effective().enabled, false);
-    assert.equal(cache.get(key), null);
+    assert.equal(kvPeek(key), null);
   });
 });

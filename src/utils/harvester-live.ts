@@ -1,9 +1,11 @@
 // Config ao vivo do colhedor: estado (overrides em memória) + persistência no
-// SQLite sob `cfg:v1:harvester`, com cópia em memória para leitura sem rede.
+// KV nativo sob `cfg:v1:harvester` (a MESMA tabela `cache` do `data/cache.db`
+// que o L1 escrevia — troca isomórfica; o gateway a relê no boot), com cópia
+// em memória para leitura sem rede.
 // O contrato (tipos, schema e validação/clamps) mora em harvester-live-schema.ts
 // — separado de propósito para que os limites declarados e os aplicados fiquem
 // no mesmo arquivo; este módulo só decide ONDE o estado vive.
-import * as cache from './cache.js';
+import { kvForget, kvPeek, kvSet } from './native-kv.js';
 import { prefix } from './cache-keys.js';
 import * as log from './logger.js';
 import {
@@ -47,7 +49,7 @@ function initIfNeeded(): void {
   if (isInitialized) return;
   isInitialized = true;
   try {
-    const raw = cache.get(CONFIG_KEY);
+    const raw = kvPeek(CONFIG_KEY) as Record<string, unknown> | null;
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       const sanitized = sanitizePatch(raw);
       inMemoryOverrides = sanitized.clean;
@@ -120,7 +122,7 @@ export function reset(): HarvesterEffectiveConfig {
   initIfNeeded();
   inMemoryOverrides = {};
   try {
-    cache.forget(CONFIG_KEY);
+    kvForget(CONFIG_KEY);
     log.info('[harvest-live] todos os overrides foram restaurados para os padrões do .env');
   } catch (err: unknown) {
     log.warn('[harvest-live] falha ao limpar overrides do cache:', log.errorMessage(err));
@@ -133,9 +135,14 @@ export function reset(): HarvesterEffectiveConfig {
 function persist(): void {
   try {
     if (Object.keys(inMemoryOverrides).length === 0) {
-      cache.forget(CONFIG_KEY);
-    } else {
-      cache.set(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
+      kvForget(CONFIG_KEY);
+    } else if (INFINITE_TTL > 0) {
+      // `kvSet` com TTL <= 0 gravaria PERMANENTE (o L1 do cache ignorava esse
+      // caso): o gate ttl>0 fica aqui, como no rd-ledger, para a config nunca
+      // criar linha sem validade. A escrita é SÍNCRONA — a janela de flush do
+      // L1 (setImmediate do cache-db) sumiu: queda logo após a pausa do painel
+      // não perde mais o override do tick.
+      kvSet(CONFIG_KEY, inMemoryOverrides, INFINITE_TTL);
     }
   } catch (err: unknown) {
     log.warn('[harvest-live] erro ao persistir overrides no cache:', log.errorMessage(err));

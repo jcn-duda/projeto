@@ -2,7 +2,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
+import { kvPeek } from '../src/utils/native-kv.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
 
@@ -169,8 +169,9 @@ test('autofetchLive.set() aplica os clamps dos knobs do título raro', () => {
 
 test('autofetchLive: override dos knobs raros persiste no cfg e reset restaura o .env', () => {
   autofetchLive.set({ autoFetchRareMax: 5 });
-  // Persistência: leitura direta da chave de config (mesmo caminho do boot).
-  const stored = cache.peek(`${prefix('cfg')}autofetch`) as any;
+  // Persistência: leitura direta da chave de config na ponte — o escritor é o
+  // KV nativo (mesma tabela `cache`; o worker Rust lê esta MESMA linha).
+  const stored = kvPeek(`${prefix('cfg')}autofetch`) as any;
   assert.equal(stored.autoFetchRareMax, 5, 'override persistido sob cfg:v1:autofetch');
 
   const restored = autofetchLive.reset();
@@ -188,7 +189,7 @@ test('autofetchLive: o toggle da sonda nasce do .env e chega ao KV do worker nat
   const toggled = !config.debrid.autoFetchBrProbe;
   const result = autofetchLive.set({ autoFetchBrProbe: toggled });
   assert.equal(result.ok, true);
-  const stored = cache.peek(`${prefix('cfg')}autofetch`) as any;
+  const stored = kvPeek(`${prefix('cfg')}autofetch`) as any;
   assert.equal(
     stored.autoFetchBrProbe,
     toggled,
