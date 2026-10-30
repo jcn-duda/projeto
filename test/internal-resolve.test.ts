@@ -1,7 +1,9 @@
 // Testes das rotas internas do `/resolve` nativo do gateway:
-// POST /internal/resolve/facts e POST /internal/resolve/effects.
+// POST /internal/resolve/facts (vive) e POST /internal/resolve/effects (saiu:
+// o gateway grava os efeitos do play nos stores nativos, então a rota tem que
+// responder 404 e não gravar nada).
 // Molde de `internal-search-effects.test.ts`: app mínimo, guarda real e o
-// `magnetdb` em memória (CACHE_PERSIST=false) como prova do efeito gravado.
+// `magnetdb` em memória (CACHE_PERSIST=false) como prova de que nada foi gravado.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -49,7 +51,7 @@ const post = (path: string, body: unknown, headers: Record<string, string> = aut
   server.request('POST', path, { headers, body });
 
 test('resolve interno: fora do loopback → 403; token errado → 401', async () => {
-  const fora = await post('/internal/resolve/effects', {}, { ...auth, 'x-test-remote-addr': '203.0.113.9' });
+  const fora = await post('/internal/resolve/facts', {}, { ...auth, 'x-test-remote-addr': '203.0.113.9' });
   assert.equal(fora.status, 403);
   const semToken = await post('/internal/resolve/facts', {}, { 'X-Indexer-Test-Token': 'errado' });
   assert.equal(semToken.status, 401);
@@ -67,48 +69,15 @@ test('facts: AllDebrid sem hold devolve held:false; serviço divergente → 400'
   assert.equal(outro.status, 400, 'fatos só para alldebrid');
 });
 
-test('effects: play ok marca o magnet vivo na conta do encoded', async () => {
+test('effects: a rota saiu (404) e não grava nada, nem com corpo válido', async () => {
+  // Os efeitos do play são do gateway (stores nativos). Se a rota voltasse,
+  // este teste acusa: o magnet marcado aqui apareceria no magnetdb.
   const hash = 'c'.repeat(40);
   const res = await post('/internal/resolve/effects', {
     encoded: torbox, service: 'torbox', hash, outcome: 'ok', alive: true,
   });
-  assert.equal(res.status, 200);
-  assert.equal(magnetdb.peekAlive('torbox', KEY, hash), true);
-});
-
-test('effects: sem vídeo marca bad; dublagem falsa marca lie', async () => {
-  const bad = 'd'.repeat(40);
-  const lie = 'e'.repeat(40);
-  const semVideo = await post('/internal/resolve/effects', {
-    encoded: torbox, service: 'torbox', hash: bad, outcome: 'error',
-    effect: { mark: 'bad', unprotect: false, invalidate: 'none', index: null, noteBlocked: false },
-  });
-  assert.equal(semVideo.status, 200);
-  assert.equal(magnetdb.peekBad('torbox', KEY, bad), true);
-  const mentira = await post('/internal/resolve/effects', {
-    encoded: torbox, service: 'torbox', hash: lie, outcome: 'error',
-    effect: { mark: 'lie', unprotect: true, invalidate: 'none', index: null, noteBlocked: false },
-  });
-  assert.equal(mentira.status, 200);
-  assert.equal(magnetdb.peekLie('torbox', KEY, lie), true);
-});
-
-test('effects: corpo inválido ou serviço divergente não grava nada', async () => {
-  const hash = 'f'.repeat(40);
-  const semEfeito = await post('/internal/resolve/effects', { encoded: torbox, service: 'torbox', hash, outcome: 'error' });
-  assert.equal(semEfeito.status, 400);
-  const marcaDesconhecida = await post('/internal/resolve/effects', {
-    encoded: torbox, service: 'torbox', hash, outcome: 'error',
-    effect: { mark: 'veneno', invalidate: 'none', index: null },
-  });
-  assert.equal(marcaDesconhecida.status, 400);
-  const divergente = await post('/internal/resolve/effects', {
-    encoded: torbox, service: 'alldebrid', hash, outcome: 'error',
-    effect: { mark: 'bad', invalidate: 'none', index: null, noteBlocked: false },
-  });
-  assert.equal(divergente.status, 400);
-  assert.equal(magnetdb.peekBad('torbox', KEY, hash), false);
-  assert.equal(magnetdb.peekBad('alldebrid', KEY, hash), false);
-  const hashRuim = await post('/internal/resolve/effects', { encoded: torbox, service: 'torbox', hash: 'xyz', outcome: 'ok' });
-  assert.equal(hashRuim.status, 400);
+  assert.equal(res.status, 404);
+  assert.equal(magnetdb.peekAlive('torbox', KEY, hash), false);
+  const semToken = await post('/internal/resolve/effects', {}, { 'X-Indexer-Test-Token': 'errado' });
+  assert.equal(semToken.status, 404);
 });

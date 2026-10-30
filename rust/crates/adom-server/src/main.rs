@@ -14,6 +14,7 @@ mod harvest_effect;
 /// Rotas do banco de magnets (import no boot/admin) — ver o módulo.
 mod magnet_bank_admin;
 mod ownership_admin;
+mod play_effects_native;
 mod proxy;
 /// Aquecimento do Real-Debrid (T3-L7b): fila em RAM + sonda com gate AIMD.
 mod rd_warmer;

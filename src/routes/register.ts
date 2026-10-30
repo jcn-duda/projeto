@@ -69,9 +69,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Feed do hold volátil do autofetch para o seam in-process do gateway
   // (`DEBRID_AL_HOLDS=on`). Mesma guarda das rotas /internal/* acima.
   registerInternalDebridHolds(app, services);
-  // Efeitos e fatos do play nativo. O `/resolve` NÃO é montado aqui: quem
-  // atende o cliente é o gateway (7000, `resolve_native` sem flag); o Node só
-  // grava os efeitos e responde os fatos por `/internal/resolve/*`.
+  // Fatos do play nativo (hold da AllDebrid). O `/resolve` NÃO é montado aqui:
+  // quem atende o cliente é o gateway (7000, `resolve_native` sem flag). Os
+  // efeitos do play saíram deste processo: o gateway os grava nos stores nativos.
   registerInternalResolve(app, services);
 
   app.use((req, _res, next) => services.runtime.run({

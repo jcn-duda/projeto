@@ -72,9 +72,10 @@ export function takeResolveEffect(value: unknown): RustResolveEffect | undefined
 
 /**
  * Efeito PLANO de `adom_debrid::resolve_effects::resolve_effect`
- * (`{mark, unprotect, invalidate, index, noteBlocked}`), o que o `/resolve`
- * nativo do gateway manda para a rota interna. Passa pela mesma validação do
- * formato aninhado: campo desconhecido devolve `undefined`.
+ * (`{mark, unprotect, invalidate, index, noteBlocked}`). Sem consumidor em
+ * `src/` desde a saída de `/internal/resolve/effects`: o gateway grava os
+ * efeitos nos stores nativos (`play_effects_native`). Passa pela mesma validação
+ * do formato aninhado: campo desconhecido devolve `undefined`.
  */
 export function effectFromRustJson(value: unknown): RustResolveEffect | undefined {
   if (!value || typeof value !== 'object') return undefined;

@@ -803,7 +803,7 @@ só "tem stream tocável", não paridade BR+cotas.
 
 **Fase A (`536f3c63`)**: o gateway resolve o play E grava
 o que ele prova. O efeito sai pronto do núcleo (`resolve_effect`) e o Node o
-aplica pela rota `POST /internal/resolve/effects` (loopback + token), com os
+aplica pela rota `POST /internal/resolve/effects` (loopback + token; *rota removida em 2026-10-30, o gateway grava os efeitos nos stores nativos*), com os
 mesmos helpers do modo `DEBRID_RUST_SERVICES` (`applyResolveEffects`,
 `applyPlayEffects`, `markAlive`). No erro o gateway espera a gravação (e o
 flush do store nativo) antes do 404; no sucesso o 302 sai na hora. Na

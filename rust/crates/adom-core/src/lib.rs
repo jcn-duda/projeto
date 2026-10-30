@@ -1,5 +1,4 @@
 //! Núcleo Rust do Adom (migração TS→Rust, golden em `rust/golden/`); o Node chega aqui pelo `adom-napi`.
-
 mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
@@ -64,6 +63,7 @@ mod net_safety;
 mod non_feature_release;
 mod pack_text_totals;
 mod play_disposition;
+mod play_file_evidence;
 pub mod pre_resolve;
 mod pt_audio_guards;
 mod pt_title_dual;
@@ -345,6 +345,7 @@ pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 // Saída do stream depois da checagem de cache (porte de `debrid-play-guard.ts`):
 // é aqui que "pack multiobra admitido nunca vira P2P inteiro" vira código.
 pub use play_disposition::{play_disposition, PlayDisposition, PlayFacts};
+pub use play_file_evidence::{play_file_evidence, PlayFileEvidence};
 pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
 // Via do banco de magnets (porte de `magnet-bank-fallback.ts` e do antigo
@@ -392,7 +393,6 @@ pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
 pub use video_header::{
     is_mp4, parse_mp4_tail, parse_video_resolution, quality_from_resolution, VideoResolution,
 };
-
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
 /// Contrato on-disk compartilhado com o gerador `scripts/golden` e com o

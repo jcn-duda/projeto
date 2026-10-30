@@ -236,7 +236,9 @@ não há env que devolva a rota ao Node — rollback é **commit/imagem anterior
   nativo devolve **502** explícito (`kind=quota`), sem mascarar em 404 nem cair
   no proxy — um segundo upload pioraria a conta.
 - **Efeitos L1** (`magnetdb`/`davail`, invalidação do `streams.db`, ledger/memo
-  do RD) continuam sendo **GRAVADOS pelo Node**: o gateway manda para
+  do RD) — *superado em 2026-10-30*: o gateway grava direto nos stores nativos
+  (`play_effects_native`) e `/internal/resolve/effects` saiu (404). Texto
+  original: eram **GRAVADOS pelo Node**; o gateway mandava para
   `POST /internal/resolve/effects` (loopback + token) e, no erro, espera a
   gravação antes de responder; o hold do autofetch da AllDebrid vem de
   `POST /internal/resolve/facts`. Sem token interno o play responde, mas não

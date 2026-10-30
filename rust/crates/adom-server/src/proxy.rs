@@ -27,6 +27,7 @@ use adom_search::orchestrator::Orchestrator;
 
 use crate::al_sweeps::{SweepAdmin, SweepRuntime};
 use crate::config::Config;
+use crate::play_effects_native::{self, PlayEffects};
 use crate::resolve_bridge::PlayBridge;
 use crate::resolve_native::{self, NativeContext, PlayResolver};
 use crate::stream;
@@ -44,8 +45,10 @@ pub struct AppState {
     pub resolve_secret: String,
     /// Resolvedor do play nativo; teste injeta stub sem rede.
     pub resolver: Arc<dyn PlayResolver>,
-    /// Ponte dos efeitos/fatos do play com o Node (`/internal/resolve/*`).
+    /// Ponte com o Node para o `held` do play (`/internal/resolve/facts`).
     pub bridge: Arc<dyn PlayBridge>,
+    /// Efeitos do play, gravados neste processo (teste injeta um falso).
+    pub effects: Arc<dyn PlayEffects>,
     /// Store SWR + deps compartilhados entre requisições. `None` com a flag
     /// desligada (ou teste sem corte).
     pub orchestrator: Option<Orchestrator>,
@@ -174,6 +177,10 @@ pub async fn run(config: Config) -> Result<(), String> {
         resolver: Arc::new(resolve_native::DebridPlay::new()),
         // O play é sempre nativo: a ponte com o Node é o caminho de produção.
         bridge: crate::resolve_bridge::from_env(),
+        // Efeitos gravados aqui; o `streams.db` é o handle deste processo.
+        effects: play_effects_native::NativePlayEffects::from_env(
+            stores.as_ref().and_then(|s| s.streams.clone()),
+        ),
         orchestrator,
         stream_traffic,
     };
@@ -191,9 +198,10 @@ pub async fn run(config: Config) -> Result<(), String> {
         .map_err(|err| format!("servidor encerrou: {err}"))
 }
 
-/// Sobe a API administrativa do `streams.db`, do colhedor e do warmer (loopback
-/// + token) em segundo plano. Falha de bind é só log: o `/stream` não depende
-/// dela, e as chamadas do Node degradam para "sem efeito" (o Node loga e segue).
+/// Sobe a API administrativa do `streams.db`, do colhedor e do warmer
+/// (loopback + token) em segundo plano. Falha de bind é só log: o `/stream`
+/// não depende dela, e as chamadas do Node degradam para "sem efeito" (o Node
+/// loga e segue).
 fn spawn_store_admin(
     stores: &stream::StreamStores,
     grace_seconds: u64,
@@ -274,6 +282,7 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
             resolve_secret: state.resolve_secret.clone(),
             resolver: state.resolver.clone(),
             bridge: state.bridge.clone(),
+            effects: state.effects.clone(),
         };
         // Path/query viram donos: o `Request` não fica vivo através do await
         // (o body não é `Sync` e o handler precisa de future `Send`).

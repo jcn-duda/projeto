@@ -162,7 +162,8 @@ npm run docker:up / docker:logs
   **`/test-indexer.json` responde 410** (busca de teste): coleta e colheita são
   nativas — o estado do colhedor mora em `GET /harvest` na admin do gateway.
   **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process,
-  resolve/facts e resolve/effects do play nativo e a rota do sidecar:
+  resolve/facts do play nativo e a rota do sidecar (os efeitos do play saíram
+  do Node: o gateway os grava nos stores nativos):
   activity) só existe em loopback + token; a
   fachada Rust recusa `/internal/*` antes do proxy (o Caddy também bloqueia). A
   guarda de loopback do Node **não** distingue o cliente atrás do proxy — a
@@ -208,7 +209,7 @@ npm run docker:up / docker:logs
 
 Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
 o Node não monta mais lista. O Node fica com I/O e rede: metadados em
-**fallback**, efeitos do play (aplicação), painel, `/configure` e o estado do
+**fallback**, painel, `/configure` e o estado do
 raspador (o crawl em si é do sidecar).
 
 ```
@@ -232,9 +233,10 @@ painel/config e as pontes do Chupim (o crawl é do sidecar). O
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
-Node só GRAVA os efeitos por `/internal/resolve/effects`, esperados antes da
-resposta de erro, e o hold da AllDebrid vem de `/internal/resolve/facts` (sem
-resposta o play não apaga o frio). As rotas
+efeitos do play (magnetdb, proteção, ledger, listas) são gravados pelo PRÓPRIO
+gateway nos stores nativos (`play_effects_native*.rs`); a rota
+`/internal/resolve/effects` saiu (responde 404). O Node só responde o hold da
+AllDebrid por `/internal/resolve/facts` (sem resposta o play não apaga o frio). As rotas
 `/internal/search/state|config|collect|index|index-write|fallback` e
 `/internal/debrid/check` **não existem mais**.
 

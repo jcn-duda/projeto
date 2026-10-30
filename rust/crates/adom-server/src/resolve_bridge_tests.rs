@@ -1,6 +1,6 @@
-//! Testes da ponte do `/resolve` nativo: forma dos corpos e o fio do
-//! `resolve_native::handle` (hold pedido só na AllDebrid, efeito do erro
-//! gravado ANTES da resposta, efeito do sucesso sem segurar o 302).
+//! Testes da ponte do `/resolve` nativo: o `held` (só AllDebrid) e o fio da
+//! rota (`resolve_native::handle`): o efeito do erro chega ao aplicador ANTES
+//! da resposta, e o do sucesso não segura o 302.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -15,16 +15,16 @@ use http::StatusCode;
 use serde_json::{json, Value};
 
 use super::*;
+use crate::play_effects_native::{PlayEffects, PlayJob};
 use crate::resolve_native::{self, NativeContext, PlayFuture, PlayResolver};
 
 const HASH: &str = "0123456789abcdef0123456789abcdef01234567";
 const SECRET: &str = "segredo";
 
-/// Ponte que grava o que recebe e responde um `held` fixo.
+/// Ponte que responde um `held` fixo e conta as perguntas.
 struct RecordingBridge {
     held: bool,
     held_calls: AtomicU32,
-    applied: Mutex<Vec<Value>>,
 }
 
 impl RecordingBridge {
@@ -32,7 +32,6 @@ impl RecordingBridge {
         Arc::new(Self {
             held,
             held_calls: AtomicU32::new(0),
-            applied: Mutex::new(Vec::new()),
         })
     }
 }
@@ -43,9 +42,27 @@ impl PlayBridge for RecordingBridge {
         let held = self.held;
         Box::pin(async move { held })
     }
-    fn apply(&self, payload: Value) -> BridgeFuture<'_, ()> {
-        self.applied.lock().unwrap().push(payload);
-        Box::pin(async {})
+}
+
+type OkCall = (PlayJob, bool, bool, Option<Vec<PlayFile>>);
+type ErrCall = (PlayJob, Value, Option<Vec<PlayFile>>);
+
+/// Gravador de faz de conta: guarda o que o aplicador receberia.
+#[derive(Default)]
+struct RecordingEffects {
+    ok: Mutex<Vec<OkCall>>,
+    error: Mutex<Vec<ErrCall>>,
+}
+
+impl PlayEffects for RecordingEffects {
+    fn apply_ok(&self, job: PlayJob, alive: bool, unavailable: bool, files: Option<Vec<PlayFile>>) {
+        self.ok
+            .lock()
+            .unwrap()
+            .push((job, alive, unavailable, files));
+    }
+    fn apply_error(&self, job: PlayJob, effect: Value, files: Option<Vec<PlayFile>>) {
+        self.error.lock().unwrap().push((job, effect, files));
     }
 }
 
@@ -103,12 +120,14 @@ async fn run(
     service: &str,
     resolver: Arc<FixedResolver>,
     bridge: Arc<RecordingBridge>,
+    effects: Arc<RecordingEffects>,
 ) -> (StatusCode, String) {
     let (path, query) = signed(service);
     let ctx = NativeContext {
         resolve_secret: SECRET.into(),
         resolver,
         bridge,
+        effects,
     };
     let response = resolve_native::handle(&path, query.as_deref(), &ctx).await;
     let status = response.status();
@@ -119,24 +138,40 @@ async fn run(
     (status, String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// O efeito do sucesso vai numa task: espera curta até ele chegar.
+async fn espera_ok(effects: &RecordingEffects) {
+    for _ in 0..50 {
+        if !effects.ok.lock().unwrap().is_empty() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
 #[tokio::test]
 async fn alldebrid_pergunta_o_hold_e_repassa_ao_adaptador() {
     let resolver = FixedResolver::new(Ok(PlayOutcome::default()));
     let bridge = RecordingBridge::new(false);
-    run("alldebrid", resolver.clone(), bridge.clone()).await;
+    run(
+        "alldebrid",
+        resolver.clone(),
+        bridge.clone(),
+        Arc::default(),
+    )
+    .await;
     assert_eq!(bridge.held_calls.load(Ordering::SeqCst), 1);
     assert_eq!(*resolver.held_seen.lock().unwrap(), vec![false]);
 
     // Os outros serviços não têm hold: nem pergunta, e o adaptador recebe `true`.
     let resolver = FixedResolver::new(Ok(PlayOutcome::default()));
     let bridge = RecordingBridge::new(false);
-    run("torbox", resolver.clone(), bridge.clone()).await;
+    run("torbox", resolver.clone(), bridge.clone(), Arc::default()).await;
     assert_eq!(bridge.held_calls.load(Ordering::SeqCst), 0);
     assert_eq!(*resolver.held_seen.lock().unwrap(), vec![true]);
 }
 
 #[tokio::test]
-async fn erro_grava_o_efeito_antes_de_responder() {
+async fn erro_chega_ao_aplicador_antes_de_responder() {
     let failure = PlayError {
         error: DebridError::NoVideo("sem vídeo".into()),
         files: Some(vec![PlayFile {
@@ -144,37 +179,45 @@ async fn erro_grava_o_efeito_antes_de_responder() {
             size: 10.0,
         }]),
     };
-    let bridge = RecordingBridge::new(true);
+    let effects = Arc::new(RecordingEffects::default());
     let (status, body) = run(
         "alldebrid",
         FixedResolver::new(Err(failure)),
-        bridge.clone(),
+        RecordingBridge::new(true),
+        effects.clone(),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(body, "nenhum arquivo de vídeo no torrent");
-    // `handle` só voltou depois do `apply`: o corpo já está gravado.
-    let applied = bridge.applied.lock().unwrap();
-    assert_eq!(applied.len(), 1);
-    let sent = &applied[0];
-    assert_eq!(sent["outcome"], "error");
-    assert_eq!(sent["effect"]["mark"], "bad");
-    assert_eq!(sent["effect"]["invalidate"], "obra");
-    assert_eq!(sent["imdbId"], "tt0944947");
-    assert_eq!(sent["season"], 2);
-    assert_eq!(sent["episode"], 5);
-    assert_eq!(sent["files"][0]["path"], "Pack/leia.txt");
-    assert!(sent.get("apiKey").is_none(), "a chave nunca vai no corpo");
-    assert!(sent["encoded"].as_str().is_some_and(|e| !e.is_empty()));
+    // `handle` só voltou depois da escrita: o efeito já está registrado.
+    let errors = effects.error.lock().unwrap();
+    assert_eq!(errors.len(), 1);
+    let (job, effect, files) = &errors[0];
+    assert_eq!(effect["mark"], "bad");
+    assert_eq!(effect["invalidate"], "obra");
+    assert_eq!(job.imdb, "tt0944947");
+    assert_eq!(job.season, Some(2));
+    assert_eq!(job.episode, Some(5));
+    assert_eq!(job.service, "alldebrid");
+    assert_eq!(files.as_ref().unwrap()[0].path, "Pack/leia.txt");
 }
 
 #[tokio::test]
-async fn erro_neutro_sem_prova_nao_chama_o_node() {
+async fn erro_neutro_chega_sem_marcar_nada() {
     let failure = PlayError::from(DebridError::other("caiu"));
-    let bridge = RecordingBridge::new(true);
-    let (status, _) = run("torbox", FixedResolver::new(Err(failure)), bridge.clone()).await;
+    let effects = Arc::new(RecordingEffects::default());
+    let (status, _) = run(
+        "torbox",
+        FixedResolver::new(Err(failure)),
+        RecordingBridge::new(true),
+        effects.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
-    assert!(bridge.applied.lock().unwrap().is_empty());
+    let errors = effects.error.lock().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].1["mark"].is_null());
+    assert_eq!(errors[0].1["invalidate"], "none");
 }
 
 #[tokio::test]
@@ -183,40 +226,43 @@ async fn sucesso_responde_302_e_grava_vivo_em_fundo() {
         url: Some("https://cdn.test/play.mkv".into()),
         ..PlayOutcome::default()
     };
-    let bridge = RecordingBridge::new(true);
-    let (status, _) = run("torbox", FixedResolver::new(Ok(outcome)), bridge.clone()).await;
+    let effects = Arc::new(RecordingEffects::default());
+    let (status, _) = run(
+        "torbox",
+        FixedResolver::new(Ok(outcome)),
+        RecordingBridge::new(true),
+        effects.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::FOUND);
-    // O efeito do sucesso vai numa task: espera curta até ele chegar.
-    for _ in 0..50 {
-        if !bridge.applied.lock().unwrap().is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    let applied = bridge.applied.lock().unwrap();
-    assert_eq!(applied.len(), 1);
-    assert_eq!(applied[0]["outcome"], "ok");
-    assert_eq!(applied[0]["alive"], true);
+    espera_ok(&effects).await;
+    let oks = effects.ok.lock().unwrap();
+    assert_eq!(oks.len(), 1);
+    assert!(oks[0].1, "alive: o play devolveu link");
+    assert!(!oks[0].2, "sem frio medido");
 }
 
-#[test]
-fn ainda_baixando_nao_marca_vivo() {
-    let target = EffectTarget {
-        encoded: "",
-        service: "alldebrid",
-        hash: HASH,
-        imdb: "",
-        season: None,
-        episode: None,
-    };
-    let frio = PlayOutcome {
+#[tokio::test]
+async fn ainda_baixando_registra_frio_sem_marcar_vivo() {
+    let outcome = PlayOutcome {
         url: None,
         unavailable: true,
         files: None,
     };
-    let body = ok_payload(&target, &frio);
-    assert_eq!(body["alive"], false);
-    assert_eq!(body["unavailable"], true);
+    let effects = Arc::new(RecordingEffects::default());
+    let (status, _) = run(
+        "torbox",
+        FixedResolver::new(Ok(outcome)),
+        RecordingBridge::new(true),
+        effects.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    espera_ok(&effects).await;
+    let oks = effects.ok.lock().unwrap();
+    assert_eq!(oks.len(), 1);
+    assert!(!oks[0].1, "sem link não é vivo");
+    assert!(oks[0].2, "frio medido vai ao aplicador");
 }
 
 #[test]

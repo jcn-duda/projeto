@@ -11,9 +11,10 @@
 //! `null` de `current()` e responde 404 "ainda baixando" — a rota copia isso.
 //!
 //! Os efeitos do play (`magnetdb`, `davail`, prova de arquivo, índice, ledger
-//! do RD e a invalidação das listas) moram no Node: a rota os manda pela ponte
-//! (`resolve_bridge`, `/internal/resolve/*`). No erro ela espera a gravação
-//! antes de responder; no sucesso o 302 sai na hora.
+//! do RD e a invalidação das listas) são gravados aqui mesmo, pelo aplicador
+//! `play_effects_native`. No erro a rota espera a gravação antes de responder;
+//! no sucesso o 302 sai na hora e a gravação segue em fundo. O `held` (hold da
+//! AllDebrid) continua perguntado ao Node pela `resolve_bridge`.
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -28,7 +29,8 @@ use http::header::{CONTENT_TYPE, LOCATION};
 use http::{HeaderValue, Method, Response, StatusCode};
 use serde_json::Value;
 
-use crate::resolve_bridge::{error_payload, ok_payload, EffectTarget, PlayBridge};
+use crate::play_effects_native::{PlayEffects, PlayJob};
+use crate::resolve_bridge::PlayBridge;
 use crate::resolve_hint::{ep_parts, hint_imdb, parse_hint_json};
 
 pub type PlayFuture<'a> = Pin<Box<dyn Future<Output = Result<PlayOutcome, PlayError>> + Send + 'a>>;
@@ -145,6 +147,7 @@ pub struct NativeContext {
     pub resolve_secret: String,
     pub resolver: Arc<dyn PlayResolver>,
     pub bridge: Arc<dyn PlayBridge>,
+    pub effects: Arc<dyn PlayEffects>,
 }
 
 /// Defaults do operador: a instalação sem config herda `DEBRID_SERVICE`/`_KEY`.
@@ -230,12 +233,12 @@ pub async fn handle(path: &str, query: Option<&str>, ctx: &NativeContext) -> Res
     let hint = play_hint(&play);
     let encoded = play.encoded.clone().unwrap_or_default();
     let held = config.service != "alldebrid" || ctx.bridge.held(&encoded, &play.info_hash).await;
-    let imdb = hint_imdb(&play.hint);
-    let target = EffectTarget {
-        encoded: &encoded,
-        service: &config.service,
-        hash: &play.info_hash,
-        imdb: &imdb,
+    // A chave da conta vai só para o aplicador (memória); nunca para log ou corpo.
+    let job = PlayJob {
+        service: config.service.clone(),
+        api_key: config.api_key.clone(),
+        hash: play.info_hash.clone(),
+        imdb: hint_imdb(&play.hint),
         season: hint.season,
         episode: hint.episode,
     };
@@ -250,20 +253,28 @@ pub async fn handle(path: &str, query: Option<&str>, ctx: &NativeContext) -> Res
         )
         .await
     {
-        Ok(outcome) => {
-            // O 302 não espera a gravação (vivo/arquivos não mudam a lista).
-            let payload = ok_payload(&target, &outcome);
-            let bridge = ctx.bridge.clone();
-            tokio::spawn(async move { bridge.apply(payload).await });
-            match outcome.url {
+        Ok(PlayOutcome {
+            url,
+            unavailable,
+            files,
+        }) => {
+            // O 302 não espera a gravação: o SQLite roda em `spawn_blocking`, em fundo.
+            let (alive, effects) = (url.is_some(), ctx.effects.clone());
+            tokio::task::spawn_blocking(move || effects.apply_ok(job, alive, unavailable, files));
+            match url {
                 Some(url) => redirect(&url),
                 None => still_downloading(),
             }
         }
         Err(failure) => {
             let effect = resolve_effect(&config.service, &failure.error);
-            if let Some(payload) = error_payload(&target, &effect, failure.files.as_deref()) {
-                ctx.bridge.apply(payload).await;
+            // No erro a rota ESPERA a gravação: a reabertura imediata já não pode
+            // servir o hash que acabou de falhar (o 404 depende disso).
+            let (effects, plan, files) = (ctx.effects.clone(), effect.clone(), failure.files);
+            let gravado =
+                tokio::task::spawn_blocking(move || effects.apply_error(job, plan, files)).await;
+            if let Err(err) = gravado {
+                eprintln!("[resolve] efeitos do erro não gravados: {err}");
             }
             error_response(&effect, &play.info_hash, &failure.error)
         }
@@ -346,54 +357,5 @@ fn error_response(effect: &Value, info_hash: &str, err: &DebridError) -> Respons
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn allow_env_key_so_com_true_exato() {
-        // `String(env || 'true') === 'true'`: vazio/ausente herda (true), mas
-        // `1`/`false`/`TRUE` desligam a herança.
-        assert!(allow_env_key_from(None));
-        assert!(allow_env_key_from(Some("")));
-        assert!(allow_env_key_from(Some("true")));
-        assert!(!allow_env_key_from(Some("1")));
-        assert!(!allow_env_key_from(Some("false")));
-        assert!(!allow_env_key_from(Some("TRUE")));
-    }
-
-    #[test]
-    fn config_da_url_sobrepoe_o_default_do_operador() {
-        let defaults = json!({"debridService":"alldebrid","debridApiKey":"chave-env"});
-        let encoded = adom_core::encode_config(&json!({"ds":"torbox","dk":"chave-url"}));
-        let config = debrid_config(Some(&encoded), "", &defaults).unwrap();
-        assert_eq!(config.service, "torbox");
-        assert_eq!(config.api_key, "chave-url");
-        // Sem segmento, herda o default (mesmo `runtime.decode(null)` do Node).
-        let config = debrid_config(None, "", &defaults).unwrap();
-        assert_eq!(config.service, "alldebrid");
-        assert_eq!(config.api_key, "chave-env");
-        // Segmento inválido é 404, não config forjada.
-        assert!(debrid_config(Some("não-é-base64!"), "", &defaults).is_err());
-    }
-
-    #[test]
-    fn sem_servico_ou_chave_nao_ha_adaptador() {
-        assert!(!DebridConfig::default().has_adapter());
-        assert!(!DebridConfig {
-            service: "premiumize".into(),
-            api_key: String::new(),
-        }
-        .has_adapter());
-        assert!(!DebridConfig {
-            service: "stremthru".into(),
-            api_key: "k".into(),
-        }
-        .has_adapter());
-        assert!(DebridConfig {
-            service: "premiumize".into(),
-            api_key: "k".into(),
-        }
-        .has_adapter());
-    }
-}
+#[path = "resolve_native_tests.rs"]
+mod tests;

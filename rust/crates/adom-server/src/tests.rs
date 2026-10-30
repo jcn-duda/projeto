@@ -80,6 +80,7 @@ pub(super) fn gateway_state(upstream: SocketAddr, native_health: bool) -> AppSta
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
+        effects: Arc::new(crate::play_effects_native::NoPlayEffects),
         orchestrator: None,
         stream_traffic: Arc::new(AtomicI64::new(0)),
     }
@@ -103,6 +104,7 @@ pub(super) fn gateway_state_native(upstream: SocketAddr, orch: Orchestrator) -> 
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
+        effects: Arc::new(crate::play_effects_native::NoPlayEffects),
         orchestrator: Some(orch),
         stream_traffic: Arc::new(AtomicI64::new(0)),
     }
@@ -122,6 +124,7 @@ pub(super) fn gateway_state_resolve(
         resolve_secret: secret.to_string(),
         resolver,
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
+        effects: Arc::new(crate::play_effects_native::NoPlayEffects),
         orchestrator: None,
         stream_traffic: Arc::new(AtomicI64::new(0)),
     }
