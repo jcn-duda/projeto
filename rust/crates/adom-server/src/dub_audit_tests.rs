@@ -58,6 +58,7 @@ fn config_desligada_nao_enfileira() {
     let config = DubAuditConfig {
         enabled: false,
         tail_max: 2,
+        ok_ttl_ms: 0,
     };
     let dub = DubAudit::new(config, Arc::new(FakeResolver::new(vec![])), writes);
     assert_eq!(dub.offer(&[candidate(1, Some(1), Some(4))]), 0);
@@ -196,14 +197,16 @@ async fn erro_de_rede_nao_grava_e_o_candidato_volta_depois() {
 }
 
 #[tokio::test]
-async fn sucesso_de_claim_sem_prova_promove_a_obra() {
+async fn sucesso_de_claim_sem_arquivos_nao_invalida_a_obra() {
+    // Sem arquivos não há prova a gravar: invalidar faria a próxima lista
+    // nascer claim de novo — o laço que mantinha a obra fora do cache.
     let writes = Arc::new(FakeWrites::default());
     let (_resolver, dub) = audit(vec![Ok(())], writes.clone(), 2, false);
     let mut cand = candidate(1, Some(1), Some(4));
     cand.needs_promote = true;
     dub.offer(&[cand]);
     assert_eq!(dub.drain().await, 1);
-    assert_eq!(writes.log(), vec!["invalidate:tt123".to_string()]);
+    assert!(writes.log().is_empty());
 }
 
 #[test]

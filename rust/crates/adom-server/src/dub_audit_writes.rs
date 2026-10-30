@@ -105,6 +105,18 @@ impl AuditWrites for NativeWrites {
         }
     }
 
+    fn mark_file_evidence(&self, hash: &str, ev: &adom_core::PlayFileEvidence, now: i64) {
+        if let Some(index) = &self.index {
+            let proof = adom_index::FileEvidence {
+                a: ev.audio.clone(),
+                e: Some(u8::from(ev.en)),
+                q: ev.quality.clone(),
+                n: ev.name.clone(),
+            };
+            let _ = index.mark_file_evidence(hash, &proof, now);
+        }
+    }
+
     fn mark_lied(
         &self,
         imdb_id: &str,

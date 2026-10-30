@@ -312,7 +312,13 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   TorBox pede `list_files` no lote; AllDebrid lê `/magnet/status` dos prontos
   (teto `DEBRID_PACK_FILES_PER_CHECK`) numa task em fundo que roda ANTES da
   limpeza (que apagaria o pronto). A lista vale a partir da próxima resposta
-  (o build não espera a leitura). Nome sem resolução →
+  (o build não espera a leitura). A **prova de arquivo** (`idx:v14:file:<hash>`,
+  `{a,e,q,n}`) entra nos itens antes do build (`orchestrator::file_evidence`, o
+  `applyFileEvidence` do TS): sem ela nenhum claim vira dublado. A auditoria de
+  dublagem grava essa prova no OK e só invalida a obra se a prova promove; o
+  candidato OK não volta por `DEBRID_DUB_AUDIT_OK_TTL_MS` — antes, cada busca
+  re-auditava e invalidava a obra, e a lista pronta nunca ficava no cache
+  (CPU ~18 ms/req e `/magnet/upload` a cada acesso). Nome sem resolução →
   medição do cabeçalho: AllDebrid por `/link/unlock`, outros por `adapter.fileLink`.
 - **"Sumiu o ⚡ de todos" quase nunca é bug de código**: veja
   `/debrid-status.json` (teto de magnets, chave recusada, prazo). Sem veredito

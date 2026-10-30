@@ -170,7 +170,10 @@ impl Orchestrator {
         merge_file_sizes(self.file_sizes.as_deref(), items, &mut ctx);
         // Título sem resolução ganha a do arquivo que o play tocaria (mesma
         // lista de arquivos do 💾); sem isso o item saía sem chip de qualidade.
-        let items = super::proven_quality::stamp_proven_quality(items, &ctx.files_by_hash, meta);
+        // Prova de arquivo do índice ANTES da resolução pelo nome (ordem do TS:
+        // `applyProbedQuality(applyFileEvidence(raw))`): quem já tem prova não é recarimbado.
+        let items = super::file_evidence::apply_file_evidence(self.file_evidence.as_deref(), items);
+        let items = super::proven_quality::stamp_proven_quality(&items, &ctx.files_by_hash, meta);
         let items: &[RawItem] = &items;
         let opts = build_options_from(&input.options, &self.config.build);
         let debrid_ctx = self.debrid_context(input, deadline_at);

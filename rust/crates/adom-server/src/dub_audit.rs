@@ -85,6 +85,8 @@ pub trait AuditWrites: Send + Sync {
     );
     fn unprotect(&self, adapter: &str, api_key: &str, hash: &str);
     fn invalidate_obra(&self, imdb_id: &str);
+    /// Prova de arquivo do play OK (`idx:v14:file:<hash>`). Default: não grava.
+    fn mark_file_evidence(&self, _hash: &str, _ev: &adom_core::PlayFileEvidence, _now: i64) {}
 }
 
 /// Config viva do efeito (`AUDIO_AUDIT`/`DEBRID_DUB_AUDIT_MAX`).
@@ -92,6 +94,8 @@ pub trait AuditWrites: Send + Sync {
 pub struct DubAuditConfig {
     pub enabled: bool,
     pub tail_max: usize,
+    /// Prazo (ms) em que um candidato provado OK não volta à fila; 0 desliga.
+    pub ok_ttl_ms: i64,
 }
 
 impl DubAuditConfig {
@@ -99,6 +103,7 @@ impl DubAuditConfig {
         Self {
             enabled: env_on("AUDIO_AUDIT", true),
             tail_max: env_num("DEBRID_DUB_AUDIT_MAX", 2).max(0) as usize,
+            ok_ttl_ms: env_num("DEBRID_DUB_AUDIT_OK_TTL_MS", 21_600_000).max(0),
         }
     }
 }
@@ -136,6 +141,7 @@ pub struct DubAudit {
     config: DubAuditConfig,
     resolver: Arc<dyn PlayResolver>,
     writes: Arc<dyn AuditWrites>,
+    ok_memory: proof::OkMemory,
 }
 
 impl DubAudit {
@@ -149,6 +155,7 @@ impl DubAudit {
             config,
             resolver,
             writes,
+            ok_memory: proof::OkMemory::default(),
         }
     }
 
@@ -175,6 +182,7 @@ impl DubAudit {
             if self
                 .writes
                 .is_lie(&candidate.adapter, &candidate.api_key, &candidate.hash)
+                || self.ok_memory.recent(candidate, now)
             {
                 continue;
             }
@@ -248,12 +256,8 @@ impl DubAudit {
             )
             .await;
         match outcome {
-            Ok(_) => {
-                // Prova OK de claim: a próxima lista já nasce `_dubbed`.
-                if candidate.dubbed && candidate.needs_promote {
-                    self.invalidate(candidate);
-                }
-            }
+            // Grava a prova e só invalida quando ela promove o claim (`proof`).
+            Ok(outcome) => self.on_ok(candidate, &outcome),
             Err(err) => self.classify(candidate, &err.error),
         }
     }
@@ -383,6 +387,9 @@ fn parse_work(raw: Option<&Value>) -> Option<WorkHint> {
         pack: value.get("pack").and_then(Value::as_bool).unwrap_or(false),
     })
 }
+
+#[path = "dub_audit_proof.rs"]
+mod proof;
 
 #[cfg(test)]
 #[path = "dub_audit_tests.rs"]

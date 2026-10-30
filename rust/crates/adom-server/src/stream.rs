@@ -209,6 +209,15 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
                 orch = orch.with_index_source(Arc::new(
                     store.with_limits(cfg.release_index_ttl, cfg.release_index_max_releases),
                 ));
+                // Prova de arquivo do mesmo índice: sem ela o claim de dublagem
+                // nunca vira prova e a auditoria invalida a obra a cada busca.
+                match crate::file_evidence_source::NativeFileEvidence::open(
+                    cfg.release_index_ttl,
+                    cfg.release_index_max_releases,
+                ) {
+                    Ok(source) => orch = orch.with_file_evidence(Arc::new(source)),
+                    Err(err) => eprintln!("[search] prova de arquivo indisponível ({err})"),
+                }
             }
             Err(err) => {
                 eprintln!("[search] idx:v14 indisponível ({err}); seguindo sem índice nativo")

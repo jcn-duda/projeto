@@ -9,6 +9,7 @@ mod config;
 /// Interrogatório de áudio do tail (T3-L7a): fila e veredito sem o Node.
 mod dub_audit;
 mod dub_audit_writes;
+mod file_evidence_source;
 mod file_sizes_source;
 /// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
 mod harvest;

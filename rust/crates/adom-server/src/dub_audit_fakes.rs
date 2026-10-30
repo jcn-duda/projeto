@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use adom_core::{EpisodeEvidence, PlayHint, WorkHint};
-use adom_debrid::alldebrid::PlayError;
+use adom_debrid::alldebrid::{PlayError, PlayFile};
 use adom_debrid::play::PlayOutcome;
 use adom_debrid::DebridError;
 
@@ -31,6 +31,8 @@ pub struct FakeResolver {
     replies: Mutex<VecDeque<Reply>>,
     calls: Mutex<Vec<Call>>,
     delay_ms: u64,
+    /// Arquivos que o play OK devolve (a prova que a auditoria grava).
+    files: Option<Vec<PlayFile>>,
 }
 
 impl FakeResolver {
@@ -38,6 +40,7 @@ impl FakeResolver {
         Self {
             replies: Mutex::new(replies.into()),
             calls: Mutex::new(Vec::new()),
+            files: None,
             delay_ms: 0,
         }
     }
@@ -45,6 +48,11 @@ impl FakeResolver {
     /// Atraso para o teste de concorrência: o segundo `drain` chega em voo.
     pub fn slow(mut self) -> Self {
         self.delay_ms = 5;
+        self
+    }
+
+    pub fn with_files(mut self, files: Vec<PlayFile>) -> Self {
+        self.files = Some(files);
         self
     }
 
@@ -76,7 +84,10 @@ impl PlayResolver for FakeResolver {
                 held,
             });
             match self.replies.lock().unwrap().pop_front().unwrap_or(Ok(())) {
-                Ok(()) => Ok(PlayOutcome::default()),
+                Ok(()) => Ok(PlayOutcome {
+                    files: self.files.clone(),
+                    ..PlayOutcome::default()
+                }),
                 Err(error) => Err(PlayError::from(error)),
             }
         })
@@ -200,6 +211,13 @@ impl AuditWrites for FakeWrites {
             .push(format!("unprotect:{adapter}:{api_key}:{hash}"));
     }
 
+    fn mark_file_evidence(&self, hash: &str, ev: &adom_core::PlayFileEvidence, _now: i64) {
+        self.log
+            .lock()
+            .unwrap()
+            .push(format!("file_evidence:{hash}:{}", ev.audio));
+    }
+
     fn invalidate_obra(&self, imdb_id: &str) {
         self.log
             .lock()
@@ -245,6 +263,7 @@ pub fn audit(
     let config = DubAuditConfig {
         enabled: true,
         tail_max,
+        ok_ttl_ms: 0,
     };
     let dub = Arc::new(DubAudit::new(config, resolver.clone(), writes));
     (resolver, dub)

@@ -40,6 +40,7 @@ pub(crate) mod debrid_al_metrics;
 mod effects;
 mod fallback;
 mod fast_path;
+mod file_evidence; // Prova de arquivo `idx:v14:file:<hash>` (o `applyFileEvidence` do Node).
 mod file_sizes; // Fonte nativa `fsz`/`tsz` por hash: o `💾` de pack sai da lista de arquivos.
 mod finish;
 mod finish_build;
@@ -121,6 +122,7 @@ pub use config::{
 pub use crate::internal_types::ReleaseEntry;
 pub use crate::raw_item::RawItem;
 pub use debrid_al_metrics::debrid_al_metrics_snapshot;
+pub use file_evidence::{FileEvidenceSource, ProvenFile};
 pub use file_sizes::FileSizesSource;
 pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;
@@ -181,6 +183,8 @@ pub struct Orchestrator {
     /// Fonte nativa de `fsz`/`tsz` por hash (KV do gateway). `None` = sem
     /// fonte: o build segue só com o que foi injetado acima.
     file_sizes: Option<Arc<dyn FileSizesSource>>,
+    /// Prova de arquivo por hash (índice nativo). `None` = itens sem prova.
+    file_evidence: Option<Arc<dyn FileEvidenceSource>>,
     /// Estado do memo `fsz`/`tsz` na passada PRÉ-debrid (o Node anota duas
     /// vezes). `None` = captura sem o arquivo: a 1ª passada segue a régua
     /// anterior.
@@ -248,6 +252,7 @@ impl Orchestrator {
             files_by_hash: Arc::new(BTreeMap::new()),
             totals_by_hash: Arc::new(BTreeMap::new()),
             file_sizes: None,
+            file_evidence: None,
             files_at_build: None,
             totals_at_build: None,
             account: None,
@@ -277,6 +282,12 @@ impl Orchestrator {
     /// para hashes que o mapa estático não cobre (ver `file_sizes.rs`).
     pub fn with_file_sizes(mut self, source: Arc<dyn FileSizesSource>) -> Self {
         self.file_sizes = Some(source);
+        self
+    }
+
+    /// Injeta a prova de arquivo por hash, aplicada aos itens a cada build.
+    pub fn with_file_evidence(mut self, source: Arc<dyn FileEvidenceSource>) -> Self {
+        self.file_evidence = Some(source);
         self
     }
 
