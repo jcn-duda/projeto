@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as debridlink from '../src/debrid/debridlink.js';
+import { bodies as dlBodies } from './helpers/pipeline-oracle/debrid-bodies/debridlink.js';
 import debrid from '../src/debrid/index.js';
 
 process.env.CACHE_PERSIST = 'false';
@@ -53,7 +54,7 @@ test('debridlink: metadados do adaptador e conformidade com registry', () => {
 });
 
 test('debridlink: checkCached devolve Set vazio', async () => {
-  const cached = await debridlink.checkCached();
+  const cached = await dlBodies.checkCached();
   assert.ok(cached instanceof Set);
   assert.equal(cached.size, 0);
 });
@@ -113,7 +114,7 @@ test('debridlink: resolveLink fluxo feliz com polling e seleção de arquivo', a
   });
 
   try {
-    const link = await debridlink.resolveLink(API_KEY, H1);
+    const link = await dlBodies.resolveLink(API_KEY, H1);
     assert.equal(link, 'https://dl.test/stream/matrix-1080p.mkv');
     assert.equal(addCalls, 1);
     assert.ok(listCalls >= 2, 'executou polling até atingir 100%');
@@ -149,7 +150,7 @@ test('debridlink: resolveLink com episódio de série escolhe arquivo correto', 
   });
 
   try {
-    const link = await debridlink.resolveLink(API_KEY, H1, { season: 1, episode: 2 });
+    const link = await dlBodies.resolveLink(API_KEY, H1, { season: 1, episode: 2 });
     assert.equal(link, 'https://dl.test/stream/s01e02.mkv');
   } finally {
     restore();
@@ -170,7 +171,7 @@ test('debridlink: resolveLink esgota 4 tentativas sem 100% e retorna null', asyn
   });
 
   try {
-    const link = await debridlink.resolveLink(API_KEY, H1);
+    const link = await dlBodies.resolveLink(API_KEY, H1);
     assert.equal(link, null, 'retorna null quando download não atinge 100%');
     assert.equal(listCalls, 4, 'tentou exatamente 4 vezes');
   } finally {
@@ -187,7 +188,7 @@ test('debridlink: resolveLink retorna null se add falhar ou vier sem id', async 
   });
 
   try {
-    const link = await debridlink.resolveLink(API_KEY, H1);
+    const link = await dlBodies.resolveLink(API_KEY, H1);
     assert.equal(link, null);
   } finally {
     restore();

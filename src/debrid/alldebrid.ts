@@ -9,8 +9,11 @@
  *   - `alldebrid-api.ts`        base HTTP (`call`), tipos, visões de conta;
  *   - `alldebrid-inventory.ts`  DONO do estado `knownBefore`/`submitted`;
  *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets;
- *   - `alldebrid-check.ts`      checagem de cache (upload) + dropReady/dropUncached;
- *   - `alldebrid-play.ts`       resolveLink, enqueue, torrentStatus, removeTorrent.
+ *   - `alldebrid-play.ts`       enqueue, torrentStatus, removeTorrent.
+ *
+ * `checkCached` e `resolveLink` NÃO são reexportados: a checagem e o play são
+ * nativos (`adom-debrid`, ponte em `rust-remote.ts`), e o corpo TS que ainda
+ * serve de régua mora no oráculo `test/helpers/pipeline-oracle/debrid-bodies/alldebrid.ts`.
  *
  * A evicção de fallback SAIU daqui: quem apaga hoje é o passo nativo
  * `evict_job.rs`, que só remove com os quatro fatos provados. O método opcional
@@ -32,8 +35,7 @@ export {
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
 export { warmInventory, preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
 export { deleteMagnets } from './alldebrid-cleanup.js';
-export { checkCached } from './alldebrid-check.js';
-export { resolveLink, enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
+export { enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 
 export const label = 'AllDebrid';
 export const short = 'AD';

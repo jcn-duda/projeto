@@ -34,6 +34,11 @@ import debrid from '../../src/debrid/index.js';
 import debridCheck from '../helpers/pipeline-oracle/debrid-check.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import type { Stream } from '../../types/domain.js';
+import { bodies as pmBodies } from '../helpers/pipeline-oracle/debrid-bodies/premiumize.js';
+import { bodies as rdBodies } from '../helpers/pipeline-oracle/debrid-bodies/realdebrid.js';
+import { bodies as tbBodies } from '../helpers/pipeline-oracle/debrid-bodies/torbox.js';
+import { bodies as dlBodies } from '../helpers/pipeline-oracle/debrid-bodies/debridlink.js';
+import { bodies as adBodies } from '../helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const TEST_HASH_2 = '11223344556677889900aabbccddeeff00112233';
@@ -62,12 +67,13 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
+        assert.ok(pmAdapter.checkCached);
         const res = await pmAdapter.checkCached('pm-key', [TEST_HASH_1, TEST_HASH_2]) as { cached: Set<string>; complete?: boolean };
         assert.ok(res.cached.has(TEST_HASH_1));
         assert.equal(res.cached.has(TEST_HASH_2), false);
 
-        assert.ok(pmAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
-        const link = await pmAdapter.resolveLink('pm-key', TEST_HASH_1, {});
+        // O play TS saiu de src/ (corpo no oráculo): o BY_ID não o expõe mais.
+        const link = await pmBodies.resolveLink('pm-key', TEST_HASH_1, {});
         assert.equal(link, 'https://pm.test/dl/Movie.mp4');
       }
     );
@@ -81,7 +87,7 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
     // adaptador do BY_ID não expõe mais `resolveLink`, só a checagem honesta.
     assert.equal(rdAdapter.resolveLink, undefined);
 
-    const rawCached = await rdAdapter.checkCached('rd-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
+    const rawCached = await rdBodies.checkCached('rd-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
     assert.equal(rawCached.cached.size, 0); assert.equal(rawCached.complete, false);
 
     await runtime.run({ opts: { debridService: 'realdebrid', debridApiKey: 'rd-key' } }, async () => {
@@ -138,8 +144,8 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
-        assert.ok(adAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
-        const link = await adAdapter.resolveLink('ad-key', TEST_HASH_1, {});
+        assert.ok(adBodies.resolveLink, 'corpo TS do play da AllDebrid no oráculo');
+        const link = await adBodies.resolveLink('ad-key', TEST_HASH_1, {});
         assert.equal(link, 'https://stream.alldebrid.com/direct.mp4');
       }
     );
@@ -184,11 +190,12 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         },
       ],
       async () => {
+        assert.ok(tbAdapter.checkCached);
         const cachedRes = await tbAdapter.checkCached('tb-key', [TEST_HASH_1]) as { cached: Set<string>; complete?: boolean };
         assert.ok(cachedRes.cached.has(TEST_HASH_1));
 
-        assert.ok(tbAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
-        const link = await tbAdapter.resolveLink('tb-key', TEST_HASH_1, {});
+        // O play TS saiu de src/ (corpo no oráculo): o BY_ID não o expõe mais.
+        const link = await tbBodies.resolveLink('tb-key', TEST_HASH_1, {});
         assert.equal(link, 'https://dl.torbox.app/direct.mp4');
       }
     );
@@ -204,9 +211,8 @@ describe('Feature 10: Debrid Adapter Mock & Error Coverage', () => {
         handler: () => fakeResponse({ success: false, error: 'bad_token' }, { status: 401 }),
       },
       async () => {
-        assert.ok(dlAdapter.resolveLink, 'adaptador não-RD mantém o play TS');
         await assert.rejects(
-          async () => dlAdapter.resolveLink!('bad-key', TEST_HASH_1, {}),
+          async () => dlBodies.resolveLink('bad-key', TEST_HASH_1, {}),
           /HTTP 401/
         );
       }

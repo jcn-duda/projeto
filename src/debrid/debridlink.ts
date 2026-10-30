@@ -1,7 +1,5 @@
-import { magnetForPlay, json, pickFile, wait } from './common.js';
-import * as log from '../utils/logger.js';
-import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import { magnetForPlay, json } from './common.js';
+import type { TorrentStatusEntry } from '../../types/domain.js';
 import { apiBaseFromEnv } from './api-base.js';
 
 const API = 'https://debrid-link.com/api/v2';
@@ -14,7 +12,7 @@ const API = 'https://debrid-link.com/api/v2';
  * @param {*} [options.body]
  * @param {Object} [options.params]
  */
-async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: BodyInit | null; params?: Record<string, string> } = {}) {
+export async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: BodyInit | null; params?: Record<string, string> } = {}) {
   const url = new URL(`${apiBaseFromEnv('DEBRIDLINK_API_BASE', API)}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
@@ -30,51 +28,6 @@ async function call(apiKey: string, path: string, { method = 'GET', body, params
     throw new Error(data.error || 'debrid-link retornou erro');
   }
   return data.value;
-}
-
-/**
- * A Debrid-Link não publica endpoint de disponibilidade em lote; tratamos como
- * "não sei" e deixamos o orquestrador decidir.
- */
-async function checkCached() {
-  return new Set<string>();
-}
-
-/**
- * @param {string} apiKey
- * @param {string} infoHash
- * @param {object} [options]
- * @param {?number} [options.season]
- * @param {?number} [options.episode]
- * @param {*} [options.work]
- */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
-  const added = await call(apiKey, '/seedbox/add', {
-    method: 'POST',
-    body: new URLSearchParams({ url: magnetForPlay(infoHash), async: 'true' }),
-  });
-  if (!added?.id) return null;
-
-  let entry = added;
-  for (let attempt = 0; attempt < 4 && Number(entry?.downloadPercent) < 100; attempt += 1) {
-    await wait(700);
-    const list = await call(apiKey, '/seedbox/list', { params: { ids: added.id } });
-    entry = Array.isArray(list) ? list[0] : list;
-  }
-  if (Number(entry?.downloadPercent) < 100) {
-    log.warn('[debridlink] torrent ainda não está pronto para leitura');
-    return null;
-  }
-
-  const files = (entry.files || []).map((f: any) => ({
-    path: f.name,
-    size: f.size,
-    link: f.downloadUrl,
-  }));
-  const file = pickFile(files, { season, episode, work });
-  recordFileEvidence(infoHash, files);
-  assertDubbedFiles(files, Boolean(dubbed));
-  return file?.link || null;
 }
 
 async function enqueue(apiKey: string, infoHash: string) {
@@ -141,5 +94,5 @@ export const short = 'DL';
 export const cacheCheck = false;
 export const autofetchSource = true;
 export const keyUrl = 'https://debrid-link.com/webapp/apikey';
-export { enqueue, checkCached, resolveLink, inventory, torrentStatus, removeTorrent };
+export { enqueue, inventory, torrentStatus, removeTorrent };
 

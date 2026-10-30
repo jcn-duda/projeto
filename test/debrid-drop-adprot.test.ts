@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
@@ -99,7 +100,7 @@ test('proteção durável sem hold pula dropUncached e dropReady, e conta protec
     held.protectBr('alldebrid', ACCOUNT_ADPROT, BR_FRIO);
     held.protectBr('alldebrid', ACCOUNT_ADPROT, BR_PRONTO);
     metrics.reset();
-    await alldebrid.checkCached(CHAVE, [BR_FRIO, BR_PRONTO]);
+    await alldebridBodies.checkCached(CHAVE, [BR_FRIO, BR_PRONTO]);
     await settle();
 
     assert.equal(api.deleted.length, 0, 'durável: nem o frio (dropUncached) nem o pronto (dropReady) saem');
@@ -123,7 +124,7 @@ test('resolveLink NÃO apaga BR retido pela proteção durável (mesmo sem hold)
   const ACCOUNT_ADPROT = accountScope(KEY);
   try {
     held.protectBr('alldebrid', ACCOUNT_ADPROT, HELD);
-    const link = await alldebrid.resolveLink(KEY, HELD, {});
+    const link = await alldebridBodies.resolveLink(KEY, HELD, {});
 
     assert.equal(link, null);
     assert.deepEqual(api.deleted, [], 'a proteção durável preserva o download do BR no play');
@@ -146,7 +147,7 @@ test('proteção durável é por conta: a mesma hash em outra conta continua sen
   metrics.reset();
   try {
     held.protectBr('alldebrid', ACCOUNT_ADPROT, HELD);
-    await alldebrid.checkCached(OUTRA, [HELD]);
+    await alldebridBodies.checkCached(OUTRA, [HELD]);
     await settle();
 
     assert.deepEqual(api.deleted, [IDS[HELD]], 'a retenção de uma conta não vale para a outra');
@@ -170,7 +171,7 @@ test('kill switch da proteção durável restaura a limpeza mesmo sobre registro
 
     config.debrid.autoFetchProtectBr = false;
     metrics.reset();
-    await alldebrid.checkCached(KEY, [HELD]);
+    await alldebridBodies.checkCached(KEY, [HELD]);
     await settle();
     assert.deepEqual(api.deleted, [IDS[HELD]], 'com o kill switch, o registro retido deixa de poupar');
     assert.equal(metrics.snapshot().counters['debrid.cleanup.protectedBrSkipped'] || 0, 0, 'nada conta como poupado');
@@ -194,7 +195,7 @@ test('pending mais velho que o settle destrava na checagem e volta à limpeza', 
     retain(CONTA, BR, { acceptedAt: Date.now() - (config.debrid.autoFetchTtl * 1000 + 60_000) });
     assert.equal(held.isDurablyProtected('alldebrid', CONTA, BR), true, 'precondição: retido');
 
-    await alldebrid.checkCached(CHAVE, [BR]);
+    await alldebridBodies.checkCached(CHAVE, [BR]);
     await settle();
 
     assert.equal(held.isDurablyProtected('alldebrid', CONTA, BR), false, 'pending expirado destrava o registro');
@@ -215,7 +216,7 @@ test('acervo pronto que regrediu (deixou de ter ⚡) destrava a retenção', asy
   metrics.reset();
   try {
     retain(CONTA, BR, { acceptedAt: Date.now() - 3_600_000, readyAt: Date.now() - 3_000_000 });
-    await alldebrid.checkCached(CHAVE, [BR]);
+    await alldebridBodies.checkCached(CHAVE, [BR]);
     await settle();
 
     assert.equal(held.isDurablyProtected('alldebrid', CONTA, BR), false, 'sem ⚡ não há acervo a reter');
@@ -236,7 +237,7 @@ test('pending fresco e acervo pronto continuam poupados pelo reconcile', async (
   metrics.reset();
   try {
     retain(CONTA, NOVO, { acceptedAt: Date.now() - 60_000 });
-    await alldebrid.checkCached(CHAVE, [NOVO]);
+    await alldebridBodies.checkCached(CHAVE, [NOVO]);
     await settle();
 
     assert.equal(held.isDurablyProtected('alldebrid', CONTA, NOVO), true, 'download dentro do prazo segue retido');

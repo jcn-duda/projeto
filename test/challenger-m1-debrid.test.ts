@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import debrid from '../src/debrid/index.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
@@ -184,12 +185,12 @@ test('alldebrid.ts: snapshot TTL protects user hashes within TTL and refreshes w
 
   try {
     // 1. Initial checkCached warms inventory (1st call to /magnet/status)
-    await alldebrid.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
+    await alldebridBodies.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(statusCallCount, 1, 'Initial inventory loaded');
 
     // 2. Second checkCached within TTL should NOT call /magnet/status again
-    await alldebrid.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
+    await alldebridBodies.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(statusCallCount, 1, 'Second checkCached within TTL reuses snapshot');
 
@@ -211,7 +212,7 @@ test('alldebrid.ts: snapshot TTL protects user hashes within TTL and refreshes w
       ready: true,
     });
 
-    await alldebrid.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
+    await alldebridBodies.checkCached(TEST_KEY, [HASH_USER, HASH_CHECK]);
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(statusCallCount, 2, 'Expired snapshot triggered new /magnet/status call');
 
@@ -272,7 +273,7 @@ test('alldebrid.ts: /magnet/status 500 error fails safely without deleting user 
 
   try {
     // With /magnet/status returning 500, checkCached must not crash and must NOT delete ready magnets (fail-safe)
-    const result = await alldebrid.checkCached('key-with-500-status', [HASH_USER, HASH_CHECK]);
+    const result = await alldebridBodies.checkCached('key-with-500-status', [HASH_USER, HASH_CHECK]);
     assert.equal(result.complete, true);
     await new Promise((r) => setTimeout(r, 30));
 
@@ -311,13 +312,13 @@ test('alldebrid.ts: API error classification (AUTH_BAD_APIKEY -> AuthError, MAGN
     // Direct adapter call throws typed errors
     currentErrorCode = 'AUTH_BAD_APIKEY';
     await assert.rejects(
-      alldebrid.checkCached('invalid-key', ['1'.repeat(40)]),
+      alldebridBodies.checkCached('invalid-key', ['1'.repeat(40)]),
       (err: any) => err instanceof AuthError,
     );
 
     currentErrorCode = 'MAGNET_TOO_MANY_ACTIVE';
     await assert.rejects(
-      alldebrid.checkCached('quota-full-key', ['2'.repeat(40)]),
+      alldebridBodies.checkCached('quota-full-key', ['2'.repeat(40)]),
       (err: any) => err instanceof QuotaError,
     );
 

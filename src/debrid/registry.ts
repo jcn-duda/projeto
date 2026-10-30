@@ -3,7 +3,7 @@ import type { DebridAdapter } from '../../types/domain.js';
 import config from '../config.js';
 import * as log from '../utils/logger.js';
 import * as rdOracle from './rd-oracle.js';
-import { wrap as wrapRust } from './rust-remote.js';
+import { wrap as wrapRust, type BridgedAdapter } from './rust-remote.js';
 
 /**
  * Registry de serviços de debrid. Cada adaptador expõe a mesma forma:
@@ -56,7 +56,7 @@ const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
  * não existe modo TS para escolher. O corpo TS dos adaptadores só é usado pelo
  * oráculo de teste, que monta o adaptador cru por conta própria.
  */
-function current(): DebridAdapter | null {
+function current(): BridgedAdapter | null {
   const { debridService, debridApiKey } = opts();
   if (!debridService || !debridApiKey) return null;
   let adapter = BY_ID.get(debridService);

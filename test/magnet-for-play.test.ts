@@ -12,6 +12,7 @@ import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { magnetForPlay, magnetFor } from '../src/debrid/common.js';
 import * as debridlink from '../src/debrid/debridlink.js';
+import { bodies as dlBodies } from './helpers/pipeline-oracle/debrid-bodies/debridlink.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'magnet-for-play-'));
 const hex = (c: string) => c.repeat(40);
@@ -104,7 +105,7 @@ test('adaptador consumidor recebe a URI rica do banco no corpo do play', async (
     throw new Error(`URL inesperada: ${url.pathname}`);
   });
   try {
-    const link = await debridlink.resolveLink('test-key', h);
+    const link = await dlBodies.resolveLink('test-key', h);
     assert.equal(link, 'https://dl.test/f.mkv');
   } finally {
     restore();

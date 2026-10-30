@@ -9,8 +9,9 @@
  *   - `files` → `recordFileEvidence`: tamanho do episódio, resolução e rótulo
  *     de áudio que a busca seguinte e o audit de dublagem leem.
  *
- * Import dinâmico DE PROPÓSITO (mesmo motivo do `alldebrid-play.ts`): o
- * estático fecharia o ciclo cache-check → registry → rust-remote. Best-effort:
+ * Import dinâmico DE PROPÓSITO: o estático fecharia o ciclo cache-check →
+ * registry → rust-remote. (A anotação de davail=0 do corpo TS do play, que tinha
+ * o mesmo import, saiu para o oráculo.) Best-effort:
  * falha de anotação nunca derruba o play.
  */
 import * as log from '../utils/logger.js';

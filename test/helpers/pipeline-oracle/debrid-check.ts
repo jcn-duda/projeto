@@ -13,7 +13,7 @@ import { davailState, type DavailFlag } from '../../../src/utils/debrid-state-na
 import * as metrics from '../../../src/utils/metrics.js';
 import * as log from '../../../src/utils/logger.js';
 import * as magnetdb from '../../../src/utils/magnetdb.js';
-import { rawAdapter } from './raw-adapter.js';
+import { rawAdapter, type CheckableAdapter } from './raw-adapter.js';
 import { cacheVerdict } from '../../../src/utils/rust-debrid-cache.js';
 import {
   unusable,
@@ -64,7 +64,7 @@ function nonAbortableKey(adapter: DebridAdapter, apiKey: string, infoHashes: str
 }
 
 function nonAbortableCheck(
-  adapter: DebridAdapter,
+  adapter: CheckableAdapter,
   apiKey: string,
   infoHashes: string[],
   fileWaitTimeoutMs?: number,

@@ -23,6 +23,7 @@ import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
 import { enrichInstantWithoutCacheCheck } from './helpers/pipeline-oracle/debrid-instant-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import { markReuploadBlocked, forgetReuploadBlock, unblockIfInventoryReady } from '../src/debrid/alldebrid-reupload.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
@@ -368,7 +369,7 @@ test('play AllDebrid não-ready grava o negativo junto do delete; hold preserva 
   try {
     // Parte A: sem proteção — delete E negativo na mesma guarda.
     magnetdb.markAlive('alldebrid', KEY, [HASH]);
-    const link = await alldebrid.resolveLink(KEY, HASH);
+    const link = await alldebridBodies.resolveLink(KEY, HASH);
     assert.equal(link, null, 'sem cache o play não resolve');
     assert.ok(deleted.includes(901), 'download fantasma removido da conta');
     assert.equal(peekDavail('alldebrid', KEY, HASH), 0, 'o atalho que errou grava o negativo e autocorrige');
@@ -377,7 +378,7 @@ test('play AllDebrid não-ready grava o negativo junto do delete; hold preserva 
 
     // Parte B: hash segurado pelo autofetch — NENHUM dos dois efeitos.
     held.hold(HELD_HASH, 60, accountScope(HELD_KEY));
-    await alldebrid.resolveLink(HELD_KEY, HELD_HASH);
+    await alldebridBodies.resolveLink(HELD_KEY, HELD_HASH);
     assert.ok(!deleted.includes(902), 'hold preserva o download em curso');
     assert.equal(peekDavail('alldebrid', HELD_KEY, HELD_HASH), null, 'mesma guarda do delete: protegido não grava negativo');
   } finally {

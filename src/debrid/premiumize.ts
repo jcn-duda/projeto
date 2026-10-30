@@ -4,13 +4,12 @@ import * as log from '../utils/logger.js';
 import * as held from './protected.js';
 import { accountScope } from '../utils/request-key.js';
 import {
-  magnetForPlay, json, pickFile, batched,
+  magnetForPlay, json, batched,
   AuthError, QuotaError, RateLimitError,
 } from './common.js';
-import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { recordTorrentTotal } from './file-sizes.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
-import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import type { TorrentStatusEntry } from '../../types/domain.js';
 import { apiBaseFromEnv } from './api-base.js';
 
 const API = 'https://www.premiumize.me/api';
@@ -24,7 +23,7 @@ const API = 'https://www.premiumize.me/api';
  * @param {*} [options.body]
  * @param {number} [options.timeout]
  */
-async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, string | string[]>; body?: BodyInit | null; timeout?: number } = {}) {
+export async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, string | string[]>; body?: BodyInit | null; timeout?: number } = {}) {
   const url = new URL(`${apiBaseFromEnv('PREMIUMIZE_API_BASE', API)}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
@@ -77,26 +76,6 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
     const cached = batch.filter((_, idx) => flags[idx]);
     return cached;
   }, { timeoutMs });
-}
-
-/**
- * Resolve o link direto de reprodução — só na hora do play, porque o directdl
- * é caro demais pra rodar em cima da lista inteira de torrents.
- *
- * @param {string} apiKey
- * @param {string} infoHash
- * @param {object} [options]
- * @param {?number} [options.season]
- * @param {?number} [options.episode]
- * @param {*} [options.work]
- */
-async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
-  const body = new URLSearchParams({ src: magnetForPlay(infoHash) });
-  const data = await call(apiKey, '/transfer/directdl', { method: 'POST', body });
-  const file = pickFile(data.content || [], { season, episode, work });
-  recordFileEvidence(infoHash, data.content || []);
-  assertDubbedFiles(data.content || [], Boolean(dubbed));
-  return file ? file.stream_link || file.link : null;
 }
 
 /**
@@ -381,4 +360,4 @@ export const short = 'PM';
 // via upload). Sem isso o orquestrador trata todos como "não sei".
 export const cacheCheck = true;
 export const keyUrl = 'https://www.premiumize.me/account';
-export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent, sweepDead, resetStallMemory };
+export { enqueue, accountStatus, checkCached, torrentStatus, removeTorrent, sweepDead, resetStallMemory };

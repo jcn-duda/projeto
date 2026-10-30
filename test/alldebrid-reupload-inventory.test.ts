@@ -11,6 +11,7 @@ import { kvForget } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import { reuploadBlocked, markReuploadBlocked } from '../src/debrid/alldebrid-reupload.js';
 import { adrmKey, counter, mockAd } from './helpers/alldebrid-mock.js';
@@ -45,7 +46,7 @@ test('8.14+: bloqueado e PRONTO no memo dinv fica fora do upload, mas entra no S
   ]);
   const api = mockAd({});
   try {
-    const result = await alldebrid.checkCached(KEY, [BLOQUEADO]);
+    const result = await alldebridBodies.checkCached(KEY, [BLOQUEADO]);
     assert.equal(api.uploaded.length, 0, 'NÃO vai ao /magnet/upload (requisito exato)');
     assert.equal(result.cached.has(BLOQUEADO), true, 'une direto ao Set cached/ready');
     assert.equal(result.complete, true);
@@ -69,14 +70,14 @@ test('8.14+: bloqueado AUSENTE do memo dinv continua fora de upload e de cache',
   ]);
   const api = mockAd({});
   try {
-    const result = await alldebrid.checkCached(KEY, [BLOQUEADO]);
+    const result = await alldebridBodies.checkCached(KEY, [BLOQUEADO]);
     assert.equal(api.uploaded.length, 0, 'sem upload');
     assert.equal(result.cached.size, 0, 'sem cache');
     assert.equal(reuploadBlocked(ACCOUNT, BLOQUEADO), true, 'marca permanece');
     assert.equal(counter('debrid.reupload.unblockedByInventory'), 0);
     // Memo FRIO: mesmo resultado.
     cache.forget(inventoryMemo.memoKey('alldebrid', KEY));
-    const frio = await alldebrid.checkCached(KEY, [BLOQUEADO]);
+    const frio = await alldebridBodies.checkCached(KEY, [BLOQUEADO]);
     assert.equal(api.uploaded.length, 0);
     assert.equal(frio.cached.size, 0);
     assert.equal(counter('debrid.reupload.unblockedByInventory'), 0);
@@ -129,7 +130,7 @@ test('8.14+: memo dinv stale não destrava — mark com apiKey invalida o hash d
   );
   const api = mockAd({});
   try {
-    const result = await alldebrid.checkCached(KEY, [BLOQUEADO]);
+    const result = await alldebridBodies.checkCached(KEY, [BLOQUEADO]);
     assert.equal(api.uploaded.length, 0, 'sem upload do hash apagado');
     assert.equal(result.cached.size, 0, 'sem ⚡ inventado de memo stale');
     assert.equal(reuploadBlocked(ACCOUNT, BLOQUEADO), true, 'marca adrm permanece');

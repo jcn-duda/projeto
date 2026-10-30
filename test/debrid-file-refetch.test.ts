@@ -13,7 +13,7 @@ import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { checkCached as alldebridCheckCached } from '../src/debrid/alldebrid-check.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import { peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import { withDebrid, inventario, soltaInventario } from './helpers/alldebrid-mock.js';
 import type { DebridAdapter } from '../types/domain.js';
@@ -161,7 +161,7 @@ test('leitura de pack pode ultrapassar o prazo sem cancelar e sem antecipar a li
   try {
     metrics.reset();
     const inicio = Date.now();
-    const result = await alldebridCheckCached(KEY, [PACK], { fileWaitTimeoutMs: 40, fileHashes: [PACK] });
+    const result = await alldebridBodies.checkCached(KEY, [PACK], { fileWaitTimeoutMs: 40, fileHashes: [PACK] });
     const decorrido = Date.now() - inicio;
     assert.equal(result.complete, true);
     assert.ok(result.cached.has(PACK), 'o ⚡ sai mesmo com a leitura ainda em fundo');
@@ -178,7 +178,7 @@ test('leitura de pack pode ultrapassar o prazo sem cancelar e sem antecipar a li
 
     // restante <= 0: sem espera, mas a cadeia da leitura fica consumida (sem
     // rejeição unhandled) e a checagem responde normalmente.
-    const resZero = await alldebridCheckCached(KEY, [PACK], { fileWaitTimeoutMs: 0, fileHashes: [PACK] });
+    const resZero = await alldebridBodies.checkCached(KEY, [PACK], { fileWaitTimeoutMs: 0, fileHashes: [PACK] });
     assert.ok(resZero.cached.has(PACK), 'orçamento zero degrada a espera sem quebrar a checagem');
     await delay(250); // a leitura em fundo assenta; um reject solto acusaria aqui
   } finally {

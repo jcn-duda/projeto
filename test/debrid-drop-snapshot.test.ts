@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
@@ -39,7 +40,7 @@ test('snapshot posterior aos uploads não protege o que a checagem criou', async
   try {
     // Primeira checagem: sobe o hash e dispara o inventário (que responde
     // depois, com o upload já registrado). O fail-safe segura a limpeza aqui.
-    const first = await alldebrid.checkCached(KEY, [NOVO]);
+    const first = await alldebridBodies.checkCached(KEY, [NOVO]);
     await settle();
     await flushImmediate();
     assert.equal(first.cached.has(NOVO), true);
@@ -47,7 +48,7 @@ test('snapshot posterior aos uploads não protege o que a checagem criou', async
 
     // Segunda: o snapshot já chegou — e está poluído com o upload da primeira.
     // Contrato: o que a checagem criou NÃO pode passar a ser preexistente.
-    const second = await alldebrid.checkCached(KEY, [NOVO]);
+    const second = await alldebridBodies.checkCached(KEY, [NOVO]);
     await settle();
     assert.equal(second.cached.has(NOVO), true, 'o hash continua em cache no serviço');
     assert.deepEqual(api.deleted, [2000], 'o resíduo da própria checagem é removido na busca seguinte');
@@ -67,12 +68,12 @@ test('magnet pré-existente continua protegido mesmo com o snapshot poluído', a
   const api = mockAccountWith([DO_USUARIO], [DO_USUARIO, DA_CHECAGEM], { snapshotAfterUploads: true });
 
   try {
-    await alldebrid.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
+    await alldebridBodies.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
     await settle();
     await flushImmediate();
     api.deleted.length = 0;
 
-    const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
+    const { cached } = await alldebridBodies.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
     await settle();
 
     assert.equal(cached.has(DO_USUARIO), true);
@@ -114,7 +115,7 @@ test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download et
     held.hold(AUTO, 3600, ACCOUNT_HELD);
     // Referência existe e não contém AUTO: o enqueue etiqueta com prova.
     await alldebrid.enqueue(KEY, AUTO);
-    await alldebrid.checkCached(KEY, [AUTO, OUTRO]);
+    await alldebridBodies.checkCached(KEY, [AUTO, OUTRO]);
     await settle();
 
     // O OUTRO (criado pela própria checagem) sai; o AUTO fica pelo held.
@@ -122,7 +123,7 @@ test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download et
     assert.equal(held.isHeld(AUTO, ACCOUNT_HELD), true, 'o hash continua protegido');
 
     held.release(AUTO, ACCOUNT_HELD);
-    await alldebrid.checkCached(KEY, [AUTO]);
+    await alldebridBodies.checkCached(KEY, [AUTO]);
     await settle();
     assert.deepEqual(api.deleted, [2001, 2000], 'sem held, o autofetch do processo volta à limpeza');
   } finally {
@@ -153,7 +154,7 @@ test('inventário aquecido no boot deixa a primeira checagem limpar os prontos q
     await settle();
     await flushImmediate();
 
-    await alldebrid.checkCached(KEY, [NOVO]);
+    await alldebridBodies.checkCached(KEY, [NOVO]);
     await settle();
     assert.deepEqual(api.deleted, [2000], 'primeira checagem já remove o pronto que criou');
   } finally {
@@ -172,7 +173,7 @@ const CHAVE = 'chave-delete-recusado';
   metrics.reset();
 
   try {
-    await alldebrid.checkCached(CHAVE, [CRIADO]);
+    await alldebridBodies.checkCached(CHAVE, [CRIADO]);
     // A rajada de 503 faz o id ser tentado 3× na 1ª rodada (400→800→1600ms),
     // reenfileirado e tentado mais 3× na 2ª. Só aí a falha é contabilizada e
     // a conta não mente que limpou. Esperamos o backoff real (≃5,6s).
@@ -203,7 +204,7 @@ test('snapshot com TTL expirado recarrega inventário e protege magnet adicionad
 
   try {
     // 1. Primeira busca cria o snapshot inicial (sem o magnet posterior do usuário)
-    await alldebrid.checkCached(KEY, [PRIMEIRO]);
+    await alldebridBodies.checkCached(KEY, [PRIMEIRO]);
     await settle();
     await flushImmediate();
     api.deleted.length = 0;
@@ -216,7 +217,7 @@ test('snapshot com TTL expirado recarrega inventário e protege magnet adicionad
 
     // 4. Segunda busca: dispara o refresh EM FUNDO e não espera por ele. Sem
     //    referência fresca, esta passada não apaga nada — nem o que ela criou.
-    const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
+    const { cached } = await alldebridBodies.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_SEGUNDA_BUSCA]);
     await settle();
 
     assert.equal(cached.has(DO_USUARIO_POSTERIOR), true);
@@ -228,7 +229,7 @@ test('snapshot com TTL expirado recarrega inventário e protege magnet adicionad
     // 5. O refresh terminou: a busca seguinte já trabalha com a foto nova.
     await settle();
     await flushImmediate();
-    await alldebrid.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_TERCEIRA_BUSCA]);
+    await alldebridBodies.checkCached(KEY, [DO_USUARIO_POSTERIOR, DA_TERCEIRA_BUSCA]);
     await settle();
 
     // O magnet adicionado pelo usuário pós-boot NÃO pode ser deletado nunca.
@@ -252,7 +253,7 @@ test('refresh do snapshot por TTL não entra no prazo da resposta: /magnet/statu
   const api = mockAccountWith([], [PRIMEIRO, SEGUNDO]);
 
   try {
-    await alldebrid.checkCached(KEY, [PRIMEIRO]);
+    await alldebridBodies.checkCached(KEY, [PRIMEIRO]);
     await settle();
     await flushImmediate();
 
@@ -261,7 +262,7 @@ test('refresh do snapshot por TTL não entra no prazo da resposta: /magnet/statu
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     const inicio = Date.now();
-    const { cached } = await alldebrid.checkCached(KEY, [SEGUNDO]);
+    const { cached } = await alldebridBodies.checkCached(KEY, [SEGUNDO]);
     const gasto = Date.now() - inicio;
 
     // O bug original: o refresh era aguardado dentro do checkCached, então a
@@ -288,7 +289,7 @@ test('o PRIMEIRO inventário é esperado, mas com teto: lento demais devolve a c
 
   try {
     const inicio = Date.now();
-    const { cached } = await alldebrid.checkCached(KEY, [DA_BUSCA]);
+    const { cached } = await alldebridBodies.checkCached(KEY, [DA_BUSCA]);
     const gasto = Date.now() - inicio;
     await settle();
 
@@ -315,7 +316,7 @@ test('fail-safe closed: erro HTTP 500 no refresh do inventário não apaga pront
 
   try {
     // Primeira passada cria snapshot
-    await alldebrid.checkCached(KEY, [NOVO_1]);
+    await alldebridBodies.checkCached(KEY, [NOVO_1]);
     await settle();
     await flushImmediate();
     api.deleted.length = 0;
@@ -327,7 +328,7 @@ test('fail-safe closed: erro HTTP 500 no refresh do inventário não apaga pront
     api.failStatus = true;
 
     // Segunda busca: o refresh de inventário vai falhar com 500
-    const result = await alldebrid.checkCached(KEY, [NOVO_2]);
+    const result = await alldebridBodies.checkCached(KEY, [NOVO_2]);
     await settle();
 
     // A busca tem que suceder normalmente

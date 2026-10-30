@@ -297,7 +297,7 @@ export interface DebridAdapter {
    * cancelado depois de enviado. */
   abortSafeCacheCheck?: boolean;
   keyUrl: string;
-  checkCached(
+  checkCached?(
     apiKey: string,
     hashes: string[],
     // `fileHashes`: packs cujos arquivos o memo ainda não conhece. Adapter que

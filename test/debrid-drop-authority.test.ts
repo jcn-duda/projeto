@@ -12,6 +12,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as metrics from '../src/utils/metrics.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { kvPeek } from '../src/utils/native-kv.js';
@@ -40,7 +41,7 @@ test('B-1: snapshot fresco com o hash do usuário; eco não pronto — zero dele
     await settle();
     await flushImmediate();
 
-    await alldebrid.checkCached(KEY, [DO_USUARIO]);
+    await alldebridBodies.checkCached(KEY, [DO_USUARIO]);
     await settle();
 
     assert.deepEqual(api.deleted, [], 'o não-pronto do usuário é protegido pelo snapshot (fail-safe do dropDownload)');
@@ -69,7 +70,7 @@ test('primeira checagem do processo com dropReady habilitado: nada de pronto sai
   metrics.reset();
 
   try {
-    const result = await alldebrid.checkCached(KEY, [NOVO]);
+    const result = await alldebridBodies.checkCached(KEY, [NOVO]);
     await settle();
 
     assert.equal(result.cached.has(NOVO), true, 'a checagem responde normalmente');
@@ -103,7 +104,7 @@ test('dropReady=false + dropUncached=true: snapshot adquirido, not-ready do usu�
     await settle();
     await flushImmediate();
 
-    await alldebrid.checkCached(KEY, [DO_USUARIO, FANTASMA]);
+    await alldebridBodies.checkCached(KEY, [DO_USUARIO, FANTASMA]);
     await settle();
 
     // O DO_USUARIO ficou com o id 1000 (preexistente); o FANTASMA, subido pela

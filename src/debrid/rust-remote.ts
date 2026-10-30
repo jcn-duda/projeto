@@ -279,7 +279,22 @@ function checkFetchOptions(opts: RemoteOptions, timeoutMs: number | undefined): 
   return { ...opts, timeoutMs };
 }
 
-function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): DebridAdapter {
+/**
+ * Adaptador com a ponte por cima: `checkCached` e `resolveLink` são SEMPRE os
+ * dela. Os corpos TS desses dois métodos saíram de `src/` (ficaram no oráculo
+ * de teste), então o tipo de saída os exige para os chamadores de `current()`.
+ */
+export type BridgedAdapter = DebridAdapter & Required<Pick<DebridAdapter, 'checkCached' | 'resolveLink'>>;
+
+/** Fecha o tipo: `wrap` define os dois métodos em toda montagem; o guarda só prova isso sem cast. */
+function bridged(out: DebridAdapter): BridgedAdapter {
+  if (typeof out.checkCached !== 'function' || typeof out.resolveLink !== 'function') {
+    throw new Error('ponte nativa sem checagem ou link');
+  }
+  return { ...out, checkCached: out.checkCached, resolveLink: out.resolveLink };
+}
+
+function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): BridgedAdapter {
   const opts = remoteOptions(overrides);
   const out: DebridAdapter = { ...adapter };
   out.checkCached = async (apiKey, hashes, checkOpts) => {
@@ -343,7 +358,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
     await applyPlayEffects(adapter.id, apiKey, hash, body);
     return body && typeof body.url === 'string' ? body.url : null;
   };
-  return out;
+  return bridged(out);
 }
 
 /**

@@ -199,8 +199,12 @@ async function captureTs(service) {
       return 1;
     }
     const mod = await import(dist);
-    try { await mod.checkCached(PROBE_KEY, [PROBE_HASH]); } catch { /* a sequência é o que chegou no fio */ }
-    try { await mod.resolveLink(PROBE_KEY, PROBE_HASH); } catch { /* idem */ }
+    // resolveLink (e o checkCached do Debrid-Link) saíram de src/: o corpo TS
+    // compilado mora no oráculo de teste. Premiumize mantém o checkCached em src.
+    const { bodiesFor } = await import(new URL('../../dist/test/helpers/pipeline-oracle/debrid-bodies/index.js', import.meta.url));
+    const body = { ...mod, ...bodiesFor(service) };
+    try { await body.checkCached(PROBE_KEY, [PROBE_HASH]); } catch { /* a sequência é o que chegou no fio */ }
+    try { await body.resolveLink(PROBE_KEY, PROBE_HASH); } catch { /* idem */ }
   } finally {
     restoreFetch();
     await new Promise((resolve) => fake.server.close(resolve));

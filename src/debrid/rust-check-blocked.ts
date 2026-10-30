@@ -7,8 +7,9 @@
  * (só itens prontos) é a única fonte aceita — sem memo quente, memo frio ou
  * hash ausente, nada muda (falha ao provar NUNCA destrava).
  *
- * Paridade com o caminho TS (`alldebrid-check.ts`: destrava antes do upload e
- * injeta no `cached`). A adoção vive aqui (e não no `rust-remote.ts`) para
+ * Paridade com o corpo TS da checagem, que só existe no oráculo
+ * (`test/helpers/pipeline-oracle/debrid-bodies/alldebrid.ts`: destrava antes do
+ * upload e injeta no `cached`). A adoção vive aqui (e não no `rust-remote.ts`) para
  * manter o adaptador como transporte e respeitar o teto de linhas por arquivo.
  */
 import * as metrics from '../utils/metrics.js';

@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as torbox from '../src/debrid/torbox.js';
 import debrid from '../src/debrid/index.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
@@ -223,9 +224,9 @@ test('item do inventário é preexistente: o dropReady não o apaga da conta', a
   try {
     // Primeira checagem carrega o inventário (fail-safe: não remove prontos);
     // a segunda é a que prova a proteção.
-    await alldebrid.checkCached(KEY_B, [DO_USUARIO, DA_CHECAGEM]);
+    await alldebridBodies.checkCached(KEY_B, [DO_USUARIO, DA_CHECAGEM]);
     await new Promise((resolve) => setImmediate(resolve));
-    await alldebrid.checkCached(KEY_B, [DO_USUARIO, DA_CHECAGEM]);
+    await alldebridBodies.checkCached(KEY_B, [DO_USUARIO, DA_CHECAGEM]);
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.deepEqual(deleted, [IDS[DA_CHECAGEM]], 'só o que a checagem subiu é removido; o acervo fica');

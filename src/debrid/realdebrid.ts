@@ -4,7 +4,7 @@
  * Dividido por fronteiras reais para respeitar o teto de 400 linhas:
  * - `realdebrid-core.ts`: plumbing HTTP compartilhado, constantes de estado
  *   do torrent, limpeza best-effort e identidade do adaptador.
- * Este arquivo mantém a checagem via ledger, o inventário, o status da conta e
+ * Este arquivo mantém o inventário, o status da conta e
  * a remoção de torrent, e REEXPORTA a identidade. O play/enqueue de produção é
  * NATIVO (gateway): não há mais corpo TS de play/autofetch aqui.
  */
@@ -15,26 +15,6 @@ import {
 } from './realdebrid-core.js';
 
 export { id, label, short, cacheCheck, autofetchSource, keyUrl } from './realdebrid-core.js';
-
-/**
- * O Real-Debrid aposentou o /torrents/instantAvailability: não há mais como
- * perguntar em lote o que está em cache. Devolvemos vazio e o orquestrador
- * trata todos como "não sei" — ver `cacheCheck` em `realdebrid-core.ts`.
- */
-async function checkCached(_apiKey: string, hashes: string[]) {
-  // O endpoint oficial aposentou a disponibilidade em lote. Quando o oráculo
-  // está ativo, ele já gravou no ledger antes desta chamada; só afirmamos
-  // complete se TODO hash possui evidência (hit/miss/blocked), nunca por falta.
-  const cached = new Set<string>();
-  let known = true;
-  for (const raw of hashes) {
-    const hash = String(raw || '').toLowerCase();
-    const state = rdLedger.peek(hash);
-    if (state === 'hit') cached.add(hash);
-    else if (state === 'unknown') known = false;
-  }
-  return { cached, complete: known };
-}
 
 /**
  * Inventário PRONTO da conta Real-Debrid (`{ title, infoHash, size }`).
@@ -121,5 +101,5 @@ async function accountStatus(apiKey: string) {
 }
 
 export {
-  checkCached, inventory, torrentStatus, removeTorrent, accountStatus,
+  inventory, torrentStatus, removeTorrent, accountStatus,
 };

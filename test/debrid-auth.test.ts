@@ -6,6 +6,7 @@ import {
   isRateLimitError, RateLimitError, json,
 } from '../src/debrid/common.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as premiumize from '../src/debrid/premiumize.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
@@ -139,7 +140,7 @@ test('alldebrid: AUTH_BAD_APIKEY com HTTP 200 vira AuthError na checagem de cach
 
   try {
     await assert.rejects(
-      () => alldebrid.checkCached('chave-invalida', ['a'.repeat(40)]),
+      () => alldebridBodies.checkCached('chave-invalida', ['a'.repeat(40)]),
       (err: any) => {
         assert.equal(err.isAuthError, true, 'a marca precisa sobreviver ao batched');
         assert.match(err.message, /apikey is invalid/);
@@ -167,7 +168,7 @@ test('alldebrid: conta no limite de magnets vira QuotaError, não credencial', a
 
   try {
     await assert.rejects(
-      () => alldebrid.checkCached('chave-ok', ['a'.repeat(40)]),
+      () => alldebridBodies.checkCached('chave-ok', ['a'.repeat(40)]),
       (err: any) => {
         assert.equal(err.isAuthError, undefined, 'limite de magnets não é credencial recusada');
         assert.equal(err.isQuotaError, true, 'mas é uma causa estrutural própria');

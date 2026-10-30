@@ -15,6 +15,7 @@ import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as catalog from '../src/utils/catalog.js';
 import {
   reuploadBlocked,
@@ -169,7 +170,7 @@ test('8.14: checkCached não envia hash bloqueado, envia o não bloqueado', asyn
   metrics.reset();
   const api = mockAd({ ready: [LIVRE] });
   try {
-    const result = await alldebrid.checkCached(KEY, [BLOQUEADO, LIVRE]);
+    const result = await alldebridBodies.checkCached(KEY, [BLOQUEADO, LIVRE]);
     assert.ok(api.uploaded.includes(LIVRE), 'o não bloqueado vai ao /magnet/upload');
     assert.ok(!api.uploaded.includes(BLOQUEADO), 'o bloqueado fica fora da checagem');
     assert.equal(result.cached.has(LIVRE), true);
@@ -187,7 +188,7 @@ test('8.14: todos bloqueados → Set vazio CONHECIDO (apagado de propósito)', a
   markReuploadBlocked(ACCOUNT, BLOQUEADO, LIXO);
   const api = mockAd({});
   try {
-    const result = await alldebrid.checkCached(KEY, [BLOQUEADO]);
+    const result = await alldebridBodies.checkCached(KEY, [BLOQUEADO]);
     assert.equal(api.uploaded.length, 0, 'nenhum upload');
     assert.equal(result.cached.size, 0);
     assert.equal(result.complete, true, 'vazio intencional, não degradação');
@@ -284,7 +285,7 @@ test('8.14: dropReady/dropUncached da checagem NÃO marcam (higiene ≠ decisão
   const FRIO = 'c1'.repeat(20);
   const api = mockAd({ ready: [] });
   try {
-    await alldebrid.checkCached(CHAVE, [FRIO]);
+    await alldebridBodies.checkCached(CHAVE, [FRIO]);
     await settle();
     assert.equal(api.deleted.length, 1, 'o não-cacheado saiu da conta (dropUncached)');
     assert.equal(reuploadBlocked(CONTA, FRIO), false, 'rotina de higiene não grava marcador');

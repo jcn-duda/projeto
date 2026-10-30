@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
+import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import { prefix } from '../src/utils/cache-keys.js';
@@ -103,7 +104,7 @@ after(() => clearInterval(keepAlive));
 test('checkCached remove da conta o que não está em cache e preserva o que está', async () => {
   const api = mockAllDebrid({ ready: [READY] });
   try {
-    const result = await alldebrid.checkCached(KEY, [READY, COLD]);
+    const result = await alldebridBodies.checkCached(KEY, [READY, COLD]);
 
     assert.deepEqual([...result.cached], [READY]);
     await settle();
@@ -119,7 +120,7 @@ test('hash protegido pelo autofetch sobrevive à limpeza; solto, volta a ser rem
   const api = mockAllDebrid({ ready: [] });
   try {
     held.hold(HELD, 3600, ACCOUNT);
-    await alldebrid.checkCached(KEY, [COLD, HELD]);
+    await alldebridBodies.checkCached(KEY, [COLD, HELD]);
     await settle();
 
     // O protegido está "não pronto" justamente porque pedimos que baixasse:
@@ -127,7 +128,7 @@ test('hash protegido pelo autofetch sobrevive à limpeza; solto, volta a ser rem
     assert.deepEqual(api.deleted, [IDS[COLD]], 'o protegido não entra na limpeza');
 
     held.release(HELD, ACCOUNT);
-    await alldebrid.checkCached(KEY, [HELD]);
+    await alldebridBodies.checkCached(KEY, [HELD]);
     await settle();
     assert.deepEqual(api.deleted, [IDS[COLD], IDS[HELD]], 'liberado, volta à limpeza normal');
   } finally {
@@ -141,7 +142,7 @@ test('a proteção é por conta: o mesmo hash em outra conta continua sendo limp
   const OUTRA = 'chave-de-outra-conta';
   try {
     held.hold(HELD, 3600, ACCOUNT);
-    await alldebrid.checkCached(OUTRA, [HELD]);
+    await alldebridBodies.checkCached(OUTRA, [HELD]);
     await settle();
 
     assert.deepEqual(api.deleted, [IDS[HELD]], 'a proteção de uma conta não vale para a outra');
@@ -158,7 +159,7 @@ test('os dois switches desligados não apagam nada, e ainda assim informa o cach
   try {
     config.debrid.dropUncached = false;
     config.debrid.dropReady = false;
-    const result = await alldebrid.checkCached(KEY, [READY, COLD]);
+    const result = await alldebridBodies.checkCached(KEY, [READY, COLD]);
     await settle();
 
     assert.deepEqual([...result.cached], [READY]);
@@ -174,7 +175,7 @@ test('resolveLink apaga o magnet quando o torrent não fica pronto', async () =>
   // Nenhum poll devolve Ready: é o play que falha e deixaria o fantasma.
   const api = mockAllDebrid({ statusOf: () => 'Downloading' });
   try {
-    const link = await alldebrid.resolveLink(KEY, COLD, {});
+    const link = await alldebridBodies.resolveLink(KEY, COLD, {});
 
     assert.equal(link, null, 'sem link: melhor devolver nada e deixar escolher outro');
     assert.deepEqual(api.deleted, [IDS[COLD]]);
@@ -187,7 +188,7 @@ test('resolveLink NÃO apaga um hash protegido que ainda está baixando', async 
   const api = mockAllDebrid({ statusOf: () => 'Downloading' });
   try {
     held.hold(HELD, 3600, ACCOUNT);
-    const link = await alldebrid.resolveLink(KEY, HELD, {});
+    const link = await alldebridBodies.resolveLink(KEY, HELD, {});
 
     // O usuário clicou num BR que está baixando por nossa conta: apagar aqui
     // jogaria fora o progresso e a próxima busca recomeçaria do zero.
@@ -207,7 +208,7 @@ test('resolveLink em cache devolve o link e não toca na conta', async () => {
     ],
   });
   try {
-    const link = await alldebrid.resolveLink(KEY, READY, {});
+    const link = await alldebridBodies.resolveLink(KEY, READY, {});
 
     assert.equal(link, 'https://cdn.alldebrid.test/arquivo.mkv');
     assert.deepEqual(api.deleted, [], 'torrent pronto nunca é removido');
@@ -236,7 +237,7 @@ test('erro da API vira exceção em vez de "nada em cache"', async () => {
     // genérico "nenhum lote"): é o que deixa o orquestrador devolver a lista
     // como P2P em vez de prometer um debrid que não autentica.
     await assert.rejects(
-      () => alldebrid.checkCached(KEY, [READY, COLD]),
+      () => alldebridBodies.checkCached(KEY, [READY, COLD]),
       (err: any) => err.isAuthError === true && /chave inválida/.test(err.message),
     );
   } finally {
@@ -262,7 +263,7 @@ test('a primeira checagem não apaga pronto: preserva o fail-safe inicial', asyn
   const NOVO = 'd'.repeat(40);
   const api = mockAccountWith([], [NOVO]);
   try {
-    await alldebrid.checkCached('chave-primeira-checagem', [NOVO]);
+    await alldebridBodies.checkCached('chave-primeira-checagem', [NOVO]);
     await settle();
     assert.deepEqual(api.deleted, [], 'nada de pronto sai antes do inventário existir');
   } finally {
@@ -278,12 +279,12 @@ test('com o inventário pronto, o magnet da checagem sai e o do usuário fica', 
 
   try {
     // Primeira passada: dispara o inventário (e não apaga nada de pronto).
-    await alldebrid.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
+    await alldebridBodies.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
     await settle();
     api.deleted.length = 0;
 
     // Segunda: o inventário já respondeu.
-    const { cached } = await alldebrid.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
+    const { cached } = await alldebridBodies.checkCached(KEY, [DO_USUARIO, DA_CHECAGEM]);
     await settle();
 
     assert.equal(cached.has(DO_USUARIO), true, 'ambos continuam sendo reportados como em cache');
@@ -305,12 +306,12 @@ test('o download do autofetch sobrevive à limpeza mesmo depois de ficar pronto'
   const api = mockAccountWith([], [AUTO]);
 
   try {
-    await alldebrid.checkCached(KEY, [AUTO]);
+    await alldebridBodies.checkCached(KEY, [AUTO]);
     await settle();
     api.deleted.length = 0;
 
     held.hold(AUTO, 3600, ACCOUNT_AUTO);
-    await alldebrid.checkCached(KEY, [AUTO]);
+    await alldebridBodies.checkCached(KEY, [AUTO]);
     await settle();
     assert.deepEqual(api.deleted, [], 'hash protegido não é removido nem estando pronto');
   } finally {
@@ -327,9 +328,9 @@ test('DEBRID_DROP_READY=false devolve o comportamento antigo', async () => {
 
   try {
     config.debrid.dropReady = false;
-    await alldebrid.checkCached(KEY, [PRONTO]);
+    await alldebridBodies.checkCached(KEY, [PRONTO]);
     await settle();
-    await alldebrid.checkCached(KEY, [PRONTO]);
+    await alldebridBodies.checkCached(KEY, [PRONTO]);
     await settle();
     assert.deepEqual(api.deleted, [], 'com a flag desligada, pronto nunca sai');
   } finally {
