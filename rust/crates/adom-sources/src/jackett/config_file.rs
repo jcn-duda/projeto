@@ -142,9 +142,10 @@ fn is_json_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
 }
 
-/// Mesma régua do `SAFE_INDEXER_ID` do orquestrador (`index_source.rs`): o id
-/// vai cru na URL Torznab, então nada de barra, ponto de travessia ou vazio.
-fn is_safe_indexer_id(id: &str) -> bool {
+/// Mesma régua do `SAFE_INDEXER_ID` do orquestrador (`index_source.rs`) e do
+/// `safeId` do catálogo (`jackett-catalog.ts`): o id vai cru na URL Torznab,
+/// então nada de barra, ponto de travessia ou vazio.
+pub(super) fn is_safe_indexer_id(id: &str) -> bool {
     let bytes = id.as_bytes();
     if bytes.is_empty() || bytes.len() > 64 {
         return false;

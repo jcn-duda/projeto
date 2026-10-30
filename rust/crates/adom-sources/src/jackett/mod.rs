@@ -20,6 +20,7 @@
 //! `raw:v1`, pré-resolve BR do núcleo e captura do banco de magnets.
 
 mod breaker;
+mod catalog;
 mod client;
 mod config;
 mod config_file;
@@ -30,6 +31,9 @@ pub mod status_board;
 mod types;
 
 pub use breaker::{now_ms as breaker_now_ms, Breaker, BreakerSnapshot};
+pub use catalog::{
+    fallback_catalog, load_catalog, parse_indexers_xml, CatalogCard, CatalogSnapshot, CatalogSource,
+};
 pub use client::JackettClient;
 pub use config::{JackettConfig, JACKETT_DEFAULT_URL, JACKETT_USER_AGENT};
 pub use config_file::{
