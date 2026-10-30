@@ -13,6 +13,7 @@ use crate::request::{encoded_for_internal, reply_deadline_ms, request_cache_key}
 use super::effects;
 use super::finish::{self, SearchInput};
 use super::respond::{as_ms, empty_response, now_ms, StreamRequest, NOTICE_SEARCHING};
+use super::stream_cache_metrics;
 use super::tail;
 use super::Orchestrator;
 impl Orchestrator {
@@ -44,14 +45,22 @@ impl Orchestrator {
         let (hit, fence) = self
             .store
             .get_fenced(&key, self.config.stale_grace_seconds, as_ms(now));
+        // Contadores `stream.cache.*` são SÓ do caminho do usuário: leitores
+        // de fundo (`refresh.rs`) e o `/streams/trace` não entram no hit-rate.
         match swr_lookup(hit) {
             SwrLookup::Serve { entry, revalidate } => {
                 if revalidate {
+                    stream_cache_metrics::global_metrics()
+                        .inc(stream_cache_metrics::STALE_SERVED, 1);
                     self.spawn_stale_refresh(key.clone(), req.clone(), options.clone());
+                } else {
+                    stream_cache_metrics::global_metrics().inc(stream_cache_metrics::HIT, 1);
                 }
                 return self.respond_entry(&entry, &req);
             }
-            SwrLookup::Miss => {}
+            SwrLookup::Miss => {
+                stream_cache_metrics::global_metrics().inc(stream_cache_metrics::MISS, 1);
+            }
         }
 
         let input = SearchInput {

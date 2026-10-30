@@ -18,6 +18,7 @@ pub(super) use super::finish_build::finish_value;
 use super::index_metrics as metrics;
 use super::meta::SearchMeta;
 use super::respond::as_ms;
+use super::stream_cache_metrics;
 use super::Orchestrator;
 
 /// Entrada de uma computação (nada de referência à requisição que morreu).
@@ -217,6 +218,11 @@ impl Orchestrator {
                     eprintln!(
                         "[search] commit descartado: geração da obra andou durante a busca ({key})"
                     );
+                } else {
+                    // Escrita OK. A reescrita do passe tardio e do refresh é
+                    // escrita DE PROPÓSITO: cada `set_fenced` bem-sucedido é
+                    // 1 write — é isso que o hit-rate quer medir.
+                    stream_cache_metrics::global_metrics().inc(stream_cache_metrics::WRITE, 1);
                 }
             },
         );

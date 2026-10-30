@@ -25,7 +25,7 @@
 //! | `POST /streams/clear` `{}` | limpa o namespace todo (`clear-cache` global) — DESTRUTIVA + `confirm` |
 //! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) — DESTRUTIVA + `confirm` |
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) + recompute nativo quando `found` sem ledger |
-//! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
+//! | `GET /streams/stats` | ocupação/cota + contadores do cache no usuário (`hit`, `staleServed`, `miss`, `writes`, `hitRate`) |
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
 //! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
 //! | `POST /sweeps/run` `{"kind":"sweepDead"}` | varredura manual de UM tipo (`crate::al_sweeps`) |
@@ -49,6 +49,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
+use adom_search::orchestrator::stream_cache_metrics;
 use adom_store::StreamsStore;
 
 use crate::{al_sweeps::SweepAdmin, autofetch::AutofetchHandle, harvest::HarvestHandle};
@@ -293,10 +294,20 @@ async fn invalidate(State(state): State<Arc<AdminState>>, Json(body): Json<Value
 }
 
 async fn stats(State(state): State<Arc<AdminState>>) -> Response {
+    // Hit-rate REAL do cache: os contadores `stream.cache.*` moram no processo
+    // do gateway (rota/commit/promoção), não no store — por isso o snapshot
+    // vem do orquestrador e não daqui. `hitRate` é `null` sem NENHUMA consulta.
+    let snapshot = adom_search::orchestrator::stream_cache_metrics_snapshot();
+    let of = |key: &str| snapshot.get(key).copied().unwrap_or(0);
     Json(json!({
         "ok": true,
         "entries": state.store.len().unwrap_or(0),
         "quota": state.store.quota(),
+        "hit": of(stream_cache_metrics::HIT),
+        "staleServed": of(stream_cache_metrics::STALE_SERVED),
+        "miss": of(stream_cache_metrics::MISS),
+        "writes": of(stream_cache_metrics::WRITE),
+        "hitRate": stream_cache_metrics::hit_rate(&snapshot),
     }))
     .into_response()
 }

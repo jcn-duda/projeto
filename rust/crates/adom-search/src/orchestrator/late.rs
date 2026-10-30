@@ -21,6 +21,7 @@ use super::index_source::BankFilterCtx;
 use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
 use super::respond::{as_ms, now_ms};
+use super::stream_cache_metrics;
 use super::tail::{EffectsBatch, IndexBatch, TailJob, TailPlan};
 use super::Orchestrator;
 
@@ -330,6 +331,8 @@ impl Orchestrator {
                         "[search] promoção tardia descartada: geração da obra andou ({})",
                         input.key
                     );
+                } else {
+                    stream_cache_metrics::global_metrics().inc(stream_cache_metrics::WRITE, 1);
                 }
             }
             LateAction::Forget => self.store.forget(&input.key),

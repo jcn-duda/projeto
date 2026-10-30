@@ -324,3 +324,59 @@ async fn stats_le_ocupacao_e_cota() {
     assert_eq!(body["entries"], 1);
     assert_eq!(body["quota"], 10);
 }
+
+/// Shape da rota com os contadores do cache (`stream.cache.*`). O global é
+/// POR PROCESSO e este binário também roda os testes de rota `/stream` em
+/// paralelo (cada `handle` é um miss) — valor absoluto não é afirmável. A
+/// régua: o reportado fica ENTRE dois snapshots (contador monótono) e o
+/// `hitRate` é a fração servida, `null` sem NENHUMA consulta.
+#[tokio::test]
+async fn stats_expoe_contadores_do_cache_e_hit_rate() {
+    use adom_search::orchestrator::stream_cache_metrics;
+
+    let store = Arc::new(StreamsStore::open_memory_with_quota(10).unwrap());
+    let addr = spawn(store, TOKEN).await;
+    let req = Request::builder()
+        .uri("/streams/stats")
+        .header("x-indexer-test-token", TOKEN)
+        .body(Body::empty())
+        .unwrap();
+    let antes = adom_search::orchestrator::stream_cache_metrics_snapshot();
+    let (status, body) = call(addr, req).await;
+    let depois = adom_search::orchestrator::stream_cache_metrics_snapshot();
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["entries"], 0);
+    assert_eq!(body["quota"], 10);
+    for (key, campo) in [
+        (stream_cache_metrics::HIT, "hit"),
+        (stream_cache_metrics::STALE_SERVED, "staleServed"),
+        (stream_cache_metrics::MISS, "miss"),
+        (stream_cache_metrics::WRITE, "writes"),
+    ] {
+        let valor = body[campo]
+            .as_u64()
+            .unwrap_or_else(|| panic!("{campo} numérico: {body}"));
+        assert!(
+            valor >= antes.get(key).copied().unwrap_or(0)
+                && valor <= depois.get(key).copied().unwrap_or(0),
+            "{campo}={valor} fora de [{:?}, {:?}]",
+            antes.get(key),
+            depois.get(key)
+        );
+    }
+    let hit = body["hit"].as_u64().unwrap_or(0);
+    let stale = body["staleServed"].as_u64().unwrap_or(0);
+    let miss = body["miss"].as_u64().unwrap_or(0);
+    let servidos = hit + stale;
+    let total = servidos + miss;
+    let esperado = if total == 0 {
+        Value::Null
+    } else {
+        json!(servidos as f64 / total as f64)
+    };
+    assert_eq!(
+        body["hitRate"], esperado,
+        "hitRate coerente com os contadores reportados"
+    );
+}

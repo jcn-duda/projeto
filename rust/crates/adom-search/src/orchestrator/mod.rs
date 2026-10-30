@@ -76,6 +76,10 @@ mod route;
 mod search;
 mod search_collect;
 mod sources_rust;
+// Contadores `stream.cache.*` do cache de streams no caminho do usuário.
+// Módulo PÚBLICO: a rota `/streams/stats` do gateway lê as chaves e o
+// hit-rate, não só o snapshot reexportado abaixo.
+pub mod stream_cache_metrics;
 mod tail;
 #[cfg(test)]
 #[path = "tests.rs"]
@@ -117,6 +121,7 @@ pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
 };
+pub use stream_cache_metrics::stream_cache_metrics_snapshot;
 // Tipos que o consumidor de `harvest_support` recebe/entrega, no MESMO caminho
 // dos módulos do orquestrador.
 pub use crate::internal_types::ReleaseEntry;
