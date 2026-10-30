@@ -108,9 +108,6 @@ function isDead(adapterId: string, account: string, infoHash: string): boolean {
   catch (err) { log.warn(`[autofetch] leitura da blacklist falhou: ${log.errorMessage(err)}`); return false; }
 }
 
-/** Diagnóstico (P5) = o `isDead`: o `NativeKv` não tem LRU nem hit/miss — toda leitura já é quiet. */
-function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean { return isDead(adapterId, account, infoHash); }
-
 /** Grava pelo nativo e mantém o índice do painel. TTL <= 0 sai fora (o nativo gravaria PERMANENTE, o mesmo portão do `writeQueue`); erro só loga. */
 function blacklist(adapterId: string, account: string, infoHash: string, ttlSeconds = autofetchLive.effective().autoFetchDeadTtl) {
   if (!adapterId || !account || !infoHash || !(Number(ttlSeconds) > 0)) return;
@@ -383,7 +380,7 @@ function snapshot() {
 export {
   LOCK_TTL_MS, markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker, deadKey, queueKey,
   acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
-  isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
+  isDead, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
   checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
   accountGateBlocked, resetAccountGate, accountGateSnapshot, snapshot, reindexQueues, reindexDead,
 };

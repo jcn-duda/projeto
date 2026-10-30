@@ -7,7 +7,7 @@
 //      volta as três formas (`1`, `{id}`, `{id,meta}`); o L1 não é fonte;
 //   2. TTL do marker vence no relógio real; forgetMarker apaga na hora;
 //   3. markerIdIndex reconstrói id->hash de vários markers, no escopo da conta;
-//   4. blacklist grava `dead:*` (`kvPeek === 1`), isDead/isDeadQuiet valem só
+//   4. blacklist grava `dead:*` (`kvPeek === 1`), isDead vale só
 //      no escopo adapter:conta e somem no TTL;
 //   5. reindexDead repovoa knownDead a partir do KV (plantado com kvSet) e o
 //      snapshot().deadBlacklistCount acompanha;
@@ -143,7 +143,6 @@ test('blacklist grava autofetch:v3:dead:* com o 1 histórico, só no escopo adap
 
     assert.equal(kvPeek(key), 1, 'o KV nativo guarda o 1 que o isDead testa');
     assert.equal(autofetch.isDead(ADAPTER, account, H1), true, 'morre no escopo gravado');
-    assert.equal(autofetch.isDeadQuiet(ADAPTER, account, H1), true, 'isDeadQuiet lê a mesma marca');
     assert.equal(autofetch.isDead(ADAPTER, 'outra_conta', H1), false, 'o morto é por conta');
     assert.equal(autofetch.isDead('torbox', account, H1), false, 'o morto é por adapter');
     assert.equal(kvPeek(autofetch.deadKey(ADAPTER, 'outra_conta', H1)), null, 'nada é gravado fora do escopo');
@@ -165,7 +164,6 @@ test('blacklist com TTL curto some do KV e isDead volta a false', async () => {
     await sleep(1_100);
 
     assert.equal(autofetch.isDead(ADAPTER, account, H2), false, 'vencida não condena');
-    assert.equal(autofetch.isDeadQuiet(ADAPTER, account, H2), false);
     assert.equal(kvPeek(key), null, 'a chave vencida some do KV');
     assert.equal(autofetch.snapshot().deadBlacklistCount, before, 'o snapshot poda o morto vencido');
   } finally {

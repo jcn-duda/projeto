@@ -2,9 +2,10 @@
 //
 // O worker, a fila, a prioridade e o dedupe vivem no Rust (`cargo test -p
 // adom-harvest`/`-p adom-server`). O que o Node ainda precisa garantir é o
-// CONTRATO da ponte: o GET do status normaliza o snapshot, o enqueue valida o
-// IMDb antes de sair (fire-and-forget), e duas falhas sequenciais põem a ponte
-// em backoff — sem martelar um gateway doente. Nada de rede real: o `fetch` é
+// CONTRATO da ponte do painel: o GET do status normaliza o snapshot, e duas
+// falhas sequenciais põem a ponte em backoff — sem martelar um gateway doente.
+// O `harvester_enqueue` da busca não passa por aqui: o gateway o consome no
+// próprio processo (`harvest_effect.rs`). Nada de rede real: o `fetch` é
 // dublado em todos os testes.
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,14 +16,11 @@ import config from '../src/config.js';
 import {
   clearNativeHarvest,
   drainNativeHarvest,
-  enqueueNativeHarvest,
   harvestNativeOnline,
   harvestStatusSnapshot,
   pauseNativeHarvest,
-  pendingNativeHarvest,
   refreshHarvestStatus,
   resetHarvestBridgeForTests,
-  flushPendingHarvest,
 } from '../src/utils/harvest-native.js';
 import { stubFetch, type FetchResponse } from './helpers/stub.js';
 
@@ -111,71 +109,14 @@ test('status: corpo torto não inventa número nem derruba a ponte', async () =>
   }
 });
 
-test('enqueue: pedido válido sai com o corpo do gateway e devolve true', async () => {
-  const stub = stubFetch(() => json({ accepted: true, reason: 'queued' }));
-  try {
-    const sent = enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'movie', reason: 'miss', brProbe: true });
-    assert.equal(sent, true, 'fire-and-forget: true = o pedido saiu');
-    await flushPendingHarvest();
-    assert.equal(stub.calls.length, 1);
-    assert.equal(stub.calls[0].url, `${BASE}/harvest/enqueue`);
-    assert.equal(stub.calls[0].options?.method, 'POST');
-    assert.deepEqual(JSON.parse(String(stub.calls[0].options?.body)), {
-      imdbId: 'tt0107953',
-      type: 'movie',
-      reason: 'miss',
-      brProbe: true,
-    });
-  } finally {
-    stub.restore();
-  }
-});
-
-test('enqueue: série leva temporada/episódio; recusa do gateway não vira erro de ponte', async () => {
-  const stub = stubFetch(() => json({ accepted: false, reason: 'dedupe' }));
-  try {
-    assert.equal(
-      enqueueNativeHarvest({ imdbId: 'TT0107953', type: 'series', season: 2, episode: 5, reason: 'br-gap' }),
-      true,
-      'a recusa é do gateway; a ponte só informa que o pedido saiu',
-    );
-    await flushPendingHarvest();
-    assert.deepEqual(JSON.parse(String(stub.calls[0].options?.body)), {
-      imdbId: 'tt0107953',
-      type: 'series',
-      reason: 'br-gap',
-      season: 2,
-      episode: 5,
-    });
-  } finally {
-    stub.restore();
-  }
-});
-
-test('enqueue: IMDb fora do contrato não toca a rede', () => {
-  const stub = stubFetch(() => json({ accepted: true }));
-  try {
-    assert.equal(enqueueNativeHarvest({ imdbId: '1337x', type: 'movie', reason: 'miss' }), false);
-    assert.equal(enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'anime' as any, reason: 'miss' }), false);
-    assert.equal(stub.calls.length, 0, 'validação local antes do fetch');
-  } finally {
-    stub.restore();
-  }
-});
-
 test('backoff: duas falhas sequenciais bloqueiam a ponte e o próximo pedido nem sai', async () => {
   const failing = stubFetch(() => ({ ok: false, status: 500, json: async () => ({}) }));
   try {
     await refreshHarvestStatus();
     await refreshHarvestStatus();
     assert.equal(failing.calls.length, 2, 'as duas primeiras tentativas saíram');
-    assert.equal(
-      enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'movie', reason: 'miss' }),
-      false,
-      'em backoff a ponte recusa localmente',
-    );
-    await flushPendingHarvest();
-    assert.equal(failing.calls.length, 2, 'e não faz fetch durante o bloqueio');
+    await refreshHarvestStatus();
+    assert.equal(failing.calls.length, 2, 'em backoff a ponte recusa localmente e não faz fetch');
   } finally {
     failing.restore();
   }
@@ -190,25 +131,13 @@ test('backoff: reset devolve a ponte ao ar (sucesso zera as falhas)', async () =
     failing.restore();
   }
   resetHarvestBridgeForTests();
-  const ok = stubFetch(() => json({ accepted: true, reason: 'queued' }));
+  const ok = stubFetch(() => json({ ok: true, enabled: true }));
   try {
-    assert.equal(enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'movie', reason: 'miss' }), true);
-    await flushPendingHarvest();
-    assert.equal(ok.calls.length, 1, 'depois do reset o pedido volta a sair');
+    const snap = await refreshHarvestStatus();
+    assert.equal(snap?.enabled, true, 'depois do reset a ponte volta a falar com o gateway');
+    assert.equal(ok.calls.length, 1, 'e o GET de status sai');
   } finally {
     ok.restore();
-  }
-});
-
-test('pending: devolve a fila nativa da obra (sonda ou colheita comum)', async () => {
-  const stub = stubFetch(() => json({ queued: true, brProbe: true }));
-  try {
-    assert.deepEqual(await pendingNativeHarvest('tt0107953'), { queued: true, brProbe: true });
-    assert.match(String(stub.calls[0].url), /\/harvest\/pending\?imdbId=tt0107953$/, 'GET com o IMDb na querystring');
-    assert.equal(await pendingNativeHarvest('nope'), null, 'IMDb inválido não consulta');
-    assert.equal(stub.calls.length, 1);
-  } finally {
-    stub.restore();
   }
 });
 
@@ -231,12 +160,11 @@ test('pause/drain/clear: o painel lê o retorno do gateway, não um número inve
 
 test('drain: prazo próprio, e vencê-lo não pausa a ponte (o gateway segue drenando)', async () => {
   // O gateway só responde depois de drenar; com o prazo de 2 s das outras rotas
-  // o botão nunca respondia e o timeout pausava a ponte por 30 s, levando junto
-  // os enqueues de miss das buscas.
+  // o botão nunca respondia e o timeout pausava a ponte por 30 s.
   const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
   const stub = stubFetch((rawUrl) => {
     if (rawUrl.endsWith('/harvest/drain')) throw timeout;
-    if (rawUrl.endsWith('/harvest/enqueue')) return json({ accepted: true, reason: 'queued' });
+    if (rawUrl.endsWith('/harvest')) return json({ ok: true, enabled: true });
     return { ok: false, status: 404, json: async () => ({}) };
   });
   try {
@@ -244,11 +172,11 @@ test('drain: prazo próprio, e vencê-lo não pausa a ponte (o gateway segue dre
     assert.deepEqual(await drainNativeHarvest(1), { drained: 0, timedOut: true });
     assert.deepEqual(await drainNativeHarvest(1), { drained: 0, timedOut: true });
     assert.equal(
-      enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'movie', reason: 'miss' }),
+      (await refreshHarvestStatus())?.enabled,
       true,
       'dois drains longos seguidos não colocam a ponte em backoff',
     );
-    await flushPendingHarvest();
+    assert.ok(stub.calls.some((call) => call.url.endsWith('/harvest')), 'e o GET de status sai');
   } finally {
     stub.restore();
   }

@@ -90,7 +90,7 @@ const FROZEN_GOLDENS = ['policy', 'progress', 'fallback', 'expired', 'gates', 's
  * `evict-no-record`), então cada item é um `assert.ok` com o papel declarado.
  */
 const LIVE_BOUNDARY: { file: string; role: string }[] = [
-  { file: 'src/providers/autofetch.ts', role: 'reindexação no boot, markerActive do marker e isDeadQuiet do trace' },
+  { file: 'src/providers/autofetch.ts', role: 'reindexação no boot e as portas de fila/marker/blacklist que o painel e o oráculo consomem' },
   { file: 'src/providers/autofetch-obra.ts', role: 'prefixo `autofetch:v3:o:` do registro F2 (teto, reserva e registro são nativos desde a leva 6e)' },
   { file: 'src/providers/autofetch-obra-summary.ts', role: 'leitura quieta do registro por obra para o painel' },
   { file: 'src/providers/autofetch-marker.ts', role: 'chave e valor do marker no KV nativo' },

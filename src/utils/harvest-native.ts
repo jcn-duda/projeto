@@ -8,10 +8,15 @@
 // escreve, não drena e não lê a fila do L2 (o L1 nasceria vazio e um flush
 // sobrescreveria o trabalho do Rust).
 //
-// O que sobra aqui é o que o painel e os efeitos precisam:
-//   - enfileirar (`POST /harvest/enqueue`) a partir dos efeitos da busca;
+// O que sobra aqui é o que o PAINEL precisa:
 //   - ler o estado (`GET /harvest`) para o bloco do painel;
-//   - pausar / drenar / limpar pelo painel.
+//   - pausar / drenar / limpar / configurar pelo painel.
+//
+// O `harvester_enqueue` da busca NÃO passa por aqui: o gateway o consome no
+// próprio processo (`rust/crates/adom-server/src/harvest_effect.rs` — o salto
+// pelo Node, que só o devolvia à admin 8711, saiu no corte). Se o efeito
+// chegar ao Node (colhedor desligado), é aceito sem execução e contado em
+// `nativeOnly` pela rota `/internal/search/effects`.
 //
 // Contrato BEST-EFFORT, igual ao `streams-store-native`: falha de rede/tempo
 // vira "sem efeito" + backoff curto. Nenhuma dessas chamadas pode derrubar
@@ -61,27 +66,10 @@ export type NativeHarvestStatus = {
   store: string;
 };
 
-export type NativeHarvestEnqueue = {
-  imdbId: string;
-  type: 'movie' | 'series';
-  season?: number;
-  episode?: number;
-  reason: string;
-  brProbe?: boolean;
-};
-
-export type NativeHarvestEnqueueResult = {
-  /** `false` = a ponte nem tentou (backoff, IMDb inválido). */
-  attempted: boolean;
-  accepted: boolean;
-  reason: string;
-};
-
 const SEQUENTIAL_FAILURES_BEFORE_BACKOFF = 2;
 
 let failures = 0;
 let blockedUntil = 0;
-const pending = new Set<Promise<unknown>>();
 let snapshot: NativeHarvestStatus | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -143,15 +131,6 @@ async function request(
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
-}
-
-function track<T>(promise: Promise<T>): Promise<T> {
-  pending.add(promise);
-  void promise.then(
-    () => pending.delete(promise),
-    () => pending.delete(promise),
-  );
-  return promise;
 }
 
 /** Último estado conhecido (sync — o bloco do painel não pode esperar rede). */
@@ -217,57 +196,6 @@ export async function refreshHarvestStatus(): Promise<NativeHarvestStatus | null
   }
 }
 
-/**
- * Enfileira uma obra no colhedor nativo. Fire-and-forget por contrato: os
- * efeitos da busca não esperam e o próximo `miss` reenfileira se este pedido
- * se perder. Devolve só "o pedido saiu".
- */
-export function enqueueNativeHarvest(req: NativeHarvestEnqueue): boolean {
-  const imdbId = String(req?.imdbId || '').trim().toLowerCase();
-  if (!/^tt\d+$/.test(imdbId) || (req.type !== 'movie' && req.type !== 'series')) return false;
-  if (!available()) return false;
-  const body: Record<string, unknown> = {
-    imdbId,
-    type: req.type,
-    reason: String(req.reason || 'miss'),
-  };
-  if (Number.isFinite(req.season)) body.season = req.season;
-  if (Number.isFinite(req.episode)) body.episode = req.episode;
-  if (req.brProbe === true) body.brProbe = true;
-  track(
-    request('/harvest/enqueue', { body })
-      .then((json) => {
-        noteSuccess();
-        const out = json as { accepted?: unknown; reason?: unknown };
-        if (out?.accepted === true) metrics.count('harvest.bridge.enqueued');
-        else metrics.count(`harvest.bridge.${String(out?.reason || 'rejected')}`);
-      })
-      .catch((err) => {
-        noteFailure('enqueue');
-        log.warn(`[harvest] enqueue nativo falhou (${imdbId}): ${log.errorMessage(err)}`);
-      }),
-  );
-  return true;
-}
-
-/** `requestBrProbe` do Node: a obra já está na fila nativa, e como sonda? */
-export async function pendingNativeHarvest(imdbId: string): Promise<{ queued: boolean; brProbe: boolean } | null> {
-  const target = String(imdbId || '').trim().toLowerCase();
-  if (!/^tt\d+$/.test(target) || !available()) return null;
-  try {
-    const json = (await request(`/harvest/pending?imdbId=${encodeURIComponent(target)}`, { method: 'GET' })) as {
-      queued?: unknown;
-      brProbe?: unknown;
-    };
-    noteSuccess();
-    return { queued: json?.queued === true, brProbe: json?.brProbe === true };
-  } catch (err) {
-    noteFailure('pending');
-    log.warn(`[harvest] pending nativo falhou (${target}): ${log.errorMessage(err)}`);
-    return null;
-  }
-}
-
 /** Pausa/retoma o worker. Devolve o estado efetivo (ou `null` se a ponte caiu). */
 export async function pauseNativeHarvest(paused: boolean): Promise<boolean | null> {
   if (!available()) return null;
@@ -319,8 +247,8 @@ function isTimeout(err: unknown): boolean {
 /**
  * Drena à mão até `max` obras. O gateway só responde DEPOIS de drenar, então
  * o pedido tem prazo próprio (`drainTimeoutMs`), e vencê-lo NÃO pausa a ponte:
- * o loop do gateway segue drenando, e pausar bloquearia os enqueues de miss
- * das buscas por 30 s (o "colhedor indisponível" falso do botão Drenar).
+ * o loop do gateway segue drenando, e pausar bloquearia os pedidos do painel
+ * por 30 s (o "colhedor indisponível" falso do botão Drenar).
  */
 export async function drainNativeHarvest(max = 5): Promise<NativeHarvestDrain> {
   if (!available()) return { drained: 0, timedOut: false };
@@ -379,13 +307,6 @@ export function stopHarvestPolling(): void {
   if (!pollTimer) return;
   clearInterval(pollTimer);
   pollTimer = null;
-}
-
-/** Drena os pedidos em voo (testes e shutdown). */
-export async function flushPendingHarvest(): Promise<void> {
-  while (pending.size > 0) {
-    await Promise.allSettled(Array.from(pending));
-  }
 }
 
 /** Só testes: esquece backoff/snapshot do processo. */
