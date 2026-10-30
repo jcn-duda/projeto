@@ -12,6 +12,7 @@ import { autofetchBlock } from './dashboard-autofetch-block.js';
 // pela catraca, o arquivo estava exatamente no teto de 400 linhas.
 import { debridBlock } from './dashboard-debrid-block.js';
 import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
+import { loadNativeCatalog } from '../providers/catalog-native.js';
 
 export const ALL_BLOCKS = [
   'general',
@@ -183,7 +184,8 @@ export async function computeStatusPayload(
   let memoIndexers: Promise<any> | null = null;
   const getIndexers = () => {
     // O status vivo é medido no gateway: lê o placar antes de decorar o catálogo.
-    if (!memoIndexers) memoIndexers = refreshNativeIndexerStatus().then(() => services.jackettCatalog.load());
+    // O catálogo também sai do gateway (ponte nativa); sem ela, o TS consulta o Jackett.
+    if (!memoIndexers) memoIndexers = refreshNativeIndexerStatus().then(() => loadNativeCatalog()).then((native) => native ?? services.jackettCatalog.load());
     return memoIndexers;
   };
 

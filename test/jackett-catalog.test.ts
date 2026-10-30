@@ -3,7 +3,9 @@ import assert from 'node:assert';
 
 import config from '../src/config.js';
 import { parseXml, fallback, load, resetCatalogCache, syncAutoIndexers } from '../src/providers/jackett-catalog.js';
+import { loadNativeCatalog } from '../src/providers/catalog-native.js';
 import { jackettServiceFlag } from '../src/routes/dashboard-status-helpers.js';
+import { stubFetch } from './helpers/stub.js';
 
 test('parseXml lê catálogo Torznab sem expor campos extras', () => {
   const brId = config.jackett.ptBrIndexers[0] || 'comandotorrents';
@@ -187,6 +189,68 @@ test('lista automática: sem JACKETT_INDEXERS o catálogo vivo vira a lista padr
     config.jackett.url = saved.url;
     config.jackett.indexersAuto = saved.auto;
     ref.splice(0, ref.length, ...saved.indexers);
+    resetCatalogCache();
+  }
+});
+
+// F4.4 — ponte do catálogo NATIVO (gateway, admin 8711). A ponte vive em
+// `catalog-native.ts`; aqui o assunto é o shape que ela entrega (igual ao
+// `load()` do TS) e a queda para o caminho de sempre quando o gateway não
+// responde. Sem rede: fetch dublado (stubFetch).
+
+test('ponte nativa: cards do gateway entram com o shape do load() do TS (status + source)', async () => {
+  const saved = { url: config.streamStore.url, token: config.streamStore.token };
+  config.streamStore.url = 'http://127.0.0.1:8711';
+  config.streamStore.token = 'tok-catalog-native';
+  let sent: { headers?: Record<string, string> } = {};
+  const stub = stubFetch((url, options) => {
+    sent = { headers: options?.headers as Record<string, string> };
+    assert.match(url, /\/indexers\/catalog$/);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        cards: [
+          { id: 'Bludv-Cardigann', label: 'BLUDV', language: 'pt-BR', isBr: true },
+          { id: 'mico', label: 'Mico Leão Dublado', language: 'pt-BR', isBr: true, virtual: true },
+        ],
+        source: 'live',
+      }),
+    };
+  });
+  try {
+    const list = await loadNativeCatalog();
+    assert.ok(list, 'a ponte respondeu');
+    assert.equal(list.source, 'live', 'o source vem do gateway, não do TS');
+    assert.equal(list.length, 2);
+    assert.equal(list[0].id, 'bludv-cardigann', 'id normalizado como no TS');
+    assert.ok('status' in list[0], 'decoração de status presente no shape');
+    assert.equal(list[1].virtual, true, 'o virtual do Mico atravessa a ponte');
+    assert.equal(sent.headers?.['x-indexer-test-token'], 'tok-catalog-native');
+    assert.equal(jackettServiceFlag(list), true, 'catálogo vivo do gateway prova Jackett vivo');
+  } finally {
+    stub.restore();
+    config.streamStore.url = saved.url;
+    config.streamStore.token = saved.token;
+  }
+});
+
+test('ponte nativa fora devolve null e o caminho TS segue como única fonte', async () => {
+  resetCatalogCache();
+  const saved = { apiKey: config.jackett.apiKey, url: config.jackett.url };
+  const realFetch = globalThis.fetch;
+  config.jackett.apiKey = '';
+  // O dublê cobre a ponte E o TS no mesmo teste: ambos falham/fallback.
+  globalThis.fetch = (async () => { throw new Error('ECONNREFUSED'); }) as typeof fetch;
+  try {
+    assert.equal(await loadNativeCatalog(), null, 'fail-open: null, não lançamento');
+    const list = await load();
+    assert.equal(list.source, 'fallback', 'sem a ponte o TS alimenta como sempre');
+    assert.equal(jackettServiceFlag(list), 'naomedido', 'fallback do TS não vira "live" por causa da ponte');
+  } finally {
+    globalThis.fetch = realFetch;
+    config.jackett.apiKey = saved.apiKey;
     resetCatalogCache();
   }
 });

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { asyncRoute } from './async.js';
+import { loadNativeCatalog } from '../providers/catalog-native.js';
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { stampRelativeImports } from './client-imports.js';
@@ -211,7 +212,8 @@ function makePublicHandlers(services: AppServices) {
 
   const defaults = asyncRoute(async (_req, res) => {
     const { debridApiKey, ...safe } = services.runtime.defaults();
-    const jackettIndexers = await services.jackettCatalog.load();
+    // Catálogo: ponte nativa do gateway primeiro; sem ela, o TS consulta o Jackett.
+    const jackettIndexers = (await loadNativeCatalog()) ?? (await services.jackettCatalog.load());
     res.json({
       ...safe,
       jackettIndexersSelected: safe.jackettIndexers,
