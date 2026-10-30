@@ -196,6 +196,19 @@ npm run docker:up / docker:logs
   /indexers/status` expõe, e `src/providers/indexer-status-native.ts` lê a
   cada 30 s e grava pelo `indexerStatus.record` (estado, TTL da medição,
   alerta de BR offline). Sem a ponte o painel mostra todos "desconhecido".
+  O **catálogo de indexers** (`/configure` e painel) também saiu da coleta do
+  Node: o gateway coleta o XML do Jackett (`adom-sources::jackett::catalog`),
+  guarda memo/TTL com retry de fallback (`catalog_admin`), expõe `GET
+  /indexers/catalog` na mesma admin, e `src/providers/catalog-native.ts` lê —
+  `/defaults.json` e os blocos do painel tentam a ponte primeiro e caem no
+  `jackett-catalog.ts` do TS só com ela fora (fail-open, mesmo shape).
+  O **KV persistente do Node é só a ponte nativa** (`src/utils/native-kv.ts`):
+  órfãos do L1 (`notify`, `imdb-seed`, `indexer-status`, `magnetdb-persist`)
+  e as chaves `cfg:v1:*` (`autofetch-live*`, `harvester-*`, `crawler-live`)
+  leem/escrevem pela mesma tabela `cache` do `data/cache.db` (kvSet com
+  `ttl<=0` grava permanente — gate `ttl>0` obrigatório); o podador é
+  `prune_expired` do napi (`kvPruneExpired`), chamado pelo sweep de 10 min do
+  `magnetdb-persist`.
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
