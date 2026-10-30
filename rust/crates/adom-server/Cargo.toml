@@ -21,6 +21,9 @@ adom-search = { path = "../adom-search" }
 # Metadados nativos (C5): `MetaSources` + store do cache.db.
 adom-sources = { path = "../adom-sources" }
 adom-store = { path = "../adom-store" }
+# Catálogo de indexers (F4.2): `load_catalog` do adom-sources recebe o Client
+# daqui. Mesma versão/features do workspace (rustls, sem OpenSSL).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 axum = { version = "0.8", features = ["json"] }
 bytes = "1"
 http = "1"

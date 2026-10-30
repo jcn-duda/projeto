@@ -54,8 +54,10 @@ impl WarmPort for FakePort {
     fn warm<'a>(&'a self, _api_key: &'a str, hashes: &'a [String]) -> WarmFuture<'a> {
         Box::pin(async move {
             self.calls.lock().unwrap().push(hashes.to_vec());
-            let mut report = WarmReport::default();
-            report.attempted = hashes.len();
+            let mut report = WarmReport {
+                attempted: hashes.len(),
+                ..WarmReport::default()
+            };
             for hash in hashes {
                 report.signals.push((hash.clone(), WarmSignal::Miss));
             }

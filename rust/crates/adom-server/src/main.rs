@@ -3,6 +3,8 @@
 mod al_sweeps;
 /// Worker do Chupim em modo preparado (sem dreno até a fase B).
 mod autofetch;
+/// Catálogo de indexers do Jackett no gateway (F4.2): cache/refresh + rota.
+mod catalog_admin;
 mod config;
 /// Interrogatório de áudio do tail (T3-L7a): fila e veredito sem o Node.
 mod dub_audit;

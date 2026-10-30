@@ -1,10 +1,9 @@
 //! API ADMINISTRATIVA do store nativo de `streams:v21` (loopback + token).
 //!
 //! O SWR do corte mora em `data/streams.db` (processo do gateway). Quem precisa
-//! MEXER nele é o Node: `/resolve` invalida a lista de uma obra quando o play
-//! prova `NoVideoError`/`DubLieError`/`EpisodePickError`/451, o painel limpa o
-//! cache no `clear-cache`, e o `/stream-trace.json` lê o ledger. Sem esta
-//! superfície essas três coisas ficavam inertes no corte (dívida F4.4a).
+//! MEXER nele é o Node: `/resolve` invalida a obra quando o play prova
+//! `NoVideoError`/`DubLieError`/`EpisodePickError`/451, o painel limpa o cache
+//! no `clear-cache`, e o `/stream-trace.json` lê o ledger (dívida F4.4a do corte).
 //!
 //! Ela NÃO é pública: escuta só em loopback (`STREAM_STORE_ADMIN_LISTEN`,
 //! default `127.0.0.1:8711`), exige `X-Indexer-Test-Token` e nunca é montada no
@@ -184,6 +183,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::al_sweeps::admin_router())
         .merge(crate::rd_warmer::admin_router())
         .merge(crate::magnet_bank_admin::admin_router())
+        .merge(crate::catalog_admin::router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }

@@ -113,7 +113,7 @@ impl OperatorAccounts {
         if !gate {
             return None;
         }
-        if env_text("DEBRID_SERVICE").to_ascii_lowercase() != "realdebrid" {
+        if !env_text("DEBRID_SERVICE").eq_ignore_ascii_case("realdebrid") {
             return None;
         }
         account_from("env", &env_text("DEBRID_API_KEY"))

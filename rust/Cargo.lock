@@ -177,6 +177,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",

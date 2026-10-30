@@ -198,10 +198,9 @@ pub async fn run(config: Config) -> Result<(), String> {
         .map_err(|err| format!("servidor encerrou: {err}"))
 }
 
-/// Sobe a API administrativa do `streams.db`, do colhedor e do warmer
-/// (loopback + token) em segundo plano. Falha de bind é só log: o `/stream`
-/// não depende dela, e as chamadas do Node degradam para "sem efeito" (o Node
-/// loga e segue).
+/// Sobe a API administrativa do `streams.db`, do colhedor, do warmer e do
+/// catálogo de indexers (loopback + token) em segundo plano. Falha de bind é
+/// só log: o `/stream` não depende dela e o Node degrada para "sem efeito".
 fn spawn_store_admin(
     stores: &stream::StreamStores,
     grace_seconds: u64,
@@ -221,6 +220,7 @@ fn spawn_store_admin(
             return;
         }
     };
+    crate::catalog_admin::spawn_from_env();
     tokio::spawn(async move {
         if let Err(err) = crate::store_admin::serve(
             cfg,
