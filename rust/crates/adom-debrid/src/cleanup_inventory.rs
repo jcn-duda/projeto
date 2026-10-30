@@ -180,7 +180,16 @@ pub fn refresh_known_before(
         let hashes = inv
             .load_inner(&ad, &key, &account, durable.as_deref())
             .await;
+        // Falha do `/magnet/status`: a referência some e a próxima checagem tenta
+        // de novo. Sem o log a limpeza da conta fica fechada sem pista do motivo.
+        if hashes.is_none() {
+            eprintln!("[alldebrid] inventário da conta indisponível (/magnet/status falhou): limpeza fechada até a próxima tentativa");
+        }
         inv.finish(&account, hashes);
     });
     true
 }
+
+#[cfg(test)]
+#[path = "cleanup_inventory_tests.rs"]
+mod tests;

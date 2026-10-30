@@ -1,3 +1,6 @@
+/// Fatos da limpeza AllDebrid lidos do KV do próprio processo (feed de holds e
+/// `held` do play), sem a rota do Node.
+mod al_cleanup_facts;
 /// Varreduras destrutivas da AllDebrid (agendador + fatos): nasce desligado e
 /// só age com inventário e hold provados.
 mod al_sweeps;

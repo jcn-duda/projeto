@@ -237,7 +237,7 @@ impl AdapterDebridFactory {
         AdapterDebridFactory { store, holds: None }
     }
 
-    /// Liga o feed de holds (produção: `NodeHoldsFeed::from_env()`).
+    /// Liga o feed de holds (produção: `adom-server::al_cleanup_facts::NativeHoldsFeed`).
     pub fn with_holds(mut self, holds: Option<Arc<dyn HoldsFeed>>) -> Self {
         self.holds = holds;
         self
@@ -250,8 +250,6 @@ impl DebridFactory for AdapterDebridFactory {
             return Box::new(NoDebridCheck);
         }
         let mut check = AdapterDebridCheck::new(ctx.service.clone(), ctx.api_key.clone());
-        check.encoded = ctx.encoded.clone();
-        check.deadline_at = ctx.deadline_at;
         check.store = self.store.clone();
         check.holds = self.holds.clone();
         Box::new(check)

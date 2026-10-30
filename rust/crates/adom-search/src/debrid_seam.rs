@@ -15,11 +15,11 @@
 //! saíram. Serviço fora do despacho local degrada para `Unknown` honesto
 //! (nada de rodar o pipeline TS por baixo).
 //!
-//! **Feed de holds (AllDebrid):** o hold volátil do autofetch mora no Node, e a
-//! limpeza nativa exige `holds_complete` + inventário. Com `DEBRID_AL_HOLDS=on`
-//! (default OFF no código, ON no compose) o seam pergunta os fatos à rota
-//! interna `/internal/debrid/holds` ANTES da checagem nativa e os entrega ao
-//! `verdict`. Sem resposta, conta divergente ou cobertura incompleta a nativa
+//! **Feed de holds (AllDebrid):** o hold volátil do autofetch e a retenção BR
+//! moram no KV nativo do gateway, e a limpeza nativa exige `holds_complete` +
+//! inventário. Com `DEBRID_AL_HOLDS=on` (default OFF no código, ON no compose)
+//! o seam pede os fatos ao [`HoldsFeed`] ANTES da checagem nativa e os entrega
+//! ao `verdict`. Sem feed, conta divergente ou cobertura incompleta a nativa
 //! segue READ-ONLY — nunca "completa" por omissão. O feed só vale com
 //! `DEBRID_AL_CLEANUP=on`.
 
@@ -32,61 +32,23 @@ use tokio::runtime::{Handle, Runtime};
 
 use crate::list_builder::{DebridAnswer, DebridCheck};
 use adom_debrid::alldebrid_cleanup::{account_scope, CleanupMode};
-use adom_debrid::holds_feed::{HoldsFacts, InternalHoldsClient};
+use adom_debrid::holds_feed::HoldsFacts;
 use adom_debrid::store::Store;
 use adom_debrid::verdict::{self, CheckOutcome, ServiceCheck};
 
 use crate::orchestrator::debrid_al_metrics;
 
-/// Feed dos holds do autofetch (memória do Node) para a limpeza nativa da
-/// AllDebrid. Implementação real = [`NodeHoldsFeed`] (rota interna); testes
-/// injetam stub. Contrato: `encoded` + lote, sem apiKey (a chave mora no
-/// `encoded`).
+/// Fatos do AllDebrid que só o processo conhece (hold do autofetch, retenção
+/// `adprot`, inventário). Produção = `adom-server::al_cleanup_facts::NativeHoldsFeed`
+/// (KV nativo do próprio gateway); testes injetam stub. A conta sai da própria
+/// chave: o feed não recebe o segmento de config do usuário.
 pub trait HoldsFeed: Send + Sync {
-    fn facts(
-        &self,
-        encoded: &str,
-        service: &str,
-        hashes: &[String],
-        deadline_at: Option<i64>,
-    ) -> Result<HoldsFacts, String>;
-}
-
-/// Cliente HTTP real da rota `/internal/debrid/holds` (loopback + token +
-/// prazo curto). Só existe com `DEBRID_AL_HOLDS=on`; sem a flag não há feed.
-pub struct NodeHoldsFeed {
-    client: InternalHoldsClient,
-}
-
-impl NodeHoldsFeed {
-    /// Do ambiente (`INTERNAL_CHECK_URL` + token interno). `None` = flag OFF,
-    /// sem token ou base fora do loopback — a nativa segue read-only.
-    pub fn from_env() -> Option<Self> {
-        Some(Self {
-            client: InternalHoldsClient::from_env()?,
-        })
-    }
-}
-
-impl HoldsFeed for NodeHoldsFeed {
-    fn facts(
-        &self,
-        encoded: &str,
-        service: &str,
-        hashes: &[String],
-        deadline_at: Option<i64>,
-    ) -> Result<HoldsFacts, String> {
-        block_on(self.client.fetch(encoded, service, hashes, deadline_at))
-    }
+    fn facts(&self, api_key: &str, service: &str, hashes: &[String]) -> Result<HoldsFacts, String>;
 }
 
 pub struct AdapterDebridCheck {
     pub service: String,
     pub api_key: String,
-    /// Segmento de config do usuário: o feed de holds (e só ele) o usa.
-    pub encoded: Option<String>,
-    /// Prazo absoluto (epoch ms) da busca — o feed de holds o respeita.
-    pub deadline_at: Option<i64>,
     /// Prazo da checagem local; `None` usa o default do adaptador.
     pub timeout: Option<Duration>,
     /// Ledger do RD (`rdc:v2`); `None` deixa todo hash `Unknown`.
@@ -116,8 +78,6 @@ impl AdapterDebridCheck {
         Self {
             service: service.into(),
             api_key: api_key.into(),
-            encoded: None,
-            deadline_at: None,
             timeout: None,
             store: None,
             holds: None,
@@ -215,9 +175,9 @@ impl AdapterDebridCheck {
     }
 
     /// Fatos do feed para ESTA busca. Condições, todas necessárias: AllDebrid,
-    /// `DEBRID_AL_CLEANUP=on` (sem a flag os fatos não teriam uso), feed
-    /// configurado e `encoded` presente. A conta do feed tem que ser a MESMA da
-    /// checagem; a cobertura do lote é reconferida no `verdict`.
+    /// `DEBRID_AL_CLEANUP=on` (sem a flag os fatos não teriam uso) e feed
+    /// configurado. A conta do feed tem que ser a MESMA da checagem; a
+    /// cobertura do lote é reconferida no `verdict`.
     fn cleanup_facts(&self, hashes: &[String]) -> Option<HoldsFacts> {
         if self.service != "alldebrid" {
             return None;
@@ -226,8 +186,7 @@ impl AdapterDebridCheck {
             return None;
         }
         let feed = self.holds.as_ref()?;
-        let encoded = self.encoded.as_deref().filter(|value| !value.is_empty())?;
-        let facts = match feed.facts(encoded, &self.service, hashes, self.deadline_at) {
+        let facts = match feed.facts(&self.api_key, &self.service, hashes) {
             Ok(facts) => facts,
             Err(error) => {
                 debrid_al_metrics::note_holds_missing();

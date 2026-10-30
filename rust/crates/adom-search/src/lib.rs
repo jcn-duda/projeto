@@ -55,7 +55,7 @@ pub use list_builder::{
 };
 // Costura real com os adaptadores de debrid + feed de holds do autofetch
 // (`DEBRID_AL_HOLDS`). A checagem da AllDebrid é nativa e incondicional.
-pub use debrid_seam::{answer_of, AdapterDebridCheck, HoldsFeed, NodeHoldsFeed};
+pub use debrid_seam::{answer_of, AdapterDebridCheck, HoldsFeed};
 pub use raw_item::RawItem;
 // Store do `raw:v1` (o gateway injeta o mesmo `cache.db` do Node no coletor
 // BLUDV nativo).

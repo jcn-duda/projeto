@@ -37,7 +37,7 @@ impl RecordingBridge {
 }
 
 impl PlayBridge for RecordingBridge {
-    fn held<'a>(&'a self, _encoded: &'a str, _hash: &'a str) -> BridgeFuture<'a, bool> {
+    fn held<'a>(&'a self, _api_key: &'a str, _hash: &'a str) -> BridgeFuture<'a, bool> {
         self.held_calls.fetch_add(1, Ordering::SeqCst);
         let held = self.held;
         Box::pin(async move { held })
@@ -263,14 +263,4 @@ async fn ainda_baixando_registra_frio_sem_marcar_vivo() {
     assert_eq!(oks.len(), 1);
     assert!(!oks[0].1, "sem link não é vivo");
     assert!(oks[0].2, "frio medido vai ao aplicador");
-}
-
-#[test]
-fn ponte_so_em_loopback() {
-    assert!(is_loopback_base("http://127.0.0.1:7100"));
-    assert!(is_loopback_base("http://localhost:7100/"));
-    assert!(is_loopback_base("http://[::1]:7100"));
-    assert!(!is_loopback_base("http://10.0.0.5:7100"));
-    assert!(!is_loopback_base("https://127.0.0.1.example.com"));
-    assert!(!is_loopback_base("127.0.0.1:7100"));
 }

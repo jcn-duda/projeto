@@ -4,7 +4,7 @@
 use adom_debrid::alldebrid_cleanup::account_scope;
 use adom_debrid::holds_feed::HoldsFacts;
 
-use super::{deadline, native_stub, service, stream, ENCODED, HIT, MISS};
+use super::{native_stub, service, stream, HIT, MISS};
 use crate::debrid_seam::{AdapterDebridCheck, HoldsFeed};
 use crate::list_builder::{DebridAnswer, DebridCheck};
 
@@ -65,7 +65,7 @@ struct StubHolds {
     result: Result<HoldsFacts, String>,
     calls: std::sync::Mutex<usize>,
     hashes: std::sync::Mutex<Vec<String>>,
-    encoded: std::sync::Mutex<String>,
+    api_key: std::sync::Mutex<String>,
 }
 
 impl StubHolds {
@@ -74,7 +74,7 @@ impl StubHolds {
             result: Ok(facts),
             calls: std::sync::Mutex::new(0),
             hashes: std::sync::Mutex::new(Vec::new()),
-            encoded: std::sync::Mutex::new(String::new()),
+            api_key: std::sync::Mutex::new(String::new()),
         }
     }
     fn err() -> Self {
@@ -82,7 +82,7 @@ impl StubHolds {
             result: Err("rota de holds fora".into()),
             calls: std::sync::Mutex::new(0),
             hashes: std::sync::Mutex::new(Vec::new()),
-            encoded: std::sync::Mutex::new(String::new()),
+            api_key: std::sync::Mutex::new(String::new()),
         }
     }
 }
@@ -90,22 +90,19 @@ impl StubHolds {
 impl HoldsFeed for StubHolds {
     fn facts(
         &self,
-        encoded: &str,
+        api_key: &str,
         _service: &str,
         hashes: &[String],
-        _deadline_at: Option<i64>,
     ) -> Result<HoldsFacts, String> {
         *self.calls.lock().unwrap() += 1;
         *self.hashes.lock().unwrap() = hashes.to_vec();
-        *self.encoded.lock().unwrap() = encoded.to_string();
+        *self.api_key.lock().unwrap() = api_key.to_string();
         self.result.clone()
     }
 }
 
 fn native_check() -> AdapterDebridCheck {
     let mut debrid = AdapterDebridCheck::new("alldebrid", USER_KEY);
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
     debrid
 }
@@ -135,7 +132,11 @@ fn alldebrid_on_com_feed_completo_entrega_os_fatos() {
         vec![HIT.to_string(), MISS.to_string()],
         "o feed recebe o lote inteiro, não a 1ª stream"
     );
-    assert_eq!(*feed.encoded.lock().unwrap(), ENCODED, "encoded do usuário");
+    assert_eq!(
+        *feed.api_key.lock().unwrap(),
+        USER_KEY,
+        "a chave da conta vai ao feed"
+    );
     let facts = debrid.last_facts().expect("fatos entregues à nativa");
     assert!(facts.covers(&[HIT.into(), MISS.into()]));
     assert_eq!(debrid.local_checks(), 1);
@@ -239,8 +240,6 @@ fn sem_limpeza_o_feed_nao_e_consultado() {
 fn outro_servico_nao_consulta_o_feed() {
     let _env = FeedEnv::set(&[("DEBRID_AL_CLEANUP", Some("on"))]);
     let mut debrid = AdapterDebridCheck::new("torbox", USER_KEY);
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     let feed = std::sync::Arc::new(StubHolds::ok(holds_facts(
         &account_scope(USER_KEY),
         true,

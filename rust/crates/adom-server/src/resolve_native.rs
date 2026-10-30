@@ -14,7 +14,7 @@
 //! do RD e a invalidação das listas) são gravados aqui mesmo, pelo aplicador
 //! `play_effects_native`. No erro a rota espera a gravação antes de responder;
 //! no sucesso o 302 sai na hora e a gravação segue em fundo. O `held` (hold da
-//! AllDebrid) continua perguntado ao Node pela `resolve_bridge`.
+//! AllDebrid) é lido do KV do processo pela `resolve_bridge`.
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -231,8 +231,9 @@ pub async fn handle(path: &str, query: Option<&str>, ctx: &NativeContext) -> Res
         ResolveVerify::Forbidden | ResolveVerify::Unsigned => return forbidden(),
     }
     let hint = play_hint(&play);
-    let encoded = play.encoded.clone().unwrap_or_default();
-    let held = config.service != "alldebrid" || ctx.bridge.held(&encoded, &play.info_hash).await;
+    // `held` nativo: a chave da conta (já decodificada) lê o KV do processo.
+    let held =
+        config.service != "alldebrid" || ctx.bridge.held(&config.api_key, &play.info_hash).await;
     // A chave da conta vai só para o aplicador (memória); nunca para log ou corpo.
     let job = PlayJob {
         service: config.service.clone(),

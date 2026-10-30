@@ -175,8 +175,8 @@ pub async fn run(config: Config) -> Result<(), String> {
         stream_native: stream_cut,
         resolve_secret: config.resolve_secret,
         resolver: Arc::new(resolve_native::DebridPlay::new()),
-        // O play é sempre nativo: a ponte com o Node é o caminho de produção.
-        bridge: crate::resolve_bridge::from_env(),
+        // O play é sempre nativo: o `held` lê o KV do próprio processo.
+        bridge: crate::resolve_bridge::native(),
         // Efeitos gravados aqui; o `streams.db` é o handle deste processo.
         effects: play_effects_native::NativePlayEffects::from_env(
             stores.as_ref().and_then(|s| s.streams.clone()),

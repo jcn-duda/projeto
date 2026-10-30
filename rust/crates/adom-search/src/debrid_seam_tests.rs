@@ -16,7 +16,6 @@ mod part2;
 
 const HIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const MISS: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const ENCODED: &str = "eyJwIjoiamFja2V0dCJ9";
 
 fn outcome(
     cached: Vec<String>,
@@ -41,14 +40,6 @@ fn stream(hash: &str) -> RankingStream {
         info_hash: Some(hash.to_string()),
         ..RankingStream::default()
     }
-}
-
-fn deadline() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64
-        + 5_000
 }
 
 #[test]
@@ -122,8 +113,6 @@ fn native_stub(
 #[test]
 fn alldebrid_usa_nativa_e_nao_tem_segundo_caminho() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
     debrid.prepare(&[HIT.into(), MISS.into()]);
     assert_eq!(
@@ -139,8 +128,6 @@ fn alldebrid_usa_nativa_e_nao_tem_segundo_caminho() {
 #[test]
 fn alldebrid_falha_pos_upload_e_unknown() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![], false, None, true)));
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
     assert_eq!(debrid.local_checks(), 1);
@@ -150,8 +137,6 @@ fn alldebrid_falha_pos_upload_e_unknown() {
 #[test]
 fn alldebrid_unusable_vira_unusable() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(
         vec![],
         false,
@@ -167,8 +152,6 @@ fn alldebrid_unusable_vira_unusable() {
 #[test]
 fn debridlink_local_e_unknown_sem_rede() {
     let mut debrid = AdapterDebridCheck::new("debridlink", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     debrid.prepare(&[HIT.into()]);
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
     assert_eq!(debrid.local_checks(), 1);
@@ -199,8 +182,6 @@ fn memo_um_check_para_varios_streams() {
 #[test]
 fn stream_sem_hash_e_unknown_sem_gastar_rede() {
     let mut debrid = AdapterDebridCheck::new("torbox", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
     let vazio = RankingStream::default();
     assert_eq!(debrid.check(&vazio), DebridAnswer::Unknown);
     assert_eq!(debrid.local_checks(), 0);
