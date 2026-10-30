@@ -322,8 +322,11 @@ pub(crate) fn spawn(
     std::thread::Builder::new()
         .name("adom-autofetch".into())
         .spawn(move || {
+            // IO ligado: os portos de debrid fazem HTTP (`reqwest`) DENTRO deste
+            // runtime; só com `enable_time` a primeira conexão TCP entrava em
+            // pânico ("IO is disabled") e toda checagem do lote falhava.
             let runtime = match tokio::runtime::Builder::new_current_thread()
-                .enable_time()
+                .enable_all()
                 .build()
             {
                 Ok(runtime) => runtime,
