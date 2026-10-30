@@ -94,6 +94,14 @@ impl NativeKv {
         self.inner.remaining_seconds(&key, now_ms).map_err(erro)
     }
 
+    /// Apaga as linhas VENCIDAS com o prefixo (`expires_at` positivo e `<=
+    /// nowMs`) e devolve quantas saíram; permanentes ficam. Existe porque o TTL
+    /// só é aplicado na leitura: namespace que ninguém relê cresce até a cota.
+    #[napi]
+    pub fn prune_expired(&self, prefix: String, now_ms: i64) -> napi::Result<u32> {
+        self.inner.prune_expired(&prefix, now_ms).map_err(erro)
+    }
+
     /// Apaga o namespace inteiro (`clearNamespace` de um dono Rust) e devolve
     /// quantas linhas saíram.
     #[napi]

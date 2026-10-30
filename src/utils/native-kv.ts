@@ -18,6 +18,8 @@ export type NativeKvNapi = {
   forget(key: string): boolean;
   /** TTL restante em segundos; `null` = ausente, permanente ou vencida. */
   remainingSeconds(key: string, nowMs: number): number | null;
+  /** Apaga as chaves VENCIDAS com o prefixo e devolve quantas saíram. */
+  pruneExpired(prefix: string, nowMs: number): number;
   /** Apaga o namespace inteiro e devolve quantas linhas saíram. */
   forgetPrefix(prefix: string): number;
 };
@@ -84,6 +86,19 @@ export function kvRemaining(key: string, nowMs = Date.now()): number | null {
     return nativeKv().remainingSeconds(String(key || ''), nowMs);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Poda as chaves VENCIDAS do namespace Rust-owned (o TTL só é aplicado na
+ * leitura: namespace que ninguém relê cresce até a cota sem esta poda).
+ * Permanentes (`ttlSeconds <= 0`) ficam; devolve quantas linhas saíram.
+ */
+export function kvPruneExpired(prefix: string, nowMs = Date.now()): number {
+  try {
+    return nativeKv().pruneExpired(String(prefix || ''), nowMs);
+  } catch {
+    return 0;
   }
 }
 
