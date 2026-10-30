@@ -4,6 +4,7 @@ import * as log from '../../../../src/utils/logger.js';
 import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
 import { current } from '../../../../src/debrid/registry.js';
 import { bridgedResolveLink } from './bridge.js';
+import { withBodies } from '../debrid-bodies/index.js';
 
 /**
  * Resolve o link no adaptador CORRENTE, pela ponte de play do oráculo
@@ -25,7 +26,8 @@ async function resolveLink(infoHash: string, episode?: PlayHint) {
  * como recusa silenciosa em vez de exceção.
  */
 async function enqueue(infoHash: string, episode?: PlayHint) {
-  const adapter = current();
+  const wrapped = current();
+  const adapter = wrapped ? withBodies(wrapped) : null;
   if (!adapter || typeof adapter.enqueue !== 'function') return false;
   try {
     return await adapter.enqueue(opts().debridApiKey, infoHash, episode || {});

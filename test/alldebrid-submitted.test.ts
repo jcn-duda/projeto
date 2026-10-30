@@ -21,9 +21,8 @@ import {
   resetSubmittedForTests,
   submittedAt,
   forgetSubmitted,
-  waitProvenanceReference,
 } from '../src/debrid/alldebrid-inventory.js';
-import { enqueue } from '../src/debrid/alldebrid-play.js';
+import { enqueue, waitProvenanceReference } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 
 const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
 

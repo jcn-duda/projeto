@@ -14,7 +14,7 @@
  */
 import * as metrics from '../../../src/utils/metrics.js';
 import { accountScope } from '../../../src/utils/request-key.js';
-import { unblockIfInventoryReady } from '../../../src/debrid/alldebrid-reupload.js';
+import { unblockIfInventoryReady } from './debrid-bodies/alldebrid-autofetch.js';
 import { id as alldebridId } from '../../../src/debrid/alldebrid-api.js';
 import { assertSafeTestDb } from '../db-guard.js';
 

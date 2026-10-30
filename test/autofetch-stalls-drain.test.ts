@@ -11,11 +11,12 @@ process.env.CACHE_PERSIST = 'false';
 
 import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
+import { withBodies } from './helpers/pipeline-oracle/debrid-bodies/index.js';
 
 test('AllDebrid com progress: adapter só anexa progresso em Downloading com campos numéricos', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
-  const ad = debrid.BY_ID.get('alldebrid') as DebridAdapter;
+  const ad = withBodies(debrid.BY_ID.get('alldebrid') as DebridAdapter);
   const ok = 'c3'.repeat(20);
   const nullo = 'c4'.repeat(20);
   const fila = 'c5'.repeat(20);

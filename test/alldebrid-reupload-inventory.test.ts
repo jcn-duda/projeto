@@ -10,7 +10,6 @@ import * as cache from '../src/utils/cache.js';
 import { kvForget } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import { reuploadBlocked, markReuploadBlocked } from '../src/debrid/alldebrid-reupload.js';
@@ -97,7 +96,7 @@ test('8.14+: enqueue de bloqueado pronto no inventário destrava e retorna true 
   ]);
   const api = mockAd({});
   try {
-    assert.equal(await alldebrid.enqueue(KEY, BLOQUEADO), true, 'sucesso: o item já está pronto no serviço');
+    assert.equal(await alldebridBodies.enqueue(KEY, BLOQUEADO), true, 'sucesso: o item já está pronto no serviço');
     assert.equal(api.uploaded.length, 0, 'nenhum upload');
     assert.equal(reuploadBlocked(ACCOUNT, BLOQUEADO), false, 'marca expurgada');
     assert.equal(counter('debrid.reupload.unblockedByInventory'), 1);

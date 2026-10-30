@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
+import { bodies as rdBodies } from './helpers/pipeline-oracle/debrid-bodies/realdebrid.js';
 import * as memo from '../src/debrid/inventory-memo.js';
 import * as cache from '../src/utils/cache.js';
 
@@ -78,7 +79,7 @@ test('listagem do Real-Debrid pagina e para no teto defensivo', async () => {
     throw new Error(`URL inesperada: ${url.pathname}`);
   });
   try {
-    const items = await realdebrid.inventory('chave');
+    const items = await rdBodies.inventory('chave');
     const offsets = mock.urls.map((u) => u.searchParams.get('offset'));
     assert.deepEqual(offsets, ['0', '2500', '5000', '7500'], 'quatro páginas e para no teto');
     assert.equal(items.length, 10000, 'o adaptador lê até o teto; o corte fino (inventoryMax) é do registry');

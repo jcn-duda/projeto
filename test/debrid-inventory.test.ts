@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
-import * as torbox from '../src/debrid/torbox.js';
+import { inventory as tbInventory } from './helpers/pipeline-oracle/debrid-bodies/torbox.js';
 import { inventory as oracleInventory } from './helpers/pipeline-oracle/inventory-for.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
@@ -132,7 +132,7 @@ test('adaptador TorBox: download_finished ou download_present, com nome', async 
     ],
   });
   try {
-    const items = await torbox.inventory(KEY_A);
+    const items = await tbInventory(KEY_A);
     assert.deepEqual(items.map((i) => i.infoHash), [H1, H2]);
   } finally {
     api.restore();

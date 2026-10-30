@@ -60,8 +60,10 @@ import {
 } from './autofetch-ranking.js';
 import { decideAutofetch, type AutofetchPick } from '../../../src/utils/rust-autofetch.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
+import * as accountGate from './autofetch-account-gate.js';
 import * as held from '../../../src/debrid/protected.js';
-import { reuploadBlocked, unblockIfInventoryReady } from '../../../src/debrid/alldebrid-reupload.js';
+import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
+import { unblockIfInventoryReady } from './debrid-bodies/alldebrid-autofetch.js';
 import { enqueue } from './play/actions.js';
 import { rawAdapter } from './raw-adapter.js';
 import * as log from '../../../src/utils/logger.js';
@@ -269,7 +271,7 @@ function dispatchCandidate(candidate: OracleCandidate, req: PostCheckRequest): b
   const slotLimit = candidate.slotLimit
     ?? (candidate.pool === 'seeds' ? live.autoFetchTopSeedsMax : live.autoFetchMax);
   if (searchKey && !autofetch.acquireSearchSlot(searchKey, slotLimit)) return skip('search-slot-busy');
-  if (autofetch.accountGateBlocked(adapter, opts().debridApiKey)) return skip('account-gate');
+  if (accountGate.accountGateBlocked(adapter, opts().debridApiKey)) return skip('account-gate');
   if (!autofetch.checkAndRecordBudget(adapter.id, account, adapter.enqueueHourlyLimit)) return skip('budget');
 
   const stream = candidate.stream;

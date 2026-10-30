@@ -31,9 +31,8 @@ import config from '../config.js';
 import { prefix } from '../utils/cache-keys.js';
 import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 import * as metrics from '../utils/metrics.js';
-import * as log from '../utils/logger.js';
 import { brOriginMark } from '../utils/br-origin.js';
-import { peek as inventoryMemoPeek, forget as inventoryMemoForget } from './inventory-memo.js';
+import { forget as inventoryMemoForget } from './inventory-memo.js';
 import { id as adapterId } from './alldebrid-api.js';
 
 const adrmPrefix = prefix('adrm');
@@ -120,58 +119,8 @@ function forgetReuploadBlock(account: string, hash: string): void {
   kvForget(key(account, h));
 }
 
-/**
- * Destrava o marcador quando o hash bloqueado reaparece PRONTO no memo do
- * inventário da conta (`dinv`, leitura síncrona via cache.get — zero rede,
- * zero in-flight). O `adrm` diz "apagado de propósito, não RE-SUBIR"; quando a
- * conta prova que o hash voltou a estar pronto (reciclagem, re-add do usuário,
- * outro caminho), a razão da marca deixou de existir — e mantê-la esconderia
- * para sempre um ⚡ real da checagem e do chupim.
- *
- * Métrica e log ficam aqui para que os dois caminhos (checagem e enqueue)
- * registrem EXATAMENTE uma vez por hash destravado. O expurgo usa a MESMA
- * `forgetReuploadBlock` da deleção intencional. Adaptador não-AllDebrid não
- * tem quem marque — memo vazio/frio devolve null e o hash segue bloqueado
- * (falha ao provar NUNCA destrava).
- */
-function unblockIfInventoryReady(apiKey: string, account: string, hash: string): boolean {
-  const h = String(hash || '').toLowerCase();
-  if (!h || !reuploadBlocked(account, h)) return false;
-  const memo = inventoryMemoPeek(adapterId, apiKey);
-  if (!Array.isArray(memo)) return false;
-  const pronto = memo.some((item) => String(item?.infoHash || '').toLowerCase() === h);
-  if (!pronto) return false;
-  forgetReuploadBlock(account, h);
-  metrics.count('debrid.reupload.unblockedByInventory');
-  log.info(`[alldebrid] unblockedByInventory ${h.slice(0, 8)}… pronto no inventário da conta: marca adrm removida`);
-  return true;
-}
-
-/**
- * Partição ANTES do /magnet/upload: só o não bloqueado vai à rede. O bloqueado
- * fica FORA do Set de cache (vazio conhecido é intencional — o hash foi
- * apagado de propósito) e conta a métrica de re-entrada evitada. `send`
- * preserva a ordem e os duplicados do chamador; só filtra.
- */
-function filterReuploadBlocked(account: string, hashes: string[]): { send: string[]; blocked: string[] } {
-  const send: string[] = [];
-  const blocked: string[] = [];
-  if (!enabled() || !account) return { send: [...(hashes || [])], blocked };
-  for (const hash of hashes || []) {
-    if (reuploadBlocked(account, hash)) {
-      blocked.push(String(hash).toLowerCase());
-      metrics.count('debrid.reupload.blocked');
-    } else {
-      send.push(hash);
-    }
-  }
-  return { send, blocked };
-}
-
 export {
   reuploadBlocked,
   markReuploadBlocked,
   forgetReuploadBlock,
-  filterReuploadBlocked,
-  unblockIfInventoryReady,
 };

@@ -152,40 +152,6 @@ export function forgetSubmitted(account: string, hash: string): void {
   if (config.debrid.alldebridSubmittedTtlMs > 0) kvForget(adsubKey(account, normalized));
 }
 
-/**
- * Espera EXISTIR referência de proveniência para a conta (snapshot corrente,
- * ou o anterior durante o refresh), com teto. Para o enqueue do autofetch:
- * ele é background e pode aguardar um instante a referência antes de decidir
- * a etiqueta — sem isso o primeiro download de conta fria nunca seria
- * etiquetado (o fail-safe do rememberSubmitted fecharia sobre ele) e viraria
- * "preexistente" no snapshot seguinte, a catraca pelo caminho do chupim.
- *
- * Nunca lança e nunca espera além do teto: vencido, devolve false e quem
- * chamou segue sem referência (o rememberSubmitted NÃO etiqueta — fail-safe).
- * O teto é o `debridCheckFloor` (orçamento mínimo da checagem), não o prazo
- * da resposta: esta espera mora em background, mas não vale estourar a janela
- * que o próprio autofetch usa de corte.
- */
-export async function waitProvenanceReference(account: string, timeoutMs?: number): Promise<boolean> {
-  const teto = Math.max(0, Math.min(timeoutMs ?? Number.POSITIVE_INFINITY, config.debridCheckFloor));
-  const inicio = Date.now();
-  for (;;) {
-    const entry = preexisting.get(account);
-    // Set VAZIO é referência válida (conta conhecida e vazia): o que importa
-    // é EXISTIR prova, não ela ser grande.
-    if (entry?.hashes ?? entry?.previous) return true;
-    const restante = teto - (Date.now() - inicio);
-    if (restante <= 0) return false;
-    if (entry?.promise) {
-      // O refresh em voo É a referência que queremos: espera-o pelo que resta
-      // do teto (raceWithDeadline nunca lança — o teto devolve null).
-      await raceWithDeadline(entry.promise, restante, () => null);
-      continue;
-    }
-    await new Promise((resolve) => setTimeout(resolve, Math.min(50, restante)));
-  }
-}
-
 /** Recomeço do estado volátil de posse — simula o restart nos testes. */
 export function resetSubmittedForTests() {
   submitted.clear();
@@ -195,26 +161,6 @@ function snapshotFresh(entry: PreexistingEntry | undefined) {
   if (!entry || entry.hashes === null) return false;
   const ttl = config.debrid.preexistingTtlMs;
   return ttl > 0 && Date.now() - entry.loadedAt < ttl;
-}
-
-/**
- * Espera o inventário sem deixá-lo mandar no prazo da resposta.
- *
- * O teto existe porque esta chamada não tem relação com o que a busca precisa
- * responder: ela mora dentro da reserva do debrid (`DEBRID_RESERVE_MS`), e um
- * `/magnet/status` lento — conta grande, incidente na AllDebrid — passaria a
- * estourar o prazo de toda busca. Vencido o teto, quem chamou segue com `null`:
- * os prontos ficam protegidos nesta passada e o snapshot, que continua
- * carregando em fundo, vale da próxima em diante.
- */
-export function waitInventory(promise: Promise<Set<string> | null> | undefined, timeoutMs?: number) {
-  if (!promise) return Promise.resolve(null);
-  const teto = Math.max(0, Math.min(timeoutMs ?? Number.POSITIVE_INFINITY, config.debridCheckFloor));
-  if (!teto) return Promise.resolve(null);
-  return raceWithDeadline(promise, teto, () => {
-    metrics.count('debrid.inventory.timeout');
-    return null;
-  });
 }
 
 export function knownBefore(apiKey: string, account: string): Set<string> | null {
@@ -265,35 +211,6 @@ export function knownBefore(apiKey: string, account: string): Set<string> | null
       return null;
     });
   return null;
-}
-
-/** Pré-carrega o inventário do operador antes de qualquer upload no boot. */
-export function warmInventory(apiKey: string) {
-  if (!apiKey) return Promise.resolve(null);
-  const account = accountScope(apiKey);
-  knownBefore(apiKey, account);
-  return preexisting.get(account)?.promise || Promise.resolve(null);
-}
-
-/**
- * Fatos do inventário no corpo do check NATIVO (`/debrid/check` do sidecar).
- *
- * Reusa o `knownBefore` como o caminho Node: snapshot vigente vale; vencido ou
- * frio devolve `loaded:false` e dispara o refresh em fundo (uma leitura em voo
- * por conta, nunca no prazo de quem chamou). Sem snapshot, o Rust consulta o
- * próprio `/magnet/status` e, sem ele, não apaga — o fail-safe não depende
- * deste fato.
- *
- * `knownBefore` é a MESMA referência que autorizaria o delete no Node (conta
- * menos a posse `adsub`/`submitted`), então entregá-la ao Rust não afrouxa a
- * regra: ele continua sem poder apagar acervo do usuário.
- */
-export function inventoryFacts(apiKey: string, account: string): { loaded: boolean; hashes: string[] } {
-  if (!apiKey) return { loaded: false, hashes: [] };
-  const snapshot = knownBefore(apiKey, account);
-  return snapshot
-    ? { loaded: true, hashes: [...snapshot] }
-    : { loaded: false, hashes: [] };
 }
 
 /**

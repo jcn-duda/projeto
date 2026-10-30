@@ -261,16 +261,21 @@ function safeAccount(status: AccountStatus): Record<string, unknown> {
 // SERVICES da /configure): o cacheCheck dinâmico do RD (ledger+oráculo) é
 // decisão do current() em runtime e não é recalculado aqui — o painel mostra o
 // que o adaptador DECLARA, não o que a config corrente habilita.
+// Inventário/enqueue/status são do NATIVO: `autofetch_ports::capabilities` e
+// `adom-debrid::account::supports_inventory` (sem inventário só o Premiumize).
+const NATIVE_INVENTORY = new Set(['alldebrid', 'torbox', 'realdebrid', 'debridlink']);
+const NATIVE_AUTOFETCH = new Set(['alldebrid', 'torbox', 'realdebrid', 'debridlink', 'premiumize']);
+
 function accountCapabilities(adapter: DebridAdapter): AccountTestCapabilities {
   const base: AccountTestCapabilities = {
     cacheCheck: adapter.cacheCheck === true,
     // Campo opcional: ausente = consulta abortável (só a AllDebrid declara false).
     abortSafeCacheCheck: adapter.abortSafeCacheCheck !== false,
     accountStatus: typeof adapter.accountStatus === 'function',
-    inventory: typeof adapter.inventory === 'function',
+    inventory: NATIVE_INVENTORY.has(adapter.id),
     // Mesmo critério do canAutoFetchBr: cacheCheck confiável OU fonte por inventário.
-    autofetch: Boolean(typeof adapter.enqueue === 'function' && (adapter.cacheCheck || adapter.autofetchSource)),
-    torrentStatus: typeof adapter.torrentStatus === 'function',
+    autofetch: NATIVE_AUTOFETCH.has(adapter.id) && Boolean(adapter.cacheCheck || adapter.autofetchSource),
+    torrentStatus: NATIVE_AUTOFETCH.has(adapter.id),
     // Só quem lista magnets da conta entra no catálogo/limpador do painel.
     catalogCleanup: typeof adapter.magnetList === 'function',
   };

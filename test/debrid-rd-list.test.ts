@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as realdebrid from '../src/debrid/realdebrid.js';
+import { bodies as rdBodies } from './helpers/pipeline-oracle/debrid-bodies/realdebrid.js';
 
 /**
  * Regressão: o Real-Debrid não tem `/torrents/list` — esse caminho responde
@@ -51,7 +51,7 @@ test('inventário do Real-Debrid lê GET /torrents paginado', async () => {
     { hash: H2, filename: 'Baixando Ainda 2026.mkv', bytes: 100, status: 'downloading' },
   ]);
   try {
-    const items = await realdebrid.inventory('chave');
+    const items = await rdBodies.inventory('chave');
 
     const paths = mock.urls.map((u) => u.pathname);
     assert.ok(!paths.includes('/rest/1.0/torrents/list'), 'não pode chamar o endpoint aposentado');
@@ -71,7 +71,7 @@ test('torrentStatus do Real-Debrid também usa GET /torrents', async () => {
     { id: 'XPTO', hash: H2, status: 'magnet_error' },
   ]);
   try {
-    const status = await realdebrid.torrentStatus('chave');
+    const status = await rdBodies.torrentStatus('chave');
 
     assert.deepEqual(mock.urls.map((u) => u.pathname), ['/rest/1.0/torrents']);
     assert.equal(mock.urls[0].searchParams.get('limit'), '2500');
@@ -148,7 +148,7 @@ test('removeTorrent do Real-Debrid aceita DELETE 204 sem corpo', async () => {
     async json() { throw new SyntaxError('Unexpected end of JSON input'); },
   })) as unknown as typeof globalThis.fetch;
   try {
-    assert.equal(await realdebrid.removeTorrent('chave', 'RD1'), true);
+    assert.equal(await rdBodies.removeTorrent('chave', 'RD1'), true);
   } finally {
     globalThis.fetch = realFetch;
     AbortSignal.timeout = realTimeout;

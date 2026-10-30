@@ -1,8 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as alldebrid from '../src/debrid/alldebrid.js';
-import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
+import { warmInventory } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';
@@ -115,7 +114,7 @@ test('hash do autofetch sobrevive à limpeza: held vence mesmo com o download et
 
     held.hold(AUTO, 3600, ACCOUNT_HELD);
     // Referência existe e não contém AUTO: o enqueue etiqueta com prova.
-    await alldebrid.enqueue(KEY, AUTO);
+    await alldebridBodies.enqueue(KEY, AUTO);
     await alldebridBodies.checkCached(KEY, [AUTO, OUTRO]);
     await settle();
 

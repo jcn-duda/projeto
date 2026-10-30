@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
+import { warmInventory } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as held from '../src/debrid/protected.js';
 import * as metrics from '../src/utils/metrics.js';

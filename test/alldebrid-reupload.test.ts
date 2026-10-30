@@ -205,10 +205,10 @@ test('8.14: enqueue de hash bloqueado não faz fetch; o livre segue', async () =
   metrics.reset();
   const api = mockAd({});
   try {
-    assert.equal(await alldebrid.enqueue(KEY, BLOQUEADO), false, 'recusa sem tocar a rede');
+    assert.equal(await alldebridBodies.enqueue(KEY, BLOQUEADO), false, 'recusa sem tocar a rede');
     assert.equal(api.uploaded.length, 0, 'nenhum upload do chupim');
     assert.equal(counter('debrid.reupload.blocked'), 1);
-    assert.equal(await alldebrid.enqueue(KEY, LIVRE), true, 'hash livre enfileira normal');
+    assert.equal(await alldebridBodies.enqueue(KEY, LIVRE), true, 'hash livre enfileira normal');
     assert.deepEqual(api.uploaded, [LIVRE]);
   } finally {
     api.restore();

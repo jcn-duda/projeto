@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
 import { isDeadMagnet, DEAD } from '../src/debrid/alldebrid-api.js';
 import type { DebridAdapter } from '../types/domain.js';
+import { withBodies } from './helpers/pipeline-oracle/debrid-bodies/index.js';
 
 const hx = (seed: string) => seed.repeat(20);
 
@@ -33,7 +34,7 @@ test('DEAD reconhece a mensagem exata e ignora statusCode isolado', () => {
 test('AllDebrid torrentStatus: frase terminal vira dead com via=hash; statusCode 10 não condena', async () => {
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
-  const ad = debrid.BY_ID.get('alldebrid') as DebridAdapter;
+  const ad = withBodies(debrid.BY_ID.get('alldebrid') as DebridAdapter);
   const hMsg = hx('d1');
   const hCode = hx('d2');
   const hReady = hx('d3');

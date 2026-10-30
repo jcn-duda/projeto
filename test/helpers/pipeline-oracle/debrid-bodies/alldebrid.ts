@@ -1,7 +1,8 @@
 /**
- * Corpos TS da AllDebrid (checagem de cache e play) para o oráculo de teste.
+ * Corpos TS da AllDebrid (checagem de cache, play e autofetch) para o oráculo de teste.
  *
- * Saíram de `src/debrid/alldebrid-check.ts` e `alldebrid-play.ts` porque a
+ * Saíram de `src/debrid/alldebrid-check.ts`, `alldebrid-play.ts` (o autofetch
+ * está no sibling `alldebrid-autofetch.ts`) porque a
  * produção não roda mais essa régua: `registry.ts::current()` sempre embrulha o
  * adaptador na ponte nativa (`rust-remote.ts`), que sobrepõe `checkCached` e
  * `resolveLink` pelo `adom-debrid` (8710). Esta cópia é a régua de paridade: os
@@ -23,14 +24,19 @@ import * as log from '../../../../src/utils/logger.js';
 import * as metrics from '../../../../src/utils/metrics.js';
 import { call, flattenFiles, id, magnetFiles } from '../../../../src/debrid/alldebrid-api.js';
 import { recordFileSizes } from '../../../../src/debrid/file-sizes.js';
-import { preexisting, knownBefore, waitInventory, rememberSubmitted, forgetSubmitted } from '../../../../src/debrid/alldebrid-inventory.js';
+import { preexisting, knownBefore, rememberSubmitted, forgetSubmitted } from '../../../../src/debrid/alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets as dropMagnets } from '../../../../src/debrid/alldebrid-cleanup.js';
 import { raceWithDeadline } from '../../../../src/utils/deadline.js';
-import { filterReuploadBlocked, unblockIfInventoryReady } from '../../../../src/debrid/alldebrid-reupload.js';
 import { mayDeleteHash } from '../../../../src/utils/rust-debrid-clean.js';
 import { assertDubbedFiles, recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
 import type { PlayHint } from '../../../../types/domain.js';
 import { assertSafeTestDb } from '../../db-guard.js';
+import {
+  autofetchBodies,
+  filterReuploadBlocked,
+  unblockIfInventoryReady,
+  waitInventory,
+} from './alldebrid-autofetch.js';
 
 // Grava davail e magnetdb pelos módulos que este corpo importa: sem setup-env o
 // destino seria o banco real.
@@ -358,4 +364,6 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
   return unlocked?.link || null;
 }
 
-export const bodies = { checkCached, resolveLink };
+// `enqueue`/`torrentStatus`/`removeTorrent` (autofetch) vêm do sibling
+// `alldebrid-autofetch.ts`, que saiu de `src/debrid/alldebrid-play.ts`.
+export const bodies = { checkCached, resolveLink, ...autofetchBodies };

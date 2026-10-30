@@ -269,7 +269,7 @@ test('autofetch.snapshot: _origem marca queues e deadBlacklist duravel', () => {
   assert.equal(snap._origem.queues, 'duravel');
   assert.equal(snap._origem.deadBlacklistCount, 'duravel');
   assert.equal(snap._origem.budget, 'amostra');
-  assert.equal(snap._origem.accountGate, 'amostra');
+  assert.equal(snap._origem.accountGate, 'naomedido');
   assert.equal(snap._origem.suppressed, 'duravel', 'fila represada é varredura do L1');
   assert.equal(typeof snap.suppressed, 'number', 'agregado da fila represada presente');
   // Campos existentes intactos (contrato aditivo).

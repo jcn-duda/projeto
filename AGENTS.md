@@ -337,7 +337,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   A checagem e o play da ponte que os testes exercitam moram no oráculo
   (`check-bridge.ts`, `play/bridge.ts`); o adaptador cru, em `raw-adapter.ts`.
   Também saiu o aquecimento de inventário no boot (`warmupEnv`): só alimentava
-  essa checagem do Node.
+  essa checagem do Node. Os corpos TS de `enqueue`/`torrentStatus`/
+  `removeTorrent`/`inventory` dos cinco serviços (e o gate de ocupação da
+  conta) também saíram: o Chupim e o inventário são nativos; o oráculo os
+  sobrepõe por `debrid-bodies/` (`withBodies`/`rawAdapter`). As flags do painel
+  (`accountCapabilities`) vêm da tabela nativa por id de serviço.
 - **Varredura manual de mortos do painel (não-AllDebrid) é nativa**: o Node
   chama `POST /debrid/sweep-dead` na 8710 (`src/debrid/rust-sweep.ts`); a régua
   é `adom-debrid::premiumize_sweep` (error sai sempre; parado só na 2ª

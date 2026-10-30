@@ -8,8 +8,12 @@
  *
  *   - `alldebrid-api.ts`        base HTTP (`call`), tipos, visões de conta;
  *   - `alldebrid-inventory.ts`  DONO do estado `knownBefore`/`submitted`;
- *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets;
- *   - `alldebrid-play.ts`       enqueue, torrentStatus, removeTorrent.
+ *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets.
+ *
+ * `enqueue`, `torrentStatus` e `removeTorrent` (autofetch) SAÍRAM de `src/`:
+ * quem os executa é o worker nativo do Chupim, e o corpo TS mora no oráculo
+ * (`test/helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.ts`). Não
+ * reintroduza o re-export nem o `alldebrid-play.ts`.
  *
  * `checkCached` e `resolveLink` NÃO são reexportados: a checagem e o play são
  * nativos (`adom-debrid`, ponte em `rust-remote.ts`), e o corpo TS que ainda
@@ -35,7 +39,6 @@ export {
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
 export { preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
 export { deleteMagnets } from './alldebrid-cleanup.js';
-export { enqueue, torrentStatus, removeTorrent } from './alldebrid-play.js';
 
 export const label = 'AllDebrid';
 export const short = 'AD';

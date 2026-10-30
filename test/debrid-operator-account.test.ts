@@ -105,9 +105,11 @@ test('sucesso: usa a chave informada sem memo/persistência e nunca a ecoa', asy
     cacheCheck: true,
     abortSafeCacheCheck: false,
     accountStatus: true,
-    inventory: true,
-    autofetch: true,
-    torrentStatus: true,
+    // Inventário/autofetch/status vêm do NATIVO por id de serviço: o fake não é
+    // um dos cinco, então os métodos TS dele não acendem as flags.
+    inventory: false,
+    autofetch: false,
+    torrentStatus: false,
     catalogCleanup: true,
   });
   const serialized = JSON.stringify(first.json);

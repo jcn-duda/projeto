@@ -31,7 +31,7 @@ import { accountScope } from '../../../src/utils/request-key.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import { id } from '../../../src/debrid/alldebrid-api.js';
 import { heldHashesFor } from '../../../src/debrid/protected.js';
-import { inventoryFacts } from '../../../src/debrid/alldebrid-inventory.js';
+import { inventoryFacts } from './debrid-bodies/alldebrid-autofetch.js';
 import { assertSafeTestDb } from '../db-guard.js';
 
 assertSafeTestDb('pipeline-oracle/alldebrid-cleanup-facts');

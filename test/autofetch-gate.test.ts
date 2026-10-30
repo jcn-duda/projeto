@@ -12,6 +12,8 @@ import debrid from '../src/debrid/index.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
+import * as srcGate from '../src/providers/autofetch-gate.js';
+import * as accountGate from './helpers/pipeline-oracle/autofetch-account-gate.js';
 import * as held from '../src/debrid/protected.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
@@ -44,17 +46,17 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
     config.debrid.autoFetchPauseAt = 5;
     pmAdapter.accountStatus = async () => ({ magnets: 900 });
     debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
 
     // Frio: nenhuma medição local, então a busca não pode ser barrada.
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'memo frio não bloqueia');
-    assert.equal(autofetch.accountGateSnapshot()._origem.accounts, 'naomedido', 'frio é declarado, não pintado como saudável');
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), false, 'memo frio não bloqueia');
+    assert.equal(accountGate.accountGateSnapshot()._origem.accounts, 'naomedido', 'frio é declarado, não pintado como saudável');
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), true, 'memo quente acima do limiar bloqueia');
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), true, 'memo quente acima do limiar bloqueia');
 
     // Painel: digest de 12 hex, contagem/limiar e origem da medição — sem a
     // chave crua nem hash de 40.
-    const snap = autofetch.accountGateSnapshot();
+    const snap = accountGate.accountGateSnapshot();
     assert.equal(snap.pauseAt, 5);
     assert.equal(snap.blocked, true);
     assert.equal(snap._origem.accounts, 'amostra');
@@ -69,8 +71,8 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
     assert.doesNotMatch(body, /[a-f0-9]{40}/i, 'nenhum hash cru no painel');
 
     config.debrid.autoFetchPauseAt = 0;
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'flag 0 desliga o gate');
-    const desligado = autofetch.accountGateSnapshot();
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), false, 'flag 0 desliga o gate');
+    const desligado = accountGate.accountGateSnapshot();
     assert.equal(desligado.blocked, false, 'pauseAt 0 não pinta bloqueio');
     assert.equal(desligado.accounts.find((item) => item.count === 900)?.blocked, false);
   } finally {
@@ -78,7 +80,7 @@ test('memo frio é fail-open, memo quente bloqueia e pauseAt 0 desliga', async (
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchPauseAt = originalPauseAt;
     pmAdapter.accountStatus = originalStatus;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
   }
 });
 
@@ -107,10 +109,10 @@ test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio
     pmAdapter.enqueue = async () => { enqueues += 1; return true; };
     pmAdapter.accountStatus = async () => ({ magnets: 900 });
     debridCheck.checkCached = async () => ({ cached: new Set(), known: true });
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
 
     // Aquece o memo sem passar pela busca.
-    autofetch.accountGateBlocked(pmAdapter, API_KEY);
+    accountGate.accountGateBlocked(pmAdapter, API_KEY);
     await sleep(20);
 
     await run(hHot, 'gate-cheio');
@@ -120,19 +122,19 @@ test('conta cheia barra o disparo, devolve o hold e não grava marker; memo frio
     assert.equal(kvPeek(autofetch.markerKey(PM, account, hHot)), null, 'bloqueio não grava marker');
 
     // Memo frio: fail-open — o mesmo candidato sai e o aceite RETÉM o hold.
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
     await run(hCold, 'gate-frio');
     await sleep(20);
     assert.equal(enqueues, 1, 'primeira chamada com memo frio enfileira normalmente');
     assert.equal(held.isHeld(hCold, account), true, 'aceite mantém o hold');
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), true, 'refresh da busca fria reaqueceu o memo');
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), true, 'refresh da busca fria reaqueceu o memo');
   } finally {
     debridCheck.checkCached = originalCheck;
     config.debrid.publicUrl = originalPublicUrl;
     config.debrid.autoFetchPauseAt = originalPauseAt;
     pmAdapter.enqueue = originalEnqueue;
     pmAdapter.accountStatus = originalStatus;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
     autofetch.releaseSearch('gate-frio');
     autofetch.releaseSearch('gate-cheio');
     for (const h of [hCold, hHot]) {
@@ -148,14 +150,29 @@ test('contagem não numérica não vira memo: o gate segue fail-open', async () 
   try {
     config.debrid.autoFetchPauseAt = 5;
     pmAdapter.accountStatus = async () => ({}) as never;
-    autofetch.resetAccountGate();
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'primeira chamada é fail-open');
+    accountGate.resetAccountGate();
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), false, 'primeira chamada é fail-open');
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(pmAdapter, API_KEY), false, 'sem contagem nada é gravado no memo');
-    assert.equal(autofetch.accountGateSnapshot()._origem.accounts, 'naomedido');
+    assert.equal(accountGate.accountGateBlocked(pmAdapter, API_KEY), false, 'sem contagem nada é gravado no memo');
+    assert.equal(accountGate.accountGateSnapshot()._origem.accounts, 'naomedido');
   } finally {
     config.debrid.autoFetchPauseAt = originalPauseAt;
     pmAdapter.accountStatus = originalStatus;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
+  }
+});
+
+test('retrato do painel em src é o shape vazio (o gate mora no oráculo)', () => {
+  const originalPauseAt = config.debrid.autoFetchPauseAt;
+  try {
+    config.debrid.autoFetchPauseAt = 7;
+    const snap = srcGate.accountGateSnapshot();
+    assert.equal(snap.pauseAt, 7, 'pauseAt vem da config viva');
+    assert.equal(snap.blocked, false);
+    assert.deepEqual(snap.accounts, [], 'sem memo em produção não há conta medida');
+    assert.equal(snap.inFlight, 0);
+    assert.equal(snap._origem.accounts, 'naomedido');
+  } finally {
+    config.debrid.autoFetchPauseAt = originalPauseAt;
   }
 });

@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import * as autofetch from '../src/providers/autofetch.js';
+import * as accountGate from './helpers/pipeline-oracle/autofetch-account-gate.js';
 import * as cache from '../src/utils/cache.js';
 import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
 import * as held from '../src/debrid/protected.js';
@@ -142,41 +143,41 @@ test('gate de ocupação: fail-open, memo, trava anti-duplicação e flag 0', as
     config.debrid.autoFetchPauseRefreshMs = 900_000;
 
     // Sem accountStatus nunca bloqueia: sem medição não há evidência.
-    assert.equal(autofetch.accountGateBlocked(mkAdapter('alldebrid'), apiKey), false);
+    assert.equal(accountGate.accountGateBlocked(mkAdapter('alldebrid'), apiKey), false);
 
     // Memo frio fail-open; refresh em voo não dispara segundo refresh.
     let calls = 0;
     const busy = mkAdapter('alldebrid', async () => { calls += 1; return { magnets: 42 }; });
-    autofetch.resetAccountGate();
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), false, 'primeira chamada não bloqueia');
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), false, 'refresh em voo também não bloqueia');
+    accountGate.resetAccountGate();
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), false, 'primeira chamada não bloqueia');
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), false, 'refresh em voo também não bloqueia');
     await sleep(20);
     assert.equal(calls, 1, 'um único refresh por memo vencido');
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), true, 'memo quente acima do limiar bloqueia');
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), true, 'memo quente acima do limiar bloqueia');
 
     const calm = mkAdapter('alldebrid', async () => ({ magnets: 2 }));
-    autofetch.resetAccountGate();
-    assert.equal(autofetch.accountGateBlocked(calm, apiKey), false);
+    accountGate.resetAccountGate();
+    assert.equal(accountGate.accountGateBlocked(calm, apiKey), false);
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(calm, apiKey), false, 'abaixo do limiar segue aberto');
+    assert.equal(accountGate.accountGateBlocked(calm, apiKey), false, 'abaixo do limiar segue aberto');
 
     // Sem contagem numérica (ex.: só fair-use) nunca grava memo.
     const noCount = mkAdapter('alldebrid', async () => ({ limitUsed: 0.99 }));
-    autofetch.resetAccountGate();
-    assert.equal(autofetch.accountGateBlocked(noCount, apiKey), false);
+    accountGate.resetAccountGate();
+    assert.equal(accountGate.accountGateBlocked(noCount, apiKey), false);
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(noCount, apiKey), false, 'sem contagem total não há bloqueio');
+    assert.equal(accountGate.accountGateBlocked(noCount, apiKey), false, 'sem contagem total não há bloqueio');
 
-    autofetch.resetAccountGate();
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), false);
+    accountGate.resetAccountGate();
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), false);
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), true);
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), true);
     config.debrid.autoFetchPauseAt = 0;
-    assert.equal(autofetch.accountGateBlocked(busy, apiKey), false, 'flag 0 desliga');
+    assert.equal(accountGate.accountGateBlocked(busy, apiKey), false, 'flag 0 desliga');
   } finally {
     config.debrid.autoFetchPauseAt = originalPauseAt;
     config.debrid.autoFetchPauseRefreshMs = originalRefreshMs;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
   }
 });
 
@@ -189,22 +190,22 @@ test('gate de ocupação usa o inventário memoizado (sem rede) quando existe', 
 
   try {
     config.debrid.autoFetchPauseAt = 2;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
     cache.set(invKey, [
       { title: 'Filme Um', infoHash: '1'.repeat(40), size: 1 },
       { title: 'Filme Dois', infoHash: '2'.repeat(40), size: 1 },
     ], 60);
-    assert.equal(autofetch.accountGateBlocked(adapter, apiKey), true, 'inventário cheio bloqueia sem rede');
+    assert.equal(accountGate.accountGateBlocked(adapter, apiKey), true, 'inventário cheio bloqueia sem rede');
     assert.equal(statusCalls, 0, 'acima do limiar o peek bloqueia sem chamar accountStatus');
     // Abaixo do limiar o peek não decide (dinv = só prontos); segue memo/status.
     cache.set(invKey, [{ title: 'Filme Um', infoHash: '1'.repeat(40), size: 1 }], 60);
-    assert.equal(autofetch.accountGateBlocked(adapter, apiKey), false, 'abaixo do limiar o peek não bloqueia');
+    assert.equal(accountGate.accountGateBlocked(adapter, apiKey), false, 'abaixo do limiar o peek não bloqueia');
     await sleep(20);
     assert.equal(statusCalls, 1, 'abaixo do limiar a decisão segue para o memo/accountStatus');
-    assert.equal(autofetch.accountGateBlocked(adapter, apiKey), false, 'memo quente abaixo do limiar segue aberto');
+    assert.equal(accountGate.accountGateBlocked(adapter, apiKey), false, 'memo quente abaixo do limiar segue aberto');
   } finally {
     cache.forget(invKey);
     config.debrid.autoFetchPauseAt = originalPauseAt;
-    autofetch.resetAccountGate();
+    accountGate.resetAccountGate();
   }
 });

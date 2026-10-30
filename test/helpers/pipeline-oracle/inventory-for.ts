@@ -12,6 +12,7 @@ import * as cache from '../../../src/utils/cache.js';
 import * as log from '../../../src/utils/logger.js';
 import { current } from '../../../src/debrid/registry.js';
 import { assertSafeTestDb } from '../db-guard.js';
+import { withBodies } from './debrid-bodies/index.js';
 
 // Lê o memo `dinv` (cache/KV): sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/inventory-for');
@@ -20,7 +21,8 @@ assertSafeTestDb('pipeline-oracle/inventory-for');
 // leitura da conta.
 const inventoryInFlight = new Map<string, Promise<InventoryItem[]>>();
 
-export function inventoryFor(adapter: DebridAdapter, apiKey: string): Promise<InventoryItem[]> {
+export function inventoryFor(source: DebridAdapter, apiKey: string): Promise<InventoryItem[]> {
+  const adapter = withBodies(source);
   if (typeof adapter.inventory !== 'function') return Promise.resolve([]);
   const loadInventory = adapter.inventory;
   const key = inventoryMemo.memoKey(adapter.id, apiKey);
@@ -51,6 +53,6 @@ export function inventoryFor(adapter: DebridAdapter, apiKey: string): Promise<In
 /** Itens prontos na conta do serviço corrente (mesma régua do antigo `debrid.inventory()`). */
 export async function inventory(): Promise<InventoryItem[]> {
   const adapter = current();
-  if (!adapter || typeof adapter.inventory !== 'function') return [];
+  if (!adapter) return [];
   return inventoryFor(adapter, opts().debridApiKey);
 }

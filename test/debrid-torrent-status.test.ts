@@ -7,11 +7,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as premiumize from '../src/debrid/premiumize.js';
 import * as held from '../src/debrid/protected.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { markerKey, markerValue } from '../src/providers/autofetch-marker.js';
+import { withBodies } from './helpers/pipeline-oracle/debrid-bodies/index.js';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -40,7 +40,9 @@ function stubFetch(body: unknown) {
 }
 
 async function statusOf(id: string, body: unknown): Promise<Record<string, StatusRow>> {
-  const adapter = debrid.BY_ID.get(id);
+  const raw = debrid.BY_ID.get(id);
+  // O torrentStatus saiu de src/: o oráculo sobrepõe o corpo TS por serviço.
+  const adapter = raw && withBodies(raw);
   if (!adapter || typeof adapter.torrentStatus !== 'function') {
     throw new Error(`adaptador ${id} sem torrentStatus`);
   }

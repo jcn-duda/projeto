@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import * as premiumize from '../src/debrid/premiumize.js';
+import * as premiumize from './helpers/pipeline-oracle/debrid-bodies/premiumize.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
 import config from '../src/config.js';

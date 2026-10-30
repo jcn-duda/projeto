@@ -5,6 +5,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import * as autofetch from '../src/providers/autofetch.js';
+import * as accountGate from './helpers/pipeline-oracle/autofetch-account-gate.js';
 import debrid from '../src/debrid/index.js';
 import * as torbox from '../src/debrid/torbox.js';
 import type { AccountStatus, DebridAdapter } from '../types/domain.js';
@@ -34,31 +35,31 @@ function adapter(
 beforeEach(() => {
   config.debrid.autoFetchPauseAt = 800;
   config.debrid.autoFetchPauseRefreshMs = 900_000;
-  autofetch.resetAccountGate();
+  accountGate.resetAccountGate();
 });
 
 after(() => {
   config.debrid.autoFetchPauseAt = originalPauseAt;
   config.debrid.autoFetchPauseRefreshMs = originalRefreshMs;
-  autofetch.resetAccountGate();
+  accountGate.resetAccountGate();
 });
 
 test('gate legado sem occupancy preserva magnets >= pauseAt', async () => {
   const full = adapter('alldebrid-legacy-full', async () => ({ magnets: 900 }));
-  assert.equal(autofetch.accountGateBlocked(full, 'legacy-full'), false, 'memo frio é fail-open');
+  assert.equal(accountGate.accountGateBlocked(full, 'legacy-full'), false, 'memo frio é fail-open');
   await sleep(20);
-  assert.equal(autofetch.accountGateBlocked(full, 'legacy-full'), true, '900 >= 800 bloqueia');
-  const measured = autofetch.accountGateSnapshot().accounts[0];
+  assert.equal(accountGate.accountGateBlocked(full, 'legacy-full'), true, '900 >= 800 bloqueia');
+  const measured = accountGate.accountGateSnapshot().accounts[0];
   assert.deepEqual(
     { count: measured.count, max: measured.max, source: measured.source, blocked: measured.blocked },
     { count: 900, max: 800, source: 'accountStatus', blocked: true },
   );
 
-  autofetch.resetAccountGate();
+  accountGate.resetAccountGate();
   const calm = adapter('alldebrid-legacy-calm', async () => ({ magnets: 799 }));
-  assert.equal(autofetch.accountGateBlocked(calm, 'legacy-calm'), false);
+  assert.equal(accountGate.accountGateBlocked(calm, 'legacy-calm'), false);
   await sleep(20);
-  assert.equal(autofetch.accountGateBlocked(calm, 'legacy-calm'), false, '799 < 800 segue aberto');
+  assert.equal(accountGate.accountGateBlocked(calm, 'legacy-calm'), false, '799 < 800 segue aberto');
 });
 
 test('TorBox com 900 itens e 2 ativos NÃO bloqueia', async () => {
@@ -67,10 +68,10 @@ test('TorBox com 900 itens e 2 ativos NÃO bloqueia', async () => {
     async () => ({ magnets: 900, ready: 898, active: 2 }),
     torbox.occupancy,
   );
-  assert.equal(autofetch.accountGateBlocked(tb, 'torbox-calm'), false, 'memo frio é fail-open');
+  assert.equal(accountGate.accountGateBlocked(tb, 'torbox-calm'), false, 'memo frio é fail-open');
   await sleep(20);
-  assert.equal(autofetch.accountGateBlocked(tb, 'torbox-calm'), false, '2/10 ativos segue aberto');
-  const measured = autofetch.accountGateSnapshot().accounts[0];
+  assert.equal(accountGate.accountGateBlocked(tb, 'torbox-calm'), false, '2/10 ativos segue aberto');
+  const measured = accountGate.accountGateSnapshot().accounts[0];
   assert.deepEqual(
     { count: measured.count, max: measured.max, blocked: measured.blocked },
     { count: 2, max: torbox.ACTIVE_LIMIT, blocked: false },
@@ -83,9 +84,9 @@ test('TorBox bloqueia quando os 10 slots ativos estão ocupados', async () => {
     async () => ({ magnets: 900, ready: 890, active: torbox.ACTIVE_LIMIT }),
     torbox.occupancy,
   );
-  assert.equal(autofetch.accountGateBlocked(tb, 'torbox-full'), false);
+  assert.equal(accountGate.accountGateBlocked(tb, 'torbox-full'), false);
   await sleep(20);
-  assert.equal(autofetch.accountGateBlocked(tb, 'torbox-full'), true, '10/10 ativos bloqueia');
+  assert.equal(accountGate.accountGateBlocked(tb, 'torbox-full'), true, '10/10 ativos bloqueia');
 });
 
 test('occupancy sem medição válida permanece fail-open', async () => {
@@ -94,10 +95,10 @@ test('occupancy sem medição válida permanece fail-open', async () => {
     async () => ({ magnets: 900 }),
     torbox.occupancy,
   );
-  assert.equal(autofetch.accountGateBlocked(unknown, 'torbox-unknown'), false);
+  assert.equal(accountGate.accountGateBlocked(unknown, 'torbox-unknown'), false);
   await sleep(20);
-  assert.equal(autofetch.accountGateBlocked(unknown, 'torbox-unknown'), false);
-  assert.deepEqual(autofetch.accountGateSnapshot().accounts, [], 'sem active não inventa decisão');
+  assert.equal(accountGate.accountGateBlocked(unknown, 'torbox-unknown'), false);
+  assert.deepEqual(accountGate.accountGateSnapshot().accounts, [], 'sem active não inventa decisão');
 });
 
 test('registry liga occupancy só no TorBox; Premiumize fica fora do patch', () => {
@@ -167,9 +168,9 @@ test('dez torrents mortos no mylist NÃO bloqueiam o gate do TorBox', async () =
     data: Array.from({ length: 10 }, (_, i) => ({ id: i, hash: 'a'.repeat(40), download_state: 'error' })),
   });
   try {
-    assert.equal(autofetch.accountGateBlocked(tb, 'torbox-dead'), false);
+    assert.equal(accountGate.accountGateBlocked(tb, 'torbox-dead'), false);
     await sleep(20);
-    assert.equal(autofetch.accountGateBlocked(tb, 'torbox-dead'), false, 'conta só de mortos segue aberta');
+    assert.equal(accountGate.accountGateBlocked(tb, 'torbox-dead'), false, 'conta só de mortos segue aberta');
   } finally {
     restore2();
   }

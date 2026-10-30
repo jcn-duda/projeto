@@ -206,7 +206,7 @@ test('debridlink: enqueue adiciona magnet e retorna boolean', async () => {
   });
 
   try {
-    const ok = await debridlink.enqueue(API_KEY, H2);
+    const ok = await dlBodies.enqueue(API_KEY, H2);
     assert.equal(ok, true);
     assert.equal(added, true);
   } finally {
@@ -231,7 +231,7 @@ test('debridlink: inventory lista apenas itens prontos (downloadPercent >= 100) 
   });
 
   try {
-    const items = await debridlink.inventory(API_KEY);
+    const items = await dlBodies.inventory(API_KEY);
     assert.equal(items.length, 1);
     assert.deepEqual(items[0], {
       title: 'Filme A 1080p',
@@ -260,7 +260,7 @@ test('debridlink: torrentStatus mapeia ready, downloading e dead', async () => {
   });
 
   try {
-    const statusMap = await debridlink.torrentStatus(API_KEY);
+    const statusMap = await dlBodies.torrentStatus(API_KEY);
     assert.equal(statusMap[H1]?.state, 'ready');
     assert.equal(statusMap[H1]?.id, '101');
 
@@ -291,11 +291,11 @@ test('debridlink: removeTorrent remove da seedbox e trata erros defensivamente',
   });
 
   try {
-    const ok = await debridlink.removeTorrent(API_KEY, 'dl-item-99');
+    const ok = await dlBodies.removeTorrent(API_KEY, 'dl-item-99');
     assert.equal(ok, true);
     assert.equal(deletedId, 'dl-item-99');
 
-    const fail = await debridlink.removeTorrent(API_KEY, 'dl-item-fail');
+    const fail = await dlBodies.removeTorrent(API_KEY, 'dl-item-fail');
     assert.equal(fail, false, 'erro no endpoint retorna false sem estourar');
   } finally {
     restore();

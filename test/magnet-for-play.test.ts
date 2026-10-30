@@ -11,7 +11,6 @@ import fs from 'node:fs';
 import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { magnetForPlay, magnetFor } from '../src/debrid/common.js';
-import * as debridlink from '../src/debrid/debridlink.js';
 import { bodies as dlBodies } from './helpers/pipeline-oracle/debrid-bodies/debridlink.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'magnet-for-play-'));

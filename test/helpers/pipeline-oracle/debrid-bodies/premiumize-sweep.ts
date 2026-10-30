@@ -14,9 +14,10 @@ import * as log from '../../../../src/utils/logger.js';
 import * as held from '../../../../src/debrid/protected.js';
 import { accountScope } from '../../../../src/utils/request-key.js';
 import { markerIdIndex } from '../../../../src/providers/autofetch-marker.js';
+import { id, call } from '../../../../src/debrid/premiumize.js';
 import {
-  id, call, removeTorrent, resolveTransfer, transferHash, STALLED_TRANSFER,
-} from '../../../../src/debrid/premiumize.js';
+  removeTorrent, resolveTransfer, transferHash, STALLED_TRANSFER,
+} from './premiumize.js';
 assertSafeTestDb('pipeline-oracle/debrid-bodies/premiumize-sweep');
 
 /**

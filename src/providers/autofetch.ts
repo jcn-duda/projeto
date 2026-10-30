@@ -8,7 +8,7 @@ import { getCore, requireCore } from '../utils/rust-core.js';
 import { nativeKv, kvKeys, type NativeKvNapi } from '../utils/native-kv.js';
 import type { AutofetchQueueCore } from '../utils/rust-autofetch.js';
 import { markerKey, markerValue, markerTransferId, markerActive, setMarker, forgetMarker } from './autofetch-marker.js';
-import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
+import { accountGateSnapshot } from './autofetch-gate.js';
 import { countAllSuppressed } from './autofetch-suppressed.js';
 import { deadKey } from './autofetch-keys.js';
 
@@ -325,8 +325,8 @@ function resetBudget(adapterId?: string, account?: string) {
   }
 }
 
-/** Gate de ocupação da conta: decisão, memo e contrato moram em autofetch-gate.ts (extraído
- * para a catraca); aqui fica só o reexport que testes e runner consomem. */
+/** Gate de ocupação da conta: o corpo TS saiu de `src/` (o worker nativo decide); o painel
+ * recebe o retrato vazio de autofetch-gate.ts. A decisão congelada vive no oráculo. */
 
 /** Estado operacional sem expor searchKey, conta ou infoHash. */
 function snapshot() {
@@ -373,7 +373,7 @@ function snapshot() {
     accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
     // queues/dead/suppressed=durável (varredura do disco, não Map de processo); resto=amostra.
-    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra', suppressed: 'duravel' },
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'naomedido', suppressed: 'duravel' },
   };
 }
 
@@ -382,7 +382,7 @@ export {
   acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
   isDead, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
   checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
-  accountGateBlocked, resetAccountGate, accountGateSnapshot, snapshot, reindexQueues, reindexDead,
+  accountGateSnapshot, snapshot, reindexQueues, reindexDead,
 };
 
 reindexQueues();

@@ -1,7 +1,6 @@
 import config from '../config.js';
-import { magnetForPlay, json, batched, QuotaError, RateLimitError } from './common.js';
-import * as log from '../utils/logger.js';
-import type { AccountStatus, TorrentStatusEntry } from '../../types/domain.js';
+import { json, batched, QuotaError, RateLimitError } from './common.js';
+import type { AccountStatus } from '../../types/domain.js';
 import { recordFileSizes } from './file-sizes.js';
 
 const API = 'https://api.torbox.app/v1/api';
@@ -85,38 +84,6 @@ async function checkCached(
   }, { timeoutMs });
 }
 
-/** Mesmo createtorrent do resolveLink, mas sem esperar ficar pronto. */
-async function enqueue(apiKey: string, infoHash: string) {
-  const form = new FormData();
-  form.append('magnet', magnetForPlay(infoHash));
-  form.append('seed', '3'); // não semear
-  form.append('allow_zip', 'false');
-  const created = await call(apiKey, '/torrents/createtorrent', { method: 'POST', body: form });
-  return (created?.data?.torrent_id ?? created?.data?.id) != null;
-}
-
-/**
- * Inventário PRONTO da conta (`{ title, infoHash, size }`): base da
- * conta-como-fonte. É o `/torrents/mylist` SEM `id` — a mesma chamada que o
- * resolveLink faz para UM torrent, agora para a lista inteira. O par
- * download_finished/download_present é o que o resolveLink já considera
- * "pronto para leitura".
- */
-async function inventory(apiKey: string) {
-  const list = await call(apiKey, '/torrents/mylist');
-  const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
-  const out: any[] = [];
-  for (const row of rows) {
-    if (!(row?.download_finished || row?.download_present)) continue;
-    const infoHash = String(row.hash || '').toLowerCase();
-    const title = String(row.name || '').trim();
-    if (!infoHash || !title) continue;
-    if (title.toLowerCase() === infoHash) continue;
-    out.push({ title, infoHash, size: Number(row.size) || 0 });
-  }
-  return out;
-}
-
 /**
  * Classificação de UMA linha do `/torrents/mylist`. Mora aqui porque o
  * `accountStatus` e o `torrentStatus` precisam da MESMA leitura: enquanto o
@@ -184,40 +151,11 @@ function occupancy(status: AccountStatus) {
   return Number.isFinite(active) ? { used: active, max: ACTIVE_LIMIT } : null;
 }
 
-/**
- * Status de torrents na conta TorBox para o ciclo de recheck / detecção de mortos.
- */
-async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
-  const list = await call(apiKey, '/torrents/mylist');
-  const rows = Array.isArray(list?.data) ? list.data : (list?.data ? [list.data] : []);
-  const out: Record<string, TorrentStatusEntry> = {};
-  for (const row of rows) {
-    const hash = String(row?.hash || '').toLowerCase();
-    if (!hash) continue;
-    const { state, stalled } = rowState(row);
-    out[hash] = { state, stalled, id: row?.id };
-  }
-  return out;
-}
-
-/**
- * Remove torrent pelo id na TorBox.
- */
-async function removeTorrent(apiKey: string, id: string | number) {
-  try {
-    await call(apiKey, `/torrents/delete/${id}`, { method: 'DELETE' });
-    return true;
-  } catch (err) {
-    log.warn(`[torbox] falha ao remover torrent ${id}:`, err?.message || err);
-    return false;
-  }
-}
-
 export const id = 'torbox';
 export const label = 'TorBox';
 export const short = 'TB';
 export const cacheCheck = true;
 export const enqueueHourlyLimit = 50;
 export const keyUrl = 'https://torbox.app/settings';
-export { enqueue, inventory, accountStatus, occupancy, checkCached, torrentStatus, removeTorrent };
+export { accountStatus, occupancy, checkCached, rowState };
 
