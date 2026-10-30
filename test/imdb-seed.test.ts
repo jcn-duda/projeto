@@ -8,8 +8,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvForget } from '../src/utils/native-kv.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import { nextSeeds, popularCohort } from '../src/providers/imdb-seed.js';
@@ -72,16 +72,16 @@ async function comConfig<T>(patch: any, fn: () => Promise<T>): Promise<T> {
   const savedTop = config.f3.br.topPerType;
   Object.assign(config.seed, patch);
   harvesterLive.reset();
-  cache.forget(SEED_LAST);
-  cache.forget(SEED_COHORT);
+  kvForget(SEED_LAST);
+  kvForget(SEED_COHORT);
   try {
     return await fn();
   } finally {
     Object.assign(config.seed, saved);
     config.f3.br.topPerType = savedTop;
     harvesterLive.reset();
-    cache.forget(SEED_LAST);
-    cache.forget(SEED_COHORT);
+    kvForget(SEED_LAST);
+    kvForget(SEED_COHORT);
   }
 }
 
@@ -269,7 +269,7 @@ test('falha de uma lista preserva o balde anterior da coorte (invariante 6)', as
 
       // Ciclo 2: a lista de filmes cai; a de séries sobe. O balde de filmes da
       // coorte anterior NÃO regride (baseline nunca volta por uma rede que treme).
-      cache.forget(SEED_LAST);
+      kvForget(SEED_LAST);
       globalThis.fetch = (async (url: any) => {
         const u = String(url);
         if (u.includes('most-popular-movies')) throw new Error('rede caiu nos filmes');

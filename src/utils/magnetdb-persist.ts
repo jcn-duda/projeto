@@ -1,5 +1,6 @@
 // Persistência dos contadores duráveis do banco de magnets (agregado O(1) em
-// `mag_meta:v1:counts`) e o hook `cache.onPrune` que os mantém sincronizados.
+// `mag_meta:v1:counts`) e o relógio PRÓPRIO da varredura nativa que os mantém
+// sincronizados.
 // Módulo separado do magnetdb.ts por um motivo só: aquele arquivo está no teto
 // de 400 linhas. A API continua exposta por magnetdb.ts (save/load reexportados
 // para addon e testes); nenhuma rota ou consumidor importa daqui diretamente.
@@ -22,7 +23,6 @@
 // o restante exato de cada chave. O painel precisa saber qual dos dois está
 // mostrando para não chamar de precisa uma média que envelhece.
 import config from '../config.js';
-import * as cache from './cache.js';
 import { QUOTAS } from './cache-quotas.js';
 import {
   davailState, magnetState, type MagCount, type MagMetaPayload, type MagnetSide,
@@ -219,15 +219,18 @@ export function ensureCountsLoaded(l1Entries: number) {
   }
 }
 
-// Hook único de decremento: quem tira linha do `mag`/`davail` no dia a dia é a
-// VARREDURA NATIVA (TTL vencido e teto do namespace), disparada no fim de cada
-// prune do cache do Node. O antigo `onForget` não serve mais: a escrita nativa
-// não passa pelo cache do Node, então nenhum forget daqui veria essas linhas —
-// sem este hook os contadores só cresceriam.
+// Varredura única de decremento: quem tira linha do `mag`/`davail` no dia a dia
+// é a VARREDURA NATIVA (TTL vencido e teto do namespace). O antigo `onForget`
+// não serve mais: a escrita nativa não passa pelo cache do Node, então nenhum
+// forget daqui veria essas linhas — sem a varredura os contadores só cresceriam.
+// Com os namespaces órfãos do L1 migrados para a ponte, o prune do cache Node
+// deixou de ser relógio de manutenção alheio: a varredura tem setInterval
+// PRÓPRIO com a mesma cadência de 10 min que o prune antigo tinha (ver o pé
+// do arquivo). Exportada para o teste disparar sem esperar o timer.
 const nominalTtl = (side: MagnetSide): number =>
   side === 'alive' ? config.magnetDb.aliveTtl : side === 'bad' ? config.magnetDb.badTtl : config.magnetDb.lieTtl;
 
-cache.onPrune(() => {
+export function sweepNativeNamespaces(): void {
   const now = Date.now();
   const removed = magnetState().sweep(QUOTAS.mag, now);
   davailState().sweep(QUOTAS.davail, now);
@@ -243,8 +246,14 @@ cache.onPrune(() => {
   }
   markMutation();
   schedulePersistentSave();
-});
+}
 
 // Restauração no boot: rodava no carregamento do magnetdb.ts antes do split e
 // continua rodando uma vez, quando o módulo de persistência é carregado.
 loadPersistentCounts();
+
+// Relógio PRÓPRIO da varredura nativa: a mesma cadência de 10 min que o timer
+// do prune do L1 tinha (com os namespaces órfãos migrados, o prune do Node não
+// é mais o único relógio de manutenção do processo). `unref`: a varredura não
+// é papel dela segurar o processo vivo.
+setInterval(sweepNativeNamespaces, 10 * 60 * 1000).unref();

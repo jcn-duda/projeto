@@ -34,8 +34,8 @@
 // 6. Se uma lista falha, a coorte anterior DAQUELE tipo é preservada — a
 //    baseline nunca regride por uma tremedeira de rede.
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
+import { kvPeek, kvSet } from '../utils/native-kv.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -127,14 +127,15 @@ function sanitizeIds(list: unknown, topo: number): string[] {
 }
 
 /**
- * A coorte popular persistida, read-only. `cache.peek` não promove LRU nem
- * conta cache.hit/miss — vital para o sampler de fundo, que roda a cada 5 min.
+ * A coorte popular persistida, read-only. A ponte (`kvPeek`) não tem LRU para
+ * promover nem hit/miss para contar — vital para o sampler de fundo, que roda
+ * a cada 5 min.
  * Shape validado por construção (sanitizeIds clampa ao teto de `topPerType`);
  * sem coorte válida devolve null, e o chamador não inventa denominador.
  * Nunca expõe a API key — só `{at, movies, series}` de ids.
  */
 function popularCohort(): PopularCohort | null {
-  const raw = cache.peek(COHORT_KEY) as Partial<PopularCohort> | null;
+  const raw = kvPeek(COHORT_KEY) as Partial<PopularCohort> | null;
   if (!raw || typeof raw !== 'object' || typeof raw.at !== 'number' || !Number.isFinite(raw.at)) return null;
   const topo = Math.max(1, config.f3.br.topPerType);
   const movies = sanitizeIds(raw.movies, topo);
@@ -151,7 +152,9 @@ function cohortTtl(): number {
 
 function persistCohort(coorte: PopularCohort): void {
   try {
-    cache.set(COHORT_KEY, coorte, cohortTtl());
+    // Gate ttl>0: `kvSet` com TTL <= 0 gravaria PERMANENTE (padrão rd-ledger).
+    const ttl = cohortTtl();
+    if (ttl > 0) kvSet(COHORT_KEY, coorte, ttl);
   } catch (err) {
     log.warn('[seed] falha ao persistir coorte:', log.errorMessage(err));
   }
@@ -166,11 +169,14 @@ function persistCohort(coorte: PopularCohort): void {
 async function nextSeeds(): Promise<SeedEntry[]> {
   if (!enabled()) return [];
   const marca = `${prefix('seed')}last`;
-  if (cache.get(marca)) return [];
+  if (kvPeek(marca)) return [];
   const live = harvesterLive.effective();
   // A marca é gravada ANTES da rede: API fora do ar não pode fazer o ciclo
   // seguinte tentar de novo em 60s, que é o intervalo do tick.
-  cache.set(marca, Date.now(), Math.max(1, live.seedIntervalH) * 3600);
+  // Gate ttl>0 antes do `kvSet`: TTL <= 0 gravaria PERMANENTE (padrão
+  // rd-ledger.ts) — marca de ciclo sem validade não existe.
+  const intervalS = Math.max(1, live.seedIntervalH) * 3600;
+  if (intervalS > 0) kvSet(marca, Date.now(), intervalS);
 
   const hoje = new Date().toISOString().slice(0, 10);
   const topoPorTipo = Math.max(1, config.f3.br.topPerType);

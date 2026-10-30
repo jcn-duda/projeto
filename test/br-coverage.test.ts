@@ -6,6 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
+import { kvClearPrefix, kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
@@ -65,7 +66,8 @@ function resetAll() {
   cache.clearNamespace('rdc');
   cache.clearNamespace('davail');
   cache.clearNamespace('mag');
-  cache.clearNamespace('seed');
+  // A semente vive no KV nativo: o `clearNamespace` do L1 não a alcança mais.
+  kvClearPrefix(prefix('seed'));
   cache.clearNamespace('cfg');
   rdLedger.reset();
   brCoverage.reset();
@@ -101,8 +103,8 @@ function imdbItem(id: string, isSeries: boolean) {
  * o ciclo ocorrer de fato, e prova que a gravação passou pelo módulo.
  */
 async function seedCohort(movies: string[], series: string[]) {
-  cache.forget(SEED_LAST);
-  cache.forget(SEED_COHORT);
+  kvForget(SEED_LAST);
+  kvForget(SEED_COHORT);
   const realFetch = globalThis.fetch;
   const realTimeout = AbortSignal.timeout;
   AbortSignal.timeout = () => new AbortController().signal;
@@ -153,7 +155,7 @@ test('3.1: coorte expirada limpa latest, gauges e reinicia a janela de 48h', asy
     await seedCohort(['tt3000100'], []);
     assert.ok(brCoverage.sample());
     assert.ok(brCoverage.status().baselineAt > 0);
-    cache.forget(SEED_COHORT);
+    kvForget(SEED_COHORT);
     assert.equal(brCoverage.sample(), null);
     assert.equal(brCoverage.status().baselineAt, 0);
     assert.equal(brCoverage.status().latest, null);

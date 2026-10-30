@@ -241,7 +241,7 @@ test(
 );
 
 test(
-  'evicção por expiração (TTL): cache.prune() expurga chaves expiradas e decrementa contadores sem vazamento',
+  'evicção por expiração (TTL): sweep nativo expurga vencidos do mag e decrementa contadores sem vazamento',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
@@ -263,13 +263,13 @@ test(
       "const origNow = Date.now;",
       "Date.now = () => origNow() + 1000 * 86400 * 2;",
       "try {",
-      "  cache.prune();",
+      "  magnetdb.sweepNativeNamespaces();",
       "} finally {",
       "  Date.now = origNow;",
       "}",
       "",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeBad, 0, 'bad expirado foi decrementado via onForget em prune()');",
+      "assert.strictEqual(st.sizeBad, 0, 'bad expirado foi decrementado pela varredura nativa');",
       "assert.strictEqual(st.sizeAlive, 2, 'alive continua ativo antes de 7 dias');",
       "assert.strictEqual(st.sizeLie, 1, 'lie continua ativo antes de 7 dias');",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeBad, 0);",
@@ -279,7 +279,7 @@ test(
       "// Avança o tempo além do TTL de alive e lie (7 dias -> 8 dias)",
       "Date.now = () => origNow() + 1000 * 86400 * 8;",
       "try {",
-      "  cache.prune();",
+      "  magnetdb.sweepNativeNamespaces();",
       "} finally {",
       "  Date.now = origNow;",
       "}",

@@ -7,8 +7,8 @@
 // 3. Sanitização: NUNCA envia tokens de autenticação, segredos ou API keys.
 
 import config from '../config.js';
-import * as cache from './cache.js';
 import { prefix } from './cache-keys.js';
+import { kvPeek, kvSet } from './native-kv.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
 
@@ -52,12 +52,18 @@ async function notify(
   if (!event || !message) return false;
 
   const key = `${prefix('notify')}${event}`;
-  if (cache.get(key)) {
+  // Cooldown no KV nativo (mesma tabela `cache` do cache.db): a chave e o TTL
+  // continuam os mesmos. `kvPeek` é leitura sem efeito — o cooldown não é cache
+  // de resposta, não deve contar hit/miss nem promover LRU.
+  if (kvPeek(key)) {
     log.debug(`[notify] evento ${event} ignorado por cooldown (${config.notify.cooldownS}s)`);
     return false;
   }
 
-  cache.set(key, 1, config.notify.cooldownS);
+  // Gate ttl>0: `kvSet` com TTL <= 0 gravaria PERMANENTE, e o L1 antigo
+  // descartava essa escrita (padrão rd-ledger.ts) — cooldown sem validade
+  // não existe.
+  if (config.notify.cooldownS > 0) kvSet(key, 1, config.notify.cooldownS);
   metrics.count(`notify.${event}`);
 
   const payload: NotifyPayload = {

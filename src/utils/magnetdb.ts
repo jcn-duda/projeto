@@ -29,11 +29,11 @@ import { isSupportedHash, type AdapterTotals } from './magnetdb-counts.js';
 import {
   adapterCounts, getOrCreateAdapter, ensureCountsLoaded,
   savePersistentCounts, loadPersistentCounts, schedulePersistentSave, markMutation,
-  ttlRemainingBasis, type TtlRemainingBasis,
+  ttlRemainingBasis, sweepNativeNamespaces, type TtlRemainingBasis,
 } from './magnetdb-persist.js';
 
 export type { AdapterTotals };
-export { savePersistentCounts, loadPersistentCounts, ttlRemainingBasis };
+export { savePersistentCounts, loadPersistentCounts, ttlRemainingBasis, sweepNativeNamespaces };
 export type { TtlRemainingBasis };
 
 type MagnetSizes = { alive: number; bad: number; lie: number };
@@ -72,9 +72,9 @@ export type MagnetDbStatus = {
   _origem: Record<string, MagnetDbOrigem>;
 };
 
-// Contadores, persistência (mag_meta:v1) e o hook cache.onPrune moram em
-// magnetdb-persist.ts — este arquivo estava no teto de 400 linhas. A API
-// pública continua aqui (reexportação acima de save/load para addon/testes).
+// Contadores, persistência (mag_meta:v1) e o relógio da varredura nativa moram
+// em magnetdb-persist.ts — este arquivo estava no teto de 400 linhas. A API
+// pública continua aqui (reexportação acima de save/load e do sweep).
 
 /**
  * Grava em lote que os hashes tocariam na hora nesta conta. Chamado quando a

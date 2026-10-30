@@ -1,12 +1,13 @@
 import config from '../config.js';
-import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import { notify } from '../utils/notify.js';
+import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 
 const TTL_MS = config.jackett.statusTtl * 1000;
-// Memória é o L1; o cache em disco só existe pra sobreviver ao restart. O
-// status só é medido em busca real, então sem disco a página voltava a abrir
-// tudo "desconhecido" a cada subida do container, mesmo com o indexador no ar.
+// O Map é o estado do processo; o KV nativo (via ponte, na MESMA tabela `cache`
+// do cache.db) existe pra sobreviver ao restart. O status só é medido em busca
+// real, então sem disco a página voltava a abrir tudo "desconhecido" a cada
+// subida do container, mesmo com o indexador no ar.
 const KEY_PREFIX = 'indexer-status:';
 const statuses = new Map();
 
@@ -52,7 +53,9 @@ function record(id: string, sample: StateSample = {}, at: number = Date.now()) {
     failStreak: state === 'offline' ? (previous?.failStreak || 0) + 1 : 0,
   };
   statuses.set(key, value);
-  cache.set(KEY_PREFIX + key, value, config.jackett.statusTtl);
+  // Escrita durável pela ponte (mesma tabela `cache` do cache.db). Gate ttl>0:
+  // `kvSet` com TTL <= 0 gravaria PERMANENTE (padrão rd-ledger.ts).
+  if (config.jackett.statusTtl > 0) kvSet(KEY_PREFIX + key, value, config.jackett.statusTtl);
   // Todo caminho de busca e de teste passa por aqui, então é o único lugar que
   // precisa medir. O status guardado é só a ÚLTIMA amostra; as métricas somam a
   // série, que é o que responde "quem está puxando o prazo".
@@ -72,11 +75,11 @@ function record(id: string, sample: StateSample = {}, at: number = Date.now()) {
 function get(id: string, now = Date.now()) {
   const key = normalize(id);
   let value = statuses.get(key);
-  // Primeira leitura depois do restart: o disco ainda sabe. O TTL do cache é o
+  // Primeira leitura depois do restart: o KV nativo ainda sabe. O TTL é o
   // mesmo, então o que ele devolve já passou pela validade — a checagem abaixo
   // continua valendo para o `now` explícito que os testes injetam.
   if (!value) {
-    value = cache.get(KEY_PREFIX + key);
+    value = kvPeek(KEY_PREFIX + key);
     if (value) statuses.set(key, value);
   }
   if (!value) return null;
@@ -90,9 +93,9 @@ function decorate(items: any[] = []) {
 }
 
 function clear() {
-  // Só as chaves de status: o cache é compartilhado com as buscas, e um
-  // clear() de teste não pode levar o resto junto.
-  for (const key of statuses.keys()) cache.forget(KEY_PREFIX + key);
+  // Só as chaves de status: o KV nativo é compartilhado com os demais
+  // namespaces, e um clear() de teste não pode levar o resto junto.
+  for (const key of statuses.keys()) kvForget(KEY_PREFIX + key);
   statuses.clear();
 }
 
