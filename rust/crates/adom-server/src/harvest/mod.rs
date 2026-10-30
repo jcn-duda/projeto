@@ -63,7 +63,10 @@ use adom_store::StreamsStore;
 use tokio::sync::{oneshot, Mutex as AsyncMutex, Notify};
 
 pub use config::HarvestConfig;
+#[cfg(test)]
+pub(crate) use handle::tests::persist_inner;
 pub use handle::HarvestHandle;
+pub(crate) use routes::request_from_body;
 pub use status::{HarvestCounters, HarvestStatus};
 pub use traffic::StreamTraffic;
 

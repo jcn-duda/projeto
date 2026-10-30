@@ -8,6 +8,8 @@
 //!   Chupim: com o worker LIGADO o efeito vira um [`Job`](crate::autofetch)
 //!   publicado no canal ([`NativeWorkQueue`]); em `prepared` segue ao Node, como
 //!   sempre (a leva do flip é outra);
+//! - `harvester_enqueue` — fila do colhedor deste processo
+//!   ([`harvest_effect`](crate::harvest_effect)); sem colhedor, segue ao Node;
 //! - kinds com dono registrado por outro módulo ([`NativeEffectSink`], ex.
 //!   `rd_warmer`), que responde pelo próprio kill-switch;
 //! - todo o resto vai ao alvo de sempre (`NodeTailEffects`), na ordem em que
@@ -34,6 +36,7 @@ use serde_json::{Map, Value};
 
 use crate::autofetch::{shared_vault, Vault};
 use crate::dub_audit::{self, DubAudit};
+use crate::harvest_effect::{self, HarvestOffer, HarvestSlot, HARVESTER_ENQUEUE};
 
 /// Efeito cujo dono virou o gateway.
 pub const DUB_AUDIT: &str = "dub_audit";
@@ -79,6 +82,8 @@ pub struct NativeTailEffects {
     worker: Option<Arc<dyn NativeWorkQueue>>,
     /// Donos registrados por outros módulos, na ordem de registro.
     sinks: Vec<(&'static str, Arc<dyn NativeEffectSink>)>,
+    /// Colhedor nativo (`harvester_enqueue`); `None` = efeito segue ao Node.
+    harvest: Option<HarvestSlot>,
 }
 
 impl NativeTailEffects {
@@ -99,7 +104,14 @@ impl NativeTailEffects {
             vault,
             worker: None,
             sinks: Vec::new(),
+            harvest: None,
         }
+    }
+
+    /// Liga o colhedor nativo ao `harvester_enqueue` (slot preenchido no boot).
+    pub(crate) fn with_harvest(mut self, slot: HarvestSlot) -> Self {
+        self.harvest = Some(slot);
+        self
     }
 
     /// Registra o dono de um `kind` de outro módulo — sem reabrir este arquivo
@@ -131,6 +143,24 @@ impl NativeTailEffects {
                     Routed::Rejected
                 }
             };
+        }
+
+        // Pedido ao colhedor: a fila é deste processo, então não há salto ao
+        // Node (que só o devolvia à admin 8711). Sem colhedor, segue ao Node.
+        if effect.kind == HARVESTER_ENQUEUE {
+            if let Some(slot) = self.harvest.as_ref() {
+                match harvest_effect::offer(slot, &effect.payload) {
+                    HarvestOffer::Spawned => return Routed::Native,
+                    HarvestOffer::Invalid => {
+                        eprintln!(
+                            "[harvest] efeito harvester_enqueue rejeitado (payload inválido)"
+                        );
+                        return Routed::Rejected;
+                    }
+                    HarvestOffer::Unbound => {}
+                }
+            }
+            return Routed::Forward;
         }
 
         // Trabalho do Chupim: só sai do Node com o worker LIGADO. Em `prepared`

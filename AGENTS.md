@@ -226,8 +226,9 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, a rota do sidecar (`/internal/activity`),
-painel/config e as pontes do Chupim (os efeitos ficaram só com
-`harvester_enqueue`; o crawl é do sidecar).
+painel/config e as pontes do Chupim (o crawl é do sidecar). O
+`harvester_enqueue` entra direto na fila do colhedor do gateway
+(`adom-server::harvest_effect`); só vai ao Node com o colhedor desligado.
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só
 enfileira, lê estado e manda pausar/drenar/limpar pela API administrativa
 (§Cache e índice). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
@@ -417,12 +418,14 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   desde o corte**: os dois anéis ficam vazios, os números do laço vêm do
   worker nativo pela admin 8711) e
   as pontes (`utils/autofetch-native.ts`, `autofetch-state-native.ts`,
-  `rust-autofetch.ts`). A rota `/internal/search/effects` ficou com **um** kind
-  executado, `harvester_enqueue`; `rd_warmer` e os três de trabalho
+  `rust-autofetch.ts`). A rota `/internal/search/effects` só executa o
+  `harvester_enqueue` quando o gateway está sem colhedor (com ele, o efeito é
+  enfileirado no próprio gateway); `rd_warmer` e os três de trabalho
   (`autofetch_batch`, `br_probe`, `season_key`) são aceitos na forma e somados
   em `nativeOnly`, sem executor do outro lado.
-- **Ainda é do Node**: `adsub`/`adprot` (marcas de posse e de retenção que o
-  nativo só LÊ) e o `harvester_enqueue`. O agendamento das varreduras da
+- **Não é mais do Node**: a posse `adsub` é gravada pela checagem nativa
+  (`adom-debrid::marks_feed`) e a retenção `adprot` pelo aceite/auditoria
+  nativos; o Node só lê pela ponte. O agendamento das varreduras da
   AllDebrid **não** está mais aqui: as quatro rodam no gateway (`al_sweeps`,
   gate `DEBRID_AL_SWEEP_APPLY`). O marker com `obra` e o registro F2 **não**
   estão mais aqui: o aceite nativo grava os dois (`enqueue.rs:299-316`,

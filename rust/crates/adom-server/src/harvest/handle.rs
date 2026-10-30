@@ -154,4 +154,4 @@ impl HarvestHandle {
 
 #[cfg(test)]
 #[path = "handle_tests.rs"]
-mod tests;
+pub(crate) mod tests;

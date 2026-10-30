@@ -10,6 +10,7 @@ mod dub_audit_writes;
 mod file_sizes_source;
 /// Colhedor nativo (`adom-harvest`) rodando DENTRO do gateway (Fase 5).
 mod harvest;
+mod harvest_effect;
 /// Rotas do banco de magnets (import no boot/admin) — ver o módulo.
 mod magnet_bank_admin;
 mod ownership_admin;

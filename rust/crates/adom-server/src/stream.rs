@@ -106,6 +106,7 @@ pub fn build_orchestrator_from(
     stores: StreamStores,
     autofetch: Option<crate::autofetch::AutofetchHandle>,
     warmer: Option<Arc<crate::rd_warmer::Warmer>>,
+    harvest: crate::harvest_effect::HarvestSlot,
 ) -> Result<Orchestrator, String> {
     let config = orchestrator_config_from_env();
     let StreamStores { swr, streams } = stores;
@@ -152,6 +153,7 @@ pub fn build_orchestrator_from(
             if let Some(autofetch) = autofetch {
                 tail = tail.with_queue(Arc::new(autofetch));
             }
+            tail = tail.with_harvest(harvest);
             orch = orch.with_tail(Arc::new(tail)).with_internal_routes(routes);
             if let Some(meta) = meta {
                 orch = orch.with_meta(meta);

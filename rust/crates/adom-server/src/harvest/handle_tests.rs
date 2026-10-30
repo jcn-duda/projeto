@@ -11,7 +11,7 @@ use crate::harvest::status::HarvestStatus;
 use crate::harvest::traffic::StreamTraffic;
 use crate::harvest::Inner;
 
-fn persist_inner(store: Arc<HarvestStore>) -> Arc<Inner> {
+pub(crate) fn persist_inner(store: Arc<HarvestStore>) -> Arc<Inner> {
     let config = HarvestConfig {
         entry_ttl: 86_400,
         ..HarvestConfig::default()

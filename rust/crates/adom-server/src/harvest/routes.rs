@@ -118,7 +118,7 @@ async fn enqueue(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) 
 ///
 /// O `type` é validado pelo enum (só `movie`/`series`); série sem temporada
 /// continua válida (a fila aceita obra sem S/E, como o TS).
-pub(super) fn request_from_body(body: &Value) -> Option<HarvestRequest> {
+pub(crate) fn request_from_body(body: &Value) -> Option<HarvestRequest> {
     let imdb = body.get("imdbId").and_then(Value::as_str).unwrap_or("");
     let media_type = HarvestMediaType::parse(body.get("type").and_then(Value::as_str)?)?;
     let reason = body.get("reason").and_then(Value::as_str).unwrap_or("");

@@ -124,10 +124,18 @@ pub async fn run(config: Config) -> Result<(), String> {
     let sweeps: SweepRuntime = crate::al_sweeps::spawn();
     // Falha de boot da coleta nativa (nenhuma fonte montada) é erro VISÍVEL:
     // `main` loga e sai — nunca queda silenciosa para uma lista vazia.
+    // Slot do colhedor para o `harvester_enqueue`: o colhedor só nasce depois
+    // do orquestrador, e o slot é preenchido logo abaixo.
+    let harvest_slot: crate::harvest_effect::HarvestSlot = Default::default();
     let orchestrator = stores
         .as_ref()
         .map(|stores| {
-            stream::build_orchestrator_from(stores.clone(), autofetch.clone(), warmer.clone())
+            stream::build_orchestrator_from(
+                stores.clone(),
+                autofetch.clone(),
+                warmer.clone(),
+                harvest_slot.clone(),
+            )
         })
         .transpose()?;
     // Colhedor nativo (Fase 5): só existe com o corte nativo e orquestrador.
@@ -143,6 +151,9 @@ pub async fn run(config: Config) -> Result<(), String> {
     // uma vez. Sem colhedor a sonda dirigida volta ao Node (o canal recusa).
     if let (Some(worker), Some(harvester)) = (autofetch.as_ref(), harvest.as_ref()) {
         worker.set_harvest(harvester.clone());
+    }
+    if let Some(harvester) = harvest.as_ref() {
+        let _ = harvest_slot.set(harvester.clone());
     }
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
         spawn_store_admin(
