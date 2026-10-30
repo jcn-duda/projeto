@@ -267,3 +267,6 @@ async fn uncached_conhecido_nao_vira_cache_nem_unknown() {
 
 #[path = "alldebrid_check_tests_part2.rs"]
 mod part2;
+
+#[path = "alldebrid_check_tests_files.rs"]
+mod files;

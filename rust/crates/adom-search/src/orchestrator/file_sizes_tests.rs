@@ -72,18 +72,13 @@ fn pede_hashes_unicos_e_minusculos() {
 #[test]
 fn mapa_do_replay_vence_o_da_fonte() {
     let source = RecordingSource {
-        files: BTreeMap::from([(
-            HASH_A_LOWER.to_string(),
-            vec![file("da-fonte.mkv", 1.0)],
-        )]),
+        files: BTreeMap::from([(HASH_A_LOWER.to_string(), vec![file("da-fonte.mkv", 1.0)])]),
         totals: BTreeMap::from([(HASH_A_LOWER.to_string(), 1.0)]),
         ..RecordingSource::default()
     };
     let mut ctx = BuildContext::default();
-    ctx.files_by_hash.insert(
-        HASH_A_LOWER.to_string(),
-        vec![file("do-replay.mkv", 2.0)],
-    );
+    ctx.files_by_hash
+        .insert(HASH_A_LOWER.to_string(), vec![file("do-replay.mkv", 2.0)]);
     ctx.totals_by_hash.insert(HASH_A_LOWER.to_string(), 2.0);
 
     merge_file_sizes(Some(&source), &[item(HASH_A)], &mut ctx);

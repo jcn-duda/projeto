@@ -26,6 +26,8 @@ struct Piece {
     uncached: Vec<CleanTarget>,
     protected: usize,
     known: usize,
+    /// `(hash, id)` de magnets prontos cuja lista de arquivos foi pedida.
+    files: Vec<(String, String)>,
 }
 
 #[derive(Default)]
@@ -36,6 +38,7 @@ pub(super) struct Folded {
     pub(super) uncached: Vec<CleanTarget>,
     pub(super) protected: usize,
     pub(super) known: usize,
+    pub(super) files_to_read: Vec<(String, String)>,
     pub(super) complete: bool,
 }
 
@@ -76,7 +79,10 @@ pub(super) async fn batches(
         }
     }
     parts.sort_by_key(|(index, _)| *index);
-    fold(parts.into_iter().map(|(_, part)| part).collect())
+    fold(
+        parts.into_iter().map(|(_, part)| part).collect(),
+        gate.pack_files_max,
+    )
 }
 
 async fn upload_batch(
@@ -111,6 +117,13 @@ async fn upload_batch(
         }
         if ready && !piece.cached.contains(&hash) {
             piece.cached.push(hash.clone());
+        }
+        // Lista de arquivos só de magnet PRONTO (o status de um não pronto não
+        // tem árvore). O teto é aplicado no `fold`, na ordem do input.
+        if ready && gate.files.contains(&hash) && !piece.files.iter().any(|(h, _)| h == &hash) {
+            if let Some(id) = magnet_id(magnet) {
+                piece.files.push((hash.clone(), id));
+            }
         }
         let run = gate.cleanup.as_ref().filter(|run| run.active());
         if let Some(run) = run {
@@ -167,7 +180,10 @@ async fn upload_batch(
     Ok(piece)
 }
 
-fn fold(parts: Vec<Result<Piece, DebridError>>) -> Result<Folded, DebridError> {
+fn fold(
+    parts: Vec<Result<Piece, DebridError>>,
+    pack_files_max: usize,
+) -> Result<Folded, DebridError> {
     if !parts.is_empty() && parts.iter().all(|part| part.is_err()) {
         return Err(only_failure(&parts));
     }
@@ -179,6 +195,14 @@ fn fold(parts: Vec<Result<Piece, DebridError>>) -> Result<Folded, DebridError> {
                 for hash in piece.cached {
                     if !folded.cached.contains(&hash) {
                         folded.cached.push(hash);
+                    }
+                }
+                // Teto global da checagem: o que sobra sem leitura fica fora,
+                // sem virar veredito (a ausência na lista não é "frio").
+                for (hash, id) in piece.files {
+                    let room = folded.files_to_read.len() < pack_files_max;
+                    if room && !folded.files_to_read.iter().any(|(h, _)| h == &hash) {
+                        folded.files_to_read.push((hash, id));
                     }
                 }
                 for hash in piece.submitted {

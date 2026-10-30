@@ -71,6 +71,9 @@ pub(super) async fn check_alldebrid(
         holds_complete: body.holds_complete,
         durable: cleanup.is_on().then(|| Arc::new(durable)),
         kill_switch: None,
+        // Esta rota não pede lista de arquivos: `file_hashes` vazio e
+        // `pack_files_max` 0 (default) deixam a leitura desligada.
+        ..CheckOpts::default()
     };
     let ad = AllDebrid::new(client);
     match ad

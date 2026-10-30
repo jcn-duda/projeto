@@ -226,7 +226,8 @@ fn header_error(value: &Value) -> Option<String> {
         return Some("cabeçalho ausente: o arquivo não é um export do banco de magnets".into());
     }
     let version = value.get("v");
-    let is_version = matches!(version, Some(Value::Number(n)) if n.as_f64() == Some(TRANSFER_VERSION));
+    let is_version =
+        matches!(version, Some(Value::Number(n)) if n.as_f64() == Some(TRANSFER_VERSION));
     if !is_version {
         return Some(format!(
             "versão do arquivo não suportada ({})",

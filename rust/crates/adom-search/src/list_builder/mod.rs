@@ -30,6 +30,7 @@ mod audio_proof;
 mod build;
 // Seleção dos efeitos de cauda (dub_audit/warmer) sobre o lote pós-debrid.
 mod effects;
+mod file_wants;
 mod finalize;
 mod finalize_play;
 mod helpers;
@@ -39,6 +40,9 @@ mod types;
 mod types_context;
 
 #[cfg(test)]
+#[path = "file_wants_tests.rs"]
+mod file_wants_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 #[path = "tests_bludv_br.rs"]
@@ -47,6 +51,7 @@ mod tests_bludv_br;
 pub use audio_proof::{apply_pt_title_dual, AudioAudit};
 pub use build::{build_stream_list, relevant_count};
 pub use effects::{AuditSeed, AutofetchItem, EffectSeeds, WarmerSeed};
+pub use file_wants::pack_hashes_missing_files;
 pub use types::{
     apply_notice_origin, seed_floor_for, BuildContext, BuildOptions, BuiltList, BuiltStream,
     DebridAnswer, DebridCheck, WorkHint,

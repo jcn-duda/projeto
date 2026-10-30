@@ -38,8 +38,8 @@ use adom_core::{
 };
 use serde_json::{json, Value};
 
-use crate::alldebrid::{AllDebrid, CheckOpts};
-use crate::alldebrid_cleanup::{account_scope, env_truthy, CleanupMode, CleanupPlan, DurablePeek};
+use crate::alldebrid::AllDebrid;
+use crate::alldebrid_cleanup::{CleanupMode, DurablePeek};
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::holds_feed::HoldsFacts;
@@ -53,6 +53,14 @@ use crate::torbox::TorBox;
 mod verdict_ledger;
 use verdict_ledger::{now_ms, rd_ledger_known, rd_renew_hits};
 pub use verdict_ledger::{rd_gate_enabled, rd_ledger_enabled, rd_oracle_enabled};
+
+#[path = "verdict_files.rs"]
+mod verdict_files;
+use verdict_files::{pack_files_max_from_env, spawn_reads_then_cleanup, wanted_hashes};
+
+#[path = "verdict_opts.rs"]
+mod verdict_opts;
+pub(crate) use verdict_opts::alldebrid_opts;
 
 /// Serviço desconhecido (não é erro de rede nem de conta).
 pub const UNKNOWN_SERVICE: &str = "unknown_service";
@@ -150,6 +158,29 @@ pub async fn check_service_report_with(
     store: Option<&Store>,
     facts: Option<&HoldsFacts>,
 ) -> Result<ServiceCheck, String> {
+    // Comportamento de sempre: nenhum hash pedido para leitura de arquivos.
+    check_service_report_files(service, api_key, hashes, &[], timeout, store, facts).await
+}
+
+/// Igual a [`check_service_report_with`], mas pede a LISTA DE ARQUIVOS de
+/// `file_hashes` (o build escolhe packs e itens sem tamanho/resolução).
+///
+/// - TorBox: a lista vem na própria checagem e é gravada em `fsz`.
+/// - AllDebrid: só magnets PRONTOS pedidos são lidos, até
+///   `DEBRID_PACK_FILES_PER_CHECK`, em fundo e ANTES da limpeza (ver
+///   `verdict_files`). A leitura não depende de `DEBRID_AL_CLEANUP`.
+/// - Demais serviços ignoram `file_hashes` (não expõem árvore aqui).
+///
+/// A resposta nunca espera a leitura: o veredito sai como antes.
+pub async fn check_service_report_files(
+    service: &str,
+    api_key: &str,
+    hashes: &[String],
+    file_hashes: &[String],
+    timeout: Option<Duration>,
+    store: Option<&Store>,
+    facts: Option<&HoldsFacts>,
+) -> Result<ServiceCheck, String> {
     if !is_known_service(service) {
         return Err(UNKNOWN_SERVICE.to_string());
     }
@@ -180,7 +211,7 @@ pub async fn check_service_report_with(
             Err(err) => (err_verdict(&err), true),
         },
         "torbox" => match TorBox::new(client)
-            .check_cached(api_key, hashes, &[], timeout)
+            .check_cached(api_key, hashes, file_hashes, timeout)
             .await
         {
             Ok(report) => {
@@ -203,14 +234,22 @@ pub async fn check_service_report_with(
             // O leitor do `cache.db` do Node serve dois papéis nesta checagem:
             // filtro de upload (`adrm`, sempre) e guarda durável da limpeza.
             let durable = DurablePeek::from_env();
-            let opts = alldebrid_opts(cleanup, timeout, facts, hashes, api_key, &durable);
+            let mut opts = alldebrid_opts(cleanup, timeout, facts, hashes, api_key, &durable);
+            opts.file_hashes = wanted_hashes(file_hashes);
+            opts.pack_files_max = pack_files_max_from_env();
             let ad = AllDebrid::new(client);
             match ad.check_cached_report(api_key, hashes, &opts).await {
                 Ok(report) => {
                     // Fire-and-forget, como o `dropMagnets` do Node: a resposta
-                    // nunca espera o backoff. Plano vazio (holds incompletos)
-                    // não spawna nada.
-                    spawn_cleanup(&ad, api_key, report.cleanup.clone());
+                    // nunca espera. Leitura dos pedidos ANTES do plano (que
+                    // pode apagar o magnet pronto); sem nada disso, não spawna.
+                    spawn_reads_then_cleanup(
+                        &ad,
+                        api_key,
+                        report.files_to_read.clone(),
+                        report.cleanup.clone(),
+                        timeout,
+                    );
                     (record(report.cached, report.complete), report.attempted)
                 }
                 Err(failure) => (err_verdict(&failure.error), failure.attempted),
@@ -245,67 +284,6 @@ pub async fn check_service_report_with(
     })
 }
 
-/// `CheckOpts` da AllDebrid nesta rodada. Três estados, do mais seguro ao mais
-/// permissivo:
-///
-/// - limpeza OFF (default): read-only para APAGAR; fatos e `drop_*` são
-///   ignorados. O filtro de upload (`adrm`) continua valendo;
-/// - ON **sem** fatos: `inventory_loaded:false` + `holds_complete:false` — a
-///   nativa segue read-only (`holds_incomplete`), como antes do feed;
-/// - ON **com** fatos: drops do Node (ou env), inventário/`knownBefore` e held
-///   do lote; `holds_complete` só com [`HoldsFacts::covers`] (o flag do Node
-///   sozinho não autoriza).
-///
-/// `durable` é o leitor do `cache.db` do Node e é lido ANTES do early return:
-/// o `adrm:v1` (anti-reenchimento) é filtro de UPLOAD, leitura read-only sem
-/// efeito colateral, e vale mesmo com a limpeza desligada — sem ele a checagem
-/// re-sobe ao `/magnet/upload` o hash que a limpeza apagou de propósito. Só o
-/// `CheckOpts.durable` (a guarda `adprot`/`adsub` da limpeza) depende da flag.
-pub(crate) fn alldebrid_opts(
-    cleanup: CleanupMode,
-    timeout: Option<Duration>,
-    facts: Option<&HoldsFacts>,
-    hashes: &[String],
-    api_key: &str,
-    durable: &DurablePeek,
-) -> CheckOpts {
-    let mut opts = CheckOpts {
-        timeout,
-        cleanup,
-        blocked: durable.blocked_hashes(&account_scope(api_key), now_ms()),
-        ..CheckOpts::default()
-    };
-    if !cleanup.is_on() {
-        // READ-ONLY para apagar: nem o inventário próprio é lido (`cleanup_run`
-        // sai no primeiro portão) e o `adprot`/`adsub` não entra no `CheckOpts`.
-        return opts;
-    }
-    opts.durable = Some(std::sync::Arc::new(durable.clone()));
-    match facts {
-        Some(facts) => {
-            opts.drop_ready = facts
-                .drop_ready
-                .unwrap_or_else(|| env_truthy("DEBRID_DROP_READY", true));
-            opts.drop_uncached = facts
-                .drop_uncached
-                .unwrap_or_else(|| env_truthy("DEBRID_DROP_UNCACHED", true));
-            opts.inventory_loaded = facts.inventory_loaded;
-            opts.known_before = facts.known_before_set();
-            opts.held = facts.held_set();
-            // Reconfere a cobertura do lote: `holdsComplete` sem `evaluated`
-            // cobrindo os hashes não vale nada.
-            opts.holds_complete = facts.covers(hashes);
-        }
-        None => {
-            // Sem feed: os `drop_*` do ambiente ficam como antes, mas
-            // `holds_complete:false` suprime o plano (`holds_incomplete`).
-            opts.drop_ready = env_truthy("DEBRID_DROP_READY", true);
-            opts.drop_uncached = env_truthy("DEBRID_DROP_UNCACHED", true);
-        }
-    }
-    opts
-}
-
 /// Resposta fechada de adaptador (`complete == Some(false)` é o único
 /// "não sei" — ausente e `null` contam como fechado).
 fn record(cached: Vec<String>, complete: bool) -> CacheVerdict {
@@ -313,23 +291,6 @@ fn record(cached: Vec<String>, complete: bool) -> CacheVerdict {
         cached,
         complete: Some(complete),
     })
-}
-
-/// Agenda a fila de delete DEPOIS da resposta. Plano vazio (flag OFF ou
-/// `holds_complete=false`) não spawna: a nativa segue read-only.
-fn spawn_cleanup(ad: &AllDebrid, api_key: &str, plan: Option<CleanupPlan>) {
-    let Some(plan) = plan.filter(|plan| !plan.is_empty()) else {
-        return;
-    };
-    let Ok(handle) = tokio::runtime::Handle::try_current() else {
-        eprintln!("[alldebrid] limpeza nativa sem runtime; plano descartado");
-        return;
-    };
-    let ad = ad.clone();
-    let key = api_key.to_string();
-    handle.spawn(async move {
-        let _ = plan.run(&ad, &key).await;
-    });
 }
 
 fn unknown_verdict() -> CacheVerdict {

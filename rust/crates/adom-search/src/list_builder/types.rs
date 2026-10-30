@@ -56,6 +56,11 @@ pub trait DebridCheck {
     /// Pré-aquece o lote de hashes (default: no-op). Chamar UMA vez antes do
     /// laço de streams evita N uploads no AllDebrid.
     fn prepare(&mut self, _hashes: &[String]) {}
+
+    /// Hashes cuja LISTA DE ARQUIVOS o serviço deve ler na mesma checagem
+    /// (default: no-op). Chamado UMA vez, ANTES de [`Self::prepare`], só com os
+    /// hashes que ainda não têm a lista no memo (`file_wants.rs`).
+    fn want_files(&mut self, _hashes: &[String]) {}
 }
 
 // ── Config (do usuário, via URL; nunca do `.env` no caminho de busca) ───────

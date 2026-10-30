@@ -99,6 +99,9 @@ pub struct AdapterDebridCheck {
     pub local_stub: Option<std::sync::Arc<dyn Fn() -> Result<ServiceCheck, String> + Send + Sync>>,
     /// Hashes do lote desta busca (preenchidos por `prepare`).
     batch_hashes: Vec<String>,
+    /// Hashes cuja lista de arquivos o serviço lê na MESMA checagem (packs e
+    /// itens sem tamanho/resolução, `want_files`). Vazio = só o veredito.
+    file_hashes: Vec<String>,
     /// Veredito único do lote. `None` = ainda não rodou.
     memo: Option<CheckOutcome>,
     /// Contagem de uploads/checks locais (teste: AD ≤ 1 por busca).
@@ -121,6 +124,7 @@ impl AdapterDebridCheck {
             #[cfg(test)]
             local_stub: None,
             batch_hashes: Vec::new(),
+            file_hashes: Vec::new(),
             memo: None,
             local_checks: 0,
             #[cfg(test)]
@@ -164,17 +168,19 @@ impl AdapterDebridCheck {
 
         if verdict::is_known_service(&self.service) {
             self.local_checks += 1;
-            let outcome = block_on(verdict::check_service(
+            let outcome = block_on(verdict::check_service_report_files(
                 &self.service,
                 &self.api_key,
                 &hashes,
+                &self.file_hashes,
                 self.timeout,
                 self.store.as_deref(),
+                None,
             ));
             // Serviço conhecido: Ok(Unknown) em falha — nunca um segundo
             // caminho (re-upload caro/efeito colateral).
             self.memo = Some(match outcome {
-                Ok(o) => o,
+                Ok(check) => check.outcome,
                 Err(_) => unknown_outcome(),
             });
             return;
@@ -254,10 +260,11 @@ impl AdapterDebridCheck {
             let _ = facts;
             return stub();
         }
-        block_on(verdict::check_service_report_with(
+        block_on(verdict::check_service_report_files(
             &self.service,
             &self.api_key,
             hashes,
+            &self.file_hashes,
             self.timeout,
             self.store.as_deref(),
             facts,
@@ -266,6 +273,10 @@ impl AdapterDebridCheck {
 }
 
 impl DebridCheck for AdapterDebridCheck {
+    fn want_files(&mut self, hashes: &[String]) {
+        self.file_hashes = hashes.iter().filter(|h| !h.is_empty()).cloned().collect();
+    }
+
     fn prepare(&mut self, hashes: &[String]) {
         self.batch_hashes = hashes.iter().filter(|h| !h.is_empty()).cloned().collect();
         self.ensure_memo(None);

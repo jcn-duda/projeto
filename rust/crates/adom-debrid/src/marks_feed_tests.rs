@@ -35,15 +35,9 @@ fn grava_chave_com_escopo_da_conta_valor_at_e_ttl() {
     assert_eq!(key, adsub_key(&account_scope(KEY), HIT));
     assert_eq!(kv.get_json(&key, NOW).unwrap(), Some(json!({ "at": NOW })));
     // TTL de 7 dias: o restante é o próprio TTL, arredondado.
-    assert_eq!(
-        kv.remaining_seconds(&key, NOW).unwrap(),
-        Some(WEEK_SECONDS)
-    );
+    assert_eq!(kv.remaining_seconds(&key, NOW).unwrap(), Some(WEEK_SECONDS));
     // Vencida a janela, o leitor não enxerga mais a posse.
-    assert_eq!(
-        kv.get_json(&key, NOW + WEEK_SECONDS * 1_000).unwrap(),
-        None
-    );
+    assert_eq!(kv.get_json(&key, NOW + WEEK_SECONDS * 1_000).unwrap(), None);
 }
 
 #[test]
@@ -53,7 +47,10 @@ fn ignora_invalido_e_duplicado_e_conta_so_os_unicos_validos() {
     assert_eq!(write_marks(&kv, &lote, WEEK_SECONDS, NOW).unwrap(), 2);
     let scope = account_scope(KEY);
     assert!(kv.get_json(&adsub_key(&scope, HIT), NOW).unwrap().is_some());
-    assert!(kv.get_json(&adsub_key(&scope, HIT2), NOW).unwrap().is_some());
+    assert!(kv
+        .get_json(&adsub_key(&scope, HIT2), NOW)
+        .unwrap()
+        .is_some());
     // Hash inválido nunca vira chave.
     let live = kv
         .keys_matching(&format!("adsub:v1:{scope}:"), NOW)
@@ -91,7 +88,10 @@ fn ttl_zero_nao_grava_nada() {
 #[test]
 fn lote_sem_hash_valido_devolve_zero_sem_erro() {
     let kv = kv();
-    assert_eq!(write_marks(&kv, &batch(&["x", ""]), WEEK_SECONDS, NOW).unwrap(), 0);
+    assert_eq!(
+        write_marks(&kv, &batch(&["x", ""]), WEEK_SECONDS, NOW).unwrap(),
+        0
+    );
 }
 
 #[test]

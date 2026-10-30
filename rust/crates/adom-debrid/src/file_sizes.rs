@@ -93,7 +93,12 @@ pub fn record_total(kv: &NativeKv, hash: &str, bytes: f64, now_ms: i64) -> Resul
     if hash.is_empty() || !bytes.is_finite() || bytes <= 0.0 {
         return Ok(false);
     }
-    kv.put_json(&total_key(&hash), &json!(bytes), FILE_SIZES_TTL_SECONDS, now_ms)?;
+    kv.put_json(
+        &total_key(&hash),
+        &json!(bytes),
+        FILE_SIZES_TTL_SECONDS,
+        now_ms,
+    )?;
     Ok(true)
 }
 

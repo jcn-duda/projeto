@@ -122,7 +122,11 @@ fn prune_expired_apaga_so_vencido_do_prefixo() {
     kv.put_json("tsz:v1:x", &json!(9), 1, 1_000).unwrap(); // outro prefixo
 
     assert_eq!(kv.prune_expired("fsz:v1:", 5_000).unwrap(), 1);
-    assert_eq!(kv.prune_expired("fsz:v1:", 5_000).unwrap(), 0, "idempotente");
+    assert_eq!(
+        kv.prune_expired("fsz:v1:", 5_000).unwrap(),
+        0,
+        "idempotente"
+    );
     assert!(kv.get_json("fsz:v1:b", 5_000).unwrap().is_some());
     assert!(kv.get_json("fsz:v1:c", 5_000).unwrap().is_some());
     // Outro prefixo não é tocado: ainda vivo em t=1_500 (expira em 2_000).
@@ -145,15 +149,10 @@ fn get_many_json_pula_ausente_vencido_e_json_invalido() {
         )
         .unwrap();
 
-    let keys: Vec<String> = [
-        "fsz:v1:ok",
-        "fsz:v1:velho",
-        "fsz:v1:ruim",
-        "fsz:v1:ausente",
-    ]
-    .iter()
-    .map(|key| key.to_string())
-    .collect();
+    let keys: Vec<String> = ["fsz:v1:ok", "fsz:v1:velho", "fsz:v1:ruim", "fsz:v1:ausente"]
+        .iter()
+        .map(|key| key.to_string())
+        .collect();
     let rows = kv.get_many_json(&keys, 5_000).unwrap();
     assert_eq!(rows, vec![("fsz:v1:ok".to_string(), json!([1, 2]))]);
     drop(kv);

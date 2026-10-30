@@ -58,6 +58,12 @@ pub struct CheckOpts {
     /// Override do kill-switch (`None` = lê `DEBRID_AL_CLEANUP_KILL`). Existe
     /// para os testes não dependerem de env global.
     pub kill_switch: Option<bool>,
+    /// Hashes (minúsculas) cuja LISTA DE ARQUIVOS o build quer. Só entra em
+    /// `files_to_read` o que for pedido aqui E estiver pronto no upload.
+    pub file_hashes: HashSet<String>,
+    /// Teto de magnets lidos por checagem (`DEBRID_PACK_FILES_PER_CHECK`; a
+    /// montagem em `verdict.rs` põe o default 6). `0` desliga a leitura.
+    pub pack_files_max: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +88,11 @@ pub struct CacheReport {
     /// Plano da limpeza. `None` = flag OFF (nativa read-only). `Some` com
     /// `suppressed` = pedida mas barrada por kill-switch/hold/inventário.
     pub cleanup: Option<CleanupPlan>,
+    /// `(hash, id)` dos magnets PRONTOS pedidos em `CheckOpts::file_hashes`, na
+    /// ordem do lote, até `pack_files_max`. Quem lê é o chamador, em fundo, e
+    /// SEMPRE antes do `CleanupPlan`: apagar o magnet pronto faria o
+    /// `/magnet/status` dele sumir.
+    pub files_to_read: Vec<(String, String)>,
 }
 
 /// Falha da checagem com a mesma informação de `attempted` do sucesso.
@@ -102,6 +113,9 @@ struct Gate {
     blocked: HashSet<String>,
     /// `None` = flag OFF; `Some` com `suppressed` = pedida e barrada.
     cleanup: Option<CleanupRun>,
+    /// Hashes cuja lista de arquivos foi pedida (lower-case).
+    files: HashSet<String>,
+    pack_files_max: usize,
 }
 
 /// Estado imutável da limpeza nesta checagem: plano em construção, guarda e
@@ -129,6 +143,8 @@ pub(super) async fn check_cached(
     let gate = Arc::new(Gate {
         blocked: lower_set(&opts.blocked),
         cleanup: cleanup_run(ad, api_key, opts, &account),
+        files: lower_set(&opts.file_hashes),
+        pack_files_max: opts.pack_files_max,
     });
     // Partição do lote: hash vazio sai da conta e hash bloqueado sai do upload,
     // mas fica registrado — o Node precisa dele para tentar o escape do `adrm`
@@ -193,6 +209,7 @@ pub(super) async fn check_cached(
         deleted,
         attempted,
         cleanup: plan,
+        files_to_read: folded.files_to_read,
     })
 }
 

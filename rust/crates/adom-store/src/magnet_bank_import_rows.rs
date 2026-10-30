@@ -131,7 +131,13 @@ pub(super) fn js_text(value: Option<&Value>) -> String {
         Some(Value::String(text)) => text.clone(),
         Some(Value::Array(items)) => items
             .iter()
-            .map(|item| if item.is_null() { String::new() } else { js_text(Some(item)) })
+            .map(|item| {
+                if item.is_null() {
+                    String::new()
+                } else {
+                    js_text(Some(item))
+                }
+            })
             .collect::<Vec<_>>()
             .join(","),
         Some(Value::Object(_)) => "[object Object]".into(),

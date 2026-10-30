@@ -40,6 +40,13 @@ pub fn finalize_streams(
         .filter_map(|s| s.info_hash.clone())
         .filter(|h| !h.is_empty())
         .collect();
+    // Pedido de arquivos ANTES do `prepare`: o serviço os lê junto com a
+    // checagem do lote. Só quando há algo, para não mexer no debrid à toa.
+    let wanted =
+        super::file_wants::pack_hashes_missing_files(&streams, ctx.season, &ctx.files_by_hash);
+    if !wanted.is_empty() {
+        debrid.want_files(&wanted);
+    }
     debrid.prepare(&batch);
 
     let mut kept: Vec<RankingStream> = Vec::with_capacity(streams.len());
