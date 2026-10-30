@@ -253,7 +253,6 @@ export async function computeStatusPayload(
       hits,
       misses,
       hitRate: hits + misses > 0 ? hits / (hits + misses) : null,
-      swrServed: metricSnapshot.counters['search.swr.served'] || 0,
     };
   }
 

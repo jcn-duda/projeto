@@ -20,7 +20,6 @@ export interface CacheSummary {
   l2Pending: number;
   l2Enabled: boolean;
   persistent: boolean;
-  swrServed: number;
 }
 
 /** Contrato real: `cache.snapshot()` devolve `entries`/`maxEntries` (L1);
@@ -43,7 +42,6 @@ export function cacheSummary(c: Record<string, any> | null | undefined): CacheSu
     l2Pending: Number(x.l2?.pendingWrites || 0),
     l2Enabled: Boolean(x.l2?.enabled ?? x.persistent),
     persistent: Boolean(x.persistent),
-    swrServed: Number(x.swrServed || 0),
   };
 }
 
@@ -108,7 +106,7 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
           <${StatNumber} value=${hits} target=${totalQueries} label="${hitRate}% hits" />
           <${ProgressBar} percent=${hitRate} variant=${hitRate >= 70 ? 'ok' : 'warn'} />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
-            Misses: ${misses} · SWR Servidos: ${c.swrServed || 0}
+            Misses: ${misses}
           </p>
         </${Card}>
 

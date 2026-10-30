@@ -251,7 +251,6 @@ test('cacheSummary lê maxEntries e l2.fileSizeBytes reais', () => {
     persistent: true,
     hits: 450,
     misses: 50,
-    swrServed: 7,
     // Chaves antigas: não existem no payload.
     max: 999,
     l2: { enabled: true, fileSizeBytes: 1048576, walSizeBytes: 4096, pendingWrites: 2, entries: 999, sizeBytes: 999 },
@@ -265,7 +264,6 @@ test('cacheSummary lê maxEntries e l2.fileSizeBytes reais', () => {
   assert.equal(s.l2Enabled, true);
   assert.equal(s.hits, 450);
   assert.equal(s.misses, 50);
-  assert.equal(s.swrServed, 7);
   assert.ok(Math.abs(s.hitRate - 0.9) < 1e-9);
   assert.equal('max' in s, false);
 });
