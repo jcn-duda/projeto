@@ -172,9 +172,6 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // de cache do Premiumize. Separado do `fsz` de propósito: não é lista de
   // arquivos, e o `pickFile` leria o pack inteiro como se fosse o episódio.
   tsz: 'v1',
-  // Resolução medida no cabeçalho do vídeo, por arquivo
-  // (`vres:v1:<hash>:<digest do caminho>`, registro `{ q, w, h }`).
-  vres: 'v1',
 });
 
 // Prefixos de formatos aposentados, apagados uma vez no boot. `raw1:` e

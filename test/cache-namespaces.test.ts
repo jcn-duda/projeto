@@ -7,7 +7,7 @@ import * as metrics from '../src/utils/metrics.js';
 import { NAMESPACE_VERSIONS, LEGACY_PREFIXES, AUTOFETCH_NATIVE_PREFIXES, prefix } from '../src/utils/cache-keys.js';
 import { quotaFor, QUOTAS } from '../src/utils/cache-quotas.js';
 
-const DLMAG_QUOTA = 4000;
+const RDT_QUOTA = 2500;
 const TTL_S = 3600;
 
 let hasNodeSqlite = true;
@@ -25,7 +25,7 @@ const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 let cacheSeq = 0;
 const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
-test('estouro de dlmag despeja só o próprio namespace e preserva outro balde', async () => {
+test('estouro de rdt despeja só o próprio namespace e preserva outro balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -35,13 +35,13 @@ test('estouro de dlmag despeja só o próprio namespace e preserva outro balde',
     // T2-L5b: o vizinho agora é um balde vivo do Node. O invariante é o mesmo —
     // cota de um não despeja o outro.
     cache.set('meta:movie:tt-vizinho', { available: true }, TTL_S);
-    for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:url-${i}`, { n: i }, TTL_S);
-    cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
+    for (let i = 0; i < RDT_QUOTA; i++) cache.set(`rdt:url-${i}`, { n: i }, TTL_S);
+    cache.set('rdt:overflow', { n: 'overflow' }, TTL_S);
 
     assert.deepEqual(cache.get('meta:movie:tt-vizinho'), { available: true });
-    assert.equal(cache.get('dlmag:url-0'), null, 'LRU de dlmag sai na própria cota');
-    assert.deepEqual(cache.get('dlmag:overflow'), { n: 'overflow' });
-    assert.equal(cache.snapshot().namespaces.dlmag.entries, DLMAG_QUOTA);
+    assert.equal(cache.get('rdt:url-0'), null, 'LRU de rdt sai na própria cota');
+    assert.deepEqual(cache.get('rdt:overflow'), { n: 'overflow' });
+    assert.equal(cache.snapshot().namespaces.rdt.entries, RDT_QUOTA);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
@@ -63,7 +63,6 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     assert.equal(cache.QUOTAS.adprot, 2000);
     assert.equal(cache.QUOTAS.idx, 2000);
     assert.equal(cache.QUOTAS.fsz, 3000);
-    assert.equal(cache.QUOTAS.vres, 1000);
     // Fase 2 do Chupim: o teto por obra (`autofetch:v3:o:`) divide o balde com
     // markers/dead/queues/prefetch/sup, então a cota dobrou e o teto global
     // subiu junto — sempre estritamente acima da soma.
@@ -127,20 +126,20 @@ test('raw é dono no gateway: o set do Node recusa o namespace inteiro e não mo
   }
 });
 
-test('LRU de dlmag é escolhido dentro do namespace, não pela ordem global', async () => {
+test('LRU de rdt é escolhido dentro do namespace, não pela ordem global', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
     const cache = await freshCache();
 
     cache.set('meta:movie:tt-vizinho', { title: 'vizinho antigo' }, TTL_S);
-    for (let i = 0; i < DLMAG_QUOTA; i++) cache.set(`dlmag:lru-${i}`, { n: i }, TTL_S);
-    assert.deepEqual(cache.get('dlmag:lru-0'), { n: 0 }, 'renova o LRU de dlmag');
-    cache.set('dlmag:overflow', { n: 'overflow' }, TTL_S);
+    for (let i = 0; i < RDT_QUOTA; i++) cache.set(`rdt:lru-${i}`, { n: i }, TTL_S);
+    assert.deepEqual(cache.get('rdt:lru-0'), { n: 0 }, 'renova o LRU de rdt');
+    cache.set('rdt:overflow', { n: 'overflow' }, TTL_S);
 
     assert.deepEqual(cache.get('meta:movie:tt-vizinho'), { title: 'vizinho antigo' });
-    assert.deepEqual(cache.get('dlmag:lru-0'), { n: 0 }, 'entrada renovada sobrevive');
-    assert.equal(cache.get('dlmag:lru-1'), null, 'próximo LRU do dlmag é expulso');
+    assert.deepEqual(cache.get('rdt:lru-0'), { n: 0 }, 'entrada renovada sobrevive');
+    assert.equal(cache.get('rdt:lru-1'), null, 'próximo LRU do rdt é expulso');
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

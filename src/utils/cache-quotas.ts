@@ -3,7 +3,7 @@
  *
  * A regra que não pode voltar atrás: a repartição por namespace acontece
  * ANTES de qualquer despejo global — reintroduzir o despejo global antes da
- * repartição foi bug real (um burst de dlmag desalojava streams).
+ * repartição foi bug real (um burst de um balde desalojava os outros).
  *
  * O L1 (Map `store`) e os contadores por namespace pertencem ao ponto de
  * entrada (cache.ts) e entram aqui como parâmetro: módulo irmão com estado
@@ -15,9 +15,9 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 92.221 + 500 = 92.721 entradas alcançáveis contra o
-// teto de 93.000 — folga de 279, MENOS de um balde de 500: o próximo namespace
-// nomeado já encosta no teto (a folga era 779 antes do `adhold`). A conta é
+// chaves sem `:`. Hoje: 87.221 + 500 = 87.721 entradas alcançáveis contra o
+// teto de 93.000 — folga de 5.279 (a aposentadoria de baldes sem escritor no
+// Node devolveu a folga que estava em 279). A conta é
 // refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
@@ -27,9 +27,9 @@
 // a 949 de 2.000. Teto IGUAL OU ABAIXO da soma reintroduz o despejo global
 // antes da repartição por namespace, que foi bug real.
 //
-// Cotas nomeadas: mag=50.000, rdc=14.000, dlmag=4.000, autofetch=4.000,
+// Cotas nomeadas: mag=50.000, rdc=14.000, autofetch=4.000,
 // fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
-// adsub=1.000, vres=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
+// adsub=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
 // adrm=500, adhold=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
 // cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
 // caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
@@ -42,7 +42,7 @@
 // são duas chaves fixas (`cohort`, `last`), `notify:v1:<evento>` uma por
 // evento. `harvest` fica em 500 porque `harvest:v1:seen:<sha>` cresce por obra.
 //
-// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `dlmag`, `tmdb`,
+// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `tmdb`,
 // `meta`, `indexer-status` e `tmdbc` têm cota mas NÃO estão em
 // `NAMESPACE_VERSIONS`, porque montam a chave sem segmento de versão (`tmdbc:`
 // em src/utils/tmdb.ts:208) e o `maintain()` do boot
@@ -52,7 +52,6 @@
 export const MAX_ENTRIES = 93000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
-  dlmag: 4000,
   tmdb: 500,
   // Coleções do TMDB (chave `tmdbc:<imdbId>`, uma por filme com
   // `belongs_to_collection`). Tem cota própria só para entrar na conta do
@@ -141,9 +140,6 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // KV nativo (`file-sizes.ts`), não o L1 do Node; a cota segue como teto de
   // referência do namespace.
   fsz: 3000,
-  // Resolução medida no cabeçalho do vídeo por arquivo (`vres:v1`): registro
-  // minúsculo `{ q, w, h }`, uma entrada por arquivo que o play tocaria.
-  vres: 1000,
   // Tamanho total do torrent por hash (`tsz:v1`, 2026-09-20): um número por
   // hash cacheado no Premiumize, ~25 por busca. Registro minúsculo; 1.000
   // cobre ~40 buscas distintas até o LRU reciclar.
@@ -192,7 +188,7 @@ export function quotaOverflow(store: Map<string, any>, namespaceCounts: Map<stri
   if (excess <= 0) return [];
   const dropped: any[] = [];
   // O Map é LRU global; filtrá-lo preserva a mesma ordem de recência dentro do
-  // namespace sem deixar um burst de dlmag desalojar streams.
+  // namespace sem deixar um burst de um balde desalojar os outros.
   for (const [key, entry] of store) {
     if (entry.namespace === namespace) dropped.push(key);
     if (dropped.length === excess) break;

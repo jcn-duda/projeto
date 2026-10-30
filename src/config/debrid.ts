@@ -78,10 +78,6 @@ export const debrid = () => ({
   // (⚡ perdido) por causa de um tamanho cosmético. Upload e leitura seguem
   // NÃO abortáveis, com os timeouts próprios de rede.
   packFilesWaitMarginMs: Math.max(0, num(process.env.DEBRID_PACK_FILES_WAIT_MARGIN_MS, 150)),
-  // Resolução lida no cabeçalho do vídeo (AllDebrid) quando nem o título nem o
-  // nome do arquivo dizem 720p/1080p: um /link/unlock e até 8 MB por arquivo,
-  // uma vez, gravado no cache (`vres`). false desliga.
-  qualityProbe: String(process.env.DEBRID_QUALITY_PROBE || 'true') === 'true',
   // Teto dinâmico da checagem de cache no passo de resposta: o que sobra do
   // REPLY_DEADLINE menos esta margem (filtro + HMAC + serialização). Caso
   // medido: coleta fria de 162 itens consumiu os 6400ms do orçamento e a

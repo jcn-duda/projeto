@@ -84,16 +84,16 @@ test('POST clear-cache por namespace preserva os outros namespaces', async () =>
   config.jackett.testToken = TOKEN;
   try {
     // `raw:`, `davail:` e `mag:` são RUST_OWNED e não entram no L1: o recorte
-    // por namespace usa dois baldes do Node (dlmag apagado, meta preservado).
-    cache.set('dlmag:dashboard-scope', { ok: 1 }, 60);
+    // por namespace usa dois baldes do Node (tmdbc apagado, meta preservado).
+    cache.set('tmdbc:dashboard-scope', { ok: 1 }, 60);
     cache.set('meta:dashboard-scope', { ok: 1 }, 60);
     const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'clear-cache', confirm: true, scope: { namespace: 'dlmag' } },
+      body: { action: 'clear-cache', confirm: true, scope: { namespace: 'tmdbc' } },
     });
     assert.equal(res.status, 200);
-    assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'dlmag' });
-    assert.equal(cache.get('dlmag:dashboard-scope'), null);
+    assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'tmdbc' });
+    assert.equal(cache.get('tmdbc:dashboard-scope'), null);
     assert.deepEqual(cache.get('meta:dashboard-scope'), { ok: 1 });
   } finally {
     cache.clear();
