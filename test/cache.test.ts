@@ -6,6 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { prefix } from '../src/utils/cache-keys.js';
+import { kvClearPrefix, kvForget, kvPeek, kvSetForTest } from '../src/utils/native-kv.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Chaves sem prefixo pertencem ao namespace padrão. Estes testes exercitam o
@@ -371,3 +374,24 @@ test(
     runIsolatedCacheTest(BATCH_FORGET_SCRIPT);
   },
 );
+
+// C3 (F5.11): paridade do clear() com o clearNamespace no KV nativo. `adhold`
+// sai pela ponte; `harvest` NÃO sai — dono é o gateway (fila/journal do
+// colhedor), e o clear dele é a admin (`POST /harvest/clear`), não esta ponte.
+test('clearNamespace: adhold alcança o KV nativo; harvest não toca a fila do gateway', async () => {
+  const cache = await freshCache();
+  const holdKey = `${prefix('adhold')}conta:${'a'.repeat(40)}`;
+  const fila = `${prefix('harvest')}q`;
+  kvClearPrefix(prefix('adhold'));
+  kvSetForTest(holdKey, { at: 1 }, 600);
+  kvSetForTest(fila, { at: 1 }, 600);
+  try {
+    assert.equal(cache.clearNamespace('adhold'), 1, 'a ponte removeu o hold semeado');
+    assert.equal(kvPeek(holdKey), null, 'hold saiu do KV nativo');
+    assert.equal(cache.clearNamespace('harvest'), 0, 'harvest não tem entrada no dispatch nativo do Node');
+    assert.ok(kvPeek(fila) !== null, 'a fila do colhedor permanece no KV');
+  } finally {
+    kvForget(holdKey);
+    kvForget(fila);
+  }
+});

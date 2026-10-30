@@ -328,25 +328,24 @@ function clear() {
 /** Estado do Chupim no KV nativo (o L1 não o alcança). */
 const clearAutofetchNative = () => kvClearPrefix(prefix('autofetch'));
 
+// Clear nativo do clearNamespace por namespace RUST_OWNED: handle próprio
+// (`idx`/`raw`/`davail`/`mag` e o `autofetch` inteiro, L6) ou ponte do KV sobre
+// o MESMO cache.db (`adsub`/`adprot`/`adhold`/`adrm`/`rdc`/`fsz`/`tsz`).
+// `harvest`/`rdq` ficam de fora de propósito: dono vivo é o gateway (worker com
+// fila e journal próprios) — quem zera é a admin dele, não esta ponte.
+const nativeClears: Record<string, () => number> = {
+  idx: clearIdxStore, raw: clearRawStore, davail: () => davailState().clear(), mag: () => magnetState().clear(), autofetch: clearAutofetchNative,
+  adsub: () => kvClearPrefix(prefix('adsub')), adprot: () => kvClearPrefix(prefix('adprot')), adhold: () => kvClearPrefix(prefix('adhold')),
+  adrm: () => kvClearPrefix(prefix('adrm')), rdc: () => kvClearPrefix(prefix('rdc')),
+  fsz: () => kvClearPrefix(prefix('fsz')), tsz: () => kvClearPrefix(prefix('tsz')),
+};
+
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  // RUST_OWNED não passa pelo L1: `idx`/`raw`/`davail`/`mag`/`adsub`/`adprot`/
-  // `adrm` têm handle nativo sobre o MESMO cache.db — o clear é no núcleo.
-  // `autofetch` também é do núcleo pelo namespace INTEIRO (L6): fila, marker,
-  // dead, evidência, snapshot, obra e represa saem por `kvClearPrefix`, e o
-  // `clearWhere` abaixo não encontra mais nada vivo deste lado.
-  const fromRust = wanted === 'idx' ? clearIdxStore()
-    : wanted === 'raw' ? clearRawStore()
-      : wanted === 'davail' ? davailState().clear()
-        : wanted === 'mag' ? magnetState().clear()
-          : wanted === 'adsub' ? kvClearPrefix(prefix('adsub'))
-            : wanted === 'adprot' ? kvClearPrefix(prefix('adprot'))
-              : wanted === 'adrm' ? kvClearPrefix(prefix('adrm'))
-                : wanted === 'autofetch' ? clearAutofetchNative()
-                  : 0;
-  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust + (wanted === 'rdc' || wanted === 'fsz' || wanted === 'tsz' ? kvClearPrefix(prefix(wanted)) : 0);
+  const clearer = nativeClears[wanted];
+  return clearWhere((key) => namespaceFor(key) === wanted) + (clearer ? clearer() : 0);
 }
 
 /**
