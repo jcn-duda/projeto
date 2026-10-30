@@ -215,6 +215,17 @@ npm run docker:up / docker:logs
   `JACKETT_INDEXERS` explícita, quem define a lista de busca é o GATEWAY (ele
   consulta o Jackett no modo automático); no Node o array nasce vazio e o
   catálogo exibido vem só da ponte.
+  O **hit-rate do cache de streams é do gateway** (C4, 2026-10-30): o
+  `orchestrator/route.rs::handle` conta `stream.cache.hit`/`stale_served`/`miss`
+  SÓ no caminho user-facing (o refresh de fundo e o `/streams/trace` não
+  inflam a medida) e as escritas `stream.cache.write` vêm do `set_fenced` de
+  `finish.rs`/`late.rs`; `GET /streams/stats` na admin devolve os contadores e
+  o `hitRate` (null com total=0). A ponte `src/utils/streams-stats-native.ts`
+  lê com fail-open SEM backoff (um 404 de gateway velho não pode congelar a
+  invalidação por obra) e o bloco `cache` do painel
+  (`dashboard-cache-block.ts`) acrescenta `native:` SÓ quando o gateway
+  respondeu; a view mostra gateway → local (só com consultas) → '—', nunca
+  0% falso. Contadores são da RAM do processo: zeram no restart.
   O **KV persistente do Node é só a ponte nativa** (`src/utils/native-kv.ts`):
   órfãos do L1 (`notify`, `imdb-seed`, `indexer-status`, `magnetdb-persist`)
   e as chaves `cfg:v1:*` (`autofetch-live*`, `harvester-*`, `crawler-live`)
