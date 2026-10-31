@@ -8,8 +8,10 @@ use adom_core::{
 };
 use adom_debrid::alldebrid::PlayFile;
 use adom_debrid::file_sizes::record_files;
-use adom_index::FileEvidence;
+use adom_index::{FileEvidence, MagMetaSums, MagnetStateStore};
 use serde_json::{json, Value};
+
+use crate::dub_audit::DEFAULT_LIE_TTL;
 
 use super::plan::{EffectPlan, IndexMark, Invalidate, Mark};
 use super::{grava, NativePlayEffects, PlayJob};
@@ -71,16 +73,34 @@ impl NativePlayEffects {
         if !self.cfg.magnet_db || self.cfg.alive_ttl <= 0 {
             return;
         }
-        if let Some(mag) = &self.mag {
-            grava(
-                "magnet vivo",
-                mag.mark_alive(
-                    &job.service,
-                    &job.api_key,
-                    std::slice::from_ref(&job.hash),
-                    self.cfg.alive_ttl,
-                    now,
-                ),
+        let Some(mag) = &self.mag else {
+            return;
+        };
+        let born = match mag.mark_alive(
+            &job.service,
+            &job.api_key,
+            std::slice::from_ref(&job.hash),
+            self.cfg.alive_ttl,
+            now,
+        ) {
+            Ok(born) => born,
+            Err(err) => {
+                grava::<()>("magnet vivo", Err(err));
+                return;
+            }
+        };
+        // Só o que NASCEU muda o acervo: renovação não sobe contagem.
+        if born > 0 {
+            bump_meta(
+                mag,
+                &job.service,
+                alive_delta(born as i64, 0),
+                MagMetaSums {
+                    alive: born as i64 * self.cfg.alive_ttl,
+                    ..MagMetaSums::default()
+                },
+                self.cfg.alive_ttl,
+                now,
             );
         }
     }
@@ -123,10 +143,37 @@ impl NativePlayEffects {
         if !self.cfg.magnet_db || self.cfg.bad_ttl <= 0 {
             return;
         }
-        if let Some(mag) = &self.mag {
-            grava(
-                "magnet ruim",
-                mag.mark_bad(&job.service, &job.api_key, &job.hash, self.cfg.bad_ttl, now),
+        let Some(mag) = &self.mag else {
+            return;
+        };
+        // O `bad` nascente apaga o `alive` vivo do mesmo hash NA MESMA
+        // transação (`magnet_state.rs`): o delta do agregado precisa saber se
+        // existia ANTES da escrita — leitura por chave, O(1) como a marca. Se a
+        // leitura falhar, não desconta (o rebuild do painel reconta depois).
+        let scope = account_scope(&Value::String(job.api_key.clone()));
+        let had_alive = mag
+            .peek_mark_scoped("alive", &job.service, &scope, &job.hash, now)
+            .unwrap_or(false);
+        let born = match mag.mark_bad(&job.service, &job.api_key, &job.hash, self.cfg.bad_ttl, now)
+        {
+            Ok(born) => born,
+            Err(err) => {
+                grava::<()>("magnet ruim", Err(err));
+                return;
+            }
+        };
+        if born || had_alive {
+            bump_meta(
+                mag,
+                &job.service,
+                alive_delta(-i64::from(had_alive), i64::from(born)),
+                MagMetaSums {
+                    alive: i64::from(had_alive) * -(self.cfg.alive_ttl.max(0)),
+                    bad: i64::from(born) * self.cfg.bad_ttl,
+                    lie: 0,
+                },
+                self.cfg.bad_ttl,
+                now,
             );
         }
     }
@@ -135,10 +182,33 @@ impl NativePlayEffects {
         if !self.cfg.magnet_db || !self.cfg.lie_enabled || self.cfg.lie_ttl <= 0 {
             return;
         }
-        if let Some(mag) = &self.mag {
-            grava(
-                "magnet mentiroso",
-                mag.mark_lie(&job.service, &job.api_key, &job.hash, self.cfg.lie_ttl, now),
+        let Some(mag) = &self.mag else {
+            return;
+        };
+        let born = match mag.mark_lie(&job.service, &job.api_key, &job.hash, self.cfg.lie_ttl, now)
+        {
+            Ok(born) => born,
+            Err(err) => {
+                grava::<()>("magnet mentiroso", Err(err));
+                return;
+            }
+        };
+        // O `lie` NÃO apaga o `alive`: os dois lados coexistem no acervo e no
+        // agregado (`magnet_state.rs`, mesma semântica do TS).
+        if born {
+            bump_meta(
+                mag,
+                &job.service,
+                MagMetaSums {
+                    lie: 1,
+                    ..MagMetaSums::default()
+                },
+                MagMetaSums {
+                    lie: self.cfg.lie_ttl,
+                    ..MagMetaSums::default()
+                },
+                self.cfg.lie_ttl,
+                now,
             );
         }
     }
@@ -279,6 +349,37 @@ impl NativePlayEffects {
 /// Cooldown da limpeza por bloqueio: a primeira sempre passa (`last` = 0).
 pub(super) fn blocked_clear_due(last_ms: i64, now: i64, cooldown_ms: i64) -> bool {
     now - last_ms >= cooldown_ms
+}
+
+/// Delta de contagem com `alive` e `bad` nomeados (o `lie` fica 0).
+fn alive_delta(alive: i64, bad: i64) -> MagMetaSums {
+    MagMetaSums { alive, bad, lie: 0 }
+}
+
+/// Agregado `mag_meta:v1:counts` acompanha a marca (O(1), mesmo movimento do
+/// Node em `magnetdb-persist.ts`): contagem sobe com o que NASCEU e a soma de
+/// TTL recebe o TTL nominal por linha nascida. Falha só loga (`grava`).
+fn bump_meta(
+    mag: &MagnetStateStore,
+    adapter: &str,
+    counts: MagMetaSums,
+    ttl_sums: MagMetaSums,
+    mark_ttl: i64,
+    now: i64,
+) {
+    // O TTL da LINHA segue o desenho do Node: piso de 7 dias — o agregado não
+    // é janela de evidência, apagá-lo só custa um rebuild (`magnet_meta.rs`).
+    grava(
+        "agregado do magnetdb",
+        mag.bump_counts(
+            adapter,
+            counts,
+            ttl_sums,
+            mark_ttl.max(DEFAULT_LIE_TTL),
+            now,
+        )
+        .map(|_| ()),
+    );
 }
 
 /// `tt` + dígitos, a mesma forma do `/^tt\d+$/` do TS.

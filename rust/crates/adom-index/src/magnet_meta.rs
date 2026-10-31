@@ -119,6 +119,95 @@ impl MagnetStateStore {
         let conn = self.lock();
         Ok(forget(&conn, &mag_meta_counts_key())? > 0)
     }
+
+    /// Delta O(1) no agregado: lê a linha, aplica os lados e regrava com o
+    /// carimbo novo — o mesmo movimento do Node (`magnetdb-persist.ts`), que
+    /// somava contagem e TTL nominal por marca e envelhecia a soma na leitura
+    /// pelo `updatedAt`.
+    ///
+    /// Os dois deltas vêm ASSINADOS por lado (`alive`/`bad`/`lie`): nasceu,
+    /// sobe; renovação não toca; o `bad` nascente desce o `alive` que ele
+    /// apagou. Base ausente, vencida ou ILEGÍVEL: reconta o acervo vivo
+    /// (`summary`, o `adoptRebuild` do Node) e regrava — e o reconto JÁ INCLUI
+    /// a marca que originou o bump (o chamador grava a linha antes), então o
+    /// delta NÃO se aplica: aplicá-lo dobraria a contagem. O reconto é O(n) no
+    /// namespace `mag` e raro: só quando a linha do agregado expira ou está
+    /// ilegível. `Ok(true)` = agregado regravado.
+    pub fn bump_counts(
+        &self,
+        adapter: &str,
+        counts: MagMetaSums,
+        ttl_sums: MagMetaSums,
+        ttl_seconds: i64,
+        now_ms: i64,
+    ) -> Result<bool, String> {
+        let zero = MagMetaSums::default();
+        if adapter.is_empty() || (counts == zero && ttl_sums == zero) {
+            return Ok(false);
+        }
+        let Some(current) = self.counts(now_ms)? else {
+            let adapters = self.summary_recount(now_ms)?;
+            self.put_counts(&adapters, ttl_seconds, now_ms)?;
+            return Ok(true);
+        };
+        let mut adapters = current.adapters;
+        let entry = adapters.entry(adapter.to_string()).or_default();
+        entry.alive = bump_total(entry.alive, counts.alive);
+        entry.bad = bump_total(entry.bad, counts.bad);
+        entry.lie = bump_total(entry.lie, counts.lie);
+        entry.ttl_remaining_sums.alive = entry
+            .ttl_remaining_sums
+            .alive
+            .saturating_add(ttl_sums.alive)
+            .max(0);
+        entry.ttl_remaining_sums.bad = entry
+            .ttl_remaining_sums
+            .bad
+            .saturating_add(ttl_sums.bad)
+            .max(0);
+        entry.ttl_remaining_sums.lie = entry
+            .ttl_remaining_sums
+            .lie
+            .saturating_add(ttl_sums.lie)
+            .max(0);
+        self.put_counts(&adapters, ttl_seconds, now_ms)?;
+        Ok(true)
+    }
+
+    /// Reconta o acervo vivo (`summary`) — o `adoptRebuild` do Node
+    /// (`magnetdb-persist.ts`): contagem do físico e soma do restante REAL de
+    /// cada linha. Lado que não é `alive`/`bad`/`lie` não entra.
+    fn summary_recount(&self, now_ms: i64) -> Result<BTreeMap<String, MagMetaTotals>, String> {
+        let mut adapters: BTreeMap<String, MagMetaTotals> = BTreeMap::new();
+        for row in self.summary(now_ms)? {
+            let entry = adapters.entry(row.adapter).or_default();
+            match row.side.as_str() {
+                "alive" => {
+                    entry.alive = entry.alive.saturating_add(row.count);
+                    entry.ttl_remaining_sums.alive = entry
+                        .ttl_remaining_sums
+                        .alive
+                        .saturating_add(row.ttl_remaining_sum);
+                }
+                "bad" => {
+                    entry.bad = entry.bad.saturating_add(row.count);
+                    entry.ttl_remaining_sums.bad = entry
+                        .ttl_remaining_sums
+                        .bad
+                        .saturating_add(row.ttl_remaining_sum);
+                }
+                "lie" => {
+                    entry.lie = entry.lie.saturating_add(row.count);
+                    entry.ttl_remaining_sums.lie = entry
+                        .ttl_remaining_sums
+                        .lie
+                        .saturating_add(row.ttl_remaining_sum);
+                }
+                _ => {}
+            }
+        }
+        Ok(adapters)
+    }
 }
 
 /// `ttl <= 0` = `expires_at` 0 (permanente), como no `NativeKv::put_json`.
@@ -190,6 +279,14 @@ fn parse_counts(raw: &str) -> Option<MagMetaCounts> {
 /// agregado não inventa contagem a partir de lixo.
 fn count_of(value: Option<&Value>) -> u32 {
     signed_of(value).clamp(0, i64::from(u32::MAX)) as u32
+}
+
+/// Contagem com delta assinado e piso 0: lado negativo no agregado seria
+/// contagem inventada — nenhum lado desce abaixo de nada.
+fn bump_total(current: u32, delta: i64) -> u32 {
+    i64::from(current)
+        .saturating_add(delta)
+        .clamp(0, i64::from(u32::MAX)) as u32
 }
 
 /// Número do JSON → inteiro com sinal, sem estourar em `null`/texto.

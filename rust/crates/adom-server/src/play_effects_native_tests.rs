@@ -3,7 +3,7 @@
 
 use super::*;
 use adom_core::{account_scope, ledger_key, WorkTarget};
-use adom_index::MagnetState;
+use adom_index::{MagMetaSums, MagMetaTotals, MagnetState};
 use serde_json::json;
 
 const HASH: &str = "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12";
@@ -302,4 +302,97 @@ fn imdb_so_com_tt_e_digitos() {
     assert!(!writes::is_imdb("tt"));
     assert!(!writes::is_imdb("0944947"));
     assert!(!writes::is_imdb("tt12x"));
+}
+
+/// D3: as marcas do play acompanham o agregado `mag_meta:v1:counts` no mesmo
+/// movimento O(1) do Node: nasceu sobe, renovação não duplica e o `bad`
+/// nascente desce o `alive` que ele apagou. A PRIMEIRA base nasce do reconto
+/// do acervo (restante REAL): as somas dessa fase têm ±ms de relógio.
+#[test]
+fn marcas_do_play_sobem_no_agregado_o1() {
+    let (_dir, fx, _) = fresh();
+    let now = now_ms();
+    let mag = fx.mag.as_ref().expect("mag aberto");
+    let sete_dias = 7 * 24 * 3600;
+
+    // alive nasce: contagem sobe e a base recontada traz o restante real.
+    fx.apply_ok(job("alldebrid"), true, false, None);
+    let vivo = mag
+        .counts(now)
+        .unwrap()
+        .expect("agregado gravado pelo play");
+    let lado = vivo.adapters.get("alldebrid").expect("adapter do alive");
+    assert_eq!((lado.alive, lado.bad, lado.lie), (1, 0, 0));
+    let restante = lado.ttl_remaining_sums.alive;
+    assert!(
+        restante >= sete_dias && restante <= sete_dias + 2,
+        "restante real da linha, ±ms de relógio: {restante}"
+    );
+
+    // bad nascente apaga o alive: 1→0 e bad entra; soma de alive com piso 0.
+    let efeito_bad = efeito(json!("bad"), "none", Value::Null, false);
+    fx.apply_error(job("alldebrid"), efeito_bad.clone(), None);
+    let depois = mag.counts(now).unwrap().expect("agregado vivo");
+    let lado = depois.adapters.get("alldebrid").expect("adapter do bad");
+    assert_eq!((lado.alive, lado.bad), (0, 1));
+    let sobra = lado.ttl_remaining_sums.alive;
+    assert!(sobra <= 2, "piso 0 com o resíduo de ±ms: {sobra}");
+    assert_eq!(lado.ttl_remaining_sums.bad, 24 * 3600, "TTL nominal do bad");
+
+    // bad RENOVADO não nasce de novo: o agregado não duplica.
+    fx.apply_error(job("alldebrid"), efeito_bad, None);
+    let mesmo = mag.counts(now).unwrap().expect("agregado vivo");
+    assert_eq!(mesmo.adapters.get("alldebrid").unwrap().bad, 1);
+
+    // lie NÃO derruba alive (`mark_lie` não apaga a linha viva): os dois lados
+    // coexistem, cada um com a própria soma.
+    fx.apply_ok(job("torbox"), true, false, None);
+    let efeito_lie = efeito(json!("lie"), "none", json!("lied"), false);
+    fx.apply_error(job("torbox"), efeito_lie, None);
+    let final_ = mag.counts(now).unwrap().expect("agregado vivo");
+    let lado = final_.adapters.get("torbox").expect("adapter do lie");
+    assert_eq!((lado.alive, lado.lie), (1, 1));
+    assert!(lado.ttl_remaining_sums.alive >= sete_dias, "restante real");
+    assert_eq!(lado.ttl_remaining_sums.lie, sete_dias, "TTL nominal do lie");
+}
+
+/// Com `MAGNET_DB` desligado nenhuma marca grava e o agregado herdado fica
+/// intacto — sem regravação, o carimbo não avança.
+#[test]
+fn magnet_db_desligado_nao_toca_o_agregado() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cache.db");
+    let fx = NativePlayEffects::open_at(
+        EffectConfig {
+            magnet_db: false,
+            ..cfg()
+        },
+        &path,
+        None,
+    );
+    let now = now_ms();
+    let mag = fx.mag.as_ref().expect("mag aberto");
+    let mut base = std::collections::BTreeMap::new();
+    base.insert(
+        "alldebrid".to_string(),
+        MagMetaTotals {
+            alive: 3,
+            bad: 1,
+            lie: 0,
+            ttl_remaining_sums: MagMetaSums {
+                alive: 300,
+                bad: 100,
+                lie: 0,
+            },
+        },
+    );
+    mag.put_counts(&base, 7 * 24 * 3600, now).unwrap();
+
+    fx.apply_ok(job("alldebrid"), true, false, None);
+    let efeito_bad = efeito(json!("bad"), "none", Value::Null, false);
+    fx.apply_error(job("alldebrid"), efeito_bad, None);
+
+    let agg = mag.counts(now_ms()).unwrap().expect("base intacta");
+    assert_eq!(agg.updated_at, now, "nenhuma regravação: gates desligados");
+    assert_eq!(agg.adapters.get("alldebrid"), base.get("alldebrid"));
 }

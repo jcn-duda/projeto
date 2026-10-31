@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use adom_core::{account_scope, WorkTarget};
-use adom_index::{MagnetState, MagnetStateStore, NativeKv};
+use adom_index::{MagMetaSums, MagnetState, MagnetStateStore, NativeKv};
 use adom_store::{ReleaseIndexStore, StreamsStore};
 use serde_json::Value;
 
@@ -97,11 +97,40 @@ impl AuditWrites for NativeWrites {
     }
 
     fn mark_lie(&self, adapter: &str, api_key: &str, hash: &str, now_ms: i64) {
+        // Gate MAGNET_DB && MAGNET_LIE (o `from_env` lê os dois): desligado, o
+        // veredito do tail NÃO grava — nem `lie`, nem o agregado.
         if !self.lie_enabled || self.lie_ttl <= 0 {
             return;
         }
-        if let Some(mag) = &self.mag {
-            let _ = mag.mark_lie(adapter, api_key, hash, self.lie_ttl, now_ms);
+        let Some(mag) = &self.mag else {
+            return;
+        };
+        let born = match mag.mark_lie(adapter, api_key, hash, self.lie_ttl, now_ms) {
+            Ok(born) => born,
+            Err(err) => {
+                eprintln!("[audit] lie não gravado: {err}");
+                return;
+            }
+        };
+        // Só a mentira que NASCEU sobe o agregado (O(1), `magnet_meta.rs`):
+        // renovação da mesma linha não duplica contagem.
+        if born {
+            // Piso de 7 dias no TTL da LINHA, igual ao play e ao Node.
+            if let Err(err) = mag.bump_counts(
+                adapter,
+                MagMetaSums {
+                    lie: 1,
+                    ..MagMetaSums::default()
+                },
+                MagMetaSums {
+                    lie: self.lie_ttl,
+                    ..MagMetaSums::default()
+                },
+                self.lie_ttl.max(DEFAULT_LIE_TTL),
+                now_ms,
+            ) {
+                eprintln!("[audit] agregado do magnetdb não gravado: {err}");
+            }
         }
     }
 

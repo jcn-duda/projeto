@@ -252,3 +252,141 @@ fn put_counts_sobrescreve_em_vez_de_duplicar() {
         "o carimbo acompanha a gravação"
     );
 }
+
+/// Delta do bump: contagem e soma de TTL por lado (os casos do play/tail).
+fn delta(alive: i64, bad: i64, lie: i64, ttl: (i64, i64, i64)) -> (MagMetaSums, MagMetaSums) {
+    (
+        MagMetaSums { alive, bad, lie },
+        MagMetaSums {
+            alive: ttl.0,
+            bad: ttl.1,
+            lie: ttl.2,
+        },
+    )
+}
+
+#[test]
+fn bump_counts_soma_lado_e_ttl_e_cria_adapter_novo() {
+    let store = MagnetStateStore::open_memory().unwrap();
+    store
+        .put_counts(
+            &adapters(&[("premiumize", totals(1, 0, 0, (120, 0, 0)))]),
+            TTL,
+            NOW,
+        )
+        .unwrap();
+
+    // A marca nasceu: contagem +1 e a soma recebe o TTL nominal dela.
+    let (c, s) = delta(1, 0, 0, (7_200, 0, 0));
+    let subiu = store
+        .bump_counts("premiumize", c, s, TTL, NOW + 1_000)
+        .unwrap();
+    assert!(subiu, "agregado regravado");
+    let read = store.counts(NOW + 2_000).unwrap().expect("agregado vivo");
+    assert_eq!(
+        read.adapters.get("premiumize"),
+        Some(&totals(2, 0, 0, (7_320, 0, 0))),
+        "contagem e soma sobem com o delta"
+    );
+    assert_eq!(read.updated_at, NOW + 1_000, "carimbo acompanha o bump");
+
+    // Adapter que não estava no agregado entra só com o que nasceu.
+    let (c, s) = delta(0, 1, 0, (0, 86_400, 0));
+    store.bump_counts("torbox", c, s, TTL, NOW + 3_000).unwrap();
+    let read = store.counts(NOW + 4_000).unwrap().expect("agregado vivo");
+    assert_eq!(
+        read.adapters.get("torbox"),
+        Some(&totals(0, 1, 0, (0, 86_400, 0)))
+    );
+}
+
+#[test]
+fn bump_counts_sem_base_reconta_o_acervo_sem_duplicar_o_delta() {
+    let store = MagnetStateStore::open_memory().unwrap();
+    let hash = "ab".repeat(20);
+    // O chamador grava a linha ANTES do bump: o reconto do acervo JÁ A INCLUI,
+    // então o delta não se aplica — a contagem não dobra.
+    store
+        .mark_alive("premiumize", "chave", std::slice::from_ref(&hash), TTL, NOW)
+        .unwrap();
+    let (c, s) = delta(1, 0, 0, (7_200, 0, 0));
+    assert!(store
+        .bump_counts("premiumize", c, s, TTL, NOW + 1_000)
+        .unwrap());
+    let read = store.counts(NOW + 2_000).unwrap().expect("base recontada");
+    assert_eq!(
+        read.adapters.get("premiumize"),
+        Some(&totals(1, 0, 0, (TTL - 1, 0, 0))),
+        "marca física entra 1× e a soma é o restante REAL da linha"
+    );
+
+    // Ilegível: mesma cura — reconta o físico em vez de regravar o lixo.
+    plant(
+        &store,
+        r#"{"version":2,"updatedAt":1,"adapters":{"premiumize":{"alive":9,"bad":0,"lie":0,"ttlRemainingSums":{"alive":9,"bad":0,"lie":0}}}}"#,
+    );
+    assert!(store
+        .bump_counts("premiumize", c, s, TTL, NOW + 3_000)
+        .unwrap());
+    let read = store.counts(NOW + 4_000).unwrap().expect("base recontada");
+    assert_eq!(
+        read.adapters.get("premiumize"),
+        Some(&totals(1, 0, 0, (TTL - 3, 0, 0))),
+        "o lixo de versão estranha não sobrevive ao reconto"
+    );
+}
+
+#[test]
+fn bump_counts_respeita_o_piso_zero_nos_dois_campos() {
+    let store = MagnetStateStore::open_memory().unwrap();
+    store
+        .put_counts(
+            &adapters(&[("premiumize", totals(1, 0, 0, (60, 0, 0)))]),
+            TTL,
+            NOW,
+        )
+        .unwrap();
+
+    // O `bad` nascente apaga o `alive` do mesmo hash: -1 vivo, soma cai.
+    let (c, s) = delta(-1, 1, 0, (-7_200, 86_400, 0));
+    store
+        .bump_counts("premiumize", c, s, TTL, NOW + 1_000)
+        .unwrap();
+    let read = store.counts(NOW + 2_000).unwrap().expect("agregado vivo");
+    assert_eq!(
+        read.adapters.get("premiumize"),
+        Some(&totals(0, 1, 0, (0, 86_400, 0))),
+        "alive apagado sai da contagem e da soma"
+    );
+
+    // Segundo alive apagado que uma corrida perdeu: piso 0, nunca negativo.
+    let (c, s) = delta(-1, 0, 0, (-60, 0, 0));
+    store
+        .bump_counts("premiumize", c, s, TTL, NOW + 3_000)
+        .unwrap();
+    let read = store.counts(NOW + 4_000).unwrap().expect("agregado vivo");
+    assert_eq!(
+        read.adapters.get("premiumize"),
+        Some(&totals(0, 1, 0, (0, 86_400, 0))),
+        "piso 0 na contagem e na soma"
+    );
+}
+
+#[test]
+fn bump_counts_sem_delta_nao_regrava_a_linha() {
+    let store = MagnetStateStore::open_memory().unwrap();
+    store
+        .put_counts(
+            &adapters(&[("premiumize", totals(1, 0, 0, (60, 0, 0)))]),
+            TTL,
+            NOW,
+        )
+        .unwrap();
+
+    let (c, s) = delta(0, 0, 0, (0, 0, 0));
+    assert!(!store
+        .bump_counts("premiumize", c, s, TTL, NOW + 9_999)
+        .unwrap());
+    let read = store.counts(NOW).unwrap().expect("agregado vivo");
+    assert_eq!(read.updated_at, NOW, "carimbo não avança sem delta");
+}
