@@ -28,13 +28,35 @@ const store = new Map();
 const namespaceCounts = new Map();
 
 const persistence = createPersistence();
-const pending = persistence.pending;
-const maxGraceMs = persistence.maxGraceMs;
-const maintain = persistence.maintain;
+const { pending, maxGraceMs, maintain } = persistence;
 
 const removeFromStore = (key: string) => dropFromStore(store, namespaceCounts, key);
 const incrementNamespace = (namespace: string) => bumpNamespace(namespaceCounts, namespace);
 const l1Hooks = { store, removeFromStore, incrementNamespace };
+
+// Telemetria de uso por namespace (guia do corte do L1): leituras e escritas
+// REAIS deste processo desde o boot, com o instante da última. A guilhotina do
+// motor precisa de prova de quem ainda tem consumidor; os contadores
+// `cache.hit/miss` das métricas medem RESULTADO, não consulta — aqui cada API
+// do L1 marca o namespace que tocou. `get`/`peek` com chave de dono Rust saem
+// nas guardas antes do store e NÃO contam; `has`/`peekRemaining`/`getWithStale`
+// tocam o store e contam — leitor zumbi de dado já migrado é justamente o sinal.
+type UsageEntry = { reads: number; writes: number; lastReadAt: number; lastWriteAt: number };
+const usageByNamespace = new Map<string, UsageEntry>();
+function noteUsage(namespace: string, kind: 'read' | 'write') {
+  const entry = usageByNamespace.get(namespace) ?? { reads: 0, writes: 0, lastReadAt: 0, lastWriteAt: 0 };
+  if (kind === 'read') { entry.reads++; entry.lastReadAt = Date.now(); }
+  else { entry.writes++; entry.lastWriteAt = Date.now(); }
+  usageByNamespace.set(namespace, entry);
+}
+
+/** Foto do uso por namespace (padrão `_origem` do l2Stats): contadores do
+ * processo, zeram no restart — amostra, não medida durável. */
+function usage() {
+  const namespaces: Record<string, UsageEntry> = {};
+  for (const [namespace, entry] of usageByNamespace) namespaces[namespace] = { ...entry };
+  return { namespaces, _origem: 'amostra' as const };
+}
 
 let pruneTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -94,21 +116,20 @@ function prune() {
 }
 
 /** Para o /metrics.json: quanto do teto está ocupado agora. */
-function size() {
-  return store.size;
-}
+function size() { return store.size; }
 
 function snapshot() {
   const namespaces: Record<string, { entries: number; maxEntries: number }> = {};
   for (const [namespace, entries] of namespaceCounts) {
     namespaces[namespace] = { entries, maxEntries: quotaFor(namespace) };
   }
-  return { entries: size(), maxEntries: MAX_ENTRIES, namespaces };
+  return { entries: size(), maxEntries: MAX_ENTRIES, namespaces, usage: usage() };
 }
 
 function get(key: string) {
   // Chave de outro dono não existe no L1 do Node: nem miss, nem métrica.
   if (isForeignKey(key)) return null;
+  noteUsage(namespaceFor(key), 'read');
   const hit = store.get(key);
   if (!hit) {
     // O contador por namespace diz QUAL balde está pagando rede de novo; o
@@ -143,6 +164,7 @@ function get(key: string) {
  * semântica dura (expirou = apagou), por isso os dois convivem.
  */
 function getWithStale(key: string, graceSeconds = 0) {
+  noteUsage(namespaceFor(key), 'read');
   const hit = store.get(key);
   if (!hit) {
     metrics.count('cache.miss');
@@ -173,9 +195,7 @@ function getWithStale(key: string, graceSeconds = 0) {
   return { value: hit.value, stale: false };
 }
 
-function set(key: string, value: unknown, ttlSeconds: number) {
-  setMany([{ key, value, ttlSeconds }]);
-}
+function set(key: string, value: unknown, ttlSeconds: number) { setMany([{ key, value, ttlSeconds }]); }
 
 /**
  * Segundos restantes da entrada, SEM promovê-la no LRU nem contar métrica —
@@ -183,6 +203,7 @@ function set(key: string, value: unknown, ttlSeconds: number) {
  * ausente devolve null; entrada sem TTL também (não há o que renovar).
  */
 function peekRemaining(key: string): number | null {
+  noteUsage(namespaceFor(key), 'read');
   const hit = store.get(key);
   if (!hit || !hit.expiresAt) return null;
   if (Date.now() > hit.expiresAt) return null;
@@ -199,6 +220,7 @@ function peekRemaining(key: string): number | null {
  */
 function peek(key: string): unknown {
   if (isForeignKey(key)) return null;
+  noteUsage(namespaceFor(key), 'read');
   const hit = store.get(key);
   if (!hit) return null;
   if (hit.expiresAt && Date.now() > hit.expiresAt) return null;
@@ -209,18 +231,8 @@ function peek(key: string): unknown {
  * o prune. Escritores usam isto para substituir sem contar a mesma chave duas
  * vezes na janela entre o vencimento e a poda periódica. */
 function has(key: string): boolean {
+  noteUsage(namespaceFor(key), 'read');
   return store.has(key);
-}
-
-/** Versão quiet de getWithStale: não promove LRU, não conta hit/miss e não
- * apaga a entrada vencida. Usada por diagnósticos que varrem vários escopos. */
-function peekWithStale(key: string, graceSeconds = 0): { value: any; stale: boolean } | null {
-  const hit = store.get(key);
-  if (!hit) return null;
-  const now = Date.now();
-  if (!hit.expiresAt || now <= hit.expiresAt) return { value: hit.value, stale: false };
-  if (graceSeconds > 0 && now <= hit.expiresAt + graceSeconds * 1000) return { value: hit.value, stale: true };
-  return null;
 }
 
 /**
@@ -246,6 +258,7 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
     removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
     store.set(key, { value, expiresAt, namespace });
     incrementNamespace(namespace);
+    noteUsage(namespace, 'write');
     persist(key, value, expiresAt);
     namespaces.add(namespace);
   }
@@ -362,16 +375,6 @@ function clearWhere(matches: (key: string) => boolean) {
   return keys.length;
 }
 
-/** Devolve todas as chaves do L1 que iniciam com o prefixo informado. */
-function keysMatching(prefix: string): string[] {
-  const result: string[] = [];
-  const p = String(prefix || '');
-  for (const key of store.keys()) {
-    if (key.startsWith(p)) result.push(key);
-  }
-  return result;
-}
-
 /** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */
 function close() {
   if (pruneTimer) {
@@ -387,11 +390,9 @@ persistence.loadFromDisk(l1Hooks);
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();
 
-function l2Stats() {
-  return persistence.l2Stats();
-}
+function l2Stats() { return persistence.l2Stats(); }
 
 export {
   MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget, onPrune,
-  prune, clear, clearNamespace, clearWhere, keysMatching, size, snapshot, has, peek, peekWithStale, peekRemaining, maintain, close, l2Stats,
+  prune, clear, clearNamespace, clearWhere, size, snapshot, has, peek, peekRemaining, usage, maintain, close, l2Stats,
 };

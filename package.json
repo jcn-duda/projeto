@@ -162,6 +162,7 @@
     "test/cache-keys-debrid-owned.test.js",
     "test/cache-namespaces.test.js",
     "test/cache-sqlite.test.js",
+    "test/cache-usage.test.js",
     "test/cache.test.js",
     "test/cam-label-indexonly.test.js",
     "test/catalog-audit.test.js",
