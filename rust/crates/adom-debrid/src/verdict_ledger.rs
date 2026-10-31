@@ -1,11 +1,14 @@
 //! Ledger local (`rdc:v2`) e switches do Real-Debrid.
 //!
-//! O veredito do RD consulta o ledger do `cache.db` do Node e o hit renova o
-//! TTL localmente; nada aqui escreve na conta do serviço.
+//! O veredito do RD consulta o ledger do `cache.db` do Node (leitura no
+//! `Store` read-only) e o hit renova o TTL pelo KV NATIVO (`NativeKv`) — o
+//! MESMO caminho do `blocked` que o play grava; contra o leitor read-only o
+//! `put` é recusado de propósito. Nada aqui escreve na conta do serviço.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use adom_core::{ledger_key, next_on_hit, normalize_hash, peek_state};
+use adom_index::kv::KvWrite;
 use serde_json::{json, Value};
 
 use crate::store::Store;
@@ -59,8 +62,16 @@ pub(super) fn rd_ledger_known(hash: &str, store: Option<&Store>, ledger_on: bool
     }
 }
 
-/// Hit refresca o TTL (`next_on_hit` do núcleo). Escrita LOCAL e barata — não
-/// passa pelo gate porque não toca na conta do RD.
+/// Hit refresca o TTL (`next_on_hit` do núcleo). O estado atual é lido no
+/// leitor do `cache.db` (a mesma fonte do veredito) e a ESCRITA vai pelo KV
+/// nativo do gateway: contra o leitor read-only o `Store::put` é recusado de
+/// propósito ("cache.db do Node é somente leitura") e a renovação era no-op —
+/// o caminho é o MESMO do `blocked` que o play grava
+/// (`play_effects_native_writes.rs::note_rd_blocked`): `ledger_key`, valor
+/// `{s, at, n}` e TTL em segundos. Escrita LOCAL e barata — não passa pelo
+/// gate (`DEBRID_RD_GATE` é para escrita NA CONTA; o kill-switch que vale
+/// aqui é `DEBRID_RD_LEDGER`, checado acima). Única transação no thread da
+/// checagem, que já lê o SQLite neste ponto; falha só loga (fail-open).
 pub(super) fn rd_renew_hits(store: Option<&Store>, cached: &[String]) {
     let Some(store) = store else {
         return;
@@ -75,6 +86,9 @@ pub(super) fn rd_renew_hits(store: Option<&Store>, cached: &[String]) {
         .unwrap_or(LEDGER_HIT_TTL_S);
     let now_ms = now_ms();
     let now_s = (now_ms as f64) / 1000.0;
+    // (chave, valor, TTL em segundos) — montado ANTES do KV para a leitura do
+    // estado atual não cruzar a escrita.
+    let mut renewed: Vec<(String, Value, i64)> = Vec::new();
     for hash in cached {
         let normalized = normalize_hash(hash);
         if normalized.is_empty() {
@@ -84,13 +98,34 @@ pub(super) fn rd_renew_hits(store: Option<&Store>, cached: &[String]) {
         let Some(write) = next_on_hit(true, ttl, now_s, &current) else {
             continue;
         };
-        let value = json!({ "s": write.s, "at": write.at, "n": write.n });
-        let _ = store.put(
-            &ledger_key(&normalized),
-            &value.to_string(),
-            now_ms + (write.ttl_seconds * 1000.0) as i64,
-            now_ms,
+        renewed.push((
+            ledger_key(&normalized),
+            json!({ "s": write.s, "at": write.at, "n": write.n }),
+            write.ttl_seconds as i64,
+        ));
+    }
+    if renewed.is_empty() {
+        return;
+    }
+    let Some(kv) = crate::native_kv::production_kv() else {
+        eprintln!(
+            "[debrid] hit rdc:v2 não renovado ({} hash): KV nativo indisponível",
+            renewed.len()
         );
+        return;
+    };
+    let writes: Vec<KvWrite<'_>> = renewed
+        .iter()
+        .map(|(key, value, ttl_seconds)| KvWrite {
+            key,
+            value,
+            ttl_seconds: *ttl_seconds,
+            now_ms,
+            only_if_absent: false,
+        })
+        .collect();
+    if let Err(err) = kv.put_many_json_and_forget(&writes, &[]) {
+        eprintln!("[debrid] renovação de hit rdc:v2 falhou: {err}");
     }
 }
 

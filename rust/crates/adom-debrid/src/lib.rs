@@ -56,6 +56,10 @@ pub mod file_sizes;
 /// (`DEBRID_AL_HOLDS`, default OFF); os fatos vêm do gateway, sem rota Node.
 pub mod holds_feed;
 pub mod http;
+/// Marca `alive` do magnetdb a partir da checagem nativa (gap D4): mesma
+/// chave/régua do play, em fundo e fail-open; gates `MAGNET_DB` e
+/// `MAGNET_ALIVE_TTL`. O Real-Debrid fica fora (veredito vem do ledger).
+pub mod magnet_alive;
 /// Posse da checagem nativa (`adsub:v1`) gravada direto no KV nativo.
 /// Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
 pub mod marks_feed;

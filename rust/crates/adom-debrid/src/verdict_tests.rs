@@ -246,7 +246,7 @@ async fn realdebrid_ledger_hit_miss_e_blocked() {
     let _env = EnvGuard::set(&[("DEBRID_RD_LEDGER", None)]);
     let store = store_with(&[(HIT, "hit"), (MISS, "miss"), (DARK, "blocked")]);
     // Sem rede: o ledger responde sozinho (o adapter do RD não faz HTTP na
-    // checagem) e o hit ganha refresh de TTL no store.
+    // checagem) e o hit ganha refresh de TTL no KV nativo (verdict_tests_part2).
     let outcome = check_service(
         "realdebrid",
         KEY,

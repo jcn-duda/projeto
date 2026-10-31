@@ -278,6 +278,13 @@ pub async fn check_service_report_files(
             Err(err) => (err_verdict(&err), false),
         },
     };
+    // Gap D4: hash VIVO medido na checagem alimenta o magnetdb com a MESMA
+    // chave do play (`magnet_alive`). O Real-Debrid fica fora — o veredito
+    // dele vem do ledger (evidência que o play já registrou), não de uma
+    // medição no serviço; bad/lie seguem exclusivos do play.
+    if attempted && service != "realdebrid" && !verdict.cached.is_empty() {
+        crate::magnet_alive::spawn(service, api_key, &verdict.cached);
+    }
     Ok(ServiceCheck {
         outcome: into_outcome(verdict),
         attempted,

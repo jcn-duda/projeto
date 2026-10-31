@@ -262,3 +262,133 @@ async fn check_com_fatos_mantem_o_veredito() {
     assert!(is_cached(&report.outcome, HIT));
     assert!(!is_cached(&report.outcome, MISS));
 }
+
+// ── Gap D4: hash vivo medido na checagem alimenta o magnetdb ──────────────
+
+/// Leitura do magnetdb da MARCA (o arquivo temporário próprio que o `spawn`
+/// do `magnet_alive` escreve; o checkout nunca é tocado).
+fn magnet_db_do_processo() -> adom_index::MagnetStateStore {
+    adom_index::MagnetStateStore::open(std::path::Path::new(&crate::magnet_alive::cache_db_path()))
+        .unwrap()
+}
+
+/// Espera a leitura devolver o estado pedido (teto de ~2 s): a gravação roda
+/// em `spawn_blocking`.
+async fn wait_alive(mag: &adom_index::MagnetStateStore, service: &str, hash: &str) -> bool {
+    let now = crate::error::now_ms() as i64;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        if mag.state(service, KEY, hash, now).unwrap() == Some(adom_index::MagnetState::Alive) {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+/// O veredito `cached` de um serviço MEDIDO na hora (Premiumize) grava
+/// `mag:v1:alive` com a MESMA chave do play, em fundo.
+#[tokio::test]
+async fn checagem_viva_marca_alive_no_magnetdb() {
+    let body = r#"{"status":"success","response":[true],"filesize":[4]}"#;
+    let _env = EnvGuard::set(&[
+        (
+            "PREMIUMIZE_API_BASE",
+            Some(&serve(upstream(200, body).1).await),
+        ),
+        ("MAGNET_DB", None),
+        ("MAGNET_ALIVE_TTL", None),
+    ]);
+    let outcome = check_service(
+        "premiumize",
+        KEY,
+        &[HIT.into()],
+        Some(Duration::from_millis(2000)),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(is_cached(&outcome, HIT), "o serviço nomeou o hash como ⚡");
+    let mag = magnet_db_do_processo();
+    assert!(
+        wait_alive(&mag, "premiumize", HIT).await,
+        "checagem viva = evidência de alive no magnetdb"
+    );
+}
+
+/// O Real-Debrid fica FORA da marca `alive`: o veredito dele vem do ledger
+/// (evidência que o play já registrou), não de uma medição no serviço —
+/// renovar `alive` por hit de ledger seria segunda mão que se auto-sustenta
+/// sem play novo.
+#[tokio::test]
+async fn realdebrid_hit_nao_marca_alive_no_magnetdb() {
+    let _env = EnvGuard::set(&[("MAGNET_DB", None), ("MAGNET_ALIVE_TTL", None)]);
+    let store = store_with(&[(HIT, "hit")]);
+    let outcome = check_service("realdebrid", KEY, &[HIT.into()], None, Some(&store))
+        .await
+        .unwrap();
+    assert!(is_cached(&outcome, HIT), "hit do ledger é ⚡");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let mag = magnet_db_do_processo();
+    let now = crate::error::now_ms() as i64;
+    assert_eq!(
+        mag.state("realdebrid", KEY, HIT, now).unwrap(),
+        None,
+        "ledger hit não é medida de serviço: nada marca alive"
+    );
+}
+
+// ── Fatia A: a renovação do hit da checagem escreve no KV nativo ─────────
+
+/// Contra o leitor read-only do `cache.db` o `Store::put` é recusado e a
+/// renovação era no-op. Agora o hit renovado aparece no KV NATIVO — o mesmo
+/// caminho do `blocked` que o play grava.
+#[tokio::test]
+async fn realdebrid_hit_renova_ledger_no_kv_nativo() {
+    let _env = EnvGuard::set(&[
+        ("DEBRID_RD_LEDGER", None),
+        ("DEBRID_RD_LEDGER_HIT_TTL", None),
+    ]);
+    let kv = crate::native_kv::test_kv().expect("KV de teste do processo");
+    let _ = kv.forget(&ledger_key(HIT));
+    let store = store_with(&[(HIT, "hit")]);
+    let outcome = check_service("realdebrid", KEY, &[HIT.into()], None, Some(&store))
+        .await
+        .unwrap();
+    assert!(is_cached(&outcome, HIT));
+    let now = crate::error::now_ms() as i64;
+    let value = kv
+        .get_json(&ledger_key(HIT), now)
+        .unwrap()
+        .expect("hit precisa ser renovado no KV nativo");
+    assert_eq!(value["s"].as_str(), Some("hit"));
+    let remaining = kv
+        .remaining_seconds(&ledger_key(HIT), now)
+        .unwrap()
+        .expect("TTL do hit");
+    assert!(remaining > 0, "hit renovado com TTL positivo: {remaining}");
+}
+
+/// TTL 0 do hit (`DEBRID_RD_LEDGER_HIT_TTL=0`) desliga a renovação: o núcleo
+/// (`next_on_hit`) devolve `None` e nada é gravado.
+#[tokio::test]
+async fn realdebrid_hit_com_ttl_zero_nao_renova_ledger() {
+    let _env = EnvGuard::set(&[
+        ("DEBRID_RD_LEDGER", None),
+        ("DEBRID_RD_LEDGER_HIT_TTL", Some("0")),
+    ]);
+    let kv = crate::native_kv::test_kv().expect("KV de teste do processo");
+    let _ = kv.forget(&ledger_key(HIT));
+    let store = store_with(&[(HIT, "hit")]);
+    let outcome = check_service("realdebrid", KEY, &[HIT.into()], None, Some(&store))
+        .await
+        .unwrap();
+    assert!(is_cached(&outcome, HIT), "hit continua ⚡ na checagem");
+    let now = crate::error::now_ms() as i64;
+    assert!(
+        kv.get_json(&ledger_key(HIT), now).unwrap().is_none(),
+        "ttl 0 desliga a renovação: nada escrito"
+    );
+}

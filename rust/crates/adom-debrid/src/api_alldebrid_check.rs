@@ -96,6 +96,9 @@ pub(super) async fn check_alldebrid(
                 }
             }
             let outcome = cached_outcome(report.cached, report.complete);
+            // Gap D4: o serviço nomeou os vivos na hora — mesma marca do play,
+            // em fundo (a resposta nunca espera o disco).
+            crate::magnet_alive::spawn("alldebrid", &body.api_key, &outcome.cached);
             count_outcome(state, &outcome);
             json_status(StatusCode::OK, outcome_json(&outcome, &report.blocked))
         }
