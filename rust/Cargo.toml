@@ -5,6 +5,8 @@
 [workspace]
 members = [
     "crates/adom-core",
+    # Catálogo durável da conta do operador (catalog.db): store e planos, sem rede.
+    "crates/adom-catalog",
     "crates/adom-napi",
     "crates/adom-crawl",
     "crates/adom-resolvers",

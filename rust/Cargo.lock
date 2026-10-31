@@ -16,6 +16,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-catalog"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "adom-core"
 version = "0.0.0"
 dependencies = [
