@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { invalidateStreamsForObra } from '../src/utils/br-gap.js';
+import { invalidateStreamsForObra } from './helpers/pipeline-oracle/br-gap.js';
 import {
   clearNativeStreams,
   fetchNativeStreamTrace,

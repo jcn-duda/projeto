@@ -7,7 +7,7 @@ import debrid from '../../src/debrid/index.js';
 import debridCheck from './pipeline-oracle/debrid-check.js';
 import * as cache from '../../src/utils/cache.js';
 import { kvForget } from '../../src/utils/native-kv.js';
-import * as held from '../../src/debrid/protected.js';
+import * as held from './pipeline-oracle/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import { applyDebrid } from './pipeline-oracle/index.js';
 import { assertSafeTestDb } from './db-guard.js';

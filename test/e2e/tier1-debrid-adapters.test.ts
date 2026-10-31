@@ -31,7 +31,7 @@ import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import debrid from '../../src/debrid/index.js';
 import debridCheck from '../helpers/pipeline-oracle/debrid-check.js';
-import * as protectedHashes from '../../src/debrid/protected.js';
+import * as protectedHashes from '../helpers/pipeline-oracle/protected.js';
 import type { Stream } from '../../types/domain.js';
 import { bodies as pmBodies } from '../helpers/pipeline-oracle/debrid-bodies/premiumize.js';
 import { bodies as rdBodies } from '../helpers/pipeline-oracle/debrid-bodies/realdebrid.js';

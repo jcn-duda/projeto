@@ -8,7 +8,7 @@
  */
 import config from '../../../../src/config.js';
 import { errorMessage } from '../../../../src/utils/logger.js';
-import { invalidateStreamsForObra } from '../../../../src/utils/br-gap.js';
+import { invalidateStreamsForObra } from '../br-gap.js';
 import { clearNativeStreamsSoon } from '../../../../src/utils/streams-store-native.js';
 
 // Rajada de plays bloqueados não pode esfriar o cache de todo mundo

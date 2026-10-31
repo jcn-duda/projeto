@@ -123,14 +123,18 @@ async function main() {
       console.error('Nenhum hash em --unblock.');
       process.exit(1);
     }
-    const reupload = await import('../src/debrid/alldebrid-reupload.js');
+    // A régua TS do `adrm` saiu para o oráculo e `test/` não entra na imagem:
+    // o expurgo fala direto com a linha do KV nativo.
+    const { prefix } = await import('../src/utils/cache-keys.js');
+    const { kvForget, kvPeek } = await import('../src/utils/native-kv.js');
     const { accountScope } = await import('../src/utils/request-key.js');
     const account = accountScope(key);
     let liberados = 0;
     let semMarcador = 0;
     for (const hash of [...new Set(hashes)]) {
-      if (reupload.reuploadBlocked(account, hash)) {
-        reupload.forgetReuploadBlock(account, hash);
+      const adrmKey = `${prefix('adrm')}${account}:${hash}`;
+      if (kvPeek(adrmKey) != null) {
+        kvForget(adrmKey);
         liberados += 1;
         console.log(`  liberado: ${hash.slice(0, 16)}…`);
       } else {

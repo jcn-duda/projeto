@@ -81,8 +81,8 @@
         "rust/crates/adom-autofetch/src/v3/cascade.rs",
         "rust/crates/adom-server/src/autofetch/enqueue.rs",
         "rust/crates/adom-search/src/debrid_seam.rs",
-        "src/debrid/protected.ts",
-        "src/debrid/audio-audit.ts"
+        "rust/crates/adom-server/src/al_cleanup_facts.rs",
+        "rust/crates/adom-debrid/src/play_audit.rs"
       ],
       "guards": "Invariante 6: autofetch e dropUncached sao opostos; a ponte e protected.ts (hold ANTES da checagem). Orcamento cheio nao e recusa do torrent (backoff de 60s). torrentStatus honesto por servico."
     },

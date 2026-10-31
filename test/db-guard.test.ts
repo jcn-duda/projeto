@@ -127,8 +127,8 @@ const DB_OWNERS = [
   'src/utils/magnet-bank.js',
   'src/utils/debrid-state-native.js',
   'src/providers/autofetch.js',
-  'src/debrid/protected.js',
-  'src/debrid/alldebrid-reupload.js',
+  '/protected.js',
+  '/alldebrid-reupload.js',
   'node:sqlite',
 ];
 

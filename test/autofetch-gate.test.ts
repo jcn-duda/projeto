@@ -14,7 +14,7 @@ import * as runtime from '../src/runtime.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as srcGate from '../src/providers/autofetch-gate.js';
 import * as accountGate from './helpers/pipeline-oracle/autofetch-account-gate.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import { kvForget, kvPeek } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';

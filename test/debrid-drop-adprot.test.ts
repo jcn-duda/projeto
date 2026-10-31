@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { warmInventory } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';

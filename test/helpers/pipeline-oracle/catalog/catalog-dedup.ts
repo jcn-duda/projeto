@@ -7,7 +7,7 @@
 // Fachada pública: `src/utils/catalog.ts`; camada de linhas/engine:
 // `catalog-rows.ts`.
 import * as metrics from '../../../../src/utils/metrics.js';
-import * as held from '../../../../src/debrid/protected.js';
+import * as held from '../protected.js';
 import { assertSafeTestDb } from '../../db-guard.js';
 
 assertSafeTestDb('pipeline-oracle/catalog/catalog-dedup');

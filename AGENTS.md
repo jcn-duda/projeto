@@ -377,7 +377,7 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `general` do painel marca `debrid:false` sem derrubar o resto.
 - **AllDebrid**: checar cache = `/magnet/upload` real, não abortável → a checagem
   também limpa (`dropUncached`/`dropReady`). Nunca limpar: hash do autofetch
-  (`protected.ts`), preexistente do usuário (`knownBefore`) e, com inventário
+  (hold, `adom-server::al_cleanup_facts`), preexistente do usuário (`knownBefore`) e, com inventário
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
   anti-reenchimento `adrm:v1` (SÓ das varreduras de conteúdo — a higiene da
   checagem nunca marca; a posse do que a checagem nativa sobe é gravada pelo
@@ -701,7 +701,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
    `adom-core::short_name_tail`, `non_feature_release`); o TS só transporta o
    veredito e o motivo. Prefira corrigir a régua a criar lista de títulos
    proibidos.
-6. **Autofetch e `dropUncached` são forças opostas**; a ponte é `protected.ts`
+6. **Autofetch e `dropUncached` são forças opostas**; a ponte é o hold
    (`hold` antes da checagem, liberado só se o download não ocorre).
 
 ---
@@ -713,10 +713,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos (o feed de holds saiu: o gateway calcula os fatos; `applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
-| Fontes | `mico.ts` + `jackett-catalog.ts` no Node; Jackett, Prowlarr, Torrentio e BLUDV nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
+| Fontes | Jackett, Prowlarr, Torrentio, BLUDV e Mico nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
-| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
+| Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |

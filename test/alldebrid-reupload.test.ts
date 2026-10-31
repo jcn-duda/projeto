@@ -22,7 +22,7 @@ import {
   reuploadBlocked,
   markReuploadBlocked,
   forgetReuploadBlock,
-} from '../src/debrid/alldebrid-reupload.js';
+} from './helpers/pipeline-oracle/alldebrid-reupload.js';
 
 const adrmKey = (account: string, hash: string) => `${prefix('adrm')}${account}:${hash}`;
 const counter = (name: string) => metrics.snapshot().counters[name] ?? 0;

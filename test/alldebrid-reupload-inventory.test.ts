@@ -12,7 +12,7 @@ import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
-import { reuploadBlocked, markReuploadBlocked } from '../src/debrid/alldebrid-reupload.js';
+import { reuploadBlocked, markReuploadBlocked } from './helpers/pipeline-oracle/alldebrid-reupload.js';
 import { adrmKey, counter, mockAd } from './helpers/alldebrid-mock.js';
 
 // O verde não pode depender do .env de quem roda (mesmo pin do 8.14).

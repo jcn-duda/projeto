@@ -5,7 +5,7 @@ process.env.CACHE_PERSIST = 'false';
 
 import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, pickTopSeededCandidates } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { dedupeByHash } from './helpers/pipeline-oracle/format.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';

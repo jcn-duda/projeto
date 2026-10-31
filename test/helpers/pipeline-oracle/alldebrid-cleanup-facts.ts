@@ -30,7 +30,7 @@ import config from '../../../src/config.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import { id } from '../../../src/debrid/alldebrid-api.js';
-import { heldHashesFor } from '../../../src/debrid/protected.js';
+import { heldHashesFor } from './protected.js';
 import { inventoryFacts } from './debrid-bodies/alldebrid-autofetch.js';
 import { assertSafeTestDb } from '../db-guard.js';
 

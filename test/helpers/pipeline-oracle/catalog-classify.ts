@@ -14,9 +14,9 @@
 //
 // Fachada pública: `src/utils/catalog.ts`; camada de linhas/engine:
 // `catalog-rows.ts`.
-import config from '../config.js';
-import { nativeCore } from './native-core.js';
-import { coreJson } from './native-json.js';
+import config from '../../../src/config.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
+import { coreJson } from '../../../src/utils/native-json.js';
 
 /** Função do catálogo no `.node` (camelCase do napi-rs). */
 type CatalogCore = {

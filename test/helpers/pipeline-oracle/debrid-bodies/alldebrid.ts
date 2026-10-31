@@ -19,17 +19,17 @@
 import config from '../../../../src/config.js';
 import { accountScope } from '../../../../src/utils/request-key.js';
 import { batched, pickFile, wait } from '../../../../src/debrid/common.js';
-import * as held from '../../../../src/debrid/protected.js';
+import * as held from '../protected.js';
 import * as log from '../../../../src/utils/logger.js';
 import * as metrics from '../../../../src/utils/metrics.js';
 import { call, flattenFiles, id } from '../../../../src/debrid/alldebrid-api.js';
 import { magnetFiles, deleteMagnets as dropMagnets } from './alldebrid-catalog.js';
 import { recordFileSizes } from '../../../../src/debrid/file-sizes.js';
 import { preexisting, knownBefore, rememberSubmitted, forgetSubmitted } from '../../../../src/debrid/alldebrid-inventory.js';
-import { skipCleanup } from '../../../../src/debrid/alldebrid-cleanup.js';
+import { skipCleanup } from '../alldebrid-cleanup.js';
 import { raceWithDeadline } from '../../../../src/utils/deadline.js';
 import { mayDeleteHash } from '../../../../src/utils/rust-debrid-clean.js';
-import { assertDubbedFiles, recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from '../audio-audit.js';
 import type { PlayHint } from '../../../../types/domain.js';
 import { assertSafeTestDb } from '../../db-guard.js';
 import {

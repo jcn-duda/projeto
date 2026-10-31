@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { isCleanupProtected } from '../src/debrid/protected.js';
+import { isCleanupProtected } from './helpers/pipeline-oracle/protected.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
 import { alldebridLinkFacts } from './helpers/pipeline-oracle/play/rust-link-facts.js';
 

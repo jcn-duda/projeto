@@ -1,9 +1,9 @@
-import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle, UNKNOWN_QUALITY } from '../utils/format.js';
-import { DubLieError, VIDEO_EXT, SAMPLE, isSiteAd, baseName } from './common.js';
-import { looksMultiWorkFiles } from './file-selector.js';
-import * as releaseIndex from '../utils/release-index.js';
-import type { DebridFile } from './common.js';
-import { recordFileSizes } from './file-sizes.js';
+import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle, UNKNOWN_QUALITY } from '../../../src/utils/format.js';
+import { DubLieError, VIDEO_EXT, SAMPLE, isSiteAd, baseName } from '../../../src/debrid/common.js';
+import { looksMultiWorkFiles } from '../../../src/debrid/file-selector.js';
+import * as releaseIndex from '../../../src/utils/release-index.js';
+import type { DebridFile } from '../../../src/debrid/common.js';
+import { recordFileSizes } from '../../../src/debrid/file-sizes.js';
 
 /** Vídeos que são conteúdo: sem sample e sem a propaganda do site. */
 function contentPaths(files: DebridFile[]) {

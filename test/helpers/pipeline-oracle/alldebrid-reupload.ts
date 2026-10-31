@@ -27,13 +27,16 @@
 // recém-gravada podia não barrar o upload. A leitura é `kvPeek` (sonda
 // síncrona, sem promover LRU nem contar hit/miss): o prazo da busca não pode
 // pagar nada por esta consulta.
-import config from '../config.js';
-import { prefix } from '../utils/cache-keys.js';
-import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
-import * as metrics from '../utils/metrics.js';
-import { brOriginMark } from '../utils/br-origin.js';
-import { forget as inventoryMemoForget } from './inventory-memo.js';
-import { id as adapterId } from './alldebrid-api.js';
+import config from '../../../src/config.js';
+import { prefix } from '../../../src/utils/cache-keys.js';
+import { kvForget, kvPeek, kvSet } from '../../../src/utils/native-kv.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { assertSafeTestDb } from '../db-guard.js';
+import { brOriginMark } from '../../../src/utils/br-origin.js';
+import { forget as inventoryMemoForget } from '../../../src/debrid/inventory-memo.js';
+import { id as adapterId } from '../../../src/debrid/alldebrid-api.js';
+
+assertSafeTestDb('alldebrid-reupload');
 
 const adrmPrefix = prefix('adrm');
 

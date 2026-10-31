@@ -8,7 +8,7 @@ import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import debrid from '../../../src/debrid/index.js';
 import { inventory } from './inventory-for.js';
 import { peekDavail } from './play/davail.js';
-import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
+import { reuploadBlocked } from './alldebrid-reupload.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { magnetState } from '../../../src/utils/debrid-state-native.js';
 import * as rdLedger from '../../../src/debrid/rd-ledger.js';

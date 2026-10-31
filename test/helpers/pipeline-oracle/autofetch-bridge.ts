@@ -61,8 +61,8 @@ import {
 import { decideAutofetch, type AutofetchPick } from '../../../src/utils/rust-autofetch.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as accountGate from './autofetch-account-gate.js';
-import * as held from '../../../src/debrid/protected.js';
-import { reuploadBlocked } from '../../../src/debrid/alldebrid-reupload.js';
+import * as held from './protected.js';
+import { reuploadBlocked } from './alldebrid-reupload.js';
 import { unblockIfInventoryReady } from './debrid-bodies/alldebrid-autofetch.js';
 import { enqueue } from './play/actions.js';
 import { rawAdapter } from './raw-adapter.js';

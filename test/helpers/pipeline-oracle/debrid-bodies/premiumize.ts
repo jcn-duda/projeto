@@ -10,7 +10,7 @@
  */
 import { magnetForPlay, pickFile } from '../../../../src/debrid/common.js';
 import * as metrics from '../../../../src/utils/metrics.js';
-import { assertDubbedFiles, recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from '../audio-audit.js';
 import { call } from '../../../../src/debrid/premiumize.js';
 import type { PlayHint, TorrentStatusEntry } from '../../../../types/domain.js';
 

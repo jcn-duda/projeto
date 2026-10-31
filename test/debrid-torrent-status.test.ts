@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import debrid from '../src/debrid/index.js';
 import * as metrics from '../src/utils/metrics.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { markerKey, markerValue } from '../src/providers/autofetch-marker.js';

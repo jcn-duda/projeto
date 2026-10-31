@@ -5,8 +5,8 @@ import { accountScope } from '../../../../src/utils/request-key.js';
 import * as metrics from '../../../../src/utils/metrics.js';
 import * as log from '../../../../src/utils/logger.js';
 import * as catalog from './catalog.js';
-import { recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
-import { markReuploadBlocked } from '../../../../src/debrid/alldebrid-reupload.js';
+import { recordFileEvidence } from '../audio-audit.js';
+import { markReuploadBlocked } from '../alldebrid-reupload.js';
 import { BY_ID } from '../../../../src/debrid/registry.js';
 import * as alldebridAccount from '../debrid-bodies/alldebrid-catalog.js';
 

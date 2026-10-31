@@ -125,7 +125,7 @@ const mutations = [
     // `true` literal — devolve o resultado da leitura do KV. O alvo é a linha
     // que PRODUZ o veredito; o `testFile` continua o mesmo.
     name: 'MUT-05: Break protected.js hold tracking (protected.js)',
-    file: 'dist/src/debrid/protected.js',
+    file: 'dist/test/helpers/pipeline-oracle/protected.js',
     target: 'return kvPeek(holdKey(hash, account)) != null;',
     replacement: 'return false; // MUTATED',
     // Capturado pelo tier2-providers-debrid (F10-BND-05): isHeld() após hold exige true por conta.

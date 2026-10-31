@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // A varredura saiu de src/ (vira ponte nativa); a régua TS congelada mora no oráculo.
 import * as premiumize from './helpers/pipeline-oracle/debrid-bodies/premiumize-sweep.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { markerKey, markerValue } from '../src/providers/autofetch-marker.js';

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import { prefix } from '../src/utils/cache-keys.js';
-import { hasBrDubbed, invalidateStreamsForObra } from '../src/utils/br-gap.js';
+import { hasBrDubbed, invalidateStreamsForObra } from './helpers/pipeline-oracle/br-gap.js';
 import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
 

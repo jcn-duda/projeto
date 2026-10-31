@@ -9,7 +9,7 @@
  */
 import { accountScope } from '../../../src/utils/request-key.js';
 import { id as alldebridId } from '../../../src/debrid/alldebrid-api.js';
-import { heldHashesFor } from '../../../src/debrid/protected.js';
+import { heldHashesFor } from './protected.js';
 import { alldebridCleanupFacts } from './alldebrid-cleanup-facts.js';
 import { assertSafeTestDb } from '../db-guard.js';
 

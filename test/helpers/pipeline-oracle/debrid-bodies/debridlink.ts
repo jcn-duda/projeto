@@ -6,7 +6,7 @@
  * paridade chama, via `rawAdapter()`.
  */
 import { magnetForPlay, pickFile, wait } from '../../../../src/debrid/common.js';
-import { assertDubbedFiles, recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from '../audio-audit.js';
 import { call } from '../../../../src/debrid/debridlink.js';
 import * as log from '../../../../src/utils/logger.js';
 import type { PlayHint, TorrentStatusEntry } from '../../../../types/domain.js';

@@ -13,8 +13,8 @@
 // As métricas do ciclo vivem nos pontos que as disparam (busca e colheita);
 // aqui só vivem os predicados de evidência e o pedido de invalidação. A decisão
 // do gap e a transição de faixa são do colhedor nativo.
-import { invalidateNativeStreamsForObra } from './streams-store-native.js';
-import type { IndexedRelease } from './release-index.js';
+import { invalidateNativeStreamsForObra } from '../../../src/utils/streams-store-native.js';
+import type { IndexedRelease } from '../../../src/utils/release-index.js';
 
 function isBrDubbed(release: IndexedRelease | undefined | null): boolean {
   return release?.source !== 'autofetch'

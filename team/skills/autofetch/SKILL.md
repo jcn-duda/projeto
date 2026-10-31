@@ -41,7 +41,7 @@ desliga o Chupim e o efeito de trabalho morre na rota do Node (só conta em
   `markerActive`, `isDeadQuiet`), `autofetch-marker.ts`, `autofetch-obra*.ts`,
   `autofetch-evict.ts` (leitor da prova `er:` — `hasBrReady`; política e
   executor são `evict_job.rs`/`evict_step.rs`)
-- `src/debrid/protected.ts` (hold), `src/utils/autofetch-native.ts`,
+- `rust/crates/adom-server/src/al_cleanup_facts.rs` (hold), `src/utils/autofetch-native.ts`,
   `rust-autofetch.ts` (ponte da admin 8711), `rust/crates/adom-search/src/debrid_seam.rs`
 - Golden de contrato dos passos: `rust/golden/autofetch-{probe,season,evict,suppressed}-step.*`
 

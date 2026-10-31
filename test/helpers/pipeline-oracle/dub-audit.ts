@@ -20,9 +20,9 @@ import * as metrics from '../../../src/utils/metrics.js';
 import * as cache from '../../../src/utils/cache.js';
 import { opts } from '../../../src/runtime.js';
 import { accountScope } from '../../../src/utils/request-key.js';
-import * as protectedApi from '../../../src/debrid/protected.js';
+import * as protectedApi from './protected.js';
 import { isDubLieError, isEpisodePickError } from '../../../src/debrid/common.js';
-import { invalidateStreamsForObra } from '../../../src/utils/br-gap.js';
+import { invalidateStreamsForObra } from './br-gap.js';
 import type { ApplyDebridOptions } from './debrid-apply-types.js';
 import { assertSafeTestDb } from '../db-guard.js';
 

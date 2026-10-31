@@ -11,7 +11,7 @@ import { assertSafeTestDb } from '../../db-guard.js';
 import config from '../../../../src/config.js';
 import * as metrics from '../../../../src/utils/metrics.js';
 import * as log from '../../../../src/utils/logger.js';
-import * as held from '../../../../src/debrid/protected.js';
+import * as held from '../protected.js';
 import { accountScope } from '../../../../src/utils/request-key.js';
 import { markerIdIndex } from '../../../../src/providers/autofetch-marker.js';
 import { id, call } from '../../../../src/debrid/premiumize.js';

@@ -18,7 +18,7 @@ import type { DebridAdapter } from '../types/domain.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
-import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
+import { hold, release, protectBr, unprotect } from './helpers/pipeline-oracle/protected.js';
 import { warmInventory } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import { alldebridCleanupFacts } from './helpers/pipeline-oracle/alldebrid-cleanup-facts.js';
 import { withCheckBridge } from './helpers/pipeline-oracle/check-bridge.js';

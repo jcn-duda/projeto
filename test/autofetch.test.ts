@@ -7,7 +7,7 @@ process.env.CACHE_PERSIST = 'false';
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
 import { pickBrDubbedCandidate, hasCachedBrDubbed, hasCachedAnyDubbed, canAutoFetchBr, pickTopSeededCandidates } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { sortAndLimit, toStremioStream, limitReservingBr } from './helpers/pipeline-oracle/format.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import type { DebridAdapter } from '../types/domain.js';
 

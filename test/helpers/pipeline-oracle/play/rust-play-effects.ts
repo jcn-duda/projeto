@@ -42,7 +42,7 @@ export async function applyPlayEffects(
   const list = takePlayFiles(files);
   if (list) {
     try {
-      const { recordFileEvidence } = await import('../../../../src/debrid/audio-audit.js');
+      const { recordFileEvidence } = await import('../audio-audit.js');
       recordFileEvidence(infoHash, list);
     } catch (err) {
       log.warn('[debrid] não consegui gravar a prova do play do Rust:', log.errorMessage(err));

@@ -9,7 +9,7 @@
  */
 import { magnetForPlay, pickFile, wait } from '../../../../src/debrid/common.js';
 import * as log from '../../../../src/utils/logger.js';
-import { assertDubbedFiles, recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
+import { assertDubbedFiles, recordFileEvidence } from '../audio-audit.js';
 import { call, rowState } from '../../../../src/debrid/torbox.js';
 import type { PlayHint, TorrentStatusEntry } from '../../../../types/domain.js';
 

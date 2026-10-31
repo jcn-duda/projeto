@@ -16,7 +16,7 @@ import * as secretBox from '../../src/utils/secret-box.js';
 import { createDiagnosticGate, authorized } from '../../src/utils/diagnostic-guard.js';
 import debrid from '../../src/debrid/index.js';
 import * as debridCommon from '../../src/debrid/common.js';
-import * as protectedHashes from '../../src/debrid/protected.js';
+import * as protectedHashes from '../helpers/pipeline-oracle/protected.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';

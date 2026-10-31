@@ -8,7 +8,7 @@ import { assertSafeTestDb } from '../../db-guard.js';
 import config from '../../../../src/config.js';
 import { accountScope } from '../../../../src/utils/request-key.js';
 import { id } from '../../../../src/debrid/alldebrid-api.js';
-import { isCleanupProtected } from '../../../../src/debrid/protected.js';
+import { isCleanupProtected } from '../protected.js';
 
 // Grava davail/posse no MESMO cache.db: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/play/rust-link-facts');

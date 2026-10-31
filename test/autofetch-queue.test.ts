@@ -12,7 +12,7 @@ import * as autofetch from '../src/providers/autofetch.js';
 import * as accountGate from './helpers/pipeline-oracle/autofetch-account-gate.js';
 import * as cache from '../src/utils/cache.js';
 import { kvForget, kvPeek, kvSet } from '../src/utils/native-kv.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import config from '../src/config.js';
 import { canAutoFetchBr } from './helpers/pipeline-oracle/autofetch-ranking.js';
 import { H1, H2, H3, H4, sleep, mkAdapter, dinvKeyFor } from './helpers/autofetch-fixtures.js';

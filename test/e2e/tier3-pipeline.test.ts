@@ -9,7 +9,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import debrid from '../../src/debrid/index.js';
-import * as held from '../../src/debrid/protected.js';
+import * as held from '../helpers/pipeline-oracle/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';

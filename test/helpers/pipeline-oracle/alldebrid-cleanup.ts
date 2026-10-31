@@ -1,6 +1,9 @@
 import * as held from './protected.js';
-import * as metrics from '../utils/metrics.js';
-import { id } from './alldebrid-api.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { id } from '../../../src/debrid/alldebrid-api.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+assertSafeTestDb('alldebrid-cleanup');
 
 /**
  * Um magnet está a salvo da limpeza se há proteção VOLÁTIL (hold, autofetch em

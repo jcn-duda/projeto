@@ -24,14 +24,14 @@ import { peekDavail, noteUnavailable } from './helpers/pipeline-oracle/play/dava
 import { enrichInstantWithoutCacheCheck } from './helpers/pipeline-oracle/debrid-instant-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
-import { markReuploadBlocked, forgetReuploadBlock } from '../src/debrid/alldebrid-reupload.js';
+import { markReuploadBlocked, forgetReuploadBlock } from './helpers/pipeline-oracle/alldebrid-reupload.js';
 import { unblockIfInventoryReady } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
-import * as held from '../src/debrid/protected.js';
+import * as held from './helpers/pipeline-oracle/protected.js';
 import * as runtime from '../src/runtime.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';

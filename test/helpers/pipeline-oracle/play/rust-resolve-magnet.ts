@@ -1,7 +1,7 @@
 import { assertSafeTestDb } from '../../db-guard.js';
 import * as magnetdbWrites from './magnetdb-writes.js';
 import { accountScope } from '../../../../src/utils/request-key.js';
-import * as protectedApi from '../../../../src/debrid/protected.js';
+import * as protectedApi from '../protected.js';
 
 // Grava davail/posse no MESMO cache.db: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/play/rust-resolve-magnet');

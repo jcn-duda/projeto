@@ -21,10 +21,13 @@
  *   continuar pronto na conta ele não sofre a limpeza; só o estado terminal
  *   (dead/stalled/expired) e o `DubLieError` o destravam.
  */
-import config from '../config.js';
-import { prefix } from '../utils/cache-keys.js';
-import { kvForget, kvKeys, kvPeek, kvRemaining, kvSet } from '../utils/native-kv.js';
-import * as metrics from '../utils/metrics.js';
+import config from '../../../src/config.js';
+import { prefix } from '../../../src/utils/cache-keys.js';
+import { kvForget, kvKeys, kvPeek, kvRemaining, kvSet } from '../../../src/utils/native-kv.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+assertSafeTestDb('protected');
 
 const holdPrefix = prefix('adhold');
 

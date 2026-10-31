@@ -23,7 +23,7 @@ import { createTestServer } from './e2e/e2e-harness.js';
 import config from '../src/config.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
-import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
+import { hold, release, protectBr, unprotect } from './helpers/pipeline-oracle/protected.js';
 import { warmInventory } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-autofetch.js';
 import { alldebridCleanupFacts } from './helpers/pipeline-oracle/alldebrid-cleanup-facts.js';
 import { alldebridHoldsFeedFacts } from './helpers/pipeline-oracle/alldebrid-holds-feed.js';

@@ -13,8 +13,8 @@ import { releaseStatus } from '../../../../src/utils/br-coverage.js';
 import type { OperatorCtx } from '../../../../src/utils/br-coverage.js';
 import type { AllDebridMagnetRow } from '../../../../src/debrid/alldebrid.js';
 import { engine, configOperatorAdapter, upsertRow } from './catalog-rows.js';
-import { classifyByTitle, classifyWithEvidence } from '../../../../src/utils/catalog-classify.js';
-import type { Proof } from '../../../../src/utils/catalog-classify.js';
+import { classifyByTitle, classifyWithEvidence } from '../catalog-classify.js';
+import type { Proof } from '../catalog-classify.js';
 
 // ---------------------------------------------------------------------------
 // Tipos públicos e API
