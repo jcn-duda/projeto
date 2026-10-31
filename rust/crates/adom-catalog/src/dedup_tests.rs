@@ -239,8 +239,7 @@ fn sobrevivente_protegido_nao_pronto_vence_pelo_find() {
 }
 
 #[test]
-fn protegido_que_perde_continua_kill_no_dedup() {
-    // Comportamento do TS: o dedup só poupa o ATIVO. O T3 poupa protegido; o dedup não.
+fn nao_protegido_sai_para_o_protegido_ficar() {
     let held = "b".repeat(40);
     let store = store_with(vec![
         row("1", &"a".repeat(40), "Filme Dual 2024", 5000, 1000),
@@ -250,6 +249,32 @@ fn protegido_que_perde_continua_kill_no_dedup() {
     let plan = dedup(&store, &protect);
     assert_eq!(plan.t2[0].keep.service_id, "2");
     assert_eq!(plan.t2[0].kill[0].service_id, "1");
+}
+
+#[test]
+fn t2_nao_apaga_protegido_de_outro_hash() {
+    let (h1, h2) = ("a".repeat(40), "b".repeat(40));
+    let store = store_with(vec![
+        row("1", &h1, "Filme Dual 2024", 5000, 1000),
+        row("2", &h2, "Filme.Dual.2024.mkv", 5000, 2000),
+    ]);
+    let plan = dedup(&store, &|_: &str| true);
+    assert!(
+        plan.t2.is_empty(),
+        "os dois hashes protegidos ficam na conta"
+    );
+}
+
+#[test]
+fn t1_protegido_duplicado_sai_porque_o_hash_fica() {
+    let hash = "a".repeat(40);
+    let store = store_with(vec![
+        row("1", &hash, "Filme Dual 2024", 5000, 1000),
+        row("2", &hash, "Filme Dual 2024", 5000, 2000),
+    ]);
+    let plan = dedup(&store, &|_: &str| true);
+    assert_eq!(plan.t1[0].keep.service_id, "1");
+    assert_eq!(plan.t1[0].kill[0].service_id, "2");
 }
 
 #[test]

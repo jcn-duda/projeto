@@ -135,6 +135,10 @@ fn group_in_order<K: Eq + Hash + Clone, V>(
 }
 
 /// Grupo de dedup: 2+ membros; kill = não-sobrevivente e NÃO ativo.
+///
+/// Diverge do TS de propósito: protegido só sai se o hash dele FICA na conta
+/// pelo sobrevivente (T1). Com hash diferente (T2) o hash sairia da conta, e
+/// isso a proteção proíbe; o TS deixava sair quando o grupo tinha 2+ protegidos.
 fn dedup_group(key: String, members: &[DedupRow]) -> Option<DedupGroup> {
     if members.len() < 2 {
         return None;
@@ -143,6 +147,7 @@ fn dedup_group(key: String, members: &[DedupRow]) -> Option<DedupGroup> {
     let kill: Vec<DedupRow> = members
         .iter()
         .filter(|m| m.service_id != keep.service_id && !m.active)
+        .filter(|m| !m.protected || m.hash == keep.hash)
         .cloned()
         .collect();
     (!kill.is_empty()).then_some(DedupGroup { key, keep, kill })
