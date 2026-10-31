@@ -254,14 +254,14 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ...result, action });
   },
 
-  'catalog-report': ({ services, res, action }) => {
-    const result = services.debrid.catalogStatusEnv();
+  'catalog-report': async ({ services, res, action }) => {
+    const result = await services.debrid.catalogStatusEnv();
     services.metrics.count('dashboard.catalog.report', result.ok ? 1 : 0);
     return res.json({ ...result, action });
   },
 
-  'dedup-preview': ({ services, res, action }) => {
-    const result = services.debrid.dedupPreviewEnv();
+  'dedup-preview': async ({ services, res, action }) => {
+    const result = await services.debrid.dedupPreviewEnv();
     services.metrics.count('dashboard.catalog.dedup_preview', result.ok ? 1 : 0);
     services.log.info('[dashboard] plano de deduplicação calculado');
     return res.json({ ...result, action });
@@ -274,9 +274,9 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ...result, action });
   },
 
-  'catalog-list': ({ services, req, res, action }) => {
+  'catalog-list': async ({ services, req, res, action }) => {
     const bucket = typeof req.body?.bucket === 'string' ? req.body.bucket : undefined;
-    const result = services.debrid.catalogListEnv({ bucket, limit: maxFromBody(req) });
+    const result = await services.debrid.catalogListEnv({ bucket, limit: maxFromBody(req) });
     return res.json({ ...result, action });
   },
 
@@ -296,8 +296,8 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ...result, action });
   },
 
-  'audit-requeue': ({ services, req, res, action }) => {
-    const result = services.debrid.auditRequeueEnv({ max: maxFromBody(req) });
+  'audit-requeue': async ({ services, req, res, action }) => {
+    const result = await services.debrid.auditRequeueEnv({ max: maxFromBody(req) });
     if (result.ok) {
       services.metrics.count('dashboard.catalog.audit_requeue', result.requeued);
       services.log.info(`[dashboard] auditoria reenfileirada: ${result.requeued} linha(s), ${result.keptWithEvidence} com evidência viva`);
@@ -336,8 +336,8 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ...result, action });
   },
 
-  'catalog-versions': ({ services, res, action }) => {
-    const result = services.debrid.catalogVersionsEnv();
+  'catalog-versions': async ({ services, res, action }) => {
+    const result = await services.debrid.catalogVersionsEnv();
     services.metrics.count('dashboard.catalog.versions', result.ok ? 1 : 0);
     return res.json({ ...result, action });
   },

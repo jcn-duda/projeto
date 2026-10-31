@@ -166,49 +166,6 @@ export interface AllDebridMagnetRow {
 }
 
 /**
- * Lista TODOS os magnets da conta (uma chamada a `/magnet/status`). Itens sem
- * `id` ou sem `hash` não fazem sentido para o catálogo/limpador — hash é o que
- * liga ao resto do pipeline e id é o que o delete usa.
- */
-export async function magnetList(apiKey: string): Promise<AllDebridMagnetRow[]> {
-  const data = await call(apiKey, '/magnet/status');
-  const list: AllDebridMagnet[] = Array.isArray(data?.magnets) ? data.magnets : [];
-  const out: AllDebridMagnetRow[] = [];
-  for (const magnet of list) {
-    const id = magnet.id;
-    const hash = String(magnet.hash || '').toLowerCase();
-    if (id == null || !hash) continue;
-    out.push({
-      id,
-      hash,
-      filename: String(magnet.filename || ''),
-      size: Number(magnet.size) || 0,
-      status: String(magnet.status || ''),
-      ready: Boolean(magnet.ready) || /^ready$/i.test(String(magnet.status || '')),
-      uploadDate: (Number(magnet.uploadDate) || 0) * 1000,
-    });
-  }
-  return out;
-}
-
-/**
- * Árvore de arquivos de UM magnet pronta para o catálogo auditar conteúdo.
- * Magnet ausente ou ainda não `Ready` devolve `[]` — estado de download é
- * transição, não erro de rede/auth (só o `call` lança nesses casos).
- */
-export function magnetFiles(apiKey: string, serviceId: string | number): Promise<DebridFile[]> {
-  return (async () => {
-    const status = await call(apiKey, '/magnet/status', { id: serviceId });
-    let info = status?.magnets;
-    // A resposta às vezes vem como lista de um item só (mesmo shape do resolveLink).
-    if (Array.isArray(info)) info = info[0];
-    if (!info || !/^ready$/i.test(String(info.status || ''))) return [];
-    if (!Array.isArray(info.files)) return [];
-    return flattenFiles(info.files);
-  })();
-}
-
-/**
  * Ocupação da conta, por estado. Serve ao verificador: encher é o que derruba
  * a checagem de cache (que é um upload) e faz o ⚡ sumir da lista inteira, e
  * até estourar não existe nenhum sinal — o erro só chega quando já é tarde.

@@ -7,14 +7,14 @@
 //
 // Fachada pública: `src/utils/catalog.ts`; camada de linhas/engine:
 // `catalog-rows.ts`; classificação: `catalog-classify.ts`.
-import * as metrics from './metrics.js';
-import { fileEvidence, snapshotAllWorks } from './release-index.js';
-import { releaseStatus } from './br-coverage.js';
-import type { OperatorCtx } from './br-coverage.js';
-import type { AllDebridMagnetRow } from '../debrid/alldebrid.js';
+import * as metrics from '../../../../src/utils/metrics.js';
+import { fileEvidence, snapshotAllWorks } from '../../../../src/utils/release-index.js';
+import { releaseStatus } from '../../../../src/utils/br-coverage.js';
+import type { OperatorCtx } from '../../../../src/utils/br-coverage.js';
+import type { AllDebridMagnetRow } from '../../../../src/debrid/alldebrid.js';
 import { engine, configOperatorAdapter, upsertRow } from './catalog-rows.js';
-import { classifyByTitle, classifyWithEvidence } from './catalog-classify.js';
-import type { Proof } from './catalog-classify.js';
+import { classifyByTitle, classifyWithEvidence } from '../../../../src/utils/catalog-classify.js';
+import type { Proof } from '../../../../src/utils/catalog-classify.js';
 
 // ---------------------------------------------------------------------------
 // Tipos públicos e API

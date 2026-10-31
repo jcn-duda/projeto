@@ -62,6 +62,9 @@ pub(crate) use util::tokens_match;
 // catraca e para amarrar o `crate::stream::trace_recompute` num módulo só.
 #[path = "trace_recompute_handler.rs"]
 mod trace_handler;
+// Catálogo durável da conta do operador (`/account-catalog/*`): rotas e guardas próprias.
+#[path = "account_catalog.rs"]
+mod account_catalog;
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
@@ -188,6 +191,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::rd_warmer::admin_router())
         .merge(crate::magnet_bank_admin::admin_router())
         .merge(crate::catalog_admin::router())
+        .merge(account_catalog::admin_router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }

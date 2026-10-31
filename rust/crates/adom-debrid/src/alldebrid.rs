@@ -37,7 +37,7 @@ pub use enqueue::EnqueueOutcome;
 
 #[path = "alldebrid_sweep_api.rs"]
 mod sweep_api;
-pub use sweep_api::{SweepFile, SweepMagnet};
+pub use sweep_api::{SizedMagnet, SweepFile, SweepMagnet};
 
 #[path = "alldebrid_parse.rs"]
 mod parse;

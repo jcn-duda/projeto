@@ -1,8 +1,6 @@
 import config from '../config.js';
-import { accountScope } from '../utils/request-key.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { raceWithDeadline } from '../utils/deadline.js';
 import { kvForget, kvPeek, kvSet } from '../utils/native-kv.js';
 import { prefix } from '../utils/cache-keys.js';
 import { call, type AllDebridMagnet } from './alldebrid-api.js';
@@ -211,18 +209,4 @@ export function knownBefore(apiKey: string, account: string): Set<string> | null
       return null;
     });
   return null;
-}
-
-/**
- * Snapshot `knownBefore` AGUARDADO, para caminhos de FUNDO (varreduras
- * agendadas e limpezas manuais do painel) que não disputam o prazo da
- * resposta. O fail-safe fecha: `null` = sem prova de proveniência, e ausência
- * de referência NUNCA autoriza remoção — quem recebe null pula a rodada.
- */
-export async function preexistingHashes(apiKey: string): Promise<Set<string> | null> {
-  const account = accountScope(apiKey);
-  const direto = knownBefore(apiKey, account);
-  if (direto) return direto;
-  const loading = preexisting.get(account);
-  return raceWithDeadline(loading?.promise ?? Promise.resolve(null), 30_000, () => null);
 }

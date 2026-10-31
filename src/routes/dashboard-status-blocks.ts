@@ -305,7 +305,7 @@ export async function computeStatusPayload(
 
   // Bloco: catalog
   if (isReq('catalog')) {
-    out.catalog = services.debrid.catalogStatusEnv();
+    out.catalog = await services.debrid.catalogStatusEnv();
   }
 
   // Bloco: indexers

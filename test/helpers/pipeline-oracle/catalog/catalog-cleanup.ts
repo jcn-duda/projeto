@@ -7,7 +7,10 @@
 //
 // Fachada pública: `src/utils/catalog.ts`; linhas/engine: `catalog-rows.ts`;
 // DedupRow/toDedupRow: `catalog-dedup.ts`.
-import * as held from '../debrid/protected.js';
+import * as held from '../../../../src/debrid/protected.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+
+assertSafeTestDb('pipeline-oracle/catalog/catalog-cleanup');
 import { engine, isActive, configOperatorAdapter } from './catalog-rows.js';
 import { toDedupRow } from './catalog-dedup.js';
 import type { DedupRow } from './catalog-dedup.js';

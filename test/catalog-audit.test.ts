@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import config from '../src/config.js';
-import * as catalog from '../src/utils/catalog.js';
+import * as catalog from './helpers/pipeline-oracle/catalog/catalog.js';
 import * as held from '../src/debrid/protected.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import type { AllDebridMagnetRow } from '../src/debrid/alldebrid.js';

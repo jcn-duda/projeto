@@ -243,3 +243,37 @@ async fn hashes_de_conta_vazia_provada_continuam_validos() {
     let hashes = api.magnet_hashes(KEY).await.unwrap();
     assert!(hashes.is_empty(), "vazio provado é prova");
 }
+
+#[tokio::test]
+async fn lista_com_tamanho_devolve_size_e_mantem_a_regra_de_falha() {
+    // O catálogo precisa de `size` (o TS `magnetList` o devolve). Mesma régua
+    // da listagem comum: linha sem id/hash derruba a leitura inteira.
+    let ok = Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[
+            {"id":12,"hash":"ABCDEF","status":"Ready","filename":"filme.mkv","size":"42","uploadDate":1700000000},
+            {"id":"13","hash":"fedcba","status":"Downloading","size":0}
+        ]}),
+        detail: json!({}),
+    };
+    let api = adapter(ok).await;
+    let rows = api.sized_magnet_list(KEY).await.unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].magnet.id, "12");
+    assert_eq!(rows[0].magnet.hash, "abcdef");
+    assert!(rows[0].magnet.ready, "status Ready conta como pronto");
+    assert_eq!(rows[0].size, 42.0, "tamanho vindo como texto também conta");
+    assert_eq!(rows[0].magnet.upload_date_ms, 1_700_000_000_000.0);
+    assert_eq!(rows[1].size, 0.0);
+
+    let malformada = Scene {
+        hits: Arc::new(Mutex::new(Vec::new())),
+        rows: json!({"magnets":[
+            {"id":12,"hash":"ABCDEF","size":1},
+            {"id":14,"hash":""}
+        ]}),
+        detail: json!({}),
+    };
+    let api = adapter(malformada).await;
+    assert!(api.sized_magnet_list(KEY).await.is_err());
+}

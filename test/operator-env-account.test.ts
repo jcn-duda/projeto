@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
-import { catalogStatusEnv } from '../src/debrid/catalog-env.js';
+import { catalogStatusEnv } from './helpers/pipeline-oracle/catalog/catalog-env.js';
 import { defaults } from '../src/runtime.js';
 
 // ---------------------------------------------------------------------------

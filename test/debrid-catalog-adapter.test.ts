@@ -16,7 +16,7 @@
 // `held` e inventário frio é nativa.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import * as alldebrid from '../src/debrid/alldebrid.js';
+import { magnetList, magnetFiles, deleteMagnets } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-catalog.js';
 
 // As esperas (backoff, AbortSignal) mantêm o loop vivo mesmo com o fetch dublé
 // resolvendo em microtask; o keepAlive impede o node --test de abortar testes
@@ -56,7 +56,7 @@ test('magnetList normaliza segundos→ms, hash em minúsculo e pula item sem id/
   }) as unknown as typeof globalThis.fetch;
 
   try {
-    const rows = await alldebrid.magnetList('chave-magnet-list');
+    const rows = await magnetList('chave-magnet-list');
     assert.equal(rows.length, 2, 'itens sem id ou sem hash são pulados');
     const [a, b] = rows;
     assert.equal(a.id, 1);
@@ -114,14 +114,14 @@ test('magnetFiles desembrulha o "lista de um item" e devolve arquivos prontos', 
   }) as unknown as typeof globalThis.fetch;
 
   try {
-    const files = await alldebrid.magnetFiles('chave-files', 7);
+    const files = await magnetFiles('chave-files', 7);
     assert.equal(files.length, 1);
     assert.equal(files[0].path, 'Filme.2024/filme.mkv');
 
-    const nReady = await alldebrid.magnetFiles('chave-files', 8);
+    const nReady = await magnetFiles('chave-files', 8);
     assert.deepEqual(nReady, [], 'torrent não-Ready: nunca lança por estado; devolve []');
 
-    const semFiles = await alldebrid.magnetFiles('chave-files', 9);
+    const semFiles = await magnetFiles('chave-files', 9);
     assert.deepEqual(semFiles, [], 'sem files: []');
   } finally {
     globalThis.fetch = realFetch;
@@ -173,7 +173,7 @@ const FAST = { waitFn: async () => {}, delay: [0, 0, 0] };
 test('deleteMagnets: 503 nas duas primeiras de um id e sucesso depois — o id é removido', async () => {
   const api = mockDelete((id: number, attempt: number) => attempt <= 2);
   try {
-    const r = await alldebrid.deleteMagnets('chave-del', [41], FAST);
+    const r = await deleteMagnets('chave-del', [41], FAST);
     assert.equal(r.ok, 1);
     assert.equal(r.falhas.length, 0);
     assert.equal(api.calls.get(41), 3, 'duas 503 + uma sucesso = removido no lugar');
@@ -185,7 +185,7 @@ test('deleteMagnets: 503 nas duas primeiras de um id e sucesso depois — o id �
 test('deleteMagnets: 503 sempre cai em falhas depois das duas rodadas', async () => {
   const api = mockDelete(() => true);
   try {
-    const r = await alldebrid.deleteMagnets('chave-del', [55], FAST);
+    const r = await deleteMagnets('chave-del', [55], FAST);
     assert.equal(r.ok, 0);
     assert.equal(r.falhas.length, 1, 'reenfileirado na segunda rodada, falhou de verdade');
     assert.equal(api.calls.get(55), 6, '3 tentativas da rodada 1 + 3 da rodada 2');

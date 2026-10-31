@@ -1,41 +1,55 @@
-import type { DebridAdapter } from '../../types/domain.js';
-import config from '../config.js';
-import { accountScope } from '../utils/request-key.js';
-import * as metrics from '../utils/metrics.js';
-import * as log from '../utils/logger.js';
-import * as catalog from '../utils/catalog.js';
-import { recordFileEvidence } from './audio-audit.js';
-import { markReuploadBlocked } from './alldebrid-reupload.js';
-import { BY_ID } from './registry.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+import type { DebridAdapter } from '../../../../types/domain.js';
+import config from '../../../../src/config.js';
+import { accountScope } from '../../../../src/utils/request-key.js';
+import * as metrics from '../../../../src/utils/metrics.js';
+import * as log from '../../../../src/utils/logger.js';
+import * as catalog from './catalog.js';
+import { recordFileEvidence } from '../../../../src/debrid/audio-audit.js';
+import { markReuploadBlocked } from '../../../../src/debrid/alldebrid-reupload.js';
+import { BY_ID } from '../../../../src/debrid/registry.js';
+import * as alldebridAccount from '../debrid-bodies/alldebrid-catalog.js';
+
+// Oráculo do catálogo durável (saiu de `src/debrid/catalog-env.ts`). Em produção
+// o catálogo é do gateway (`/account-catalog/*`, ponte em
+// `src/debrid/account-catalog-native.ts`); aqui os testes exercitam a régua TS
+// contra o `catalog.db` injetado.
+assertSafeTestDb('pipeline-oracle/catalog/catalog-env');
 
 // ---------------------------------------------------------------------------
 // Catálogo durável + limpador BR da conta do OPERADOR (AllDebrid)
 // ---------------------------------------------------------------------------
 //
-// Adapter vem de `config.debrid.service`
-// via BY_ID, chave de `config.debrid.apiKey` com o gate de operador
-// (`envOperatorAccount`). NUNCA lançam —
-// devolvem `{ ok:false, reason }` e capturam erro com log.warn, para a rota
-// operacional responder diagnóstico em vez de cair.
+// Adapter vem de `config.debrid.service` via BY_ID; as operações de conta
+// (listar, auditar arquivos, apagar, inventário) são do módulo da AllDebrid do
+// oráculo, não do adaptador. NUNCA lançam — devolvem `{ ok:false, reason }`
+// e capturam erro com log.warn, para a rota operacional responder diagnóstico.
 
-/** Operador configurado para o catálogo, ou null + reason de indisponibilidade. */
-function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false; reason: string; hint?: string } | null } {
-  if (!config.debrid.service) return { adapter: null, guardos: { ok: false, reason: 'sem-debrid' } };
+/** Operações de conta que o catálogo usa (saíram do `DebridAdapter`). */
+type AccountOps = Pick<typeof alldebridAccount, 'magnetList' | 'magnetFiles' | 'deleteMagnets' | 'preexistingHashes'>;
+
+type Guard = { ok: false; reason: string; hint?: string };
+type CatalogCtx = { ok: true; adapter: DebridAdapter; ops: AccountOps } | { ok: false; guardos: Guard };
+
+/** Operador configurado para o catálogo, ou o motivo de indisponibilidade. */
+function catalogContext(): CatalogCtx {
+  if (!config.debrid.service) return { ok: false, guardos: { ok: false, reason: 'sem-debrid' } };
   const adapter = BY_ID.get(config.debrid.service) || null;
-  // magnetList é quem prova que o adaptador suporta a varredura da conta.
-  if (!adapter || typeof adapter.magnetList !== 'function') {
-    return { adapter, guardos: { ok: false, reason: 'sem-adapter-catalogo' } };
+  // Só a AllDebrid lista magnets da conta: é quem prova a varredura da conta.
+  if (!adapter || adapter.id !== 'alldebrid') {
+    return { ok: false, guardos: { ok: false, reason: 'sem-adapter-catalogo' } };
   }
+
   // Dois motivos DE PROPÓSITO distintos: "sem conta" (chave ausente) é outro
   // estado do que "conta existe mas o uso está desligado no .env" — colapsar
   // os dois escondia o conserto (ligar o flag + recriar a stack) num painel
   // cujo .env claramente tem a conta configurada.
   if (!config.debrid.apiKey) {
-    return { adapter, guardos: { ok: false, reason: 'sem-conta-operador' } };
+    return { ok: false, guardos: { ok: false, reason: 'sem-conta-operador' } };
   }
   if (!config.debrid.envOperatorAccount) {
     return {
-      adapter,
+      ok: false,
       guardos: {
         ok: false,
         reason: 'chave-operador-desativada',
@@ -43,7 +57,7 @@ function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false
       },
     };
   }
-  return { adapter, guardos: null };
+  return { ok: true, adapter, ops: alldebridAccount };
 }
 
 /**
@@ -64,10 +78,11 @@ function reuploadHook(account: string, adapterId: string, apiKey: string): { onD
 
 /** Varre a conta do operador e devolve o relatório do catálogo. */
 async function catalogScanEnv() {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   try {
-    const magnets = await adapter.magnetList!(config.debrid.apiKey);
+    const magnets = await ops.magnetList(config.debrid.apiKey);
     const report = catalog.scan({
       adapterId: adapter.id,
       account: accountScope(config.debrid.apiKey),
@@ -88,22 +103,24 @@ async function catalogScanEnv() {
 
 /** Relatório do catálogo (leitura do banco, sem rede). */
 function catalogStatusEnv() {
-  const { guardos } = catalogContext();
-  if (guardos) return guardos;
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
   return { ok: true, report: catalog.report(accountScope(config.debrid.apiKey)) };
 }
 
 /** Plano de deduplicação (leitura pura; nenhuma deleção). */
 function dedupPreviewEnv() {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   return { ok: true, plan: catalog.planDedup(accountScope(config.debrid.apiKey), adapter.id) };
 }
 
 /** Aplica os kills do plano de dedup (com teto `max` se dado). */
 async function dedupApplyEnv(max?: number) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   const account = accountScope(config.debrid.apiKey);
   const plan = catalog.planDedup(account, adapter.id);
   // 8.14 — marca anti-reenchimento APENAS onde o hash realmente sai da conta:
@@ -132,7 +149,7 @@ async function dedupApplyEnv(max?: number) {
   let list = [...byId.values()];
   if (max != null && Number.isFinite(max)) list = list.slice(0, Math.max(0, Math.trunc(max)));
   try {
-    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids), reuploadHook(account, adapter.id, config.debrid.apiKey));
+    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => ops.deleteMagnets(config.debrid.apiKey, ids), reuploadHook(account, adapter.id, config.debrid.apiKey));
     metrics.count('dashboard.catalog.dedup', res.ok);
     return { ok: true, deleted: res.ok, falhas: res.falhas };
   } catch (err: unknown) {
@@ -143,8 +160,9 @@ async function dedupApplyEnv(max?: number) {
 
 /** Auditoria em fundo: prova os arquivos das linhas sem evidência no índice. */
 async function auditBackfillEnv({ max, concurrency }: { max?: number; concurrency?: number } = {}) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   const account = accountScope(config.debrid.apiKey);
   const teto = max ?? config.catalog.auditMaxPerRound;
   const workers = Math.min(3, Math.max(1, Math.trunc(concurrency ?? config.catalog.auditConcurrency)));
@@ -158,7 +176,7 @@ async function auditBackfillEnv({ max, concurrency }: { max?: number; concurrenc
       const row = rows[idx++];
       if (!row) break;
       try {
-        const files = await adapter.magnetFiles!(config.debrid.apiKey, row.serviceId);
+        const files = await ops.magnetFiles(config.debrid.apiKey, row.serviceId);
         scanned += 1;
         if (files && files.length > 0) {
           recordFileEvidence(row.hash, files as any);
@@ -192,10 +210,9 @@ async function auditBackfillEnv({ max, concurrency }: { max?: number; concurrenc
  * regra do sweepUndubbed: sem snapshot (`null`/adapter sem a função) o
  * fail-safe FECHA — ausência de referência nunca autoriza remoção.
  */
-async function operatorKnownHashes(adapter: DebridAdapter): Promise<Set<string> | null> {
-  if (typeof adapter.preexistingHashes !== 'function') return null;
+async function operatorKnownHashes(ops: AccountOps): Promise<Set<string> | null> {
   try {
-    return await adapter.preexistingHashes(config.debrid.apiKey);
+    return await ops.preexistingHashes(config.debrid.apiKey);
   } catch (err: unknown) {
     log.warn('[catalog] inventário de preexistentes falhou:', log.errorMessage(err));
     return null;
@@ -204,8 +221,9 @@ async function operatorKnownHashes(adapter: DebridAdapter): Promise<Set<string> 
 
 /** Linhas para o operador escolher na mão (leitura pura, maiores primeiro). */
 function catalogListEnv({ bucket, limit }: { bucket?: string; limit?: number } = {}) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   const rows = catalog.listForReview(accountScope(config.debrid.apiKey), adapter.id, { bucket, limit });
   return { ok: true, rows };
 }
@@ -216,8 +234,9 @@ function catalogListEnv({ bucket, limit }: { bucket?: string; limit?: number } =
  * `confirm: true`, como as outras destrutivas.
  */
 async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | number> } = {}) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
     return { ok: false, reason: 'sem-selecao' };
   }
@@ -229,7 +248,7 @@ async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | num
       account,
       adapter.id,
       plan.targets.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason, filename: t.filename })),
-      (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
+      (ids) => ops.deleteMagnets(config.debrid.apiKey, ids),
       reuploadHook(account, adapter.id, config.debrid.apiKey),
     );
     metrics.count('dashboard.catalog.manual', res.ok);
@@ -246,8 +265,8 @@ async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | num
  * para a auditoria poder reler com o classificador atual.
  */
 function auditRequeueEnv({ max }: { max?: number } = {}) {
-  const { guardos } = catalogContext();
-  if (guardos) return guardos;
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
   const account = accountScope(config.debrid.apiKey);
   const resultado = catalog.requeueAudit(account, config.debrid.service, { limit: max });
   log.info(`[catalog] auditoria reenfileirada: ${resultado.requeued} linha(s)`);
@@ -267,9 +286,10 @@ function auditRequeueEnv({ max }: { max?: number } = {}) {
  * fail-closed de hoje (sem snapshot → `inventario-frio`).
  */
 async function cleanupPreviewEnv({ includeKnown }: { includeKnown?: boolean } = {}) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
-  const conhecidos = await operatorKnownHashes(adapter);
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
+  const conhecidos = await operatorKnownHashes(ops);
   if (!includeKnown && conhecidos === null) return { ok: false, reason: 'inventario-frio' };
   const plan = catalog.planForeignCleanup(accountScope(config.debrid.apiKey), adapter.id, {
     minAgeMs: config.catalog.cleanupMinAgeMs,
@@ -282,10 +302,11 @@ async function cleanupPreviewEnv({ includeKnown }: { includeKnown?: boolean } = 
 
 /** Aplica a limpeza de estrangeiro provado (com teto `max` se dado). */
 async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: boolean } = {}) {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   const account = accountScope(config.debrid.apiKey);
-  const conhecidos = await operatorKnownHashes(adapter);
+  const conhecidos = await operatorKnownHashes(ops);
   if (!includeKnown && conhecidos === null) return { ok: false, reason: 'inventario-frio' };
   const plan = catalog.planForeignCleanup(account, adapter.id, {
     minAgeMs: config.catalog.cleanupMinAgeMs,
@@ -300,7 +321,7 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
       account,
       adapter.id,
       deletions,
-      (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
+      (ids) => ops.deleteMagnets(config.debrid.apiKey, ids),
       reuploadHook(account, adapter.id, config.debrid.apiKey),
     );
     metrics.count('dashboard.catalog.cleanup', res.ok);
@@ -313,8 +334,9 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
 
 /** Plano de versões da mesma obra (T3; leitura pura; nenhuma deleção). */
 function catalogVersionsEnv() {
-  const { adapter, guardos } = catalogContext();
-  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  const ctx = catalogContext();
+  if (!ctx.ok) return ctx.guardos;
+  const { adapter, ops } = ctx;
   return { ok: true, plan: catalog.planWorkVersions(accountScope(config.debrid.apiKey), adapter.id) };
 }
 

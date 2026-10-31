@@ -30,7 +30,6 @@ const ADAPTER = {
   inventory: async () => [],
   enqueue: async () => ({ accepted: true }),
   torrentStatus: async () => ({ state: 'unknown' }),
-  magnetList: async () => [],
   accountStatus: async (key: string) => {
     calls += 1;
     receivedKey = key;
@@ -110,7 +109,8 @@ test('sucesso: usa a chave informada sem memo/persistência e nunca a ecoa', asy
     inventory: false,
     autofetch: false,
     torrentStatus: false,
-    catalogCleanup: true,
+    // Só a AllDebrid (pelo id) lista a conta para o catálogo; o fake não é ela.
+    catalogCleanup: false,
   });
   const serialized = JSON.stringify(first.json);
   assert.equal(serialized.includes(secret.trim()), false);

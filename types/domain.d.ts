@@ -362,21 +362,6 @@ export interface DebridAdapter {
   /** Remove torrent pelo id no serviço; ausente = não suportado */
   removeTorrent?(apiKey: string, id: string | number): Promise<boolean>;
   /**
-   * Lista normalizada dos magnets da conta (só a AllDebrid implementa hoje).
-   * Ausente = o catálogo/limpador não lista este serviço; os guardas usam
-   * `typeof adapter.x === 'function'`.
-   */
-  magnetList?(apiKey: string): Promise<import('../src/debrid/alldebrid').AllDebridMagnetRow[]>;
-  /** Arquivos de UM magnet por id; ausente = catálogo não audita arquivos aqui. */
-  magnetFiles?(apiKey: string, serviceId: string | number): Promise<import('../src/debrid/file-selector.js').DebridFile[]>;
-  /** Remove magnet(s) por id com backoff; ausente = sem delete dedicado.
-   *  `removedIds` (opcional, AllDebrid) lista os ids que SAÍRAM de verdade —
-   *  é o que o anti-reenchimento (8.14) usa para marcar sem marcar falha. */
-  deleteMagnets?(
-    apiKey: string,
-    ids: Array<string | number>,
-  ): Promise<{ ok: number; falhas: Array<{ message?: string }>; removedIds?: Array<string | number> }>;
-  /**
    * Remove fallbacks `any`/`seeds` POR HASH (Fase 6 do Chupim 2.0). Só o
    * AllDebrid implementa: lê o status autoritativo da conta, exige `id` e
    * `filename` reais, nunca remove nome com sinal BR e passa pelo gate global
@@ -391,11 +376,6 @@ export interface DebridAdapter {
     removed: Array<{ hash: string; filename: string }>;
     skipped: Array<{ hash: string; reason: string }>;
   }>;
-  /**
-   * Snapshot `knownBefore` AGUARDADO para limpezas de fundo (30s de teto).
-   * `null` = inventário não chegou: fail-safe fecha, nada pode ser apagado.
-   */
-  preexistingHashes?(apiKey: string): Promise<Set<string> | null>;
   /** Teto de enqueues/hora que este serviço aceita para item não-cacheado */
   enqueueHourlyLimit?: number;
   /** Pode participar do autofetch sem cacheCheck, sustentado por inventário */

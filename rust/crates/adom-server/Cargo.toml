@@ -10,6 +10,8 @@ license = "UNLICENSED"
 # Decisões puras do Chupim v3 (cascata, recheck, lote, dreno) consumidas pelo
 # worker nativo do gateway.
 adom-autofetch = { path = "../adom-autofetch" }
+# Catálogo durável da conta do operador (catalog.db): rotas /account-catalog/* do gateway.
+adom-catalog = { path = "../adom-catalog" }
 adom-core = { path = "../adom-core" }
 adom-debrid = { path = "../adom-debrid" }
 # Fila durável + worker do colhedor nativo (Fase 5).

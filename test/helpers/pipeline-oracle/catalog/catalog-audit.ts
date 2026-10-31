@@ -7,10 +7,10 @@
 //
 // Fachada pública: `src/utils/catalog.ts`; linhas/engine: `catalog-rows.ts`;
 // rótulo da prova: `catalog-classify.ts`.
-import * as metrics from './metrics.js';
-import { fileEvidence } from './release-index.js';
-import { audioBucket, audioFromTitle, foreignVerdict } from './audio-quality.js';
-import { foreignProofLabel } from './catalog-classify.js';
+import * as metrics from '../../../../src/utils/metrics.js';
+import { fileEvidence } from '../../../../src/utils/release-index.js';
+import { audioBucket, audioFromTitle, foreignVerdict } from '../../../../src/utils/audio-quality.js';
+import { foreignProofLabel } from '../../../../src/utils/catalog-classify.js';
 import { engine, configOperatorAdapter } from './catalog-rows.js';
 
 export function rowsNeedingAudit(account: string, limit?: number): Array<{ serviceId: string | number; hash: string }> {

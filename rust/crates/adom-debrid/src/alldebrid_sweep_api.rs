@@ -16,6 +16,14 @@ pub struct SweepMagnet {
     pub upload_date_ms: f64,
 }
 
+/// Magnet da conta com o tamanho (`size`), para o catálogo durável. Mesma régua
+/// de [`SweepMagnet`]; o tamanho sai à parte para não mudar a struct das varreduras.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SizedMagnet {
+    pub magnet: SweepMagnet,
+    pub size: f64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SweepFile {
     pub path: String,
@@ -45,6 +53,30 @@ impl AllDebrid {
             .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
             .await?;
         parse_listing(magnets_array(&data)?)
+    }
+
+    /// Lista a conta para o catálogo, com tamanho. Mesma falha de
+    /// [`Self::sweep_magnet_list`]: corpo sem `magnets` ou linha malformada é
+    /// `Err`, nunca lista parcial (o catálogo tombstona o que sumiu da lista).
+    pub async fn sized_magnet_list(&self, api_key: &str) -> Result<Vec<SizedMagnet>, DebridError> {
+        let data = self
+            .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
+            .await?;
+        let rows = magnets_array(&data)?;
+        let parsed: Vec<SizedMagnet> = rows
+            .iter()
+            .filter_map(|row| {
+                let magnet = parse_magnet(row)?;
+                let size = numeric_value(row.get("size"));
+                Some(SizedMagnet { magnet, size })
+            })
+            .collect();
+        if parsed.len() != rows.len() {
+            return Err(DebridError::other(
+                "alldebrid: listagem parcialmente malformada (id/hash ausentes em parte das linhas)",
+            ));
+        }
+        Ok(parsed)
     }
 
     /// Lê a árvore de UM magnet pronto. O chamador escolhe os ids a consultar;

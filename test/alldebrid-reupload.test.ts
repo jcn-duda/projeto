@@ -16,7 +16,8 @@ import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
-import * as catalog from '../src/utils/catalog.js';
+import * as catalog from './helpers/pipeline-oracle/catalog/catalog.js';
+import { deleteMagnets } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-catalog.js';
 import {
   reuploadBlocked,
   markReuploadBlocked,
@@ -258,7 +259,7 @@ test('8.14: TTL 0 desliga o bloqueio inteiro (gravação e leitura)', () => {
 test('8.14: deleteMagnets retorna removedIds; falha de delete não vira removido', async () => {
   const api = mockAd({});
   try {
-    const ok = await alldebrid.deleteMagnets(KEY, [321, 654]);
+    const ok = await deleteMagnets(KEY, [321, 654]);
     assert.deepEqual([...ok.removedIds ?? []].sort(), [321, 654], 'sucesso lista os ids que saíram');
     assert.equal(ok.falhas.length, 0);
   } finally {
@@ -266,7 +267,7 @@ test('8.14: deleteMagnets retorna removedIds; falha de delete não vira removido
   }
   const apiFalha = mockAd({ failDelete: true });
   try {
-    const res = await alldebrid.deleteMagnets(KEY, [999]);
+    const res = await deleteMagnets(KEY, [999]);
     assert.equal((res.removedIds ?? []).length, 0, 'falha não lista removido');
     assert.equal(res.falhas.length, 1);
   } finally {

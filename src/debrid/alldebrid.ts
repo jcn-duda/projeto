@@ -8,7 +8,7 @@
  *
  *   - `alldebrid-api.ts`        base HTTP (`call`), tipos, visões de conta;
  *   - `alldebrid-inventory.ts`  DONO do estado `knownBefore`/`submitted`;
- *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup, deleteMagnets.
+ *   - `alldebrid-cleanup.ts`    limpeza: skipCleanup (o `deleteMagnets` saiu: oráculo).
  *
  * `enqueue`, `torrentStatus` e `removeTorrent` (autofetch) SAÍRAM de `src/`:
  * quem os executa é o worker nativo do Chupim, e o corpo TS mora no oráculo
@@ -31,14 +31,11 @@
  */
 export {
   id,
-  magnetList,
-  magnetFiles,
   accountStatus,
   inventory,
 } from './alldebrid-api.js';
 export type { AllDebridMagnetRow } from './alldebrid-api.js';
-export { preexistingHashes, hasDurableOwnership } from './alldebrid-inventory.js';
-export { deleteMagnets } from './alldebrid-cleanup.js';
+export { hasDurableOwnership } from './alldebrid-inventory.js';
 
 export const label = 'AllDebrid';
 export const short = 'AD';

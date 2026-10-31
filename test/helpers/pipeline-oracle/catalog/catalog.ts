@@ -19,4 +19,4 @@ export type { DedupRow, DedupGroup, Deletion, WorkVersionRow, WorkVersionGroup }
 export { planForeignCleanup, listForReview, planManualDeletion } from './catalog-cleanup.js';
 export type { CleanupTarget, ReviewRow } from './catalog-cleanup.js';
 export { rowsNeedingAudit, requeueAudit, noteAudit, markAudited, markAuditedUnlessCondemned } from './catalog-audit.js';
-export { operatorCtx } from './br-coverage.js';
+export { operatorCtx } from '../../../../src/utils/br-coverage.js';

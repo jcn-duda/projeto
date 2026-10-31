@@ -20,6 +20,13 @@ export const streamStore = () => {
   // depois de sondar a conta inteira. Prazo próprio e longo; o GET do status
   // continua no `timeoutMs` curto.
   const rdWarmDrainTimeoutMs = Number(process.env.RD_WARM_DRAIN_BRIDGE_TIMEOUT_MS);
+  // Catálogo da conta (`/account-catalog/*` na 8711). Leituras têm prazo curto;
+  // o status é polled pelo painel a cada 3 s; varredura, auditoria e deleção
+  // andam a conta inteira (com backoff), então o prazo é longo. Vencer não
+  // pausa a ponte: a operação segue no gateway.
+  const catalogReadTimeoutMs = Number(process.env.ACCOUNT_CATALOG_READ_TIMEOUT_MS);
+  const catalogStatusTimeoutMs = Number(process.env.ACCOUNT_CATALOG_STATUS_TIMEOUT_MS);
+  const catalogRunTimeoutMs = Number(process.env.ACCOUNT_CATALOG_RUN_TIMEOUT_MS);
   return {
     url: (process.env.STREAM_STORE_ADMIN_URL || 'http://127.0.0.1:8711').trim(),
     // Token próprio; sem ele, os mesmos fallbacks do lado Rust
@@ -39,5 +46,8 @@ export const streamStore = () => {
     // O drain sonda a fila item a item na API do RD: dezenas de segundos. Fica
     // abaixo dos 300 s do `requestTimeout` do servidor HTTP do Node.
     rdWarmDrainTimeoutMs: Number.isFinite(rdWarmDrainTimeoutMs) && rdWarmDrainTimeoutMs > 0 ? rdWarmDrainTimeoutMs : 90_000,
+    catalogReadTimeoutMs: Number.isFinite(catalogReadTimeoutMs) && catalogReadTimeoutMs > 0 ? catalogReadTimeoutMs : 5_000,
+    catalogStatusTimeoutMs: Number.isFinite(catalogStatusTimeoutMs) && catalogStatusTimeoutMs > 0 ? catalogStatusTimeoutMs : 3_000,
+    catalogRunTimeoutMs: Number.isFinite(catalogRunTimeoutMs) && catalogRunTimeoutMs > 0 ? catalogRunTimeoutMs : 270_000,
   };
 };

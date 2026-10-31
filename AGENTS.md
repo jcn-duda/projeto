@@ -347,6 +347,12 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   é `adom-debrid::premiumize_sweep` (error sai sempre; parado só na 2ª
   observação após `DEBRID_SWEEP_DEAD_MIN_AGE_MS`; hold ilegível = segurado).
   Outros serviços → 501 → painel "indisponível". O TS ficou no oráculo.
+- **Catálogo da conta (`catalog.db`) é nativo**: a régua é o crate
+  `adom-catalog` e as rotas `/account-catalog/*` estão na admin 8711
+  (`adom-server::account_catalog*`; as que apagam exigem token destrutivo +
+  `confirm`). O Node só tem a ponte `src/debrid/account-catalog-native.ts`; o TS
+  ficou no oráculo (`pipeline-oracle/catalog/`). Divergência proposital: o dedup
+  não apaga protegido cujo hash sairia da conta. Listagem com erro não tomba nada.
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
   resolução. `fsz`/`tsz` são `RUST_OWNED` no KV nativo: a checagem nativa grava
   (`adom-debrid::file_sizes` — TorBox a lista, Premiumize o total), o play do

@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as metrics from '../src/utils/metrics.js';
-import { deleteMagnets } from '../src/debrid/alldebrid-cleanup.js';
+import { deleteMagnets } from './helpers/pipeline-oracle/debrid-bodies/alldebrid-catalog.js';
 import { assenta, mockAd } from './helpers/alldebrid-mock.js';
 
 const KEY = 'chave-delete-gate-816';

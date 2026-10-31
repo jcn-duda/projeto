@@ -97,11 +97,13 @@ pub(crate) use admin::router as admin_router;
 mod facts;
 pub(crate) use facts::TickReport;
 
+// `pub(crate)`: o catálogo da conta (`account_catalog`) reusa a ponte de
+// inventário (`gated_snapshot`, `open_kv`) e o efeito `adrm` (`NativeEffects`).
 #[path = "al_sweeps_native.rs"]
-mod native;
+pub(crate) mod native;
 
 #[path = "al_sweeps_effects.rs"]
-mod effects;
+pub(crate) mod effects;
 
 #[cfg(test)]
 #[path = "al_sweeps_tests.rs"]

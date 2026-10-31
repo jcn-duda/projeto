@@ -23,8 +23,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import config from '../config.js';
-import * as log from './logger.js';
+import config from '../../../../src/config.js';
+import * as log from '../../../../src/utils/logger.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+
+assertSafeTestDb('pipeline-oracle/catalog/catalog-rows');
 
 const _require = createRequire(import.meta.url);
 

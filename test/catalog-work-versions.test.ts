@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import * as catalog from '../src/utils/catalog.js';
-import * as rows from '../src/utils/catalog-rows.js';
+import * as catalog from './helpers/pipeline-oracle/catalog/catalog.js';
+import * as rows from './helpers/pipeline-oracle/catalog/catalog-rows.js';
 
 const ADAPTER = 'alldebrid';
 const ACCOUNT = 'test-acct';

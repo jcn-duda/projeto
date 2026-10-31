@@ -109,6 +109,7 @@
     "typescript": "^5.9.3"
   },
   "testFiles": [
+    "test/account-catalog-native.test.js",
     "test/alldebrid-alive-cache.test.js",
     "test/alldebrid-dead-status.test.js",
     "test/alldebrid-delete-gate.test.js",

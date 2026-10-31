@@ -276,8 +276,9 @@ function accountCapabilities(adapter: DebridAdapter): AccountTestCapabilities {
     // Mesmo critério do canAutoFetchBr: cacheCheck confiável OU fonte por inventário.
     autofetch: NATIVE_AUTOFETCH.has(adapter.id) && Boolean(adapter.cacheCheck || adapter.autofetchSource),
     torrentStatus: NATIVE_AUTOFETCH.has(adapter.id),
-    // Só quem lista magnets da conta entra no catálogo/limpador do painel.
-    catalogCleanup: typeof adapter.magnetList === 'function',
+    // Só quem lista magnets da conta entra no catálogo/limpador do painel (hoje a
+    // AllDebrid; o gateway é quem varre a conta, o id basta para o painel).
+    catalogCleanup: adapter.id === 'alldebrid',
   };
   // RD declara cacheCheck:false cru, mas o capability `true` aqui NÃO mente:
   // a checagem dinâmica é decisão do runtime (ledger+oráculo habilitados) e o
