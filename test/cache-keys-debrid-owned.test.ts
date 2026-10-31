@@ -60,6 +60,11 @@ test('RUST_OWNED cobre os namespaces da Definição de Pronto (núcleo dono úni
     );
     assert.equal(isForeignKey(`${owned}alive:premiumize:x:${'a'.repeat(40)}`), true);
   }
+  // `metam:v1` (flush dos contadores `meta.*` do gateway): chave única
+  // construída no Rust, guardada pelo prefixo literal (precedente
+  // `autofetch-worker:v1:`) — sem entrada em `NAMESPACE_VERSIONS`.
+  assert.ok(RUST_OWNED_PREFIXES.includes('metam:v1:'), 'metam:v1: bloqueia a leitura do L1');
+  assert.equal(isForeignKey('metam:v1:counts'), true, 'a chave única do agregado é estrangeira no L1');
   // Namespace do Node continua visível para o cache.
   assert.equal(isRustOwned('meta'), false);
   assert.equal(isForeignKey(`meta:movie:tt1`), false);

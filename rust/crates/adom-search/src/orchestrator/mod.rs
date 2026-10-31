@@ -150,7 +150,7 @@ pub use live_state::{
     SharedLiveState,
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
-pub use meta_metrics::{meta_metrics_snapshot, MetaMetrics};
+pub use meta_metrics::{meta_metrics_restore, meta_metrics_snapshot, MetaMetrics};
 pub use meta_native::{
     meta_from_lookup, FallbackMetaSource, NativeMetaSource, DEFAULT_LOOKUP_TIMEOUT_MS,
 };

@@ -19,6 +19,9 @@ mod harvest;
 mod harvest_effect;
 /// Rotas do banco de magnets (import no boot/admin) — ver o módulo.
 mod magnet_bank_admin;
+/// Flush dos contadores `meta.*` no KV nativo: a janela de medição do
+/// fallback sobrevive ao deploy (Fatia 0 do corte dos metadados).
+mod meta_metrics_flush;
 mod ownership_admin;
 mod play_effects_native;
 mod proxy;
@@ -75,6 +78,9 @@ async fn run_gateway() {
         }
         Err(err) => eprintln!("[debrid] API interna não sobe: {err}"),
     }
+    // Flush dos contadores `meta.*`: reidrata o deploy anterior e grava por
+    // minuto. Independente do proxy — a 8710 pura não precisa dele.
+    meta_metrics_flush::spawn_from_env();
     // O warmer, o worker do Chupim e o agendador das varreduras da AllDebrid
     // são construídos no boot do gateway, junto com o tail que os recebe
     // (`proxy::run`): o gateway é o dono único do spawn.

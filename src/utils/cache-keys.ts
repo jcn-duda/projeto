@@ -350,6 +350,13 @@ const RUST_OWNED_PREFIXES = Object.freeze([
   // Lista de arquivos e total do torrent: o prefixo fecha o `get`/`peek` do L1
   // e o `set` do Node; quem grava e lê é a ponte (`file-sizes.ts`).
   prefix('fsz'), prefix('tsz'),
+  // Contadores `meta.*` do gateway (flush da janela de medição do fallback de
+  // metadados): a chave única `metam:v1:counts` é escrita e lida só pelo
+  // processo do gateway (`meta_metrics_flush.rs`) — o Node não tem leitor nem
+  // escritor, e o prefixo é o que impede o boot do L1 de carregar a linha.
+  // Literal sem `NAMESPACE_VERSIONS` (como `autofetch-worker:v1:`): a chave é
+  // única e construída no Rust.
+  'metam:v1:',
   ...AUTOFETCH_NATIVE_PREFIXES,
 ]);
 

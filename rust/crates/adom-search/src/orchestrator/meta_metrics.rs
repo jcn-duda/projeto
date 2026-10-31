@@ -73,6 +73,17 @@ impl MetaMetrics {
         *entry = (*entry).saturating_add(by);
     }
 
+    /// Restaura contadores persistidos nesta instância (o boot do gateway lê o
+    /// flush do deploy anterior do KV nativo). Chave fora das 7 vivas é
+    /// descartada: o `/metrics` não expõe contador aposentado.
+    pub fn restore(&self, counts: BTreeMap<String, u64>) {
+        for (key, by) in counts {
+            if KEYS.contains(&key.as_str()) {
+                self.inc(&key, by);
+            }
+        }
+    }
+
     #[cfg(test)]
     pub fn get(&self, key: &str) -> u64 {
         self.snapshot().get(key).copied().unwrap_or(0)
@@ -88,6 +99,13 @@ pub(super) fn global_metrics() -> &'static MetaMetrics {
 /// Snapshot das métricas `meta.*` para a rota `/metrics` do gateway.
 pub fn meta_metrics_snapshot() -> BTreeMap<String, u64> {
     global_metrics().snapshot()
+}
+
+/// Restaura o flush do deploy anterior na global (boot do gateway, via
+/// `meta_metrics_flush`). A leitura falha fica no chamador — aqui só entra o
+/// que é válido.
+pub fn meta_metrics_restore(counts: BTreeMap<String, u64>) {
+    global_metrics().restore(counts);
 }
 
 #[cfg(test)]
