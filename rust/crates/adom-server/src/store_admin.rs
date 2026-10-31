@@ -30,6 +30,7 @@
 //! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
 //! | `POST /sweeps/run` `{"kind":"sweepDead"}` | varredura manual de UM tipo (`crate::al_sweeps`) |
 //! | `GET /rd-warm` + `POST /rd-warm/pause|resume|drain` | fila, pausa e dreno do warmer RD (`crate::rd_warmer`) |
+//! | `GET /debrid/inventory` | foto do inventário da conta AllDebrid (`knownBefore`, só memória) |
 //!
 //! O colhedor nativo monta as rotas `/harvest*` neste MESMO roteador —
 //! loopback e token são os mesmos, sem segundo servidor. Sem colhedor
@@ -65,6 +66,9 @@ mod trace_handler;
 // Catálogo durável da conta do operador (`/account-catalog/*`): rotas e guardas próprias.
 #[path = "account_catalog.rs"]
 mod account_catalog;
+// Foto do inventário da conta AllDebrid (`knownBefore`): `GET /debrid/inventory`.
+#[path = "al_inventory_admin.rs"]
+mod al_inventory_admin;
 
 /// Env do endpoint interno. O Node lê a MESMA env (`src/config/stream-store.ts`).
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
@@ -192,6 +196,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::magnet_bank_admin::admin_router())
         .merge(crate::catalog_admin::router())
         .merge(account_catalog::admin_router())
+        .merge(al_inventory_admin::router())
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }

@@ -217,6 +217,7 @@
     "test/debrid-inventory-pack-year.test.js",
     "test/debrid-inventory-raio.test.js",
     "test/debrid-inventory.test.js",
+    "test/debrid-inventory-native.test.js",
     "test/debrid-kv-owned.test.js",
     "test/debrid-may-delete.test.js",
     "test/debrid-operator-account.test.js",

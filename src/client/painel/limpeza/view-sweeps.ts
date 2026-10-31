@@ -276,13 +276,36 @@ const COUNTER_ROWS: Array<{ key: keyof SweepsCardView; label: string }> = [
 export interface SweepsCardProps {
   /** `debrid.sweeps` do /dashboard-status.json. */
   sweeps?: Record<string, any> | null;
+  /** `debrid.inventory` do /dashboard-status.json (foto do gateway nativo). */
+  inventory?: Record<string, any> | null;
+}
+
+/**
+ * Linha do inventário da conta medido pelo GATEWAY (`debrid.inventory`).
+ *
+ * Nada aqui é erro: foto ausente/corpo estranho é "desconhecido" (a ponte
+ * falhou ou ainda não rodou); `count: null` é o snapshot frio do gateway
+ * ("ainda não carregado") — nunca 0, que diria conta vazia sem medição.
+ */
+export function inventoryLine(inventory: Record<string, any> | null | undefined): string {
+  if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory) || inventory.ok !== true) {
+    return 'Inventário da conta: desconhecido (gateway não respondeu)';
+  }
+  if (inventory.enabled !== true) {
+    return `Inventário da conta: indisponível — ${sweepReasonLabel(inventory.reason)}`;
+  }
+  const count = typeof inventory.count === 'number' && Number.isFinite(inventory.count)
+    ? inventory.count
+    : null;
+  if (count == null) return 'Inventário da conta: ainda não carregado no gateway';
+  return `Inventário da conta (gateway): ${count} magnet(s) protegido(s)`;
 }
 
 /**
  * Cartão compacto do agendador NATIVO. Só leitura: pedir varredura continua
  * sendo o botão destrutivo acima.
  */
-export function SweepsCard({ sweeps }: SweepsCardProps) {
+export function SweepsCard({ sweeps, inventory }: SweepsCardProps) {
   const view = sweepsCardView(sweeps);
   if (!view.available) {
     return html`
@@ -294,6 +317,7 @@ export function SweepsCard({ sweeps }: SweepsCardProps) {
           <p style=${MUTED_LINE}>
             Contadores ficam em branco de propósito — sem a foto, nenhum número foi medido.
           </p>
+          <p style=${MUTED_LINE}>${inventoryLine(inventory)}</p>
         </div>
       </${Card}>
     `;
@@ -336,6 +360,7 @@ export function SweepsCard({ sweeps }: SweepsCardProps) {
       ${view.topReasons.length === 0
         ? html`<p style=${MUTED_LINE}>Motivos: nenhum registrado.</p>`
         : html`<p style=${MUTED_LINE}>Motivos mais frequentes: ${view.topReasons.map((r) => `${r.label} (${r.count})`).join(' · ')}</p>`}
+      <p style=${MUTED_LINE}>${inventoryLine(inventory)}</p>
     </${Card}>
   `;
 }

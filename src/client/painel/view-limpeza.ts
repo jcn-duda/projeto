@@ -358,7 +358,7 @@ export function ViewLimpeza({ catalog, conta, debrid }: ViewLimpezaProps) {
             </div>
           </div>
 
-          <${SweepsCard} sweeps=${debrid?.sweeps} />
+          <${SweepsCard} sweeps=${debrid?.sweeps} inventory=${debrid?.inventory} />
         </${Card}>
       </div>
 
