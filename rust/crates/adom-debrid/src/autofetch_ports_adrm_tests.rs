@@ -77,18 +77,43 @@ fn port(addr: SocketAddr, db_path: Option<std::path::PathBuf>) -> AutofetchPorts
 /// filtro dos outros testes parecer quebrado.
 struct BlockFlag {
     prev: Option<String>,
-    /// Só existe para manter a trava enquanto a flag está trocada.
+    /// Só existem para manter as travas enquanto a flag está trocada.
     _lock: std::sync::MutexGuard<'static, ()>,
+    _writer: std::sync::RwLockWriteGuard<'static, ()>,
+}
+
+/// Separa quem troca a flag de quem espera ela ligada. Não pode ser a trava do
+/// crate: montar o porto de teste também a pega, e o teste travaria em si mesmo.
+static FLAG_GATE: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
+/// Segura a flag no valor do processo enquanto o teste usa o bloqueio.
+struct FlagStaysOn {
+    _reader: std::sync::RwLockReadGuard<'static, ()>,
+}
+
+fn flag_stays_on() -> FlagStaysOn {
+    FlagStaysOn {
+        _reader: FLAG_GATE
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    }
 }
 
 impl BlockFlag {
     fn set(value: &str) -> Self {
+        let writer = FLAG_GATE
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let lock = crate::test_env::lock();
         let prev = std::env::var("DEBRID_REUPLOAD_BLOCK").ok();
         unsafe {
             std::env::set_var("DEBRID_REUPLOAD_BLOCK", value);
         }
-        Self { prev, _lock: lock }
+        Self {
+            prev,
+            _lock: lock,
+            _writer: writer,
+        }
     }
 }
 
@@ -107,6 +132,8 @@ impl Drop for BlockFlag {
 /// `/magnet/upload`; o hash livre da MESMA chamada continua sendo consultado.
 #[tokio::test]
 async fn check_alldebrid_tira_o_adrm_vivo_do_magnet_upload() {
+    // O teste do kill-switch roda em paralelo e troca a flag no processo.
+    let _flag = flag_stays_on();
     let (blocked_hash, free_hash) = (hash_of('a'), hash_of('b'));
     let body = envelope(json!({"magnets": [{"id": 1, "hash": free_hash.clone(), "ready": true}]}));
     let (addr, scene) = listen(vec![("GET /magnet/upload", 200, body)], (404, "{}".into())).await;
@@ -141,6 +168,8 @@ async fn check_alldebrid_tira_o_adrm_vivo_do_magnet_upload() {
 /// idêntica — ambos com hash em CAIXA ALTA na entrada.
 #[tokio::test]
 async fn enqueue_e_check_concordam_na_chave_e_na_caixa_do_adrm() {
+    // O teste do kill-switch roda em paralelo e troca a flag no processo.
+    let _flag = flag_stays_on();
     let hash = hash_of('c');
     let upper = hash.to_uppercase();
     let (key, expires_at) = live_adrm(&hash);
@@ -193,6 +222,8 @@ async fn check_alldebrid_com_kill_switch_desligado_libera_o_upload() {
 /// `known:false` é a resposta honesta (não sei), nunca "está frio".
 #[tokio::test]
 async fn check_alldebrid_com_guarda_ilegivel_nao_envia_nada() {
+    // O teste do kill-switch roda em paralelo e troca a flag no processo.
+    let _flag = flag_stays_on();
     let hash = hash_of('e');
     // Resposta VÁLIDA no fallback de propósito: com fail-open o upload sairia e
     // a falha do teste seria "o hash subiu", não "a requisição deu erro".
