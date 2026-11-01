@@ -148,13 +148,6 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json(nativeWarmFailure(action, native));
   },
 
-  'refresh-inventory': ({ services, res, action }) => {
-    const result = services.debrid.refreshInventory();
-    services.metrics.count('dashboard.inventory.refresh');
-    services.log.info(`[dashboard] memo de inventário invalidado: ${result.refreshed} conta(s)`);
-    return res.json({ ok: true, action, ...result });
-  },
-
   // Teste de conta NÃO destrutivo e SEM estado (Fase 1 do debrid configurável):
   // valida {service, key} contra o registry e consulta a saúde daquela chave,
   // sem memoizar/persistir nada nem trocar a config da instalação — é

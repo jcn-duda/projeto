@@ -221,13 +221,6 @@ test('ações operacionais do dashboard são idempotentes ou no-op seguro', asyn
       assert.equal(drain.status, 200);
       assert.equal(drain.json.drained, 0);
 
-      const inventory = await server.request('POST', '/dashboard-action.json', {
-        headers: { 'X-Indexer-Test-Token': TOKEN },
-        body: { action: 'refresh-inventory' },
-      });
-      assert.equal(inventory.status, 200);
-      assert.equal(inventory.json.refreshed, 0);
-
       const all = await server.request('POST', '/dashboard-action.json', {
         headers: { 'X-Indexer-Test-Token': TOKEN },
         body: { action: 'test-all-indexers' },

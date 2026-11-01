@@ -6,14 +6,12 @@
 //   cache-check.ts     veredito de conta inutilizável (o checkCached
 //                      orquestrado e o davail do play estão no oráculo de teste)
 //   account-status.ts  saúde da conta para o verificador/painel
-//   inventory.ts       invalidação (refresh) do memo dinv da conta
 //   account-catalog-native.ts  catálogo durável + limpador da conta do operador (ponte do gateway)
 //
 // O objeto default preserva MESMA chave, MESMA ordem e MESMO objeto mutável
 // (BY_ID é o Map vivo do registry; nenhum estado é duplicado entre irmãos).
 import * as registry from './registry.js';
 import * as accountStatus from './account-status.js';
-import * as inventory from './inventory.js';
 import * as catalogEnv from './account-catalog-native.js';
 
 export default {
@@ -23,7 +21,6 @@ export default {
   accountStatus: accountStatus.accountStatus,
   dashboardAccounts: accountStatus.dashboardAccounts,
   testAccount: accountStatus.testAccount,
-  refreshInventory: inventory.refreshInventory,
   catalogScanEnv: catalogEnv.catalogScanEnv,
   catalogListEnv: catalogEnv.catalogListEnv,
   manualDeleteEnv: catalogEnv.manualDeleteEnv,

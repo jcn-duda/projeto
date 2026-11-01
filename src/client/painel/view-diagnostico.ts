@@ -57,7 +57,7 @@ function RowsTable({ rows }: { rows: DiagnosticRow[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Conta debrid (teste de chave + refresh do inventário)
+// Conta debrid (teste de chave — o inventário é leitura do gateway, sem botão)
 // ---------------------------------------------------------------------------
 
 function DiagnosticoConta({ debrid }: ViewDiagnosticoProps) {
@@ -102,17 +102,6 @@ function DiagnosticoConta({ debrid }: ViewDiagnosticoProps) {
     setRows(accountTestRows(outcome.data));
   };
 
-  const handleRefresh = async () => {
-    setFeedback(null);
-    const outcome = await run({
-      action: 'refresh-inventory',
-      poll: ['conta', 'debrid', 'magnetdb'],
-      successToast: (data) => `Inventário reavaliado (${Number(data.refreshed || 0)} conta(s))`,
-    });
-    const error = actionError(outcome);
-    if (error) setFeedback(error);
-  };
-
   return html`
     <${Card} title="Teste de Chave Debrid" badge=${pending ? { text: 'PROCESSANDO…', variant: 'warn' } : { text: 'NÃO PERSISTE', variant: 'neutral' }}>
       <p style=${MUTED}>Valida uma chave ANTES de salvar. O teste não altera a conta nem persiste a credencial.</p>
@@ -135,9 +124,6 @@ function DiagnosticoConta({ debrid }: ViewDiagnosticoProps) {
       <${FormActions}>
         <${Button} variant="accent" pending=${pending} disabled=${!effective || !key.trim()} onClick=${handleTest}>
           Testar chave
-        </${Button}>
-        <${Button} pending=${pending} onClick=${handleRefresh}>
-          Reavaliar inventário
         </${Button}>
       </${FormActions}>
       ${feedback ? html`<div class="painel-feedback painel-feedback-err" role="status">${feedback}</div>` : null}
