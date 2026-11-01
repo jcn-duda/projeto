@@ -538,3 +538,58 @@ Limites desta leitura (o que não foi validado):
 5-7 dias). Registrar e seguir coletando: os limiares já são atendidos com
 folga nos parciais, mas a decisão do passo 0 só fecha com a janela completa.
 Os passos 1-5 permanecem travados até lá.
+
+### Leitura de 2026-11-01 14:51 (-03:00)
+
+Mesma rotina só-leitura (`date`, `git log`, `docker inspect`, `tail` do
+`adom-deploy.log` e `curl GET /metrics` em loopback).
+
+Estado do deploy:
+
+| Item | Valor |
+|---|---|
+| Commit em produção | `cdfa3eba` (2026-10-31 15:03:37 -03:00) — **sem mudança** desde a leitura anterior |
+| Deploy mais recente no log | só linhas `FETCH_HEAD`; nenhum checkout/build novo desde o de 01:45 (fim 02:30) |
+| Container | `stremio-adom` `StartedAt` 2026-11-01T05:30:19Z (02:30:19 -03:00), `healthy`, `RestartCount=0`, `OOMKilled=false`, `ExitCode=0` |
+| Reinício de relógio? | Não — o processo é o mesmo da leitura anterior e os contadores não zeraram |
+
+Contadores (`/metrics`, 2026-11-01 14:51 -03:00):
+
+| Contador | Valor | Δ vs 03:21 |
+|---|---|---|
+| `meta.resolve.total` | 25 | 0 |
+| `meta.native.ok` | 25 | 0 |
+| `meta.native.incomplete` | 0 | 0 |
+| `meta.native.error` | 0 | 0 |
+| `meta.fallback.used` | 0 | 0 |
+| `meta.fallback.empty` | 0 | 0 |
+| `meta.fallback.error` | 0 | 0 |
+
+Derivação:
+
+- Relógio da leitura: 2026-11-01 14:51 -03:00. Início da janela: 2026-10-31
+  ~03:50 -03:00 (fim do build que trouxe `23d17b0f`).
+- Janela decorrida: **~35 h 01 min**; faltam ~13 h para 48 h (fecharia
+  2026-11-02 ~03:50 -03:00).
+- Taxas sobre `meta.resolve.total`=25 (inalteradas): nativo ok **100%** (25/25);
+  `native.incomplete` 0%; `native.error` 0% (limiar <1%); `fallback.used` 0%
+  (limiar <0,5%); `fallback.empty+error` 0% (limiar <0,5%).
+
+Limites desta leitura — o que muda a decisão:
+
+- **Amostra congelada.** Δ = 0 em 11 h 30 min: o caminho rápido do
+  orquestrador dispensa o resolutor de metadados e o tráfego deste intervalo
+  não passou por ele. A janela está aberta em **tempo de calendário**, mas o
+  N continua 25 — os limiares são atendidos por construção (25/25 ok), não por
+  volume medido. Fechar em 48 h com N≈25 é decisão de baixa confiança.
+- Os contadores seguem sem série temporal; a única prova de que nada foi
+  truncado é a continuidade (nenhum boot e nenhum `cache.clear()` no
+  intervalo — o `StartedAt` não mudou).
+- Volume absoluto continua sem medida independente de requisições para cruzar.
+
+**Veredito: JANELA ABERTA (amostra insuficiente).** Manter a coleta e registrar
+uma leitura por dia; se o Δ continuar 0, a decisão do passo 0 precisa de uma
+das duas saídas antes de cortar: (a) esperar a recomendação do §3 (5-7 dias) até
+haver amostra nova, ou (b) registrar explicitamente que o corte é aceito com
+N=25 e zero `fallback.used` — o que o plano permite, desde que a decisão fique
+assinada neste relatório. Os passos 1-5 continuam travados.
