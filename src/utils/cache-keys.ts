@@ -178,8 +178,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
 // `dinv1:` eram a versão colada no nome (sem `<ns>:<versão>:`); ao migrar para
 // `raw:v1:` / `dinv:v1:` os antigos virariam namespaces órfãos ocupando a cota
 // padrão para sempre. `muri:` é a aposentadoria da URI por hash no cache: o
-// dono do dado passou a ser o banco permanente (`utils/magnet-bank.ts`), e o
-// prefixo legado é descartado no boot por aqui — sair de `NAMESPACE_VERSIONS`
+// dono do dado passou a ser o banco permanente (acervo do gateway Rust, lido
+// pela ponte), e o prefixo legado é descartado no boot por aqui — sair de
+// `NAMESPACE_VERSIONS`
 // sozinho NÃO limpa o que já está no disco. `tsj:` é o julgamento do Jev
 // (runtime TypeSafe removido): sem o descarte, as entradas órfãs ocupariam o
 // balde `__default` até o TTL.

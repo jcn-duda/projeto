@@ -19,10 +19,10 @@ function magnetFor(infoHash: string) {
 }
 
 /**
- * URI para play/enqueue: prefere a do banco permanente (`utils/magnet-bank.ts`),
- * que guarda a URI do post (dn= e trackers do tracker) e ajuda em torrent frio
- * raro. Cai no magnet padrão se o banco estiver desligado, sem aquele hash ou
- * falhar — a leitura do banco nunca pode derrubar o play.
+ * URI para play/enqueue: prefere a do banco permanente (acervo do gateway
+ * Rust, lido pela ponte read-only), que guarda a URI do post (dn= e trackers
+ * do tracker) e ajuda em torrent frio raro. Cai no magnet padrão se o banco
+ * estiver desligado, sem aquele hash ou falhar — a leitura nunca derruba o play.
  */
 function magnetForPlay(infoHash: string): string {
   try {

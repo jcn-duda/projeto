@@ -11,13 +11,12 @@ import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js'
 import { startRdWarmPolling, stopRdWarmPolling } from './utils/rd-warm-native.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
-import * as magnetBank from './utils/magnet-bank.js';
 import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 import * as rustCore from './utils/rust-core.js';
 import * as autofetch from './providers/autofetch.js';
 
-const services = { magnetdb, magnetBank };
+const services = { magnetdb };
 
 // Ponte Rust: carrega o núcleo no boot, antes da primeira busca, para o custo
 // do primeiro carregamento não cair numa resposta. Caminho em `RUST_CORE_PATH`;
@@ -29,12 +28,9 @@ rustCore.install();
 autofetch.reindexQueues();
 autofetch.reindexDead();
 
-// Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
-// LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,
-// importado pelos testes) não abre nada; só quem sobe o servidor paga o disco.
-// O fechamento com flush+checkpoint vai no shutdown abaixo.
-magnetBank.openIfEnabled();
-// O backfill de `dubbed`/`quality` do acervo roda no boot do gateway Rust (é ele quem grava no banco).
+// O banco de magnets vivo é do gateway Rust: a captura, o backfill de
+// `dubbed`/`quality` e o ciclo de vida do SQLite (flush/checkpoint) são dele;
+// o Node só lê pela ponte read-only (`magnet-bank-native.ts`).
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
@@ -114,7 +110,6 @@ function shutdown(signal: string) {
   server.close(() => {
     brResolvers.close();
     services.magnetdb.savePersistentCounts?.();
-    services.magnetBank.close();
     crawlStore.close();
     cache.close();
     log.info('[shutdown] addon encerrado');

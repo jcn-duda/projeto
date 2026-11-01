@@ -5,17 +5,14 @@
 // duas superfícies do gateway Rust) e o card I0 se declara NÃO MEDIDO.
 //
 // Sem rede: o catálogo de indexers é alimentado pelo fallback do .env (apiKey
-// vazio) e a conta não é tocada. O banco vivo é aberto em MEMÓRIA.
+// vazio) e a conta não é tocada. O acervo é ECOADO da admin do gateway (dublê
+// `withMagnetAdmin`): desde o corte da família TS o Node nem abre o banco.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
 import http from 'node:http';
 process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
-import * as bank from '../src/utils/magnet-bank.js';
 import * as metrics from '../src/utils/metrics.js';
 import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
 import { pullNativeMetrics } from '../src/utils/native-metrics.js';
@@ -23,7 +20,6 @@ import { createTestServer } from './e2e/e2e-harness.js';
 import { stubFetch } from './helpers/stub.js';
 import { MAGNET_ADMIN_BASE, MAGNET_ADMIN_STATUS, withMagnetAdmin } from './helpers/magnet-admin-stub.js';
 
-const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-bank-'));
 const TOKEN = 'tok-magnet-bank';
 const HEX = (c: string, tail = '0') => c.repeat(39) + tail;
 const H1 = HEX('a', '1');
@@ -32,41 +28,20 @@ const H2 = HEX('b', '2');
 let server: any;
 const saved: Record<string, any> = {};
 
-function seed() {
-  bank.resetForTests();
-  bank.open(FRESH_DIR(), { forceMemory: true });
-  config.magnetBank.enabled = true;
-  bank.captureItems([
-    {
-      title: 'Filme Um Dublado 1080p', infoHash: H1,
-      magnet: `magnet:?xt=urn:btih:${H1}&dn=Filme%20Um`,
-      size: 111, seeders: 9, isBr: true, dubbed: true, quality: '1080p',
-    },
-  ], 'nerdfilmes', { imdbId: 'tt111', season: null, episode: null });
-  bank.captureItems([
-    { title: 'Serie Dois S01E02 Dublada', infoHash: H2, magnet: `magnet:?xt=urn:btih:${H2}`, size: 222, seeders: 4 },
-  ], 'bludv', { imdbId: 'tt222', season: 1, episode: 2 });
-  bank.flushNow();
-}
-
 before(async () => {
   saved.testToken = config.jackett.testToken;
-  saved.bankEnabled = config.magnetBank.enabled;
   saved.indexers = config.jackett.indexers;
   saved.ptBrIndexers = config.jackett.ptBrIndexers;
   saved.slowIndexers = config.jackett.slowIndexers;
   saved.apiKey = config.jackett.apiKey;
 
   config.jackett.testToken = TOKEN;
-  seed();
   server = await createTestServer(createApp().app);
 });
 
 after(async () => {
   await server.close();
-  bank.resetForTests();
   config.jackett.testToken = saved.testToken;
-  config.magnetBank.enabled = saved.bankEnabled;
   config.jackett.indexers = saved.indexers;
   config.jackett.ptBrIndexers = saved.ptBrIndexers;
   config.jackett.slowIndexers = saved.slowIndexers;

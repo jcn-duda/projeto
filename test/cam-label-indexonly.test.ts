@@ -5,7 +5,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import { toStremioStream } from './helpers/pipeline-oracle/format.js';
-import { inputFromItem } from '../src/utils/magnet-bank-merge.js';
+import { inputFromItem } from './helpers/pipeline-oracle/magnet-bank-merge.js';
 import { UNKNOWN_QUALITY } from '../src/utils/audio-quality.js';
 import { dedupeByHash } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';

@@ -1,8 +1,9 @@
-// Exportar/importar o banco de magnets vivo (aba Magnets do painel): o formato
-// NDJSON com cabeçalho, a validação por registro e a MESCLA (nunca substitui);
-// as rotas HTTP com o EXPORT como PROXY da admin do gateway e o IMPORT
-// spoolando para ela (dublê `withMockFetch`). Sem rede externa; o banco local
-// abre em memória (e no SQLite, quando o runtime tem `node:sqlite`, para o keyset).
+// Exportar/importar o banco de magnets vivo (aba Magnets do painel): as rotas
+// HTTP com o EXPORT como PROXY da admin do gateway e o IMPORT spoolando para
+// ela (dublê `withMockFetch`). A MESCLA e a validação por registro são régua
+// do oráculo (test/helpers/pipeline-oracle/magnet-bank-import.ts) — quem
+// mescla/grava em produção é o gateway. Sem rede externa e sem banco local: o
+// Node nem abre o SQLite do acervo (a prova é o dbPath fantasma).
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
@@ -12,15 +13,11 @@ import zlib from 'node:zlib';
 process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
-import * as bank from '../src/utils/magnet-bank.js';
-import { engine } from '../src/utils/magnet-bank-rows.js';
-import type { MagnetRow, SourceRow, WorkRow } from '../src/utils/magnet-bank-rows.js';
-// `exportLines` é a RÉGUA do formato: a rota já é proxy da admin, e o corte do
-// módulo é a fase seguinte. O lado IMPORT congelou no oráculo
-// (test/helpers/pipeline-oracle/magnet-bank-import.ts) — quem mescla/grava em
-// produção é o gateway (`POST /magnet-bank/import` na admin 8711).
-import { TRANSFER_FORMAT, exportLines } from '../src/utils/magnet-bank-transfer.js';
-import { importLines, mergeMagnetRows, mergeWorkRows, readMagnet, readWork } from './helpers/pipeline-oracle/magnet-bank-import.js';
+import { TRANSFER_FORMAT } from '../src/utils/magnet-bank-transfer.js';
+import {
+  mergeMagnetRows, mergeWorkRows, readMagnet, readSource, readWork,
+  type MagnetRow, type WorkRow,
+} from './helpers/pipeline-oracle/magnet-bank-import.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 
 const DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'bank-xfer-'));
@@ -31,26 +28,9 @@ const magnet = (hash: string, over: Partial<MagnetRow> = {}): MagnetRow => ({
   hash, uri: `magnet:?xt=urn:btih:${hash}`, title: `T ${hash.slice(0, 4)}`, size: 100, isBr: 0, dubbed: 0,
   quality: '1080p', seedersMax: 5, seedersLast: 5, firstSeen: 1000, lastSeen: 2000, lied: 0, ...over,
 });
-const source = (hash: string, indexer: string, over: Partial<SourceRow> = {}): SourceRow => ({
-  hash, indexer, tracker: indexer.toUpperCase(), firstSeen: 1000, lastSeen: 2000, seedersLast: 5, ...over,
-});
 const work = (hash: string, imdb: string, over: Partial<WorkRow> = {}): WorkRow => ({
   hash, imdb, season: -1, episode: -1, firstSeen: 1000, lastSeen: 2000, passedFilter: 1, ...over,
 });
-
-async function* linesOf(text: string): AsyncGenerator<string> {
-  for (const line of text.split('\n')) yield line;
-}
-
-function freshBank(sql = false): void {
-  bank.resetForTests();
-  bank.open(DIR(), { forceMemory: !sql });
-  config.magnetBank.enabled = true;
-}
-
-function dump(): string {
-  return [...exportLines(engine(), 42)].join('');
-}
 
 describe('magnet-bank-transfer: mescla linha × linha', () => {
   test('datas nas pontas, seeders máximos, flags só sobem, URI só se enriquece', () => {
@@ -75,89 +55,16 @@ describe('magnet-bank-transfer: mescla linha × linha', () => {
   test('registro inválido do arquivo é recusado; URI que não é magnet vira vazia', () => {
     assert.equal(readMagnet({ hash: 'xyz' }), null);
     assert.equal(readMagnet({ hash: H('a'), uri: 'javascript:alert(1)' })?.uri, '');
+    assert.equal(readSource({ hash: H('a'), indexer: '' }), null, 'fonte sem indexer é recusada');
+    assert.equal(readSource({ hash: H('a'), indexer: 'bludv' })?.indexer, 'bludv');
     assert.equal(readWork({ hash: H('a'), imdb: 'nm123' }), null);
     assert.equal(readWork({ hash: H('a'), imdb: 'tt0903747', season: 2, episode: 3 })?.season, 2);
   });
 });
 
-describe('magnet-bank-transfer: arquivo', () => {
-  after(() => bank.resetForTests());
-
-  test('ida e volta: exporta, importa num banco vazio e o acervo é o MESMO', async () => {
-    freshBank();
-    engine().writeBatch({
-      magnets: [magnet(H('a')), magnet(H('b'), { isBr: 1, dubbed: 1 })],
-      sources: [source(H('a'), 'nerdfilmes'), source(H('b'), 'bludv-cardigann'), source(H('b'), 'comandotorrents')],
-      works: [work(H('a'), 'tt0000001'), work(H('b'), 'tt0000002', { season: 1, episode: 2 })],
-    });
-    const file = dump();
-    const header = JSON.parse(file.split('\n')[0]);
-    assert.equal(header.format, TRANSFER_FORMAT);
-    assert.deepEqual(header.counts, { magnets: 2, sources: 3, works: 2 });
-
-    freshBank();
-    const report = await importLines(engine(), linesOf(file));
-    assert.equal(report.ok, true);
-    assert.deepEqual(report.magnets, { read: 2, inserted: 2, merged: 0 });
-    assert.equal(report.rejected, 0);
-    assert.equal(dump(), file, 'reexportar dá o mesmo arquivo byte a byte');
-
-    // Idempotente: o mesmo arquivo de novo não muda nada.
-    const again = await importLines(engine(), linesOf(file));
-    assert.deepEqual(again.magnets, { read: 2, inserted: 0, merged: 2 });
-    assert.equal(dump(), file);
-  });
-
-  test('MESCLA com o que já existe: nada local é apagado', async () => {
-    freshBank();
-    engine().writeBatch({ magnets: [magnet(H('a')), magnet(H('b'))], sources: [source(H('a'), 'x')], works: [] });
-    const file = dump();
-    freshBank();
-    engine().writeBatch({ magnets: [magnet(H('c'))], sources: [source(H('c'), 'y')], works: [] });
-    const report = await importLines(engine(), linesOf(file));
-    assert.equal(report.ok, true);
-    assert.equal(engine().countMagnets(), 3, 'o que era só local continua');
-    assert.equal(engine().countSources(), 2);
-  });
-
-  test('sem cabeçalho, com versão desconhecida ou vazio: recusa sem gravar', async () => {
-    freshBank();
-    const semHeader = await importLines(engine(), linesOf(JSON.stringify({ t: 'm', ...magnet(H('a')) })));
-    assert.equal(semHeader.ok, false);
-    const versao = await importLines(engine(), linesOf(JSON.stringify({ t: 'meta', format: TRANSFER_FORMAT, v: 99 })));
-    assert.match(String(versao.error), /versão/);
-    assert.equal((await importLines(engine(), linesOf(''))).ok, false);
-    assert.equal(engine().countMagnets(), 0);
-  });
-
-  test('fonte/obra sem magnet (nem no arquivo, nem no banco) é rejeitada, não vira órfã', async () => {
-    freshBank();
-    const file = [
-      JSON.stringify({ t: 'meta', format: TRANSFER_FORMAT, v: 1 }),
-      JSON.stringify({ t: 's', ...source(H('d'), 'x') }),
-      JSON.stringify({ t: 'w', ...work(H('d'), 'tt1') }),
-      'isto não é json',
-    ].join('\n');
-    const report = await importLines(engine(), linesOf(file));
-    assert.equal(report.ok, true);
-    assert.equal(report.rejected, 3);
-    assert.equal(engine().countSources(), 0);
-    assert.equal(engine().countWorks(), 0);
-  });
-
-  test('export pagina por hash (mais de uma página) sem repetir nem pular', () => {
-    freshBank(true);
-    const hashes = Array.from({ length: 1203 }, (_, i) => i.toString(16).padStart(40, '0'));
-    engine().writeBatch({ magnets: hashes.map((h) => magnet(h)), sources: [], works: [] });
-    const lines = dump().trim().split('\n').slice(1).map((l) => JSON.parse(l).hash);
-    assert.equal(lines.length, 1203);
-    assert.equal(new Set(lines).size, 1203);
-    assert.deepEqual(lines, [...hashes].sort());
-  });
-});
-
 describe('magnet-bank-transfer: rotas HTTP', () => {
   let server: any;
+  let ghostDb = '';
   const saved: Record<string, any> = {};
   // As duas mãos falam com a admin do gateway: nos testes ela é um dublê
   // (`withMockFetch`). O `fetch` real fica guardado para deixar passar as
@@ -186,18 +93,21 @@ describe('magnet-bank-transfer: rotas HTTP', () => {
   before(async () => {
     saved.token = config.jackett.testToken;
     saved.storeToken = config.streamStore.token;
+    saved.dbPath = config.magnetBank.dbPath;
     config.jackett.testToken = TOKEN;
     config.streamStore.token = STORE_TOKEN;
-    // O banco local segue aberto para provar que o Node NÃO grava nele (o
-    // import é 503 sem tocar acervo); o export não lê mais nada daqui.
-    freshBank();
+    config.magnetBank.enabled = true;
+    // dbPath FANTASMA: nada no Node abre mais o acervo — a prova é o arquivo
+    // nunca existir, nem num import recusado.
+    ghostDb = path.join(DIR(), 'nao-deve-existir.db');
+    config.magnetBank.dbPath = ghostDb;
     server = await createTestServer(createApp().app);
   });
   after(async () => {
     await server.close();
     config.jackett.testToken = saved.token;
     config.streamStore.token = saved.storeToken;
-    bank.resetForTests();
+    config.magnetBank.dbPath = saved.dbPath;
   });
 
   test('sem token é 401 nas duas rotas', async () => {
@@ -305,7 +215,6 @@ describe('magnet-bank-transfer: rotas HTTP', () => {
   });
 
   test('admin do gateway fora: import é 503 native-unavailable, sem gravar pelo Node', async () => {
-    const before = engine().countMagnets();
     config.streamStore.token = '';
     try {
       const imp = await fetch(`${server.baseUrl}/magnet-bank-import`, {
@@ -316,7 +225,7 @@ describe('magnet-bank-transfer: rotas HTTP', () => {
       const body = await imp.json();
       assert.equal(imp.status, 503);
       assert.equal(body.reason, 'native-unavailable');
-      assert.equal(engine().countMagnets(), before);
+      assert.equal(fs.existsSync(ghostDb), false, 'o Node nem abriu o SQLite do acervo');
     } finally {
       config.streamStore.token = STORE_TOKEN;
     }

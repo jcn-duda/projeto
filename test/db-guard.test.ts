@@ -118,13 +118,14 @@ function walkTs(dir: string, out: string[] = []): string[] {
  *
  * `autofetch-obra` saiu da lista na leva 6e (2026-10-29): o registro da obra
  * passou a ser gravado só pelo commit nativo (`enqueue_obra.rs`), e o módulo
- * do Node ficou com o prefixo `autofetch:v3:o:` — sem `cache.set`.
+ * do Node ficou com o prefixo `autofetch:v3:o:` — sem `cache.set`. A fachada
+ * `src/utils/magnet-bank.js` saiu com o corte da família TS (2026-11-01): o
+ * acervo é gravado pelo gateway, e o seed de teste INSERTa por `node:sqlite`.
  */
 const DB_OWNERS = [
   'src/utils/cache.js',
   'src/utils/cache-db.js',
   'src/utils/native-kv.js',
-  'src/utils/magnet-bank.js',
   'src/utils/debrid-state-native.js',
   'src/providers/autofetch.js',
   '/protected.js',

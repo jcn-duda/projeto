@@ -16,7 +16,7 @@
 // no import: no volume do Windows um lote grande travava o processo.
 import { createRequire } from 'node:module';
 import { qualityFromTitle } from '../../../src/utils/audio-quality.js';
-import { classifiedDubbed } from '../../../src/utils/magnet-bank-merge.js';
+import { classifiedDubbed } from './magnet-bank-merge.js';
 import { assertSafeTestDb } from '../db-guard.js';
 
 assertSafeTestDb('pipeline-oracle/magnet-bank-backfill');

@@ -4,8 +4,8 @@
 // fila de URLs é ESTADO VIVO de retomada — o container reinicia no meio da
 // carga inicial e o motor segue do próximo pendente — com 10 mil+ linhas por
 // site. O cache tem cota por namespace, TTL e bump de versão; qualquer um dos
-// três destruiria a fila. Mesmo padrão defensivo dos irmãos (magnet-bank,
-// catálogo): `node:sqlite` carregado lazy com `createRequire` e, se o runtime
+// três destruiria a fila. Mesmo padrão defensivo dos irmãos (catálogo):
+// `node:sqlite` carregado lazy com `createRequire` e, se o runtime
 // não tiver o módulo (Node 20) ou a abertura falhar, segue SÓ EM MEMÓRIA
 // (`crawl-store-memory.ts`, mesmos verbos, teto LRU, eviction contada) — nunca derruba o addon.
 //

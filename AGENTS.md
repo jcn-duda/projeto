@@ -416,11 +416,17 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   grava a leva (`capture_items`; regras em `adom-store::magnet_bank_capture`; o
   efeito `magnet_capture` do Node não existe mais) — o gateway é o único
   escritor do acervo.
-  **O Node não grava no `magnets.db`**: o import do painel descompacta o
-  upload num spool (`/tmp/adom-magnets-import-*.ndjson`) e o gateway mescla
+  **O Node não grava no `magnets.db`** — e desde o corte da família TS
+  (`magnet-bank.ts` e irmãos) nem o abre: leitura só pela ponte read-only
+  (`magnet-bank-native.ts`; play, inventário e índice) e acervo via admin. O
+  import do painel descompacta o upload num spool
+  (`/tmp/adom-magnets-import-*.ndjson`) e o gateway mescla
   (`POST /magnet-bank/import` na admin 8711, credencial destrutiva + `confirm`;
-  `adom-store::magnet_bank_import*`); o backfill de `dubbed`/`quality` roda no
-  boot do gateway. `importLines`/`backfillClassification` TS ficam como régua.
+  `adom-store::magnet_bank_import*`); o export é proxy do
+  `GET /magnet-bank/export` da admin; o backfill de `dubbed`/`quality` roda no
+  boot do gateway. As réguas TS do import/export sobrevivem só como ORÁCULO
+  (`test/helpers/pipeline-oracle/magnet-bank-import.ts`/`magnet-bank-merge.ts`;
+  a semente de teste INSERTa por `node:sqlite`, guard `hasNodeSqlite`).
   Os índices `magnet_last_seen` / `magnet_source_last_seen` vivem no store do
   gateway (`adom-store::magnet_bank`); o painel lê pela admin do gateway
   (`GET /magnet-bank/status`/`/search` via `magnet-bank-native.ts`, 503 quando
@@ -738,7 +744,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
-| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
+| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank-native.ts`/`-transfer.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |

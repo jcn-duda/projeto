@@ -624,36 +624,31 @@ distintas e as métricas (`magnetdb.dropped.bad` / `magnetdb.dropped.dead`)
 separam para o diagnóstico não culpar o lado errado. Unificar só se um
 terceiro consumidor aparecer.
 
-**Banco de magnets VIVO (`src/utils/magnet-bank.ts`).** Clone PERMANENTE de tudo
-que o Jackett devolveu — o site some, o acervo fica. É irmão, não sinônimo, do
-`magnetdb` acima: aquele é histórico POR CONTA (`mag:alive/bad/lie`, com TTL e
-cota), este é o acervo PÚBLICO por hash, sem credencial, sem TTL, sem cota e sem
-versão de namespace. Alimenta duas coisas: a URI rica do play (via
-`magnetForPlay`, abaixo) e o fallback quando o indexer falha (Etapa 4). A
-`magnetForPlay(hash)` (`common.ts`) lê o banco (`magnet-bank.lookup`) e cai no
-`magnetFor` quando o banco está desligado, não tem o hash ou falha — a leitura
-nunca derruba o play. Os adaptadores que mandam URI ao serviço (Real-Debrid,
-TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
-**AllDebrid não usa**: seu `cacheCheck` é upload do HASH, não da URI.
+**Banco de magnets VIVO (acervo do gateway Rust; a família TS `magnet-bank*`
+saiu no corte de 2026-11-01).** Clone PERMANENTE de tudo que o Jackett devolveu
+— o site some, o acervo fica. É irmão, não sinônimo, do `magnetdb` acima: aquele
+é histórico POR CONTA (`mag:alive/bad/lie`, com TTL e cota), este é o acervo
+PÚBLICO por hash, sem credencial, sem TTL, sem cota e sem versão de namespace.
+Alimenta duas coisas: a URI rica do play (via `magnetForPlay`, abaixo) e o
+fallback quando o indexer falha (Etapa 4). A `magnetForPlay(hash)` (`common.ts`)
+lê pela ponte read-only (`bankLookupUriNative` de `magnet-bank-native.ts` →
+`adom-napi/src/bank_read.rs`) e cai no `magnetFor` quando o banco está
+desligado, não tem o hash ou falha — a leitura nunca derruba o play. Os
+adaptadores que mandam URI ao serviço (Real-Debrid, TorBox, Premiumize,
+Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A **AllDebrid não
+usa**: seu `cacheCheck` é upload do HASH, não da URI.
 
-- **Armazenamento próprio.** SQLite em `data/magnets.db` (`MAGNET_BANK_DB_PATH`,
-  default em `DEFAULT_MAGNET_BANK_DB_PATH`, no volume `/app/data` — o mesmo do
-  `cache.db`), WAL. `node:sqlite` é carregado lazy com `createRequire`; sem o
-  módulo (Node 20) ou se a abertura falhar, a engine cai num `Map` em memória
-  (`magnet-bank-memory.ts`, loga warn) com os MESMOS verbos — nunca derruba o
-  addon. `magnet-bank-rows.ts` é a camada de linhas/engines;
-  `magnet-bank-schema.ts` os tipos e o codec; `magnet-bank-merge.ts` as regras
-  puras.
-- **A engine de memória tem teto LRU; o SQLite não.** O `Map` de fallback
-  (Node 20/abertura falha) acumularia o acervo inteiro até o OOM, então ele
-  respeita `MAGNET_BANK_MEMORY_MAX` (default 20000 magnets/hashes, mínimo 1 —
-  NÃO há modo ilimitado). A ordem do `Map` É o LRU: `getMagnet`/`listMagnetsMany`
-  e o upsert movem a chave para o fim (MRU) **sem tocar `lastSeen`**, que é a
-  última observação do SITE e não pode ser reescrita por leitura local. Ao
-  exceder, o mais antigo é evictado com TODAS as fontes e obras do hash (sem
-  órfão), a contagem sobe desde o boot e a métrica
-  `magnetbank.memory.evicted` incrementa. O SQLite é acervo PERMANENTE: sem
-  cota, sem LRU e `memoryMax`/`memoryEvictions` saem `null`/`0` no status.
+- **Armazenamento do gateway.** SQLite em `data/magnets.db`
+  (`MAGNET_BANK_DB_PATH`, default em `DEFAULT_MAGNET_BANK_DB_PATH`, no volume
+  `/app/data` — o mesmo do `cache.db`), WAL. O dono do ciclo de vida é o
+  gateway (`MagnetBankStore::open`, que roda o `SCHEMA` — CREATE TABLE IF NOT
+  EXISTS); o Node NEM ABRE o arquivo: lê pela ponte napi (conexão POR CHAMADA,
+  `bank_read.rs`) e pela admin 8711. A fotografia TS das regras puras
+  (`inputFromItem`, `isRicherUri`, `parseSeeders`, `hashOf`) vive no oráculo
+  `test/helpers/pipeline-oracle/magnet-bank-merge.ts`; a semente de teste
+  INSERTa por `node:sqlite` (`test/helpers/magnet-bank-seed.ts`, guard
+  `hasNodeSqlite`). A engine TS (`magnet-bank-rows`/`-schema`/`-memory`, com o
+  LRU de `MAGNET_BANK_MEMORY_MAX`) e a fachada saíram com a família.
 - **Três tabelas.** `magnet` (PK `hash`): `uri` sanitizada, `title`, `size`,
   `is_br`, `dubbed`, `quality`, `seeders_max`, `seeders_last`, `first_seen`,
   `last_seen`, `lied`. `magnet_source` (PK `hash,indexer`): `tracker`,
@@ -661,7 +656,9 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   `hash,imdb,season,episode`): `first_seen`, `last_seen`, `passed_filter`.
   `season`/`episode` nulos viram `-1` (parte da PK). Índices por obra e por
   `indexer,last_seen`.
-- **Merge.** `first_seen` é fixo; `seeders_max` é máximo e `seeders_last` é a
+- **Merge (régua viva em `adom-store::magnet_bank_capture`, oráculo
+  `magnet-bank-merge.ts`).** `first_seen` é fixo; `seeders_max` é máximo e
+  `seeders_last` é a
   última observação (item sem seeders PRESERVA a anterior; `0` é medição);
   `title`/`size` ficam os primeiros não vazios — exceto o título sem episódio,
   que troca pelo que o NOMEIA (`episodeUpgrade`; o botão "EPISÓDIOS 03" da
@@ -685,16 +682,18 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   (`WHERE quality = ''`): sem ele todo boot varria a tabela inteira de forma
   síncrona — local (330 MB, volume do Windows) o addon ficou ~5 min sem
   responder nem o manifest para classificar 16 magnets (2026-10-01).
-- **`lied` é GLOBAL.** `magnet-bank-lie.ts` lê a união de `mag:v1:lie:` de
-  QUALQUER conta (peek quiet, sem memo) e promove o hash no merge; a evidência
-  por conta continua só no `mag`. `bad` por conta NUNCA é lido aqui.
-- **Captura total.** `captureItems` roda no `jackett.search` por indexer E no
-  ramo agregado `/all`, DEPOIS da resolução Cardigann e ANTES de qualquer filtro
-  de título/episódio: entra tudo que tem hash — inclusive hit do cache bruto.
-  Item de CONTA (`fromAccount`) e de FALLBACK (`fromFallback`) ficam de fora. A
-  fila é assíncrona (uma transação por lote, `magnetbank.upsert`) e a busca
-  NUNCA espera o disco: fila cheia (`MAGNET_BANK_QUEUE_MAX`) descarta a leva com
-  `magnetbank.queue.dropped`.
+- **`lied` é GLOBAL.** A união de `mag:v1:lie:` de QUALQUER conta promovia o
+  hash no merge (`magnet-bank-lie.ts`, fixture da captura TS) — o módulo saiu
+  no corte; a promoção do `lied` no merge é do gateway
+  (`magnet_bank_capture`) e a evidência por conta continua só no `mag`. `bad`
+  por conta NUNCA é lido aqui.
+- **Captura total, NATIVA.** O fim do tail da busca grava a leva
+  (`capture_items`; regras em `adom-store::magnet_bank_capture`): entra tudo
+  que tem hash — inclusive hit do cache bruto. Item de CONTA (`fromAccount`),
+  de FALLBACK (`fromFallback`) e FOTO do índice (`fromSnapshot`) ficam de fora.
+  A escrita é transação por lote (`magnetbank.upsert`) e a busca NUNCA espera o
+  disco (fila do gateway; `magnetbank.queue.dropped` no estouro
+  `MAGNET_BANK_QUEUE_MAX`).
 - **Obra da release.** `release-work.ts` (`releaseWorkTargets`) espelha o
   `destinoDe` do índice: o pack de temporada achado na busca de um episódio fica
   recuperável para a temporada inteira. A obra do PEDIDO só entra quando a
@@ -3383,15 +3382,15 @@ fire-and-forget) continua.
 | `src/utils/magnetdb-persist.ts` | LEITURA do agregado durável `mag_meta:v1:counts` (escritor ÚNICO: o gateway, régua `bump_counts`), sentinela de reconciliação `ensureCountsLoaded` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas |
 | `src/utils/magnetdb-counts.ts` | TIPOS do agregado (`AdapterTotals`), `MAG_SIDES`, `emptyAdapterTotals` e `isSupportedHash` (régua de hash recusada antes de chamar o núcleo). O dono das linhas e do agregado é o núcleo; sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` pela ponte nativa (`magnetState().entries`/`summary`), sem namespace `mag` no L1. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
-| `src/utils/magnet-bank.ts` | Fachada do banco VIVO (clone permanente do Jackett): `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado por `MAGNET_BANK_STATUS_TTL_MS`, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash` |
-| `src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` | Linhas e engines (`sqliteEngine` lazy via `createRequire`, WAL; `memoryEngine` em `magnet-bank-memory.ts`) + tipos/codec (`render*`/`parse*`). Extraídos de `magnet-bank.ts` pela catraca de 400 linhas |
-| `src/utils/magnet-bank-merge.ts` | Regras PURAS do banco: `hashOf`, `inputFromItem`, `mergeMagnet`/`mergeSource`/`mergeWork`, `workTuple`, `parseSeeders`, `isRicherUri` |
-| `src/utils/magnet-bank-search.ts` | Busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100). O `magnet-bank-query.ts` (lote por obra da sonda TS do autofetch) saiu em 2026-10-28, sem consumidor desde a B4 |
-| `src/utils/magnet-bank-lie.ts` | Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promove `lied` no merge do banco |
+| ~~`src/utils/magnet-bank.ts`~~ | **Removido no corte da família (2026-11-01).** Era a fachada do banco VIVO: `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash`. A leitura é a ponte (`magnet-bank-native.ts`) e o acervo é do gateway |
+| ~~`src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` / `magnet-bank-memory.ts`~~ | **Removidos no corte.** Eram as linhas/engines (`sqliteEngine` lazy, WAL; LRU de memória `MAGNET_BANK_MEMORY_MAX`) + tipos/codec. O dono é o `MagnetBankStore` do `adom-store` |
+| ~~`src/utils/magnet-bank-merge.ts`~~ | **Removido no corte.** Eram as regras PURAS (`hashOf`, `inputFromItem`, `merge*`, `workTuple`, `parseSeeders`, `isRicherUri`); a fotografia vive no oráculo `test/helpers/pipeline-oracle/magnet-bank-merge.ts` e a régua viva em `adom-store::magnet_bank_capture` |
+| ~~`src/utils/magnet-bank-search.ts`~~ | **Removido na Fase 1 (`57afd760`).** Busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) — leitura pela admin (`GET /magnet-bank/search`). O `magnet-bank-query.ts` (lote por obra da sonda TS do autofetch) saiu em 2026-10-28, sem consumidor desde a B4 |
+| ~~`src/utils/magnet-bank-lie.ts`~~ | **Removido no corte.** Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promovia `lied` no merge do banco — promoção agora em `magnet_bank_capture` |
 | `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
-| `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice |
+| `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice. SEM chamador de produção desde a obra nativa (`enqueue_obra`): candidato a corte numa fatia própria |
 | `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
-| `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
+| ~~`src/providers/magnet-bank-hook.ts`~~ | **Removido.** Era a ponte stream-builder → banco (hashes não-conta/não-fallback e `targetsFor` escrevendo o `passed_filter` da obra); a obra é gravada pelo commit nativo (`enqueue_obra.rs`) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

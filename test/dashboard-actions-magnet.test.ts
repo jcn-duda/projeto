@@ -9,16 +9,16 @@ import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
-import * as bank from '../src/utils/magnet-bank.js';
 import { accountScope } from '../src/utils/request-key.js';
+import { hasNodeSqlite, openBankSchema, insertMagnet } from './helpers/magnet-bank-seed.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 
 // Fase 3: ações magnet-inspect / magnet-clear-bad / magnet-summary do
 // /dashboard-action.json. Semeia o banco de magnets por chaves reais
 // (markAlive/markBad/markLie) e verifica enumeração do L1, filtros, teto,
 // idempotência do clear-bad e ausência de credencial/digest no payload. A URI
-// de cada item vem do banco PERMANENTE (`magnet-bank`), não mais do extinto
-// namespace `muri`.
+// de cada item vem do banco PERMANENTE via ponte napi — semeada por INSERT
+// direto (`magnet-bank-seed.ts`); a captura do acervo é do gateway.
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-magnet-'));
 
 const TOKEN = 'tok-magnetdb';
@@ -44,16 +44,16 @@ function seed() {
 
 /** Só HASH_BAD_1 tem URI no banco: prova que a view vê o banco por hash. */
 function seedBank() {
-  bank.resetForTests();
   // SQLite REAL em tmp: a URI da view vem da ponte napi, que abre o MESMO
-  // arquivo de `config.magnetBank.dbPath` (a engine de memória não serve).
+  // arquivo de `config.magnetBank.dbPath`. INSERT direto (quem grava em
+  // produção é o gateway); Node 20 não tem `node:sqlite`.
   const dbPath = path.join(FRESH_DIR(), 'magnets.db');
-  bank.open(dbPath);
-  config.magnetBank.dbPath = dbPath;
-  config.magnetBank.enabled = true;
-  const magnet = `magnet:?xt=urn:btih:${HASH_BAD_1}&dn=${encodeURIComponent(BANK_DN)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
-  bank.captureItems([{ infoHash: HASH_BAD_1, magnet, title: 'URI do posto' }], ADAPTER, {});
-  bank.flushNow();
+  openBankSchema(dbPath);
+  insertMagnet(dbPath, {
+    hash: HASH_BAD_1,
+    uri: `magnet:?xt=urn:btih:${HASH_BAD_1}&dn=${encodeURIComponent(BANK_DN)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`,
+    title: 'URI do posto',
+  });
 }
 
 before(async () => {
@@ -71,7 +71,6 @@ before(async () => {
 
 after(async () => {
   await server.close();
-  bank.resetForTests();
   config.magnetDb.enabled = saved.enabled;
   config.magnetDb.lieEnabled = saved.lieEnabled;
   config.magnetBank.enabled = saved.bankEnabled;
@@ -86,7 +85,7 @@ function post(body: any) {
   });
 }
 
-test('magnet-inspect lista entradas do L1 sem vazar chave nem digest de conta', async () => {
+test('magnet-inspect lista entradas do L1 sem vazar chave nem digest de conta', { skip: !hasNodeSqlite }, async () => {
   config.jackett.testToken = TOKEN;
   cache.clear();
   try {

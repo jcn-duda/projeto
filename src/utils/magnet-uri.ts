@@ -2,7 +2,8 @@
  * Magnet URI do post — sanitização e montagem do magnet padrão.
  *
  * A URI ORIGINAL do post (com `dn=` e trackers do tracker) é guardada no banco
- * permanente (`utils/magnet-bank.ts`), que não tem TTL nem cota. Aqui ficam só
+ * permanente (acervo do gateway Rust, lido pela ponte), que não tem TTL nem
+ * cota. Aqui ficam só
  * as regras PURAS que o banco usa ao gravar — e elas decidem INTEIRAS no
  * núcleo (`rust/crates/adom-napi/src/lib.rs`: `sanitizeMagnet`/`defaultMagnet`;
  * lógica em `adom-core::magnet_uri`, golden `magnet_uri` contra o TS do `esm`).

@@ -1,7 +1,8 @@
 // Testes das regras PURAS de magnet-uri: sanitização da URI do post (valida o
 // hash pelo xt, remove credencial, monta com piso de trackers sob teto) e o
 // magnet padrão. A GRAVAÇÃO/LEITURA por hash deixou de ser namespace de cache
-// e vive no banco permanente (`test/magnet-bank*.test.ts`); o play é coberto
+// e vive no banco permanente do gateway (a leitura é a ponte, coberta por
+// `test/magnet-bank-native-read.test.ts`); o play é coberto
 // por `test/magnet-for-play.test.ts`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

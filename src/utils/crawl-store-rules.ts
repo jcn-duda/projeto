@@ -2,9 +2,8 @@
 //
 // A decisão do upsert idempotente e a marcação de resultado são FUNÇÕES PURAS
 // aqui, e as duas engines (SQLite e memória) as consomem — paridade garantida
-// por construção, não por dois códigos parecidos (mesmo motivo do
-// `magnet-bank-merge.ts`). O codec (render/parse das linhas) vive junto: é
-// pura transformação de dados, sem I/O.
+// por construção, não por dois códigos parecidos. O codec (render/parse das
+// linhas) vive junto: é pura transformação de dados, sem I/O.
 //
 // Semântica do upsert (o coração da fase incremental):
 // - URL nova → nasce `pending` (elegível na hora);

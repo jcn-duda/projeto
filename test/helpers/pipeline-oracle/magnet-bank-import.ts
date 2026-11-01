@@ -4,11 +4,12 @@
 // gateway (`POST /magnet-bank/import` na admin 8711, `adom-store::
 // magnet_bank_import`) — a rota Node só spoola o arquivo descompactado e
 // repassa. Fica aqui como régua TS para `test/magnet-bank-transfer.test.ts`
-// continuar exigindo a mesma validação e a mesma mescla. O lado EXPORT
-// (`exportLines`, `groupByHash`) segue vivo em `src/utils/magnet-bank-
-// transfer.ts`; o formato do arquivo (`TRANSFER_FORMAT`/`TRANSFER_VERSION`) é
-// importado do módulo vivo — é o contrato do arquivo NDJSON, não parte
-// congelada.
+// continuar exigindo a mesma validação e a mesma mescla. O lado EXPORT também
+// é do gateway desde o corte da família TS (`GET /magnet-bank/export` na
+// admin, `adom-store::magnet_bank_export`); o formato do arquivo
+// (`TRANSFER_FORMAT`/`TRANSFER_VERSION`) é importado do módulo vivo — é o
+// contrato do arquivo NDJSON, não parte congelada. As linhas tipadas eram de
+// `src/utils/magnet-bank-rows.js` e agora moram aqui (a família saiu).
 //
 // Para que serve: o `magnets.db` é acervo PERMANENTE — o que o site derrubado
 // já não devolve só existe ali. O import traz de volta o acervo do export.
@@ -18,18 +19,25 @@
 // novo, seeders máximos, `is_br`/`dubbed`/`lied` só sobem, URI só troca por
 // outra mais rica. Importar o mesmo arquivo duas vezes não muda nada na
 // segunda, e nada que já existe localmente é apagado.
-import { TRANSFER_FORMAT, TRANSFER_VERSION } from '../../../src/utils/magnet-bank-transfer.js';
-import { isRicherUri } from '../../../src/utils/magnet-bank-merge.js';
-import type { Engine, MagnetRow, SourceRow, WorkRow } from '../../../src/utils/magnet-bank-rows.js';
+import { isRicherUri } from './magnet-bank-merge.js';
 
-/**
- * Magnets por lote do IMPORT (uma transação cada). Menor que a página do
- * export porque o lote é SÍNCRONO e segura o event loop: medido em 2026-09-29
- * no Docker do Windows (volume montado, fsync lento), lote de 500 travava até
- * 647 ms — a busca ao vivo esperava junto. Com 200 e uma volta ao event loop
- * entre lotes, a importação divide o processo com as requisições.
- */
-const IMPORT_BATCH = 200;
+// --- Linhas do acervo (eram de `src/utils/magnet-bank-rows.js`) ------------
+
+export interface MagnetRow {
+  hash: string; uri: string; title: string; size: number;
+  isBr: number; dubbed: number; quality: string;
+  seedersMax: number; seedersLast: number; firstSeen: number; lastSeen: number; lied: number;
+}
+
+export interface SourceRow {
+  hash: string; indexer: string; tracker: string;
+  firstSeen: number; lastSeen: number; seedersLast: number;
+}
+
+export interface WorkRow {
+  hash: string; imdb: string; season: number; episode: number;
+  firstSeen: number; lastSeen: number; passedFilter: number;
+}
 
 // --- Validação de registro vindo de arquivo --------------------------------
 
@@ -114,19 +122,6 @@ export function mergeMagnetRows(prev: MagnetRow | null, next: MagnetRow): Magnet
   };
 }
 
-export function mergeSourceRows(prev: SourceRow | null, next: SourceRow): SourceRow {
-  if (!prev) return next;
-  const newer = next.lastSeen > prev.lastSeen;
-  return {
-    hash: prev.hash,
-    indexer: prev.indexer,
-    tracker: prev.tracker || next.tracker,
-    firstSeen: minSeen(prev.firstSeen, next.firstSeen),
-    lastSeen: Math.max(prev.lastSeen, next.lastSeen),
-    seedersLast: newer ? next.seedersLast : prev.seedersLast,
-  };
-}
-
 export function mergeWorkRows(prev: WorkRow | null, next: WorkRow): WorkRow {
   if (!prev) return next;
   // `passed_filter` reflete a ÚLTIMA observação da obra (regra do banco): vence
@@ -138,111 +133,4 @@ export function mergeWorkRows(prev: WorkRow | null, next: WorkRow): WorkRow {
     lastSeen: Math.max(prev.lastSeen, next.lastSeen),
     passedFilter: newer ? next.passedFilter : prev.passedFilter,
   };
-}
-
-// --- Import ---------------------------------------------------------------
-
-export interface ImportReport {
-  ok: boolean;
-  error?: string;
-  lines: number;
-  rejected: number;
-  magnets: { read: number; inserted: number; merged: number };
-  sources: { read: number; inserted: number; merged: number };
-  works: { read: number; inserted: number; merged: number };
-}
-
-const counter = () => ({ read: 0, inserted: 0, merged: 0 });
-
-/**
- * Importa as linhas do arquivo mesclando no banco, em lotes de `PAGE` magnets
- * (uma transação por lote). O cabeçalho é OBRIGATÓRIO e é ele que recusa
- * arquivo de outro formato/versão — sem ler nada além dele.
- */
-export async function importLines(engine: Engine, lines: AsyncIterable<string>): Promise<ImportReport> {
-  const report: ImportReport = {
-    ok: false, lines: 0, rejected: 0, magnets: counter(), sources: counter(), works: counter(),
-  };
-  let header = false;
-  let magnets: MagnetRow[] = [];
-  let sources: SourceRow[] = [];
-  let works: WorkRow[] = [];
-
-  const flush = () => {
-    if (!magnets.length && !sources.length && !works.length) return;
-    const hashes = [...new Set([...magnets, ...sources, ...works].map((r) => r.hash))];
-    const localM = new Map(engine.listMagnetsMany(hashes).map((r) => [r.hash, r]));
-    const localS = new Map(engine.listSourcesMany(hashes).map((r) => [`${r.hash}\u0000${r.indexer}`, r]));
-    const localW = new Map(engine.listWorksMany(hashes).map((r) => [workKey(r), r]));
-    const outM = new Map<string, MagnetRow>();
-    for (const row of magnets) {
-      const prev = outM.get(row.hash) ?? localM.get(row.hash) ?? null;
-      if (localM.has(row.hash) || outM.has(row.hash)) report.magnets.merged++; else report.magnets.inserted++;
-      outM.set(row.hash, mergeMagnetRows(prev, row));
-    }
-    // Fonte/obra sem o magnet (nem no arquivo, nem no banco) ficaria ÓRFÃ: o
-    // banco nunca grava uma sem a outra, e o fallback leria hash sem URI.
-    const known = (hash: string) => outM.has(hash) || localM.has(hash);
-    const orphans = sources.filter((r) => !known(r.hash)).length + works.filter((r) => !known(r.hash)).length;
-    report.rejected += orphans;
-    sources = sources.filter((r) => known(r.hash));
-    works = works.filter((r) => known(r.hash));
-    const outS = new Map<string, SourceRow>();
-    for (const row of sources) {
-      const key = `${row.hash}\u0000${row.indexer}`;
-      const prev = outS.get(key) ?? localS.get(key) ?? null;
-      if (prev) report.sources.merged++; else report.sources.inserted++;
-      outS.set(key, mergeSourceRows(prev, row));
-    }
-    const outW = new Map<string, WorkRow>();
-    for (const row of works) {
-      const key = workKey(row);
-      const prev = outW.get(key) ?? localW.get(key) ?? null;
-      if (prev) report.works.merged++; else report.works.inserted++;
-      outW.set(key, mergeWorkRows(prev, row));
-    }
-    engine.writeBatch({ magnets: [...outM.values()], sources: [...outS.values()], works: [...outW.values()] });
-    magnets = []; sources = []; works = [];
-  };
-
-  for await (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    report.lines++;
-    let o: Record<string, unknown>;
-    try {
-      o = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      if (!header) return { ...report, error: 'arquivo não é NDJSON do banco de magnets' };
-      report.rejected++;
-      continue;
-    }
-    if (!header) {
-      if (o?.t !== 'meta' || o.format !== TRANSFER_FORMAT) {
-        return { ...report, error: 'cabeçalho ausente: o arquivo não é um export do banco de magnets' };
-      }
-      if (o.v !== TRANSFER_VERSION) return { ...report, error: `versão do arquivo não suportada (${String(o.v)})` };
-      header = true;
-      continue;
-    }
-    const row = o?.t === 'm' ? readMagnet(o) : o?.t === 's' ? readSource(o) : o?.t === 'w' ? readWork(o) : null;
-    if (!row) { report.rejected++; continue; }
-    if (o.t === 'm') { magnets.push(row as MagnetRow); report.magnets.read++; }
-    else if (o.t === 's') { sources.push(row as SourceRow); report.sources.read++; }
-    else { works.push(row as WorkRow); report.works.read++; }
-    if (magnets.length >= IMPORT_BATCH) {
-      flush();
-      // Devolve a vez ao event loop: o lote é síncrono, e sem esta pausa a
-      // leitura do arquivo emendaria lote atrás de lote sem deixar a busca ao
-      // vivo ser atendida.
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
-  }
-  if (!header) return { ...report, error: 'arquivo vazio' };
-  flush();
-  return { ...report, ok: true };
-}
-
-function workKey(r: WorkRow): string {
-  return `${r.hash}\u0000${r.imdb}\u0000${r.season}\u0000${r.episode}`;
 }

@@ -1,23 +1,24 @@
 // magnetForPlay (o gateway de play dos cinco adaptadores de debrid): a URI é
-// lida do banco permanente (`utils/magnet-bank.ts`) e cai no `magnetFor` quando
-// o banco está desligado ou não tem o hash. A URI rica (dn= + tracker do post)
-// tem de chegar intacta ao corpo que o adaptador manda ao serviço.
+// lida pela ponte read-only do banco vivo e cai no `magnetFor` quando o banco
+// está desligado ou não tem o hash. A URI rica (dn= + tracker do post) tem de
+// chegar intacta ao corpo que o adaptador manda ao serviço. O acervo é semeado
+// por INSERT direto (`helpers/magnet-bank-seed.ts`) — quem grava em produção é
+// o gateway; Node 20 não tem `node:sqlite` e os testes com semente pulam.
 process.env.CACHE_PERSIST = 'false';
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 import config from '../src/config.js';
-import * as bank from '../src/utils/magnet-bank.js';
+import { bankLookupUriNative } from '../src/utils/magnet-bank-native.js';
 import { magnetForPlay, magnetFor } from '../src/debrid/common.js';
 import { bodies as dlBodies } from './helpers/pipeline-oracle/debrid-bodies/debridlink.js';
+import { hasNodeSqlite, FRESH_DIR, openBankSchema, insertMagnet } from './helpers/magnet-bank-seed.js';
 
-const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'magnet-for-play-'));
 const SAVED_DB_PATH = config.magnetBank.dbPath;
 const hex = (c: string) => c.repeat(40);
 const richMagnet = (h: string, dn: string) =>
   `magnet:?xt=urn:btih:${h}&dn=${encodeURIComponent(dn)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
+let dbPath = '';
 
 function mockFetch(handler: (url: URL, init?: RequestInit) => any) {
   const realFetch = globalThis.fetch;
@@ -39,59 +40,46 @@ function mockFetch(handler: (url: URL, init?: RequestInit) => any) {
 }
 
 beforeEach(() => {
-  bank.resetForTests();
   // SQLite REAL em tmp: a leitura do play passa pela ponte napi, que abre o
-  // MESMO arquivo de `config.magnetBank.dbPath` (a engine TS semeia por lá).
-  // Engine de memória não serve mais: a ponte só lê SQLite.
-  const dbPath = path.join(FRESH_DIR(), 'magnets.db');
-  bank.open(dbPath);
-  config.magnetBank.dbPath = dbPath;
-  config.magnetBank.enabled = true;
+  // MESMO arquivo de `config.magnetBank.dbPath`. O helper cria o arquivo pela
+  // própria ponte (a primeira consulta roda o schema) e a semente é INSERT.
+  dbPath = path.join(FRESH_DIR(), 'magnets.db');
+  openBankSchema(dbPath);
 });
 
 after(() => {
-  bank.resetForTests();
   config.magnetBank.enabled = true;
   config.magnetBank.dbPath = SAVED_DB_PATH;
 });
 
-test('magnetForPlay devolve a URI rica guardada no banco', () => {
+test('magnetForPlay devolve a URI rica guardada no banco', { skip: !hasNodeSqlite }, () => {
   const h = hex('a');
   const rich = richMagnet(h, 'Filme.Teste.2024.1080p');
-  bank.captureItems([{ infoHash: h, magnet: rich, title: 'Filme Teste 2024 1080p' }], 'idx', {});
-  bank.flushNow();
+  insertMagnet(dbPath, { hash: h, uri: rich });
 
-  const stored = bank.lookup(h)?.uri;
-  assert.ok(stored && stored.includes('dn='), 'pré-condição: o banco guardou a URI com dn=');
-  const uri = magnetForPlay(h);
-  assert.equal(uri, stored, 'play usa exatamente a URI do banco');
-  assert.ok(uri.includes('custom.tracker.org'), 'tracker do post preservado');
+  assert.equal(magnetForPlay(h), rich, 'play usa exatamente a URI do banco');
+  assert.ok(magnetForPlay(h).includes('custom.tracker.org'), 'tracker do post preservado');
 });
 
 test('magnetForPlay cai no magnetFor quando o hash não está no banco', () => {
   const h = hex('b');
-  assert.equal(bank.lookup(h), null, 'pré-condição: hash ausente');
+  assert.equal(bankLookupUriNative(h), null, 'pré-condição: hash ausente');
   assert.equal(magnetForPlay(h), magnetFor(h));
 });
 
-test('magnetForPlay cai no magnetFor com o banco desligado', () => {
+test('magnetForPlay cai no magnetFor com o banco desligado', { skip: !hasNodeSqlite }, () => {
   const h = hex('c');
-  bank.captureItems([{ infoHash: h, magnet: richMagnet(h, 'Fora.Do.Ar') }], 'idx', {});
-  bank.flushNow();
-  assert.ok(bank.lookup(h), 'pré-condição: banco tinha o hash');
+  insertMagnet(dbPath, { hash: h, uri: richMagnet(h, 'Fora.Do.Ar') });
+  assert.ok(bankLookupUriNative(h), 'pré-condição: banco tinha o hash');
 
   config.magnetBank.enabled = false;
-  bank.close();
   assert.equal(magnetForPlay(h), magnetFor(h), 'banco desligado não pinta o play');
 });
 
-test('adaptador consumidor recebe a URI rica do banco no corpo do play', async () => {
+test('adaptador consumidor recebe a URI rica do banco no corpo do play', { skip: !hasNodeSqlite }, async () => {
   const h = hex('d');
   const rich = richMagnet(h, 'Filme.Rico.2024.1080p');
-  bank.captureItems([{ infoHash: h, magnet: rich, title: 'Filme Rico 2024 1080p' }], 'idx', {});
-  bank.flushNow();
-  const stored = bank.lookup(h)?.uri;
-  assert.ok(stored, 'pré-condição: banco com URI');
+  insertMagnet(dbPath, { hash: h, uri: rich });
 
   let sent = '';
   const restore = mockFetch((url, init) => {
@@ -114,6 +102,6 @@ test('adaptador consumidor recebe a URI rica do banco no corpo do play', async (
   } finally {
     restore();
   }
-  assert.equal(sent, stored, 'o adaptador manda exatamente a URI rica do banco');
+  assert.equal(sent, rich, 'o adaptador manda exatamente a URI rica do banco');
   assert.ok(sent.includes('custom.tracker.org'), 'o tracker do post chega ao debrid');
 });

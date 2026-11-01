@@ -152,40 +152,40 @@ da fachada, :22). Consumidores extras: `test/magnet-bank-transfer.test.ts:20`,
 `test/helpers/pipeline-oracle/magnet-bank-import.ts:21` (constantes), e a
 rota por `src/routes/register.ts:4`.
 
-**`src/utils/magnet-bank-lie.ts`** — usa a ponte mag nativa
-(`magnetState().liveLies`, :25) e tende a ficar. Único chamador é o caminho de
-captura da fachada (`magnet-bank.ts:9`, uso :210 — fixture desde a T2-L4);
-reavaliar no corte da raiz: sai com ela, salvo decisão de levar a régua do
-`lie` global para outro dono.
+**`src/utils/magnet-bank-lie.ts`** — usava a ponte mag nativa
+(`magnetState().liveLies`) e era fixture da captura da fachada desde a T2-L4;
+DECIDIDO no corte da raiz (2026-11-01): saiu com a família. A régua do `lie`
+global não precisou de novo dono: quem marca `lie` segue sendo o `magnetdb`
+do Node (e o `DubLieError`), e o acervo guarda a coluna `lied` no gateway.
 
 ## 4. Ordem sugerida (uma fase = um commit)
 
-1. **Fase 0 — pré-condição (fatia em curso):** `GET /magnet-bank/status|search`
-   na admin + leituras na `magnet-bank-native.ts` + ações do painel lendo pela
-   admin com 503. Sem ela, nada abaixo executa.
+1. **Fase 0 — pré-condição (EXECUTADA — `90c00b1c`):** `GET
+   /magnet-bank/status|search` na admin + leituras na `magnet-bank-native.ts`
+   + ações do painel lendo pela admin com 503. Sem ela, nada abaixo executa.
 2. **Fase 1 — `magnet-bank-search.ts` (EXECUTADA — `57afd760`):** módulo,
    teste e entrada da lista apagados; catraca `test/magnet-bank-cut.test.ts`
    criada (asserção `!fs.existsSync`) e cresce a cada fase.
-3. **Fase 2 — migrar as leituras residuais de produção** (inventário em
-   andamento decide a ponte): `debrid/common.ts:29` (play),
-   `magnetdb-inspect.ts:68` (inventário), `release-index-media.ts` via
-   `release-index.ts:58` (record napi do índice) e o ciclo de vida
-   `addon.ts:36,117`. Candidato natural: leitura read-only napi do
-   `magnets.db` (padrão `RawStore` napi / `MagnetBankStore` do `adom-store`)
-   ou via admin — decisão da fatia de inventário, não deste plano. **Bloco de
-   status do painel EXECUTADO**: `dashboard-status-blocks.ts` ecoa a admin via
-   `dashboard-magnet-bank-block.ts` (estado neutro `ok:false` quando ela não
-   responde) — e a fila de captura TS foi provada SEM chamador de produção
-   (`rg captureItems src/` fora da família: vazio). Esta fase NÃO apaga nada.
-4. **Fase 3 — decisão do export:** enquanto o export for I/O do Node, a rota +
-   `magnet-bank-transfer.ts` (utils) ficam e a fachada fica com eles. O corte
-   da raiz só executa quando o export mudar de dono (streaming pela admin do
-   gateway ou leitura pela ponte napi da Fase 2).
-5. **Fase 4 — corte da raiz, numa vez só:** réguas do `-merge` usadas por
-   oráculo/testes migram para `test/helpers/pipeline-oracle/`; depois apagar
-   JUNTOS `magnet-bank.ts` + `-read` + `-merge` + `-rows` + `-memory` +
-   `-schema` (+ `-lie`, se decidido) e os testes da lista. Apagão final:
-   `rg -n "magnet-bank" src/` só mostra `-native.ts`, `-transfer.ts` e a rota.
+3. **Fase 2 — leituras residuais de produção (EXECUTADA — `9ccebd58`):** ponte
+   napi read-only (`adom-napi/src/bank_read.rs`: `bankLookupUri`/
+   `bankRowsForMediaSource`) alimentou o play (`debrid/common.ts`), o
+   inventário (`magnetdb-inspect.ts`) e o índice (`release-index-media.ts`);
+   o ciclo de vida do SQLite saiu do addon junto com a fachada na Fase 4.
+4. **Fase 3 — decisão do export (EXECUTADA — `9ccebd58`):** o export mudou de
+   dono: `GET /magnet-bank/export` streama o NDJSON pela admin do gateway
+   (`adom-store::magnet_bank_export`) e a rota Node só gzipa/spoola/repassa —
+   a rota e o contrato do arquivo (`magnet-bank-transfer.ts`, constantes
+   `TRANSFER_FORMAT`/`TRANSFER_VERSION`) ficam.
+5. **Fase 4 — corte da raiz, numa vez só (EXECUTADA — commit da Fase 4):**
+   réguas do `-merge` migraram para o oráculo
+   (`test/helpers/pipeline-oracle/magnet-bank-merge.ts`), as linhas tipadas e
+   a régua de validação do import para o oráculo do import, e a semente de
+   teste virou INSERT direto (`test/helpers/magnet-bank-seed.ts`, guard
+   `hasNodeSqlite`). Apagados JUNTOS `magnet-bank.ts` + `-read` + `-merge` +
+   `-rows` + `-memory` + `-schema` + `-lie`, os testes da lista e o fixture;
+   ciclo de vida fora de `addon.ts`, serviço fora de `services.ts`/`types.ts`
+   e da lista do `package.json`. Apagão final: `rg -n "magnet-bank" src/` só
+   mostra `-native.ts`, `-transfer.ts` e a rota — verde.
 
 Rollback de cada fase: commit anterior (padrão do projeto; não há flag de
 fatia).
@@ -199,8 +199,10 @@ fatia).
 - **Catraca de ausência:** um `test/magnet-bank-cut.test.ts` novo, na lista do
   `package.json`, que assera `!fs.existsSync` para cada arquivo já cortado e
   cresce a cada fase — reintrodução silenciosa quebra o CI.
-- **Prova de comportamento preservado:** antes da Fase 4, conferir que a leitura
-  napi/admin devolve o MESMO shape consumido por `debrid/common.ts:29` (URI)
-  e `release-index.ts:58` (`BankRow` para o `record` napi) — o oráculo
+- **Prova de comportamento preservado (CONFERIDA na Fase 4):** a leitura
+  napi/admin devolve o MESMO shape consumido por `debrid/common.ts` (URI) e
+  `release-index.ts` (`BankRow` para o `record` napi) — provada por
+  `test/magnet-bank-native-read.test.ts` (INSERT direto no mesmo arquivo que a
+  ponte abre) e `test/magnet-for-play.test.ts`. O oráculo
   `pipeline-oracle/magnet-bank-import.ts` continua rodando contra a régua
-  movida.
+  movida (`magnet-bank-merge.ts` do oráculo).

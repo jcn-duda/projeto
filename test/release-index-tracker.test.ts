@@ -1,13 +1,14 @@
 // Tracker preservado no índice de releases: o `record` não rebaixa o tracker
 // gravado para vazio. Saiu de `allowed-source-indexer.test.ts` quando o filtro de origem TS
-// (`allowedSourceIndexer`) ficou sem chamador: o `ji` é aplicado no Rust.
+// (`allowedSourceIndexer`) ficou sem chamador: o `ji` é aplicado no Rust. O
+// `record` não toca o banco vivo: a captura do acervo é do gateway (Fase 4 do
+// corte da família TS `magnet-bank*`).
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import config from '../src/config.js';
-import * as bank from '../src/utils/magnet-bank.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 
 const hex = (c: string) => c.repeat(40);
@@ -15,26 +16,16 @@ const hex = (c: string) => c.repeat(40);
 const tempDirs: string[] = [];
 const saved = {
   releaseIndex: config.releaseIndex.enabled,
-  dbPath: config.magnetBank.dbPath,
 };
 
 beforeEach(() => {
-  bank.resetForTests();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idx-tracker-'));
   tempDirs.push(dir);
-  // SQLite real no tmp (antes `open(dir)` caía na engine de memória: dir é
-  // pasta, não arquivo) + a ponte lendo o MESMO arquivo de `dbPath`.
-  const dbPath = path.join(dir, 'magnets.db');
-  bank.open(dbPath);
-  config.magnetBank.dbPath = dbPath;
   config.releaseIndex.enabled = true;
-  config.magnetBank.enabled = true;
 });
 
 after(() => {
-  bank.resetForTests();
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.magnetBank.dbPath = saved.dbPath;
   for (const dir of tempDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
   }

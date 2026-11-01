@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { inputFromItem, classifiedDubbed } from '../src/utils/magnet-bank-merge.js';
+import { inputFromItem, classifiedDubbed } from './helpers/pipeline-oracle/magnet-bank-merge.js';
 import { backfillClassification } from './helpers/pipeline-oracle/magnet-bank-backfill.js';
 
 const _require = createRequire(import.meta.url);
