@@ -8,9 +8,9 @@
 // gateway devolve algum deles para cá (`Deferred`/`Forward` sem dono), a rota só
 // CONTA e avisa — executar aqui seria dono duplicado do mesmo lote.
 //
-// Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
-// vem no CORPO (`encoded`), que só é validado aqui. effects é fire-and-forget —
-// a resposta (202) NUNCA depende do efeito, porque não há efeito rodando.
+// Sem config na URL — o usuário vem no CORPO (`encoded`), que só é validado
+// aqui. effects é fire-and-forget — a resposta (202) NUNCA depende do efeito,
+// porque não há efeito rodando.
 import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
@@ -147,8 +147,9 @@ function handleEffects(
 }
 
 /**
- * Registra a rota de efeitos. Chamado por `registerInternalSearch`, junto das
- * rotas de leitura (montadas ANTES do overlay `/:userConfig`).
+ * Registra a rota de efeitos. Ponto de montagem das rotas internas de busca no
+ * `register.ts` (ANTES do overlay `/:userConfig`), desde que a rota de
+ * metadados saiu no passo 3 do corte do fallback.
  */
 export function registerInternalSearchEffects(router: Router, services: AppServices): void {
   const json = express.json({ limit: '1mb' });

@@ -3,7 +3,7 @@ import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalActivity } from './internal-activity.js';
-import { registerInternalSearch } from './internal-search.js';
+import { registerInternalSearchEffects } from './internal-search-effects.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -59,11 +59,11 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // O `/internal/crawl-result` saiu na T3-L3: a ingestão da página é nativa no
   // sidecar (o motor grava no processo e nada é postado para cá).
   registerInternalActivity(app, services);
-  // Leituras internas de busca (F1.1): o orquestrador Rust consome metadados e
-  // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.
-  // Índice e banco de magnets são NATIVOS desde o R4: as rotas Node de
-  // índice/fallback saíram, e falha de abertura degrada sem índice.
-  registerInternalSearch(app, services);
+  // Efeitos internos da busca (F1.1): o orquestrador Rust pede o lote por aqui
+  // DEPOIS do collect. Igual às anteriores, sem config. Metadados, índice e
+  // banco de magnets são NATIVOS (corte do fallback de 2026-10-31): a rota
+  // `/internal/search/meta` saiu com o `internal-search.ts`.
+  registerInternalSearchEffects(app, services);
   // Sem rota de holds nem de resolve/facts: os fatos de limpeza da AllDebrid
   // (hold do autofetch, `knownBefore`, `adprot`) e o `held` do play são
   // calculados pelo gateway (`al_cleanup_facts`, `resolve_bridge`). O `/resolve`

@@ -1,8 +1,8 @@
 // Testes das rotas internas em lote do orquestrador Rust:
 // POST /internal/search/effects.
-// Molde de `internal-search-routes.test.ts`: app mínimo com colaboradores
-// trocados por stubs determinísticos (o teste prova o FIO da rota, não o
-// Jackett/debrid). O caminho 403 usa o middleware de personificação de
+// Molde: app mínimo com as guardas reais (a rota não recebe mais colaboradores
+// trocáveis — os de metadados saíram no corte do fallback); o teste prova o FIO
+// da rota, não o Jackett/debrid. O caminho 403 usa o middleware de personificação de
 // `remoteAddress`, que não existe em produção — a guarda real lê o socket.
 // A rota NÃO executa mais nenhum kind: todos são donos do gateway. O
 // `harvester_enqueue` é consumido pelo colhedor nativo (commit 3ab92ad5) e o
@@ -17,7 +17,7 @@ import express from 'express';
 import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 import config from '../src/config.js';
 import { buildServices } from '../src/routes/services.js';
-import { registerInternalSearch } from '../src/routes/internal-search.js';
+import { registerInternalSearchEffects } from '../src/routes/internal-search-effects.js';
 import * as log from '../src/utils/logger.js';
 
 const TOKEN = 'tok-internal-effects';
@@ -51,7 +51,7 @@ before(async () => {
     });
     return next();
   });
-  registerInternalSearch(app as unknown as express.Router, buildServices(), {});
+  registerInternalSearchEffects(app as unknown as express.Router, buildServices());
   server = await createTestServer(app);
 });
 
@@ -64,7 +64,7 @@ after(async () => {
 /** Sobe um app com a rota e devolve o servidor de teste (fecha no `finally`). */
 async function serverWithEffects() {
   const app2 = express();
-  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {});
+  registerInternalSearchEffects(app2 as unknown as express.Router, buildServices());
   return createTestServer(app2);
 }
 

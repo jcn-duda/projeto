@@ -1,19 +1,17 @@
-// Peças compartilhadas das rotas internas de busca (`internal-search.ts`).
-// Extraído pela catraca de linhas: a guarda (loopback + token), a decodificação
-// do `encoded` do corpo e o corrido contra prazo servem às rotas de leitura
-// (meta/state/collect) e às de escrita/efeitos (`internal-search-effects.ts`).
+// Peças compartilhadas da rota interna de busca (`internal-search-effects.ts`).
+// Extraído pela catraca de linhas: a guarda (loopback + token) e a decodificação
+// do `encoded` do corpo. As rotas de leitura (meta/state/collect) saíram com os
+// caminhos nativos (corte do fallback de 2026-10-31), e o prazo interno
+// (`withinDeadline`/`DEADLINE`) saiu junto com a última leitora.
 //
 // Observação de borda da guarda: se um proxy NA FRENTE do addon encaminhar
 // `/internal/*`, o socket local continua 127.0.0.1 e a guarda de loopback não
 // vê o cliente real — quem barra nesse cenário é o token. O gateway Rust
 // (`GATEWAY=on`) recusa `/internal/*` antes do proxy; o Caddy também bloqueia.
 import express from 'express';
-import { raceWithDeadline } from '../utils/deadline.js';
 import type { AppServices } from './types.js';
 
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-
-export const DEADLINE = Symbol('internal-search-deadline');
 
 /** Chamadas internas fora do loopback são recusadas (defesa em profundidade). */
 export function isLoopbackAddress(address: string | null | undefined) {
@@ -51,9 +49,4 @@ export function decodeTarget(services: AppServices, body: unknown) {
   if (!encoded) return null;
   const opts = services.runtime.decode(encoded);
   return opts ? { opts, encoded } : null;
-}
-
-/** Corre a tarefa contra o prazo do cliente; `DEADLINE` = estourou (504). */
-export function withinDeadline<T>(task: Promise<T>, budgetMs: number): Promise<T | typeof DEADLINE> {
-  return raceWithDeadline(task, Math.max(1, budgetMs), () => DEADLINE);
 }
