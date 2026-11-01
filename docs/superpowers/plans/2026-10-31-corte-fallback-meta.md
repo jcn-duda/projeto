@@ -472,3 +472,69 @@ janela medida (passo 0) → 1 Rust desliga → 2 Rust apaga (contadores migram)
 
 Cada passo é o rollback do seguinte; a janela fecha no passo 0 e os contadores
 congelam a partir do passo 1 — nada de decidir depois de começar.
+
+## Leituras (passo 0)
+
+> Leitura por SSH só-leitura na VPS (`jcn@200.23.180.38`): `git log`,
+> `docker ps`/`inspect`, `tail`/`grep` do `/home/jcn/adom-deploy.log` e `curl
+> GET http://127.0.0.1:7000/metrics` (loopback, dentro do servidor). Nada foi
+> escrito na VPS; nada commitado.
+
+### Leitura de 2026-11-01 03:21 (-03:00)
+
+Estado do deploy:
+
+| Item | Valor |
+|---|---|
+| Commit em produção | `cdfa3eba` (2026-10-31 15:03:37 -03:00, "refactor(debrid): módulos TS sem uso em produção vão para o oráculo") |
+| Deploy mais recente no log | 2026-11-01 01:45:03 `cdfa3eba` (de `0fdeaae9`), fim 02:30:28; depois disso o log só registra `fetch` sem commit novo |
+| Commit da pré-condição | `23d17b0f` entrou pelo deploy de `0fdeaae9` — 2026-10-31 03:05:03, build concluído 03:50:18 (`merge-base --is-ancestor` confirma; o commit anterior, `409d5a55`, é de 10-30 14:00, antes do commit existir) |
+| Container | `stremio-adom` Up ~50 min (healthy); `StartedAt` 2026-11-01T05:30:19Z (02:30:19 -03:00); `RestartCount=0`, `OOMKilled=false`, `ExitCode=0` |
+| Reinício de relógio? | Não — a recriação de 02:30 não zerou os contadores: o boot loga `[gateway] meta.* restaurado do deploy anterior` (reidratação de `metam:v1:counts`) |
+
+Contadores (`/metrics`, 2026-11-01 03:21 -03:00):
+
+| Contador | Valor |
+|---|---|
+| `meta.resolve.total` | 25 |
+| `meta.native.ok` | 25 |
+| `meta.native.incomplete` | 0 |
+| `meta.native.error` | 0 |
+| `meta.fallback.used` | 0 |
+| `meta.fallback.empty` | 0 |
+| `meta.fallback.error` | 0 |
+
+Bônus da mesma leitura (fora do alvo): `debrid.al.cleanup.planned` 275 /
+`removed` 174 / `failed` 101, `debrid.al.cleanup.suppressed.inventory_missing`
+1, `debrid.al.holds.ok` 12, `debrid.al.native.checks` 12. `stream.cache.*` NÃO
+existe no `/metrics` (moram na admin 8711, `GET /streams/stats`).
+
+Derivação:
+
+- Relógio da leitura: 2026-11-01 03:21 -03:00. Início da janela: primeiro boot
+  com persistência, 2026-10-31 ~03:50 -03:00 (fim do build do deploy que
+  trouxe `23d17b0f`).
+- Janela decorrida: **~23 h 31 min** (24 h 25 min contados do commit
+  `23d17b0f`, 02:55:41; 24 h 16 min do início do deploy, 03:05:03). Faltam
+  ~24 h 30 min para 48 h (fecharia 2026-11-02 ~03:50).
+- Taxas sobre `meta.resolve.total`=25: primário nativo ok **100%** (25/25);
+  `native.incomplete` 0%; `native.error` 0% (limiar <1% §3);
+  `fallback.used` 0% (limiar <0,5%); `fallback.empty+error` 0% (limiar
+  <0,5%).
+
+Limites desta leitura (o que não foi validado):
+
+- Contadores são agregados O(1) sem série temporal: não há como provar
+  retroativamente que nenhum `cache.clear()` do painel truncou
+  `metam:v1:counts` dentro da janela (invalidador §3).
+- A reidratação foi confirmada pela linha de log de boot; o conteúdo exato da
+  linha KV não foi lido (leitura direta do `cache.db` ficou fora do escopo
+  só-leitura acordado — só ssh/git/docker ps/inspect/cat/curl GET).
+- O volume absoluto (`resolve.total`=25) é plausível para o tráfego desta
+  instância (o caminho rápido do orquestrador dispensa meta), mas não há
+  medida independente de requisições para cruzar.
+
+**Veredito: JANELA ABERTA** — ~23 h 31 min decorridas (< 48 h; o §3 recomenda
+5-7 dias). Registrar e seguir coletando: os limiares já são atendidos com
+folga nos parciais, mas a decisão do passo 0 só fecha com a janela completa.
+Os passos 1-5 permanecem travados até lá.
