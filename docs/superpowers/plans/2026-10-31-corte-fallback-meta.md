@@ -593,3 +593,34 @@ das duas saídas antes de cortar: (a) esperar a recomendação do §3 (5-7 dias)
 haver amostra nova, ou (b) registrar explicitamente que o corte é aceito com
 N=25 e zero `fallback.used` — o que o plano permite, desde que a decisão fique
 assinada neste relatório. Os passos 1-5 continuam travados.
+
+### Assinatura do passo 0 — 2026-11-01
+
+Saída escolhida: **(b) corte aceito com N=25**, decisão do operador em
+2026-11-01 (após a leitura de 14:51).
+
+Base da decisão, explícita e com o que ela NÃO cobre:
+
+- Evidência usada: `meta.resolve.total`=25, `meta.native.ok`=25 (100%),
+  `native.incomplete`/`native.error`/`fallback.used`/`fallback.empty`/
+  `fallback.error` todos em 0 — coletados em ~35 h 01 min de calendário com
+  persistência em `metam:v1:counts` e sem reinício de relógio no intervalo.
+- Limiares do §3 atendidos com folga (todos os de fallback em 0%, `native.ok`
+  100%), mas **a janela é fechada por decisão, não por volume**: o Δ ficou 0 em
+  11 h 30 min (amostra congelada, caminho rápido do orquestrador dispensa o
+  resolutor). N=25 é amostra pequena para a recomendação de 5-7 dias do §3.
+- O que justifica cortar assim mesmo: o pior caso do passo 1 já é código vivo e
+  testado — `meta_load` deriva metadados do próprio id e a resposta degrada em
+  `NOTICE_SEARCHING` (`respond.rs:12`); o passo 1 é reversível numa linha e não
+  apaga nada. O risco residual é de disponibilidade de metadado, não de queda.
+- O que fica devendo: série temporal de `fallback.used` sob tráfego real. Depois
+  do passo 1 os contadores `meta.fallback.*` congelam por desenho; a aposentadoria
+  deles (passo 2 e fatia própria) deve registrar que a decisão foi tomada com
+  N=25 e que não haverá segunda janela com o fallback vivo.
+
+Sinais de reversão no pós-corte: aumento de `NOTICE_SEARCHING` na resposta de
+`/stream` para obras que ontem tinham metadado (o sintoma visível de
+`meta.native.error` sem fallback). Ação: reverter o argumento de `meta_source`
+em `stream.rs` (rollback do passo 1) antes de investigar o primário.
+
+Passos 1-5 liberados a partir daqui.
