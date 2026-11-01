@@ -15,10 +15,12 @@
  * Este corpus é a MEDIÇÃO dessa ponta; o manifesto diz explicitamente o que ele
  * ainda NÃO cobre (metadados, itens crus por indexer, cache do debrid).
  *
- * Com `--with-internal` o MESMO caso ganha também as entradas internas que o
- * orquestrador Rust consome (`inputs/`): meta e config. O `/stream` continua
- * sendo a resposta normal do Node; as rotas internas falam com o MESMO processo
- * (loopback, 7100), então a captura precisa rodar DENTRO da rede do container.
+ * Com `--with-internal` o MESMO caso ganha também as entradas internas
+ * (`inputs/`): meta e config. **Só vale contra imagem anterior ao corte de
+ * 2026-10-31** — no HEAD as duas rotas foram apagadas (o metadado é nativo) e
+ * a captura recebe 404. O `/stream` continua sendo a resposta normal do Node;
+ * as rotas internas falam com o MESMO processo (loopback, 7100), então a
+ * captura precisa rodar DENTRO da rede do container.
  * Desde o R4/R5 não há rota Node de índice nem de coleta: o lote do índice e os
  * itens crus só entram pelo record do shadow (`--shadow-dir`) ou pelo corpus já
  * congelado:
@@ -98,7 +100,7 @@ const SHADOW_INPUTS = [
 
 // Lacunas que o corpus declara. A primeira é FECHADA por `--with-internal`
 // (para os casos capturados nesse modo); a coleta segue lacuna desde o R5.
-const GAP_META = 'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; capturados por /internal/search/meta com --with-internal';
+const GAP_META = 'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; eram capturados por /internal/search/meta com --with-internal, rota que só existe em imagem anterior ao corte de 2026-10-31';
 const GAP_COLLECT = 'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: a coleta é nativa desde o R5 e não tem rota; só entram pelo record do shadow (--shadow-dir) ou pelo corpus já congelado';
 // A rota Node da checagem de debrid saiu na R3 (checagem nativa incondicional):
 // o corpus novo só ganha debrid pelo record do shadow ou pelo corpus congelado.
@@ -114,7 +116,7 @@ const GAPS_BASE = [
 const GAPS_INTERNAL = [
   'inputs internos só existem para casos capturados com --with-internal; os demais seguem com request/response apenas',
   '--shadow-dir copia proven-quality/apply-debrid/files/instant/fallback e as versões exatas de index/debrid do record; sem ele não há inputs/index.json (a rota Node de índice saiu no R4) e a qualidade provada NÃO é capturável (o item provado volta como "sem resolução" no replay)',
-  'o record do shadow não grava config.json (o gateway o hidrata): inputs/config.json continua vindo de /internal/search/config',
+  'o record do shadow não grava config.json (o gateway o hidrata): inputs/config.json vinha de /internal/search/config, rota que só existe em imagem anterior ao corte de 2026-10-31',
   'as fixtures internas vêm de chamadas próprias DEPOIS do /stream: dependem do cache raw:v1/davail quente para descrever a mesma lista (sem ele o diff acusa ruído de coleta, não pipeline)',
 ];
 

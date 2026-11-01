@@ -651,3 +651,19 @@ Sinal de pós-corte: alta sustentada de `meta.native.incomplete` sobre
 `meta.resolve.total`. Ação: investigar Cinemeta/TMDB (rede, `TMDB_API_KEY`).
 Reverter o passo 1 não resolve esse caso, porque o Node não era chamado nele; o
 rollback só faz sentido com o log de boot acima.
+
+### Execução — 2026-11-01 (passos 1–5 fechados)
+
+| Passo | Commit | Evidência |
+|---|---|---|
+| 1 — Rust DESLIGA o fallback | `3fb105d2` | a imagem local de 15:21 (-03:00) rodou com `/health` ok nos dois lados; `/stream` de filme (7 streams, 7 tocáveis, 1 dublado) e de série (11); `validate-docker.mjs` 10 ok; `/metrics` nativo com `meta.native.ok` 10392 e `meta.fallback.*` em 0 |
+| 2 — Rust APAGA o fallback | `0435ee01` | `FallbackMetaSource` removido; `NodeMetaSource` só no replay congelado (`FrozenRoutes`); contadores `meta.fallback.*` aposentados com o KV `metam:v1:counts` preservado |
+| 3 — Node: a rota | `1c34b3b1` | `internal-search.ts` e `internal-search-routes.test.ts` apagados; `register.ts` monta só os efeitos; `validate-docker.mjs` aponta as guardas para `/internal/search/effects`; typecheck 0, lint:lines 0, 2285 pass |
+| 4 — Node: providers, cotas e tooling | `1115bd50` | 6 módulos TS e 7 testes apagados; cotas `meta`/`tmdb`/`tmdbc` removidas (universo do L1 = 3.420); `home_release` portado com 2 testes Rust; typecheck 0, suíte 2230 pass, `golden:cache-quotas:check` ok |
+| 5 — docs e contratos | este commit | `AGENTS.md`, `AGENTS-DETALHADO.md`, `RUST-CONTRATOS.md`, `rust-stream-contract.md`, `migracao-stream-rust.md`, `.env.example`, README do corpus e2e, header do `capture-stream-e2e.mjs` e os doc-comments de `adom-server/src/stream.rs`/`adom-search/src/orchestrator/meta.rs` |
+
+O que o corte deixa registrado: (a) a imagem em execução local ainda é a do
+passo 1 — os passos 2–5 só entram em imagem no próximo rebuild; (b) não houve
+push, então a VPS não mudou; (c) `meta.json` do corpus e2e não é mais capturável
+no caminho vivo — os 51 casos seguem replay-only, e `--with-internal` só existe
+para recapturar contra imagem anterior a este corte.

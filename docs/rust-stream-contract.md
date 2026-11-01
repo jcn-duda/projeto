@@ -36,7 +36,7 @@ configurável:
 |---|---|---|
 | `GATEWAY` | `on` (fixo) | `adom-server` na 7000; Node atrás na 7100 |
 | `ROUTES_RUST` | `stream` (fixo) | corte nativo do `/stream` |
-| `INTERNAL_SEARCH_URL` | `http://127.0.0.1:7100` | rotas internas (meta/effects; `INTERNAL_CHECK_URL` saiu em 2026-10-30, sem leitor) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
+| `INTERNAL_SEARCH_URL` | `http://127.0.0.1:7100` | rota interna de efeitos (`/internal/search/effects`; `INTERNAL_CHECK_URL` saiu em 2026-10-30, sem leitor) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
 O `entrypoint.sh` **sempre** inicia o gateway; binário ausente é erro fatal. O
 `docker-compose.gateway.yml` é **só diagnóstico**: publica o Node em
@@ -89,13 +89,17 @@ com aceite de paridade BR).
   o `NodeCollector` (com `skip_sources` e `POST /internal/search/collect`)
   saíram no R5. Gateway sem **nenhuma** fonte nativa montada é **erro de
   boot**.
-- Metadados: o nativo é a fonte primária e o Node é **fallback vivo** por
-  `POST /internal/search/meta` (R6) — a taxa de fallback ainda não foi medida.
+- Metadados: o nativo é a **única** fonte desde o corte de 2026-10-31 (passos
+  1–4). O `FallbackMetaSource`, a rota `POST /internal/search/meta`, o cache
+  TS de Cinemeta/TMDB e os providers saíram; rede fora / título não resolvido
+  cai no `SearchMeta::from_id` (busca pelo id), nunca no Node. A janela medida
+  antes do corte deu 25/25 nativo ok e `meta.fallback.used = 0` — ver
+  `docs/superpowers/plans/2026-10-31-corte-fallback-meta.md`.
 - Índice e banco são nativos (R4). Falha ao abrir `idx:v14`/`magnets.db`
   degrada **sem índice** (log `[search]`, métrica `index.rust.source_missing`),
   nunca cai no Node.
-- `EFFECTS_RUST` (default ON) e o feed de holds são os únicos caminhos em que o
-  orquestrador ainda chama o Node.
+- `EFFECTS_RUST` (default ON) e a rota do sidecar (`/internal/activity`) são os
+  únicos caminhos em que o orquestrador ainda chama o Node.
 
 ### 0.3.1 Prova de arquivo/qualidade no item (`provenQuality`)
 
@@ -957,7 +961,7 @@ de paridade BR+cotas, que é dos gates (§0.6).
 | 1 | fatia debrid do `defaults()` do operador no decode | **feito** no gateway (`operator_debrid_defaults_from_env`, `dd9330c4`); selo `dk` / `secret-box` segue no Node no decode completo da URL |
 | 2 | opções na chave (incl. `resolveUncached`) | **feito** no orquestrador (`OrchestratorConfig`) |
 | 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo); o store em memória da sombra saiu no R1 |
-| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | **nativo como fonte primária** (R6); o Node é **fallback vivo** por `POST /internal/search/meta` — a taxa de fallback ainda não foi medida |
+| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | **nativo e único** desde o corte de 2026-10-31 (passos 1–4): `FallbackMetaSource`, a rota `POST /internal/search/meta` e os providers/cache TS saíram; sem rede a busca segue pelo id (`SearchMeta::from_id`) |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; a janela roda no nativo (R5) |
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | **feito e incondicional** (R5): as cinco fontes e o inventário da conta no Rust; `SOURCES_RUST`, `NodeCollector` e `/internal/search/collect` não existem; sem fonte nativa montada o gateway não sobe |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador/núcleo; régua no corpus congelado (`parity:frozen` 16/16) e no e2e (`stream_e2e_parity` 51/51) |
@@ -969,7 +973,7 @@ de paridade BR+cotas, que é dos gates (§0.6).
 | 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; o play do `/resolve` é nativo desde a fase C (linha 9) |
 | 14 | métricas e `stream-trace` | sombra/canário saíram no R1; o alarme do nativo é a própria lista/HTTP e a métrica `index.rust.source_missing`; painel/`stream-trace` rodam no Node, que lê o store nativo pela API admin (`STREAM_STORE_ADMIN_*`, F4.4a) |
 | 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
-| 16 | `/internal/search/*` | **meta** e **effects** da busca, **debrid/holds** e as rotas do sidecar (`crawl-result`, `activity`); `state/config/collect/index/index-write/fallback` e `/internal/debrid/check` **não existem**; a fachada recusa `/internal/*` antes do proxy |
+| 16 | `/internal/search/*` | só **effects** da busca e a rota do sidecar (`activity`). `meta` saiu no passo 3 do corte de 2026-10-31; `state/config/collect/index/index-write/fallback`, `debrid/holds`, `resolve/facts`, `resolve/effects`, `crawl-result` e `/internal/debrid/check` **não existem**; a fachada recusa `/internal/*` antes do proxy |
 
 O `docker-compose.gateway.yml` é só o **override de diagnóstico** que publica o
 Node em `127.0.0.1:7100`; não muda rota nem flag. `ROUTES_RUST=` (vazio) e

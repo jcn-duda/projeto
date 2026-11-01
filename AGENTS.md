@@ -264,7 +264,7 @@ raspador (o crawl em si é do sidecar).
 ```
 Caddy → adom-server (:7000) → Orchestrator (adom-search)
   ├─ cache SWR nativo (data/streams.db, streams:v21) + coalescing inFlight
-  ├─ metadados: só nativo (fallback Node desligado; rede fora → busca pelo id)
+  ├─ metadados: só nativo (fallback Node removido em 2026-10-31; rede fora → busca pelo id)
   ├─ coleta: as CINCO fontes nativas (jackett, prowlarr, torrentio, bludv, mico)
   │  e o inventário da conta — incondicional
   ├─ índice/banco: nativos (`adom-index`/`IdxStore`, `data/magnets.db`)
@@ -274,10 +274,11 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 ```
 
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
-caminho: `POST /internal/search/meta` (montada, sem chamador desde o passo 1 do
-corte; sai no passo 3), `/internal/search/effects`,
+caminho: `/internal/search/effects`,
 a rota do sidecar (`/internal/activity`),
-painel/config e as pontes do Chupim (o crawl é do sidecar). O
+painel/config e as pontes do Chupim (o crawl é do sidecar). A rota
+`/internal/search/meta` foi **apagada** no passo 3 do corte de 2026-10-31
+(nada mais a chamava). O
 `harvester_enqueue` entra direto na fila do colhedor do gateway
 (`adom-server::harvest_effect`); se chegar ao Node, é só contado em `nativeOnly`.
 O **colhedor é do gateway** (`adom-harvest`, thread própria): o Node só

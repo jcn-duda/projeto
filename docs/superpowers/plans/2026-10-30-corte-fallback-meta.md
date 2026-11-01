@@ -1,5 +1,12 @@
 # Corte do fallback de metadados — a fatia TS→Rust dos ~2.900 linhas
 
+> **EXECUTADO em 2026-11-01.** O fallback do Node não existe mais: os passos
+> 1–5 foram commitados na branch `rust` (`3fb105d2`, `0435ee01`, `1c34b3b1`,
+> `1115bd50` e o commit de docs do passo 5). O estado final e a evidência de cada
+> gate estão em
+> [`2026-10-31-corte-fallback-meta.md`](2026-10-31-corte-fallback-meta.md),
+> seção "Execução". Leia este documento como registro histórico.
+>
 > Plano registrado para execução futura. Validado por recon em 2026-10-30
 > (branch `rust`). Cada âncora foi confirmada por leitura direta na data;
 > números de linha deslocam com edição — confira o SÍMBOLO antes de cortar,

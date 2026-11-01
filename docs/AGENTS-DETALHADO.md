@@ -223,8 +223,8 @@ nem versão implantada: confira esses estados separadamente no deploy.
 > **Nota F4.4 + R0–R8:** a descrição abaixo é a do pipeline **Node** que existiu
 > até o F4.4. Desde o corte, o `/stream` é do gateway Rust (`adom-server` →
 > `adom-search`, com SWR em `data/streams.db`); o Node responde 410 nele e
-> ficou com o fallback de metadados (`POST /internal/search/meta`), os efeitos
-> (`/internal/search/effects`), painel/config, autofetch e raspador (o feed de holds e as rotas `/internal/resolve/*` saíram em 2026-10-30). As rotas
+> ficou com os efeitos (`/internal/search/effects`), a rota do sidecar
+> (`/internal/activity`), painel/config, autofetch e raspador (o feed de holds e as rotas `/internal/resolve/*` saíram em 2026-10-30; o fallback de metadados e a rota `POST /internal/search/meta` saíram no corte de 2026-10-31). As rotas
 > `/internal/search/state|config|collect|index|index-write|fallback` e
 > `/internal/debrid/check` saíram; `GATEWAY=on`/`ROUTES_RUST=stream` são fixos
 > no `docker-compose.yml` e o entrypoint sempre sobe o gateway (7000, Node na

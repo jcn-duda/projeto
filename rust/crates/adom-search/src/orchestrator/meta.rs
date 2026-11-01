@@ -1,8 +1,9 @@
 //! Metadados da obra (Cinemeta + TMDB + coleção multiobra) — a matéria-prima
 //! do plano de busca e do build.
 //!
-//! A rede é do `NativeMetaSource` (clientes puros de `adom-sources`); o Node
-//! (`POST /internal/search/meta`, rota da F1.1) é o FALLBACK. O que este módulo
+//! A rede é do `NativeMetaSource` (clientes puros de `adom-sources`), ÚNICA
+//! fonte desde o corte de 2026-10-31; o `NodeMetaSource` só serve ao replay
+//! congelado, com as rotas gravadas em memória. O que este módulo
 //! faz é a PARTE PURA do `doSearch`:
 //! `resolveSearchNames`, `buildSearchQuery`, o degrau do título original, a
 //! query da varredura pt-BR e o `resolveMultiWork` — todas funções do núcleo,

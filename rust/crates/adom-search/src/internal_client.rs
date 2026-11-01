@@ -20,7 +20,7 @@ use crate::internal_types::{EffectsRequest, EffectsResponse};
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP de meta/effects.
+/// Teto HTTP da rota de efeitos.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
 
 #[derive(Clone)]

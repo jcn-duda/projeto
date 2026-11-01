@@ -105,7 +105,10 @@ novos é o TS do worktree `../adom-esm`.
    `2026-10-19T01:11:18.652Z`, a mesma do `manifest.json`). O corpus **não**
    traz `meta.json`, `raw.json` nem `debrid.json`; por isso o harness de
    fixtures remonta **0/51** (todos `Skip`) e o replay 51/51 é só Node × Node.
-   Captura com fixtures internas e o critério §9.4.5 seguem **pendentes**.
+   Captura com fixtures internas e o critério §9.4.5 seguem **pendentes** — e
+   `meta.json` não é mais capturável pelo caminho vivo: a rota
+   `POST /internal/search/meta` e a `capture-stream-e2e.mjs --with-internal`
+   que a consultava só existem em imagem anterior ao corte de 2026-10-31.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
    store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só as métricas
    `stream.shadow.*` do contrato §9.2 são públicas. Era o default do override
@@ -170,6 +173,12 @@ p50/p95 e a semana em `stream-shadow`.
    bloqueia): a guarda de loopback do Node não vê o cliente real atrás do proxy,
    então a fachada é quem fecha a porta. No compose gateway,
    `INTERNAL_SEARCH_URL` aponta a `127.0.0.1:7100` (`INTERNAL_CHECK_URL` saiu em 2026-10-30, sem leitor).
+
+   > **Estado depois do corte de 2026-10-31:** das rotas acima só
+   > `POST /internal/search/effects` e `GET /internal/activity` vivem. `meta`
+   > saiu no passo 3 (nativo e único desde o passo 2), e
+   > `state/config/collect/index/index-write` e `debrid/check` já tinham saído
+   > nas fatias R1/R3/R4/R5. O trecho acima é registro da F1.
 
    **Enriquecimento (`collect`/`index`) — síncrono.** `enrichForRust` anexa só
    a prova de ARQUIVO (`applyFileEvidence`); as rotas **não** chamam
@@ -753,7 +762,7 @@ documento são registro histórico da execução.
 | Corte `/stream` | modo `off`/`shadow`/`on` do `RUST_CORE`; `shadow.rs`/`canary.rs`; `STREAM_SHADOW_MODE`; `STREAM_CANARY_*`; `STREAM_FROZEN_*`; `stream-parity.mjs`/`stream-frozen*.mjs`; `utils/stream-frozen*.ts`, `stream-fresh.ts`, `collect-orchestrator-frozen.ts`, `routes/internal-search-config.ts` (R1); `shadowCrawlPage` (R7) | `/stream` do gateway na 7000 (`GATEWAY=on` + `ROUTES_RUST=stream`, fixos no compose desde o R8); o Node na 7100 responde 410 |
 | Fontes e conta | `NodeCollector`, `SOURCES_RUST`, `ACCOUNT_RUST`, `POST /internal/search/collect`, `collect-orchestrator.ts` e o plano/janela TS (R5) | as cinco fontes nativas (jackett, prowlarr, torrentio, bludv, mico) e o inventário da conta, incondicionais; gateway sem fonte nativa montada é erro de boot |
 | Índice e banco | `INDEX_RUST`, `BANK_RUST`, rotas `/internal/search/index`, `/internal/search/index-write` e `/internal/search/fallback`; `release-index`/`magnet-bank-*` TS (R4) | `idx:v14` e `magnets.db` com dono único no Rust; falha ao abrir degrada sem índice (log `[search]`, métrica `index.rust.source_missing`), nunca cai no Node |
-| Metadados | `META_RUST` (R6) | metadados nativos como fonte primária; `POST /internal/search/meta` é o fallback vivo do Node (taxa de fallback não medida) |
+| Metadados | `META_RUST` (R6) e, no corte de 2026-10-31, o fallback `POST /internal/search/meta`, os providers/cache TS (`cinemeta`, `tmdb*`, `multiwork-pack`) e as cotas `meta`/`tmdb`/`tmdbc` | metadados **nativos e únicos** (`NativeMetaSource`); sem rede a busca segue pelo id (`SearchMeta::from_id`), nunca cai no Node |
 | AllDebrid | `DEBRID_AL_RUST`, rota `/internal/debrid/check` (R3) | checagem/limpeza nativas e incondicionais; `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` só como kill-switches das varreduras destrutivas |
 | Store/trace | `STREAM_STORE_RUST`, `STREAM_BAD_RUST` (R2) | `STREAM_STORE_ADMIN_*` (API admin em 8711) e a poda `bad`/`lie`, incondicionais |
 | Crawl | `shadowCrawlPage` e o modo do `RUST_CORE` (R7) | `CRAWL_ENGINE=rust` default; `CRAWL_ENGINE=ts` fica porque a suíte depende do loop TS; `captureCrawlPage`/`scrubCrawlPage` em `src/utils/crawl-capture.ts`; `RUST_CORE_PATH` |
@@ -794,9 +803,9 @@ só "tem stream tocável", não paridade BR+cotas.
 - **Feed de holds** da AllDebrid (`/internal/debrid/holds`, removida em 2026-10-30; o gateway calcula os fatos em `al_cleanup_facts`).
 - **Banco VIVO** (`magnets.db`), `raw:v1` e `davail` — caminhos que a série R
   não moveu de dono.
-- **Rotas internas vivas**: `POST /internal/search/meta`,
-  `POST /internal/search/effects` e
-  `GET /internal/activity`. O `POST /internal/crawl-result` saiu na T3-L3
+- **Rotas internas vivas**: `POST /internal/search/effects` e
+  `GET /internal/activity`. O `POST /internal/search/meta` saiu no passo 3 do
+  corte de 2026-10-31 (metadados nativos); o `POST /internal/crawl-result` saiu na T3-L3
   (`src/routes/register.ts:62`): a ingestão da página é nativa.
 
 ## F4.7 — `/resolve` nativo (fases A e C entregues; incondicional)

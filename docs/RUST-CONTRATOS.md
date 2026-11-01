@@ -288,8 +288,10 @@ verificados pelos testes Rust e pelo `--check` manual.
 ## 3. Estado da migração (contexto, não contrato)
 
 O runtime de `/stream` é o **gateway Rust** (`adom-server` na 7000, fixo desde
-o R8); o Node na 7100 serve o fallback de metadados, os efeitos, o feed de
-holds, o `/resolve` (default), painel/config, autofetch e o raspador. A ponte
+o R8); o Node na 7100 serve os efeitos (`/internal/search/effects`), a rota do
+sidecar (`/internal/activity`), painel/config, autofetch e o raspador. Os
+metadados são nativos (o fallback e a rota `POST /internal/search/meta` saíram
+no corte de 2026-10-31) e o `/resolve` também é nativo desde a fase C. A ponte
 `src/utils/rust-core.ts` **não tem modo**: o núcleo é obrigatório e
 `RUST_CORE_PATH` só aponta o binário quando ele não é o empacotado. O mapa
 abaixo é o de **paridade dos crates** — "portado" não significa que a versão TS

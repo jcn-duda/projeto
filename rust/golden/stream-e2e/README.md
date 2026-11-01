@@ -61,12 +61,11 @@ docker exec stremio-adom node /tmp/capture-e2e.mjs \
   --cases /tmp/casos.json --out /tmp/e2e-out --merge
 ```
 
-- `--with-internal` captura `inputs/{meta,config,collect,debrid,index}.json` por
-  `POST /internal/search/meta|config|collect|debrid/check|index`. O `collect`
-  segue o formato do `stream-frozen` (`[{key,response}]`, key derivada do
-  meta/caso — nada de query inventada); o `debrid/check` exige
-  `{encoded,service,hashes,deadline_at}` (sem `service`/`deadline_at` a rota
-  devolve 400).
+- `--with-internal` captura `inputs/{meta,config}.json` por
+  `POST /internal/search/meta|config`. **Só funciona contra imagem anterior ao
+  corte de 2026-10-31**: no HEAD as duas rotas não existem (o metadado é
+  nativo) e a captura recebe 404. Índice, coleta e debrid não têm rota Node
+  desde R3/R4/R5 — vêm só do record do shadow ou do corpus congelado.
 - `--shadow-dir <base>` faz o `/stream` com `X-Adom-Shadow-Id: <caso>` +
   `X-Adom-Shadow-Frozen: 1` e copia do record do shadow, no MESMO run, o que só
   ele grava: `proven-quality.json`, `apply-debrid.json`, `files.json`,
@@ -123,6 +122,11 @@ cases/<id>/inputs/instant.json
 cases/<id>/inputs/fallback.json
 manifest.json
 ```
+
+O bloco acima é o formato completo do gerador. `meta.json` e `config.json`
+saíram do caminho vivo no corte de 2026-10-31, e `collect.json`/`debrid.json`
+saíram antes (R3/R5): num corpus novo só `request`/`response` e o que o
+`--shadow-dir` copiar. O corpus commitado não tem nenhum deles.
 
 `request.json`:
 
@@ -182,9 +186,10 @@ o segredo; para reproduzir o replay é preciso passar `--user-config` de novo.
 
 ## O que este corpus AINDA NÃO mede (e por quê)
 
-1. **Metadados da obra (Cinemeta/TMDB)** — capturados por
-   `POST /internal/search/meta` com `--with-internal`. Os 50 casos sem o flag
-   continuam só com a lista pronta.
+1. **Metadados da obra (Cinemeta/TMDB)** — os 50 casos sem fixture continuam só
+   com a lista pronta. A rota que os capturava (`POST /internal/search/meta`) e
+   os providers TS saíram no corte de 2026-10-31; `--with-internal` existe só
+   para recapturar contra imagem anterior a esse corte.
 2. **Itens crus por indexer** (antes de filtro de título, ranking e debrid) e o
    cache `raw:v1` — capturados por `POST /internal/search/collect` com
    `--with-internal` (re-consulta, não o lote exato do `/stream`).
@@ -203,8 +208,9 @@ o segredo; para reproduzir o replay é preciso passar `--user-config` de novo.
    variantes de item).
 
 Essas lacunas são a razão de o corpus ser **aditivo**: quando a captura passar a
-gravar as fixtures internas, os mesmos casos ganham arquivos novos (`meta.json`,
-`raw.json`, `debrid.json`) sem reescrever o que já foi medido.
+gravar as fixtures internas, os mesmos casos ganham arquivos novos (`raw.json`,
+`debrid.json`) sem reescrever o que já foi medido. `meta.json` não entra nessa
+lista: o metadado é nativo e não tem mais rota para capturar.
 
 ## Como o orquestrador Rust consome
 

@@ -1,8 +1,9 @@
 //! Corte nativo de `/stream` (`ROUTES_RUST` contém o token exato `stream`).
 //!
 //! A COLETA é 100% nativa (`adom-sources`): Jackett, Prowlarr, Torrentio,
-//! BLUDV e Mico. Metadados/efeitos/tail continuam no Node via
-//! `POST /internal/search/*` (`InternalSearchClient` / `NodeRoutes`).
+//! BLUDV e Mico. Metadados também são nativos (`NativeMetaSource`) desde o
+//! corte de 2026-10-31; do Node só ficaram os efeitos da cauda
+//! (`POST /internal/search/effects`, `InternalSearchClient` / `NodeRoutes`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
