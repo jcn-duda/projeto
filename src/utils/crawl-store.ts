@@ -6,9 +6,8 @@
 // site. O cache tem cota por namespace, TTL e bump de versão; qualquer um dos
 // três destruiria a fila. Mesmo padrão defensivo dos irmãos (magnet-bank,
 // catálogo): `node:sqlite` carregado lazy com `createRequire` e, se o runtime
-// não tiver o módulo (Node 20) ou a abertura falhar, o módulo segue SÓ EM
-// MEMÓRIA (`crawl-store-memory.ts`, mesmos verbos, teto LRU, eviction contada)
-// — nunca derruba o addon.
+// não tiver o módulo (Node 20) ou a abertura falhar, segue SÓ EM MEMÓRIA
+// (`crawl-store-memory.ts`, mesmos verbos, teto LRU, eviction contada) — nunca derruba o addon.
 //
 // Tabelas:
 //   crawl_url — uma linha por (site, url_key): lastmod, tipo, status, obra,
@@ -51,8 +50,7 @@ export type {
 } from '../providers/crawl-types.js';
 export { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress, renderProgress, progressAdvanced, withDryFlag } from './crawl-store-rules.js';
 
-/** Contrato único das duas engines (SQL e memória). */
-/** Status terminais que o painel devolve à fila. */
+/** Contrato das duas engines (SQL e memória); status terminais do requeue (`RequeueStatus`). */
 export type RequeueStatus = 'error' | 'no-work';
 export interface CrawlEngine {
   readonly kind: 'sql' | 'memory';
