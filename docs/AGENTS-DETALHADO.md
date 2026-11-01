@@ -541,10 +541,15 @@ o erro da conta subir: marca `debrid:false` e os outros blocos seguem.
 
 **Banco de magnets por conta (`src/utils/magnetdb.ts`).** Histórico durável POR
 HASH, escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
-nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada; a família
-tem `magnetdb-persist.ts` (contadores, agregado `mag_meta`, hook `onForget`,
-`ttlRemainingBasis`), `magnetdb-counts.ts` (parse da chave + `rebuildFromL1`) e
-`magnetdb-inspect.ts` (ações do painel). Alimenta três decisões da listagem: o
+nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada de LEITURA
+(`peek*`, `forgetBadOf`, `status()`); a família
+tem `magnetdb-persist.ts` (leitura do agregado `mag_meta`, sentinela de
+reconciliação `ensureCountsLoaded`, `ttlRemainingBasis`), `magnetdb-counts.ts`
+(tipos do agregado + `isSupportedHash`) e
+`magnetdb-inspect.ts` (ações do painel). A ESCRITA saiu do Node: evidência e
+agregado são do gateway (`bump_counts`), e a régua de escrita TS ficou
+congelada no oráculo (`test/helpers/pipeline-oracle/play/magnetdb-writes.ts`).
+Alimenta três decisões da listagem: o
 filtro pré-checagem do `applyDebrid` (descarta o que provou estar quebrado,
 antes de gastar lote — ou upload, na AllDebrid), o desempate `instant` do
 `sortAndLimit` (quem provou tocar na hora sobe acima dos seeders, DEPOIS de
@@ -564,22 +569,24 @@ falso negativo (descartar magnet bom) é pior que falso positivo.
   torrent bom por 24h (pior caso: o próprio autofetch baixa o torrent e o
   banco esconde o resultado pronto por um dia). `WorkPickError`/
   `EpisodePickError` também não — o pack pode servir outra obra/episódio.
-  `markBad` apaga o `alive` do mesmo hash: bad vence, senão o instantSet
+  `bad` vence o `alive` do mesmo hash na leitura (precedência do núcleo:
+  `state()` devolve um veredito único), senão o instantSet
   empurrava ao topo um hash que o filtro ia cortar.
 
   **Recusa legal do Real-Debrid NÃO é `bad`.** Um ramo antigo do `rd-warmer`
   marcava `bad` no hash cuja sonda voltava `blocked` (HTTP 451 / error_code 35)
   — o serviço recusando o magnet por infringimento, não um torrent sem vídeo.
-  Hoje o ramo `blocked` só grava `rdLedger.noteBlocked` (dedupe da sonda + corte
+  Hoje o ramo `blocked` só alimenta o LEDGER (gravação do gateway,
+  `rd_warmer_ledger`; dedupe da sonda + corte
   ternário do `cachedOnly`) e nenhum `bad`. Os bads legados desse ramo são
   recuperados de forma seletiva: o fingerprint é `bad` do adapter `realdebrid` +
-  `rdLedger.peek(hash) === 'blocked'` (NoVideoError legítimo nunca grava
-  `blocked`). A varredura roda uma vez por processo no boot do warmer
+  ledger `blocked` no `rdc:v2` (NoVideoError legítimo nunca grava
+  `blocked`). A varredura roda uma vez por processo no boot do warmer nativo
   (`scanBlockedRdBads`, idempotente, sem clear amplo nem bump de namespace) e o
   reparo invalida o namespace `streams` uma vez quando encontra dano — as listas
   prontas foram construídas sem esses hashes e não se corrigiriam só apagando o
-  `bad`. O índice/raw permanece quente para reconstruí-las. O
-  `applyDebrid` tem self-healing por entrada (`bad+blocked` → `forgetBad`, o
+  `bad`. O índice/raw permanece quente para reconstruí-las. O self-healing por
+  entrada continua (`bad+blocked` → remoção física do `bad` via `forgetBadOf`, o
   stream permanece; em `cachedOnly` o corte remove pelo ledger; fora dele volta
   P2P/sem ⚡). Métrica própria: `magnetdb.bad.clearedBlocked` — **não** conta
   como `magnetdb.dropped.bad`.
@@ -854,7 +861,7 @@ a `cacheCheck` degradou ou omitiu aquele hash E nenhum `davail` `0` fresco o
 contradiz (o veto do negativo só vale com `availNegTtl > 0` — 0 desliga a
 leitura/escrita negativa por contrato). Vale para TODO adaptador com
 `cacheCheck` (AllDebrid, Premiumize, TorBox e o RD dinâmico quando degradado —
-sem `noteHit`, e o `blocked` continua purgado depois da inflação). Métrica
+sem escrever no ledger, e o `blocked` continua purgado depois da inflação). Métrica
 própria `debrid.instant.fromAliveAsCache` (distinta do histórico legado RD/DL).
 As travas do desenho não são negociáveis:
 
@@ -901,35 +908,36 @@ denominador são consultas reais. Hit local de `davail` fica separado em
 
 **Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side que
 o painel mostra não vêm de scan no SQLite nem de um `Map` que morre no restart:
-são incrementadas na escrita, decrementadas pelo hook `cache.onForget` (TTL e
-despejo por cota passam por ele) e persistidas num único agregado
-(`mag_meta:v1:counts`, cota 1) com `setImmediate` debounced + `unref`, salvo
-também no shutdown do processo (`src/addon.ts`). A contagem no dia a dia é
-O(1); a família `magnetdb-persist.ts`/`magnetdb-counts.ts` existe porque o
-`magnetdb.ts` encostou no teto de 400 linhas — a extração o devolveu a 329. No
-boot o `loadPersistentCounts` restaura o estado e decai o TTL restante pelo
-tempo decorrido (`updatedAt`); com o agregado ausente ou ilegível (versão
-estranha conta como ilegível) e o L1 cheio, ele **reconta do próprio L1**
-(`rebuildFromL1`) e regrava o agregado — devolver zero ali seria mentira
-rotulada de `duravel`, e o primeiro boot com `cache.db` herdado é o caso normal
-do rebuild do container. O rebuild é O(namespace `mag`): medido em 50 mil
-chaves (cota cheia do namespace), 29,6 ms, uma vez no boot (e no autocura do
-`status()`), nunca no caminho de busca; `status()` segue O(adapters).
-Aceitável na cota atual — **remedir se a cota `mag` crescer**. `status()` marca
-esses campos com `_origem: duravel`; só os contadores de *eventos*
-(`magnetdb.*.set`, `dropped`) continuam zerando no restart. A soma de TTL
-restante declara a própria base (`ttlRemainingBasis`): `l1-rebuild` = restante
-real de cada chave (`peekRemaining`), preciso só no instante do rebuild;
-`aggregate-estimate` = estimativa incremental/restaurada (escrita soma o TTL
-nominal, esquecimento/restauração subtraem o nominal ou o tempo decorrido).
-**Toda mutação degrada o rebuild para estimativa** — inclusive o `renewAlive`
-sem chave nova — e o painel mostra o qualificador em vez de chamar de exata uma
-média que envelheceu. As contagens são exatas, a média é conservadora. O
-`cache.has` (presença física, incluindo expirado aguardando prune) é o critério
-único de "existia": impede `markAlive`/`markBad`/`markLie` de contar duas vezes
-a mesma chave na janela entre vencimento e poda, e é o que o `forgetBadKey` usa
-desde `008eecd` — decidir por `peek` apagava bad expirado não podado e o
-`magnet-clear-bad` devolvia `cleared: 0` fantasma.
+vêm de um único agregado (`mag_meta:v1:counts`, cota 1) com UM escritor — o
+GATEWAY, que sobe os deltas O(1) pela régua `bump_counts`
+(`rust/crates/adom-index/src/magnet_meta.rs`) nos marks do play, do tail e da
+checagem. O Node NÃO grava: a amostra dele não enxerga os bumps do dono e
+regravá-la os apagava até o boot recontar — o hook `cache.onForget`, que
+alimentava esse decremento, saiu por falta de chamador (só a telemetria
+`usageByNamespace` do L1 sobrou). O que resta no Node é a POLÍTICA DE LEITURA,
+em `magnetdb-persist.ts` (módulo separado porque o `magnetdb.ts` encostou no
+teto de 400 linhas): a cada leitura do `status()` o `ensureCountsLoaded`
+restaura o agregado O(1) e decai o TTL restante pelo tempo decorrido
+(`updatedAt`); com o agregado ausente, ilegível (versão estranha conta como
+ilegível) ou com o TOTAL divergente da contagem física do namespace
+(`liveCount`), a SENTINELA **reconta o físico pela ponte** (`summary`) —
+devolver zero ou servir a deriva antiga ali seria mentira rotulada de
+`duravel`, e o primeiro boot com `cache.db` herdado é o caso normal do
+rebuild do container. O reconto é O(namespace `mag`): medido em 50 mil
+chaves (cota cheia do namespace), 29,6 ms, só na leitura divergente — nunca no
+caminho de busca e sem gravar de volta (o dono é o gateway); `status()` segue
+O(adapters). Aceitável na cota atual — **remedir se a cota `mag` crescer**.
+`status()` marca esses campos com `_origem: duravel`; os contadores de
+*eventos* (`magnetdb.*.set`, `dropped`) são do processo e a escrita que os
+inflam saiu — ficam em 0, porque quem grava a evidência é o gateway. A soma de
+TTL restante declara a própria base (`ttlRemainingBasis`): `l1-rebuild` =
+restante real de cada linha (`summary` da ponte), preciso só no instante do
+reconto; `aggregate-estimate` = soma restaurada do agregado, envelhecida pelo
+tempo decorrido. Toda leitura restaurada é estimativa, e o painel mostra o
+qualificador em vez de chamar de exata uma média que envelheceu. As contagens
+são exatas, a média é conservadora. A limpeza de `bad` do painel usa o
+`forgetBadOf`: remoção FÍSICA no núcleo por par (adapter, hash), em todas as
+contas, sem tocar o agregado — a próxima leitura reconcilia pela sentinela.
 
 **Ações do banco no painel** (`POST /dashboard-action.json`, atrás do mesmo
 token): `magnet-inspect` e `magnet-summary` são leitura; `magnet-clear-bad` é
@@ -1189,10 +1197,17 @@ sustentam isso:
   hit: 451 legal não pode ser apagado por caminho atrasado). Miss usa **backoff
   exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`, 30min→3d) e **nunca
   condena**: falso negativo é pior que falso positivo, então serve só para a
-  sonda não martelar e para o filtro do `cachedOnly`. Sinais gratuitos que
-  alimentam o ledger (todos com `noteHit`/`noteMiss`/`noteBlocked`):
-  inventário, `magnetdb.isAlive`, play/downloaded no `/resolve`, 451, `enqueue`
-  pronto, recheck pronto, `torrentStatus` e o warmer RD. O oráculo consulta o
+  sonda não martelar e para o filtro do `cachedOnly`. Quem ESCREVE é o gateway
+  (`rd_renew_hits` na renovação de hit, `note_rd_blocked` no `blocked` do play,
+  `rd_warmer_ledger` nos sinais do warmer); o Node ficou com a LEITURA
+  (`peek`/`peekQuiet` pela ponte `native-kv.ts`, sem L1) e o VOCABULÁRIO
+  (`nextOnHit`/`nextOnMiss`/`nextOnBlocked`, que delegam ao Rust). Os sinais
+  continuam os mesmos: inventário, `magnetdb.isAlive`, play/downloaded no
+  `/resolve`, 451, `enqueue`
+  pronto, recheck pronto, `torrentStatus` e o warmer RD — a simulação de
+  escrita dos testes mora no oráculo
+  (`test/helpers/pipeline-oracle/rd-ledger.ts`, com o `noteHit` que migrou do
+  `src/`). O oráculo consulta o
   ledger ANTES da rede (dedupe) — hash já resolvido não paga chamada. Convive
   com o `mag:alive` (por conta, play que funcionou naquela credencial).
   Kill-switch: `DEBRID_RD_LEDGER=false`.
@@ -1273,8 +1288,10 @@ espelho síncrono para o painel (`warm-pause`/`warm-resume`/`warm-drain` em
 `dashboard-actions.ts`) e o `/debrid-status.json` (`rd.warm` com
 `source:'rust'`). Sem snapshot as ações devolvem `reason:'native-unavailable'`
 — não há fallback local, porque dois donos da mesma fila sondariam a mesma
-conta. **`rd-ledger.ts` fica** por enquanto (efeito do play, cobertura BR e o
-`checkCached` do diagnóstico). A **Fase 2 fatia 2** é o corte de `rd-gate.ts` e
+conta. **`rd-ledger.ts` fica** no Node como LEITURA e vocabulário (efeito do
+play é da ponte nativa, cobertura BR e o `checkCached` do diagnóstico); a
+ESCRITA do `rdc:v2` é toda do gateway. A **Fase 2 fatia 2** é o corte de
+`rd-gate.ts` e
 `realdebrid-play.ts`: play, checagem e conta do RD são nativos, e os testes TS
 do assunto vão para o oráculo `E:/adom-esm`.
 
@@ -1314,8 +1331,8 @@ próxima vez. Travas e arquitetura atuais (invariante 6):
 - suportado em todos os 5 serviços: nos adaptadores com `cacheCheck: true`
   (Premiumize, TorBox, AllDebrid) usa a disponibilidade; nos sem `cacheCheck`
   (Real-Debrid e Debrid-Link) habilita via `autofetchSource: true` com dedupe
-  por `inventoryPeek()` síncrono da conta (`cache.get(dinvKey)` sem rede na
-  resposta);
+  pelo inventário pronto da conta (NATIVO; sem rede na resposta — o corpo TS
+  do Chupim e o memo `dinv` vivem no oráculo);
 - até `DEBRID_AUTO_FETCH_MAX` (1..12) torrents imediatos por busca, com os
   excedentes indo para a **fila persistente** (`readQueue`/`writeQueue`, chave
   `autofetch:v3:q:sha256(searchKey)`);
@@ -1738,21 +1755,25 @@ novo — o limiar é o `DEBRID_AUTO_FETCH_STALL_STREAK`; `0` desliga a derivaç�
 `test/autofetch-progress.test.ts` (unit + settle conservador + LRU + AllDebrid) e
 `test/autofetch-stalls-drain.test.ts` (adapter AllDebrid com progress + limite de uma cabeça por evidência).
 
-O registry também expõe `inventory()`: o que já está **pronto** na conta
-(AllDebrid/TorBox/RD/DL) entra na busca como mais uma fonte
-(`src/providers/account.ts`), memoizado por serviço+conta sob `dinv:v1:`. A
+O que já está **pronto** na conta (AllDebrid/TorBox/RD/DL) entra na busca como
+mais uma fonte — NATIVA: a coleta é do gateway, o memo `dinv:v1:` não tem
+escritor nem leitor de produção no Node (a cópia viva dele é o oráculo
+`test/helpers/pipeline-oracle/inventory-memo.ts`) e `src/providers/account.ts`
+saiu. A leitura do painel vai pela ponte
+`src/providers/debrid-inventory-native.ts` (`GET /debrid/inventory` na admin
+8711); em `src/debrid/inventory.ts` sobrou só o `refreshInventory`, backend do
+botão "invalidar inventário". A
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
 resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
 indexers. O pack só entra se a faixa de anos do título COBRIR o filme
 (mesma régua do `magnetYearContradicts`; sem ano, a franquia decide): "Resident
 Evil Saga Completa (2002-2017)" saía no Resident Evil de 2026 e o play morria
-em `WorkPickError` (2026-10-01). `buildStreams` não re-aplica o filtro estrito em item com
-`fromAccount`. Item de inventário é preexistente por definição: o `knownBefore`
-já o protege do `dropReady`. Teto curto próprio (`DEBRID_INVENTORY_TIMEOUT_MS`,
-1500): a primeira leitura custa ~700ms e a resposta não espera; estourou,
-devolve `[]` e a próxima busca pega do memo (aquecido no boot para a conta do
-operador).
+em `WorkPickError` (2026-10-01). O build não re-aplica o filtro estrito em item
+de conta (`fromAccount`). Item de inventário é preexistente por definição: o
+`knownBefore` (foto que o gateway guarda) já o protege do `dropReady`. O
+teto curto de leitura (`DEBRID_INVENTORY_TIMEOUT_MS`) segue na config; o
+aquecimento no boot (`warmupEnv`) saiu com o memo do Node.
 
 ---
 
@@ -3358,10 +3379,10 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Fachada do banco de magnets por hash/adapter (alive/bad/lie): marcações, `is*`/`peek*`, `forgetBad`, `renewAlive`, `status()` (panorama do painel: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). Reexporta a persistência; nenhuma rota importa os módulos internos direto |
-| `src/utils/magnetdb-persist.ts` | Contadores duráveis O(1), agregado `mag_meta:v1`, hook `cache.onForget` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas (ficou em 329) |
-| `src/utils/magnetdb-counts.ts` | Parse da chave `mag` (descarta o digest da conta na origem), `emptyAdapterTotals` e `rebuildFromL1` — O(namespace `mag`), roda uma vez no boot quando o agregado não abre, nunca no caminho de busca. Dependência de mão única (cache + cache-keys), sem ciclo com o `magnetdb` |
-| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` só no L1 (sem scan SQLite), parse compartilhado de `magnetdb-counts.ts`. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
+| `src/utils/magnetdb.ts` | Fachada de LEITURA do banco de magnets por hash/adapter (alive/bad/lie): `peek*`, `forgetBadOf` (remoção física no núcleo), `status()` (panorama do painel: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). A ESCRITA saiu (gateway + oráculo `play/magnetdb-writes.ts`); reexporta a persistência; nenhuma rota importa os módulos internos direto |
+| `src/utils/magnetdb-persist.ts` | LEITURA do agregado durável `mag_meta:v1:counts` (escritor ÚNICO: o gateway, régua `bump_counts`), sentinela de reconciliação `ensureCountsLoaded` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas |
+| `src/utils/magnetdb-counts.ts` | TIPOS do agregado (`AdapterTotals`), `MAG_SIDES`, `emptyAdapterTotals` e `isSupportedHash` (régua de hash recusada antes de chamar o núcleo). O dono das linhas e do agregado é o núcleo; sem ciclo com o `magnetdb` |
+| `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` pela ponte nativa (`magnetState().entries`/`summary`), sem namespace `mag` no L1. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | `src/utils/magnet-bank.ts` | Fachada do banco VIVO (clone permanente do Jackett): `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado por `MAGNET_BANK_STATUS_TTL_MS`, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash` |
 | `src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` | Linhas e engines (`sqliteEngine` lazy via `createRequire`, WAL; `memoryEngine` em `magnet-bank-memory.ts`) + tipos/codec (`render*`/`parse*`). Extraídos de `magnet-bank.ts` pela catraca de 400 linhas |
 | `src/utils/magnet-bank-merge.ts` | Regras PURAS do banco: `hashOf`, `inputFromItem`, `mergeMagnet`/`mergeSource`/`mergeWork`, `workTuple`, `parseSeeders`, `isRicherUri` |

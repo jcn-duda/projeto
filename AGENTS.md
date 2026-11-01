@@ -149,8 +149,8 @@ npm run docker:up / docker:logs
 
 - **Build antes de testar**: `npm test` roda `dist/`. Teste `.test.ts` novo precisa
   entrar na lista do `package.json` (senão o CI fica verde à toa).
-- Seis scripts de harness (`test:stress`, `test:adversarial*`, `test:protector-m1`,
-  `test:challenger-m2`, `test:ranking-challenger`) **não passam pelo CI**; rode
+- Dois scripts de harness (`test:adversarial`, `test:ranking-challenger`)
+  **não passam pelo CI**; rode
   antes de mexer em `test/`. O harness adversarial **muta o `dist/`** — mutação
   nova entra na lista de snapshot/restauração; ao mover símbolo entre arquivos,
   realinhe o `testFile` do mutante.
@@ -241,9 +241,11 @@ npm run docker:up / docker:logs
   oráculo `test/helpers/pipeline-oracle/magnet-bank-import.ts` (quem
   mescla/grava o acervo é o gateway) e os helpers do oráculo falam com a
   ponte `magnetState()`; a metade de ESCRITA do `magnetdb.ts`
-  (`markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad` e derivadas) é
-  régua pendente da leva de debrid — plano em
-  `docs/superpowers/plans/2026-10-30-magnetdb-followup.md`.
+  (`markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad` e derivadas)
+  também saiu do Node — a régua congelada é o oráculo
+  `test/helpers/pipeline-oracle/play/magnetdb-writes.ts` e o agregado
+  `mag_meta:v1:counts` tem escritor ÚNICO no gateway (`bump_counts`; o Node só
+  lê e reconcilia por sentinela em `magnetdb-persist.ts`).
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
@@ -423,12 +425,15 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   Série no Rust tem o fallback de pack e o pack tardio do TS
   (`orchestrator/pack.rs`, `SEARCH_PACK_TAIL`): fonte BR só publica pack.
 - **Real-Debrid**: `rd-ledger` (`rdc:v2`, global, miss nunca condena; namespace
-  `RUST_OWNED` — o Node decide mas grava/lê só pela ponte `native-kv.ts`, sem L1),
+  `RUST_OWNED` — a ESCRITA é toda do gateway (`rd_renew_hits`,
+  `note_rd_blocked`, `rd_warmer_ledger`) e o Node só lê pela ponte
+  `native-kv.ts`, sem L1),
   `rd-oracle` (StremThru/Torrentio opt-in). O gate AIMD de escrita é NATIVO
   (`RdGateExecutor`, `DEBRID_RD_GATE*` lidos pelo Rust) e é o MESMO do
   autofetch (`shared_gate`). "Fase 2 fatia 2" é o corte de
   `rd-gate`/`realdebrid-play` no TS (play, checagem e conta do RD nativos), e
-  `rd-ledger` fica no Node por enquanto. Kill-switches
+  `rd-ledger` fica no Node como LEITURA e vocabulário — a escrita do `rdc:v2`
+  é toda do gateway. Kill-switches
   `DEBRID_RD_GATE/LEDGER/ORACLE`.
 - **Warmer RD é NATIVO** (`4b640cbb`, Fase 1): quem aquece é o gateway
   (`rust/crates/adom-server/src/rd_warmer*`). Fila/quota em `rdq:v1:wq`/

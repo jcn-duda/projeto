@@ -262,7 +262,7 @@ fixo: o `current()` em `debrid/index.ts` traduz o flag por requisição num clon
 | Fonte | Quando |
 |---|---|
 | Ledger global (`rdc:v2:<hash>`, **sem conta**) | Hit/miss/blocked confirmados por qualquer caminho (ver abaixo) |
-| Inventário pronto da conta (`dinv` / `inventoryPeek`) | Hash já baixado em `/torrents` |
+| Inventário pronto da conta (nativo; o painel lê pela ponte `debrid-inventory-native.ts`) | Hash já baixado em `/torrents` |
 | Histórico de play (`magnetdb.isAlive`) | `/resolve` devolveu link de verdade |
 | Oráculo Torrentio (`[RD+]` no `name`) | Busca: item listado com marcador = cacheado; listado sem = miss autoritativo; **não-listado ≠ miss** |
 | Oráculo StremThru (`GET /v0/store/torz/check`) | Busca: item presente (`status: 'cached'`) = hit; presente sem cached = miss |
@@ -274,8 +274,14 @@ que observou o resultado — a chave `rdc:v2:<hash>` não leva `apiKey` nem
 caminho atrasado). Miss usa **backoff exponencial** (`DEBRID_RD_LEDGER_MISS_BACKOFF_MS`,
 30min→3d nos passos padrão) e, como falso negativo aqui é pior que falso
 positivo, **nunca condena uma release**: serve só para a sonda não martelar e
-para o filtro do `cachedOnly`. Sinais gratuitos que alimentam o ledger:
-inventário, play/downloaded (`/resolve`), 451 (`noteBlocked`), `enqueue` pronto,
+para o filtro do `cachedOnly`. **A escrita é do gateway** (`rd_renew_hits`,
+`note_rd_blocked` no `blocked` do play, `rd_warmer_ledger` no warmer); o
+`src/debrid/rd-ledger.ts` ficou com a LEITURA (`peek`/`peekQuiet` pela ponte
+`native-kv.ts`) e o vocabulário (`nextOnHit`/`nextOnMiss`/`nextOnBlocked`), e a
+simulação de escrita dos testes mora no oráculo
+(`test/helpers/pipeline-oracle/rd-ledger.ts`). Os sinais que alimentam o ledger
+continuam os mesmos:
+inventário, play/downloaded (`/resolve`), 451, `enqueue` pronto,
 recheck pronto, `torrentStatus` e sonda RD. Convive com o `mag:alive` (que
 continua por conta e registra um play que funcionou naquela credencial). O
 oráculo consulta o ledger ANTES de ir à rede (dedupe); hash já resolvido não
@@ -320,8 +326,8 @@ só admissado como `play` no gate. É o único que deixa o addon **escolher o
 arquivo antes de baixar**, o que em pack multi-filme é a opção mais econômica
 de todas — em vez de puxar os 22 GB da coleção para entregar um filme, ele
 baixa só o arquivo pedido. O Ready-id memoizado (`readyTorrentId`) evita
-re-addMagnet do que já está pronto, e o `451` de infringimento grava `blocked`
-no ledger.
+re-addMagnet do que já está pronto, e o `451` de infringimento vira `blocked`
+no ledger (escrita nativa, `note_rd_blocked`).
 
 **Contratos oficiais usados:** base `https://api.real-debrid.com/rest/1.0/`,
 `Bearer`, **250 req/min** (429 / erro `34`; bruteforce = bloqueio por tempo
