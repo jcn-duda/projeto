@@ -163,18 +163,20 @@ reavaliar no corte da raiz: sai com ela, salvo decisão de levar a régua do
 1. **Fase 0 — pré-condição (fatia em curso):** `GET /magnet-bank/status|search`
    na admin + leituras na `magnet-bank-native.ts` + ações do painel lendo pela
    admin com 503. Sem ela, nada abaixo executa.
-2. **Fase 1 — `magnet-bank-search.ts`:** apagar módulo, o import em
-   `dashboard-actions-magnet.ts:19` e `test/magnet-bank-search.test.ts` (tirar
-   da lista do `package.json`). Apagão: `rg "magnet-bank-search" src/` só
-   dentro da família.
+2. **Fase 1 — `magnet-bank-search.ts` (EXECUTADA — `57afd760`):** módulo,
+   teste e entrada da lista apagados; catraca `test/magnet-bank-cut.test.ts`
+   criada (asserção `!fs.existsSync`) e cresce a cada fase.
 3. **Fase 2 — migrar as leituras residuais de produção** (inventário em
    andamento decide a ponte): `debrid/common.ts:29` (play),
    `magnetdb-inspect.ts:68` (inventário), `release-index-media.ts` via
-   `release-index.ts:58` (record napi do índice), `dashboard-status-blocks.ts:303`
-   (bloco de status do painel) e o ciclo de vida `addon.ts:36,117`. Candidato
-   natural: leitura read-only napi do `magnets.db` (padrão `RawStore` napi /
-   `MagnetBankStore` do `adom-store`) ou via admin — decisão da fatia de
-   inventário, não deste plano. Esta fase NÃO apaga nada.
+   `release-index.ts:58` (record napi do índice) e o ciclo de vida
+   `addon.ts:36,117`. Candidato natural: leitura read-only napi do
+   `magnets.db` (padrão `RawStore` napi / `MagnetBankStore` do `adom-store`)
+   ou via admin — decisão da fatia de inventário, não deste plano. **Bloco de
+   status do painel EXECUTADO**: `dashboard-status-blocks.ts` ecoa a admin via
+   `dashboard-magnet-bank-block.ts` (estado neutro `ok:false` quando ela não
+   responde) — e a fila de captura TS foi provada SEM chamador de produção
+   (`rg captureItems src/` fora da família: vazio). Esta fase NÃO apaga nada.
 4. **Fase 3 — decisão do export:** enquanto o export for I/O do Node, a rota +
    `magnet-bank-transfer.ts` (utils) ficam e a fachada fica com eles. O corte
    da raiz só executa quando o export mudar de dono (streaming pela admin do

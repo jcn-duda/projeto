@@ -14,6 +14,7 @@ import { debridBlock } from './dashboard-debrid-block.js';
 // Bloco `cache` (C4): extraído pela catraca; a foto nativa do `streams.db`
 // entra pela ponte de leitura `GET /streams/stats`.
 import { cacheBlock } from './dashboard-cache-block.js';
+import { magnetBankBlock } from './dashboard-magnet-bank-block.js';
 import { fetchNativeStreamsStats, type NativeStreamsStats } from '../utils/streams-stats-native.js';
 import { breakerFor, refreshNativeIndexerStatus } from '../providers/indexer-status-native.js';
 import { loadNativeCatalog } from '../providers/catalog-native.js';
@@ -297,10 +298,10 @@ export async function computeStatusPayload(
   }
 
   // Bloco: magnetBank (banco vivo do Jackett) — separado do `magnetdb` (estoque
-  // por conta). O status é agregação (COUNT/MAX/GROUP BY) na engine; nada de
-  // varredura por indexer no poll.
+  // por conta). O gateway é o único escritor do acervo: o bloco ecoa a admin
+  // (F3.3), sem agregação local nem varredura por indexer no poll.
   if (isReq('magnetBank')) {
-    out.magnetBank = services.magnetBank.status();
+    out.magnetBank = await magnetBankBlock();
   }
 
   // Bloco: catalog

@@ -28,7 +28,6 @@ const TOKEN = 'tok-magnet-bank';
 const HEX = (c: string, tail = '0') => c.repeat(39) + tail;
 const H1 = HEX('a', '1');
 const H2 = HEX('b', '2');
-const H3 = HEX('c', '3');
 
 let server: any;
 const saved: Record<string, any> = {};
@@ -184,35 +183,26 @@ test('magnet-bank-search: título, vazio, validação da admin e teto local', as
   });
 });
 
-test('dashboard-status.json entrega o bloco magnetBank sem quebrar o magnetdb', async () => {
-  const res = await get('?blocos=magnetBank');
-  assert.equal(res.status, 200);
-  assert.equal(res.json.magnetBank.magnets, 2);
-  assert.equal(res.json.magnetBank.sources, 2);
-  assert.equal(res.json.magnetBank.works, 2);
-  assert.equal(res.json.magnetBank.engine, 'memory');
-  assert.equal(res.json.magnetBank.byIndexer.length, 2);
-  assert.equal(res.json.magnetBank.memoryMax, config.magnetBank.memoryMax, 'bloco expõe o teto da memória');
-  assert.equal(res.json.magnetBank.memoryEvictions, 0);
-
-  const ambos = await get('?blocos=magnetdb,magnetBank');
-  assert.equal(ambos.status, 200);
-  assert.ok(ambos.json.magnetdb, 'bloco magnetdb existente continua presente');
-  assert.ok(ambos.json.magnetBank, 'magnetBank convive com o magnetdb');
+test('dashboard-status.json entrega o bloco magnetBank ecoando a admin do gateway', async () => {
+  await withMagnetAdmin('tok-magnet-bank-bloco', () => ({ ok: true, status: 200, json: async () => MAGNET_ADMIN_STATUS }), async () => {
+    const res = await get('?blocos=magnetBank,magnetdb');
+    assert.equal(res.status, 200);
+    assert.equal(res.json.magnetBank.magnets, 2);
+    assert.equal(res.json.magnetBank.engine, 'sql');
+    assert.equal(res.json.magnetBank.native, true, 'bloco marca a origem gateway');
+    assert.ok(res.json.magnetBank.byIndexer.length > 0);
+    assert.ok(res.json.magnetdb, 'bloco magnetdb existente continua presente');
+  });
 });
 
-test('bloco magnetBank do status é memoizado e o flush derruba o memo', async () => {
-  seed();
-  const antes = await get('?blocos=magnetBank');
-  assert.equal(antes.json.magnetBank.magnets, 2);
-
-  bank.captureItems([
-    { title: 'Extra Novo', infoHash: H3, magnet: `magnet:?xt=urn:btih:${H3}` },
-  ], 'bludv', {});
-  bank.flushNow();
-
-  const depois = await get('?blocos=magnetBank');
-  assert.equal(depois.json.magnetBank.magnets, 3, 'a escrita efetiva invalida o memo do bloco');
+test('bloco magnetBank sem a admin responde indisponível, sem fingir acervo', async () => {
+  await withMagnetAdmin('tok-magnet-bank-bloco', () => { throw new Error('admin fora'); }, async () => {
+    const res = await get('?blocos=magnetBank');
+    assert.equal(res.status, 200);
+    assert.equal(res.json.magnetBank.ok, false, 'sem gateway não é acervo vazio medido');
+    assert.equal(res.json.magnetBank.native, false);
+    assert.deepEqual(res.json.magnetBank.byIndexer, []);
+  });
 });
 
 test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contador)', async () => {
