@@ -35,30 +35,21 @@ WORKDIR /rust
 # O default 1 é o da VPS; a máquina local sobe os jobs pelo override do compose.
 ARG CARGO_JOBS=1
 ENV CARGO_BUILD_JOBS=$CARGO_JOBS
+# Os defaults repetem o perfil release do cargo; só o override local os muda.
+ARG CARGO_RELEASE_INCREMENTAL=false
+ARG CARGO_RELEASE_CODEGEN_UNITS=16
+ENV CARGO_PROFILE_RELEASE_INCREMENTAL=$CARGO_RELEASE_INCREMENTAL
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=$CARGO_RELEASE_CODEGEN_UNITS
 COPY rust/Cargo.toml rust/Cargo.lock ./
 COPY rust/crates ./crates
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 # Os cache mounts guardam dependências e artefatos entre builds: o COPY acima
 # invalida a camada a cada .rs alterado, e sem eles tudo recompilaria do zero.
-RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
-    cargo build --locked --release -p adom-napi \
- && cp target/release/libadom_napi.so /adom_napi.node
-# Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
-RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
-    cargo build --locked --release --bin adom-sidecar \
- && cp target/release/adom-sidecar /adom-sidecar
-# Compila os resolvers BR em Rust (binário estático musl, mesmo padrão)
-RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
-    cargo build --locked --release --bin adom-resolvers \
- && cp target/release/adom-resolvers /adom-resolvers
-# Gateway (GATEWAY=on): escuta a 7000 e encaminha ao Node na 7100.
-RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
-    cargo build --locked --release --bin adom-server \
- && cp target/release/adom-server /adom-server
+# O touch é obrigatório: o BuildKit reaproveita a camada do COPY com as datas
+# antigas e, com o target num mount, o cargo tomaria fonte diferente por
+# atualizada e entregaria o binário de outra versão. Um RUN só para o touch
+# valer uma vez, sem cada cargo refazer os crates do workspace.
+RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked     --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked     find crates -type f -exec touch {} +  && cargo build --locked --release -p adom-napi  && cp target/release/libadom_napi.so /adom_napi.node  && cargo build --locked --release --bin adom-sidecar  && cp target/release/adom-sidecar /adom-sidecar  && cargo build --locked --release --bin adom-resolvers  && cp target/release/adom-resolvers /adom-resolvers  && cargo build --locked --release --bin adom-server  && cp target/release/adom-server /adom-server
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
