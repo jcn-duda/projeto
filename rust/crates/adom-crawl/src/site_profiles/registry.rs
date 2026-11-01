@@ -282,7 +282,13 @@ fn build_apachetorrent() -> SiteNetworkConfig {
 fn build_torrentgalaxy() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "torrentgalaxy-cardigann".into(),
-        candidate_hosts: strings(&["torrentgalaxy.one", "torrentgalaxy.info"]),
+        // `.one` responde 302 para `.online` desde 2026-11: host fora daqui é
+        // `blocked_host` no redirect, e o resolver inteiro cai em 502.
+        candidate_hosts: strings(&[
+            "torrentgalaxy.online",
+            "torrentgalaxy.one",
+            "torrentgalaxy.info",
+        ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,

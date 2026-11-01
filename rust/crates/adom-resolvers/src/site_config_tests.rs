@@ -10,6 +10,9 @@ fn torrentgalaxy_acha_perfil_pelo_nome_do_operador() {
     assert_eq!(found.site_id, "torrentgalaxy-cardigann");
     assert!(found
         .candidate_hosts
+        .contains(&"torrentgalaxy.online".to_string()));
+    assert!(found
+        .candidate_hosts
         .contains(&"torrentgalaxy.one".to_string()));
     assert!(found
         .candidate_hosts

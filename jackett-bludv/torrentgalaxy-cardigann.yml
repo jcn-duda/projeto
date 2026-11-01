@@ -9,6 +9,7 @@ encoding: UTF-8
 # locais (uma requisição por vez no resolver, sem martelar o site).
 requestDelay: 1
 links:
+  - https://torrentgalaxy.online/
   - https://torrentgalaxy.one/
 
 caps:

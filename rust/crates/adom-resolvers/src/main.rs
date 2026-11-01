@@ -130,7 +130,7 @@ const DEFAULT_URLS: &[(&str, &str)] = &[
     ("redetorrent", "https://www.redetorrent.xyz"),
     ("apachetorrent", "https://apachetorrents.com"),
     ("hdrtorrents", "https://hdrtorrents.net"),
-    ("torrentgalaxy", "https://torrentgalaxy.one"),
+    ("torrentgalaxy", "https://torrentgalaxy.online"),
 ];
 
 /// Espelhos do operador: `<SITE>_URLS` em CSV, o `urlsEnv` dos profiles TS.

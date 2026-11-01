@@ -62,6 +62,6 @@ export const resolvers = () => ({
   hdrtorrentsUrl: (process.env.HDRTORRENTS_URL || 'https://hdrtorrents.net').replace(/\/$/, ''),
   // TorrentGalaxy é GLOBAL (en-US), não BR: mesmo binário Rust e mesmo padrão
   // de card Cardigann local, só que o site não é de dublado português.
-  torrentgalaxyUrl: (process.env.TORRENTGALAXY_URL || 'https://torrentgalaxy.one').replace(/\/$/, ''),
+  torrentgalaxyUrl: (process.env.TORRENTGALAXY_URL || 'https://torrentgalaxy.online').replace(/\/$/, ''),
   extraProtectors: list(process.env.EXTRA_ALLOWED_PROTECTORS),
 });
