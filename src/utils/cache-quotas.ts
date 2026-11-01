@@ -15,8 +15,8 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 87.221 + 500 = 87.721 entradas alcançáveis contra o
-// teto de 93.000 — folga de 5.279 (a aposentadoria de baldes sem escritor no
+// chaves sem `:`. Hoje: 85.721 + 500 = 86.221 entradas alcançáveis contra o
+// teto de 93.000 — folga de 6.779 (a aposentadoria de baldes sem escritor no
 // Node devolveu a folga que estava em 279). A conta é
 // refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
@@ -29,7 +29,7 @@
 //
 // Cotas nomeadas: mag=50.000, rdc=14.000, autofetch=4.000,
 // fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
-// adsub=1.000, tsz=1.000, raw=800, tmdb=500, tmdbc=500, meta=500, rdq=500,
+// adsub=1.000, tsz=1.000, raw=800, rdq=500,
 // adrm=500, adhold=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
 // cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
 // caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
@@ -42,23 +42,17 @@
 // são duas chaves fixas (`cohort`, `last`), `notify:v1:<evento>` uma por
 // evento. `harvest` fica em 500 porque `harvest:v1:seen:<sha>` cresce por obra.
 //
-// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `tmdb`,
-// `meta`, `indexer-status` e `tmdbc` têm cota mas NÃO estão em
-// `NAMESPACE_VERSIONS`, porque montam a chave sem segmento de versão (`tmdbc:`
-// em src/utils/tmdb.ts:208) e o `maintain()` do boot
+// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `indexer-status`
+// tem cota mas NÃO está em `NAMESPACE_VERSIONS`, porque monta a chave sem
+// segmento de versão, e o `maintain()` do boot
 // (src/utils/cache-db.ts:113-114) apaga todo `ns:%` que não bata com
-// `ns:<versão>:%`. Registrá-los na lista sem migrar as chaves primeiro custa o
-// cache deles no próximo restart.
+// `ns:<versão>:%`. Registrá-lo na lista sem migrar as chaves primeiro custa o
+// cache dele no próximo restart. `tmdb`/`tmdbc`/`meta` tinham cota pelo mesmo
+// motivo; saíram no passo 4 do corte do fallback (2026-10-31), quando os
+// escritores TS morreram.
 export const MAX_ENTRIES = 93000;
 export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   streams: 2000,
-  tmdb: 500,
-  // Coleções do TMDB (chave `tmdbc:<imdbId>`, uma por filme com
-  // `belongs_to_collection`). Tem cota própria só para entrar na conta do
-  // universo acima: a chave é montada sem segmento de versão, então não pode ir
-  // para `NAMESPACE_VERSIONS` (ver a dívida conhecida no cabeçalho).
-  tmdbc: 500,
-  meta: 500,
   // Resultado bruto da busca por indexer/scraper: cada entrada pode chegar a
   // ~100 KB (teto de itens no config), então a cota fica bem abaixo das de
   // entrada minúscula — pior caso ~79 MB no L1, ainda o maior balde

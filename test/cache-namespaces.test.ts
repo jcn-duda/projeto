@@ -105,13 +105,14 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     );
     const somaUniverso =
       noL1.reduce((sum, ns) => sum + cache.QUOTAS[ns], 0) + cache.QUOTAS.__default;
-    // Conta fechada de hoje: tmdb/tmdbc/meta 500×3, rdt 2.500, indexer-status
-    // 200, cfg/dinv 50×2, notify 100, seed 20 = 4.420 nomeados, + 500 do
-    // `__default` = 4.920 contra o teto de 93.000. Os 82.801 dos 16 Rust-owned
-    // (mag 50.000, rdc 14.000, autofetch 4.000…) saíram da conta do L1.
+    // Conta fechada de hoje: rdt 2.500, indexer-status 200, cfg/dinv 50×2,
+    // notify 100, seed 20 = 2.920 nomeados, + 500 do `__default` = 3.420 contra
+    // o teto de 93.000. Os 82.801 dos 16 Rust-owned (mag 50.000, rdc 14.000,
+    // autofetch 4.000…) saíram da conta do L1, e tmdb/tmdbc/meta (500×3)
+    // saíram no passo 4 do corte do fallback.
     // Mexeu em cota de namespace que ainda tem leitor/escritor no Node,
     // reconta aqui.
-    assert.equal(somaUniverso, 4920);
+    assert.equal(somaUniverso, 3420);
     assert.ok(
       somaUniverso < cache.MAX_ENTRIES,
       `soma do universo (${somaUniverso}, ${noL1.length} namespaces no L1 + __default) < teto (${cache.MAX_ENTRIES})`,

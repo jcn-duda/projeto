@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
 import { filterRelevantRaw } from '../src/utils/release-filters.js';
-import { earliestHomeRelease } from '../src/utils/tmdb-home-release.js';
 import type { RawItem } from '../types/domain.js';
 
 const NOW = Date.parse('2026-10-05T12:00:00Z');
@@ -67,13 +66,4 @@ test('kill-switch SEARCH_PRE_HOME_RELEASE_CUT=false', () => {
   } finally {
     s.preHomeReleaseCut = before;
   }
-});
-
-test('TMDB: menor data entre digital, físico e TV de todos os países', () => {
-  const at = earliestHomeRelease({ results: [
-    { iso_3166_1: 'US', release_dates: [{ type: 3, release_date: '2026-07-17T00:00:00.000Z' }, { type: 5, release_date: '2026-11-17T00:00:00.000Z' }] },
-    { iso_3166_1: 'FR', release_dates: [{ type: 4, release_date: '2026-11-15T00:00:00.000Z' }] },
-  ] });
-  assert.equal(at, DIGITAL);
-  assert.equal(earliestHomeRelease({ results: [{ release_dates: [{ type: 3, release_date: '2026-07-17' }] }] }), null);
 });

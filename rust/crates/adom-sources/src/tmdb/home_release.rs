@@ -143,3 +143,37 @@ fn earliest_home_release(data: &Value) -> Option<i64> {
     }
     min
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Porte do caso que vivia em `test/non-feature-release.test.ts` até o passo
+    /// 4 do corte do fallback (2026-10-31): o MENOR entre os tipos domésticos
+    /// (4 digital, 5 físico, 6 TV) de TODOS os países vence — digital FR em
+    /// 15/11 bate físico US em 17/11 — e cinema (tipo 3) sozinho não é data
+    /// doméstica.
+    #[test]
+    fn menor_data_domestica_entre_paises_e_tipos() {
+        let data = serde_json::json!({ "results": [
+            { "iso_3166_1": "US", "release_dates": [
+                { "type": 3, "release_date": "2026-07-17T00:00:00.000Z" },
+                { "type": 5, "release_date": "2026-11-17T00:00:00.000Z" },
+            ]},
+            { "iso_3166_1": "FR", "release_dates": [
+                { "type": 4, "release_date": "2026-11-15T00:00:00.000Z" },
+            ]},
+        ]});
+        assert_eq!(earliest_home_release(&data), Some(1_794_700_800_000));
+    }
+
+    /// Só lançamento de cinema (tipo 3) e data sem timezone continuam `None`:
+    /// fail-open, nada é cortado.
+    #[test]
+    fn sem_tipo_domestico_nao_ha_data() {
+        let so_cinema = serde_json::json!({ "results": [
+            { "release_dates": [{ "type": 3, "release_date": "2026-07-17" }] },
+        ]});
+        assert_eq!(earliest_home_release(&so_cinema), None);
+    }
+}

@@ -15,7 +15,6 @@ import { prefix } from '../src/utils/cache-keys.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { getMeta } from '../src/utils/cinemeta.js';
 import { stubFetch } from './helpers/stub.js';
 import type { Stream } from '../types/domain.js';
 
@@ -364,18 +363,5 @@ test('fsz que só aparece na checagem anota o filme individual já na primeira r
   } finally {
     globalThis.fetch = realFetch;
     clearFileSizes();
-  }
-});
-
-test('Cinemeta conta episódios por temporada sem os especiais', async () => {
-  const imdbId = `tt-ep-${process.pid}-${Date.now()}`;
-  const videos = [{ season: 0 }, { season: 1 }, { season: 1 }, { season: 3 }, { season: 3 }, { season: 3 }];
-  const stub = stubFetch(() => ({ ok: true, status: 200, json: async () => ({ meta: { name: 'Goliath', year: '2016', videos } }) }));
-  try {
-    const meta = await getMeta('series', imdbId);
-    assert.equal(JSON.stringify(meta?.episodes), JSON.stringify({ 1: 2, 3: 3 }));
-  } finally {
-    stub.restore();
-    cache.forget(`meta:series:${imdbId}`);
   }
 });

@@ -3,11 +3,8 @@ import assert from 'node:assert/strict';
 import * as log from '../src/utils/logger.js';
 import * as metrics from '../src/utils/metrics.js';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
-import { getMeta } from '../src/utils/cinemeta.js';
-import { getTitles } from '../src/utils/tmdb.js';
 import {
   firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
@@ -16,8 +13,8 @@ import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { stageFirstTiming } from './helpers/pipeline-oracle/first-observer.js';
 import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 
-// Os contadores de degradação passam pelo cache de metadados; persistência
-// desligada para não tocar o data/cache.db real.
+// Persistência do cache desligada: nenhum teste aqui pode tocar o
+// data/cache.db real.
 process.env.CACHE_PERSIST = 'false';
 
 const CACHED_H = 'c'.repeat(40);
@@ -145,48 +142,8 @@ test('timed devolve a duração e registra a amostra', () => {
   assert.equal((metrics.snapshot().timers as Record<string, TimerSample>).trecho.count, 1);
 });
 
-// Contadores de degradação: são o único jeito de ver no /metrics.json que a
-// instância está pagando custo de rede evitável ou rodando às cegas no debrid.
-
-test('miss servido do cache conta meta.cinemeta.miss.served', async () => {
-  metrics.reset();
-  const imdbId = `tt-obs-cinemeta-${process.pid}-${Date.now()}`;
-  const key = `meta:movie:${imdbId}`;
-  const originalFetch = global.fetch;
-  global.fetch = (async () => ({ ok: false, status: 404, json: async () => ({}) })) as unknown as typeof globalThis.fetch;
-  try {
-    await getMeta('movie', imdbId); // grava o sentinela
-    await getMeta('movie', imdbId); // servido do miss
-    await getMeta('movie', imdbId); // de novo
-    assert.equal(metrics.snapshot().counters['meta.cinemeta.miss.served'], 2);
-  } finally {
-    global.fetch = originalFetch;
-    cache.forget(key);
-  }
-});
-
-test('miss servido do cache conta meta.tmdb.miss.served', async () => {
-  metrics.reset();
-  const originalKey = config.tmdb.apiKey;
-  config.tmdb.apiKey = 'test-key';
-  const imdbId = `tt-obs-tmdb-${process.pid}-${Date.now()}`;
-  const key = `tmdb:${imdbId}`;
-  const originalFetch = global.fetch;
-  global.fetch = (async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ movie_results: [], tv_results: [] }),
-  })) as unknown as typeof globalThis.fetch;
-  try {
-    await getTitles(imdbId);
-    await getTitles(imdbId);
-    assert.equal(metrics.snapshot().counters['meta.tmdb.miss.served'], 1);
-  } finally {
-    global.fetch = originalFetch;
-    cache.forget(key);
-    config.tmdb.apiKey = originalKey;
-  }
-});
+// Contador de degradação: é o único jeito de ver no /metrics.json que a
+// instância está rodando às cegas no debrid.
 
 test('checagem de cache sem resposta confiável conta debrid.check.unknown', async () => {
   metrics.reset();

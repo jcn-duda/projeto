@@ -98,9 +98,9 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
     // `dedupeNames` remove null/undefined/'' e colapsa repetições normalizadas
     // (o original do Cinemeta e o canônico inglês coincidem em obra anglófona),
     // mantendo só strings não vazias para `matchContext.names: string[]`.
-    // Dos `alternative_titles` só entram os aliases BR já filtrados em
-    // tmdb-br-aliases.ts ("Operação: Lioness"); grafias arbitrárias de outros
-    // países ("Kill") continuam fora.
+    // Dos `alternative_titles` só entram os aliases BR já filtrados pelo núcleo
+    // (`filterBrAliases`, no nativo — o TS saiu no passo 4 do corte do fallback);
+    // grafias arbitrárias de outros países ("Kill") continuam fora.
     names: dedupeNames([meta?.name, titles?.en, titles?.pt, titles?.original, ...(titles?.br || [])]),
   };
 }

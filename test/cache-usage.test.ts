@@ -104,6 +104,8 @@ test('usage: snapshot() expõe a telemetria junto dos baldes do /metrics.json', 
     // O formato clássico do snapshot continua intacto (contrato do painel).
     assert.equal(snap.entries, 1);
     assert.equal(snap.maxEntries, cache.MAX_ENTRIES);
-    assert.deepEqual(snap.namespaces['meta'], { entries: 1, maxEntries: cache.QUOTAS.meta });
+    // `meta:` perdeu a cota nomeada no passo 4 do corte do fallback: o balde
+    // cai no `__default`, que hoje é o mesmo 500.
+    assert.deepEqual(snap.namespaces['meta'], { entries: 1, maxEntries: cache.QUOTAS.__default });
   });
 });

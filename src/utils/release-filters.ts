@@ -21,7 +21,7 @@ interface MatchOptions {
   multiWork?: MultiWorkCollection | null;
   /** Segundo ano de catálogo quando Cinemeta e TMDB divergem (ver `catalogAltYearOf`). */
   altYear?: number | string | null;
-  /** 1º lançamento doméstico no TMDB (ms), só filme recente (`tmdb-home-release.ts`). */
+  /** 1º lançamento doméstico no TMDB (ms), só filme recente (nativo: `adom-sources/src/tmdb/home_release.rs`). */
   homeReleaseAt?: number | null;
 }
 

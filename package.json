@@ -174,7 +174,6 @@
     "test/catalog.test.js",
     "test/challenger-m1-adversarial.test.js",
     "test/challenger-m1-debrid.test.js",
-    "test/cinemeta.test.js",
     "test/client-esm.test.js",
     "test/client-imports-stamp.test.js",
     "test/config-indexer-aliases.test.js",
@@ -264,7 +263,6 @@
     "test/e2e/tier3-pipeline.test.js",
     "test/e2e/tier3-runtime.test.js",
     "test/entrypoint-jackett-indexers.test.js",
-    "test/episode-size-meta-update.test.js",
     "test/episode-size.test.js",
     "test/esm-cache-tests-guard.test.js",
     "test/format-audio-quality.test.js",
@@ -318,9 +316,7 @@
     "test/magnet-uri.test.js",
     "test/magnetdb-persist-basis.test.js",
     "test/memory-fallback-suppress.test.js",
-    "test/meta-cache.test.js",
     "test/movie-series-cam-guard.test.js",
-    "test/multiwork-pack.test.js",
     "test/named-sequel.test.js",
     "test/native-json.test.js",
     "test/native-kv.test.js",
@@ -371,9 +367,6 @@
     "test/title-acronyms.test.js",
     "test/title-normalization-fold.test.js",
     "test/title-precision-tail.test.js",
-    "test/tmdb-br-aliases.test.js",
-    "test/tmdb-english-title.test.js",
-    "test/tmdb.test.js",
     "test/torrent-total-size.test.js"
   ]
 }
