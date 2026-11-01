@@ -1,6 +1,7 @@
 // Etapa 5 — agregação de status do banco vivo: totais, por indexer, último
 // visto, memo do poll (TTL/invalidação) e o kill-switch que não abre disco.
-// A BUSCA (hash/título/wildcard/cap) mora em `magnet-bank-search.test.ts`.
+// A BUSCA (hash/título) mora nos testes do store Rust (`magnet_bank_read_tests.rs`)
+// e da ponte (`magnet-bank-admin-bridge.test.ts`); o teste TS dela foi cortado.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

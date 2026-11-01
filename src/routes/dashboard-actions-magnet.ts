@@ -135,8 +135,8 @@ export const magnetBankSearch: MagnetAction = async ({ services, req, res, actio
     return res.status(400).json({ ok: false, action, error: 'query inválida; informe hash ou trecho do título' });
   }
   services.metrics.count('dashboard.magnet.bank_search');
-  // Mesma régua de teto que o `searchBank` aplicava: número finito positivo
-  // vira inteiro limitado ao teto; qualquer outra coisa cai no default.
+  // Mesma régua de teto que a admin aplica (`search_limit`): número finito
+  // positivo vira inteiro limitado ao teto; qualquer outra coisa cai no default.
   const max = Math.trunc(Number(body.max));
   const limit = Number.isFinite(max) && max > 0 ? Math.min(MAX_ITEMS, max) : DEFAULT_ITEMS;
   const native = await bankSearchNative(body.query ?? '', limit);
