@@ -58,6 +58,17 @@ function writeOne(hash: string, value: LedgerValue, ttlSeconds: number) {
   if (ttlSeconds > 0) kvSet(key(hash), value, ttlSeconds);
 }
 
+// Escala do `at` = SEGUNDOS, igual ao gateway: a renovação de hit converte
+// now_ms()/1000 antes de montar o `{s, at, n}` (rust/crates/adom-debrid/src/
+// verdict_ledger.rs:88, passado ao next_on_hit na :98 e gravado na :103) e o
+// warmer repete a conversão (rust/crates/adom-server/src/rd_warmer_ledger.rs:96;
+// cabeçalho do arquivo, :5-6: "A unidade de `at` é SEGUNDOS"). Só o payload
+// muda: o TTL da LINHA segue em segundos no `kvSet` (e a ponte napi é
+// pass-through do `at`, src/utils/rust-debrid-rd.ts:51).
+function nowSeconds(): number {
+  return Date.now() / 1000;
+}
+
 function noteMiss(hash: string) {
   if (!config.debrid.rdLedger.enabled) return;
   const normalized = normalizeRdHash(hash);
@@ -68,7 +79,7 @@ function noteMiss(hash: string) {
     enabled: true,
     hash: normalized,
     backoffMs: backoff,
-    now: Date.now(),
+    now: nowSeconds(),
     current: peekLedgerState(true, prior),
     prior,
   });
@@ -85,7 +96,7 @@ function noteBlocked(hash: string) {
     enabled: config.debrid.rdLedger.enabled,
     hash: normalized,
     blockedTtl: ttl,
-    now: Date.now(),
+    now: nowSeconds(),
   });
   if (!write?.hash) return;
   writeOne(write.hash, { s: 'blocked', at: write.at, n: write.n }, write.ttlSeconds);
@@ -114,7 +125,7 @@ function noteHit(hashes: string[]) {
   const ttl = config.debrid.rdLedger.hitTtl;
   if (!config.debrid.rdLedger.enabled || ttl <= 0) return;
   const unique = [...new Set(hashes.map(normalizeRdHash))].filter(Boolean);
-  const now = Date.now();
+  const now = nowSeconds();
   for (const hash of unique) {
     const write = nextOnHit({ enabled: true, hitTtl: ttl, now, current: peek(hash) });
     if (!write) continue;
