@@ -33,6 +33,9 @@
 //!   quem lê reconta o acervo (o `adoptRebuild` do Node) e regrava;
 //! - a leitura NÃO apaga a linha vencida: o rebuild regrava por cima e a
 //!   varredura não existe para o agregado (é uma linha só, não um namespace);
+//! - remoção física do acervo (`forget_bad`, `forget_bad_of`, `clear`, `sweep`)
+//!   invalida a linha (ver [`invalidate_counts`]) em vez de decrementar: a
+//!   próxima leitura reconta;
 //! - `version` desconhecida, `adapters` que não é objeto e JSON quebrado contam
 //!   como ausente — payload de significado incerto não vira verdade;
 //! - entrada torta (texto onde se espera número, contagem negativa) vira 0 em
@@ -42,7 +45,7 @@
 use std::collections::BTreeMap;
 
 use adom_core::mag_meta_counts_key;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde_json::{Map, Value};
 
 use crate::magnet_state::{forget, is_expired, read_row, MagnetStateStore};
@@ -210,6 +213,22 @@ impl MagnetStateStore {
     }
 }
 
+/// Invalida o agregado depois de remoção física do acervo (`forget_bad`,
+/// `forget_bad_of`, `clear`, `sweep`): APAGA a linha em vez de decrementar
+/// aritmética. Padrão escolhido — invalidar, não decrementar — porque o delta
+/// do bump chega DEPOIS da escrita física da marca: entre a remoção e o bump
+/// pendente (o play condena o `bad` e o reparo o desfaz no mesmo instante) não
+/// se sabe se a linha removida já estava contada, e o decremento raspava
+/// contagem que ainda não tinha entrado. Sem a linha, a próxima leitura reconta
+/// o físico (`summary_recount` aqui, `adoptRebuild` no Node) — O(n) raro, no
+/// pior caso um reconto por rodada de remoção. Formato do valor intacto.
+/// Recebe a conexão JÁ TRAVADA: no `sweep` a invalidação é da mesma transação
+/// que apaga as linhas.
+pub(crate) fn invalidate_counts(conn: &Connection) -> Result<(), String> {
+    forget(conn, &mag_meta_counts_key())?;
+    Ok(())
+}
+
 /// `ttl <= 0` = `expires_at` 0 (permanente), como no `NativeKv::put_json`.
 fn counts_expires_at(ttl_seconds: i64, now_ms: i64) -> i64 {
     if ttl_seconds <= 0 {
@@ -319,3 +338,9 @@ fn non_negative(value: Option<&Value>) -> i64 {
 #[cfg(test)]
 #[path = "magnet_meta_tests.rs"]
 mod magnet_meta_tests;
+
+// Casos da invalidação por remoção: arquivo próprio para não estourar o teto
+// de 400 linhas da catraca (`npm run lint:lines:rust`).
+#[cfg(test)]
+#[path = "magnet_meta_removal_tests.rs"]
+mod magnet_meta_removal_tests;

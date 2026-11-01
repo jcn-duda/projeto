@@ -237,6 +237,11 @@ impl MagnetStateStore {
                 params![pattern],
             )
             .map_err(|err| err.to_string())?;
+        // Remoção que nenhum delta compensa: invalida o agregado (a próxima
+        // leitura reconta) em vez de decrementar aritmética.
+        if removed > 0 {
+            crate::magnet_meta::invalidate_counts(&conn)?;
+        }
         Ok(to_u32(removed))
     }
 
@@ -246,68 +251,18 @@ impl MagnetStateStore {
         let removed = conn
             .execute("DELETE FROM cache WHERE key LIKE ?1", params![like_all()])
             .map_err(|err| err.to_string())?;
+        if removed > 0 {
+            crate::magnet_meta::invalidate_counts(&conn)?;
+        }
         Ok(to_u32(removed))
     }
 
-    /// Poda do namespace, agora que o Node não apaga mais estas linhas: apaga as
-    /// VENCIDAS (parseáveis ou não) e, acima de `max_entries` (`0` = sem teto),
-    /// as mais antigas por `rowid`, somando cada removida em `counts`/`evicted`.
-    /// Tudo numa transação só, em ordem de escrita.
-    pub fn sweep(&self, max_entries: u32, now_ms: i64) -> Result<MagSweep, String> {
-        let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
-            .map_err(|err| err.to_string())?;
-        let mut expired = 0u32;
-        let mut counts: BTreeMap<(String, String), u32> = BTreeMap::new();
-        // Vivas que sobram, na ordem em que podem ser evictadas: `rowid` cresce
-        // com a escrita, então a primeira da lista é a mais antiga.
-        let mut live: Vec<(i64, Option<(String, String)>)> = Vec::new();
-        for (rowid, key, expires_at) in scan_rows(&tx)? {
-            let parsed = parse_key(&key);
-            if is_expired(expires_at, now_ms) {
-                expired = expired.saturating_add(1);
-                if let Some(item) = parsed {
-                    *counts.entry(pair(item)).or_insert(0) += 1;
-                }
-                tx.execute("DELETE FROM cache WHERE key = ?1", params![key])
-                    .map_err(|err| err.to_string())?;
-                continue;
-            }
-            live.push((rowid, parsed.map(pair)));
-        }
-        // `max_entries == 0` é teto DESLIGADO, não "apaga tudo".
-        let excess = if max_entries == 0 {
-            0
-        } else {
-            live.len().saturating_sub(max_entries as usize)
-        };
-        let mut evicted = 0u32;
-        for (rowid, side) in live.into_iter().take(excess) {
-            tx.execute("DELETE FROM cache WHERE rowid = ?1", params![rowid])
-                .map_err(|err| err.to_string())?;
-            evicted = evicted.saturating_add(1);
-            if let Some(side) = side {
-                *counts.entry(side).or_insert(0) += 1;
-            }
-        }
-        tx.commit().map_err(|err| err.to_string())?;
-        Ok(MagSweep {
-            expired,
-            evicted,
-            // Linha removida não tem janela restante a somar.
-            counts: counts
-                .into_iter()
-                .map(|((adapter, side), count)| MagCount {
-                    adapter,
-                    side,
-                    count,
-                    ttl_remaining_sum: 0,
-                })
-                .collect(),
-        })
-    }
 }
+
+// A poda (`sweep`) saiu para o submódulo irmão — só pelo teto de 400 linhas da
+// catraca; é lá que a invalidação do agregado entra na transação da remoção.
+#[path = "magnet_state_sweep.rs"]
+mod sweep;
 
 /// Chave de `mag:v1` já validada: `<side>:<adapter>:<escopo>:<hash>`.
 struct ScannedKey {

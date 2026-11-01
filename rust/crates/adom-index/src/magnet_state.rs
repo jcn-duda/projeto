@@ -26,8 +26,9 @@
 //!
 //! Desde a T2-L5b o namespace é do Rust ponta a ponta: enumeração
 //! (`entries`/`summary`/`live_count`/`live_lies`) e manutenção (`clear`,
-//! `sweep`, `forget_bad_of`, `remaining`) moram no irmão
-//! [`query`](self::query), e o Node não lê nem poda mais estas linhas. Por isso
+//! `forget_bad_of`, `remaining`) moram no irmão [`query`](self::query) — o
+//! `sweep`, pelo teto de linhas, no submódulo dele — e o Node não lê nem poda
+//! mais estas linhas. Por isso
 //! a chave só aceita hash `^[a-f0-9]{40}$`: chave que a enumeração não sabe ler
 //! de volta é lixo invisível, e a guarda mora onde a chave nasce (o `davail`
 //! NÃO segue essa regra — lá qualquer hash não vazio vale).
@@ -254,6 +255,11 @@ impl MagnetStateStore {
         }
         let conn = self.lock();
         let removed = forget(&conn, &magnet_key("bad", adapter, api_key, hash))?;
+        // Remoção que nenhum delta compensa: invalida o agregado em vez de
+        // decrementar aritmética — a próxima leitura reconta o físico.
+        if removed > 0 {
+            crate::magnet_meta::invalidate_counts(&conn)?;
+        }
         Ok(removed > 0)
     }
 
