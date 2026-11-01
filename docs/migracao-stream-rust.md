@@ -495,8 +495,9 @@ pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 
-**Estado:** F3.1 entregue (`idx:v14`); F3.2 entregue (`raw:v1`); banco VIVO e
-`davail` ainda sem dono único. Alvo de cada namespace: um store Rust no padrão de
+**Estado:** F3.1 entregue (`idx:v14`); F3.2 entregue (`raw:v1`); F3.3 entregue
+(banco VIVO, `magnets.db` — dono único no gateway); `davail` ainda sem dono
+único. Alvo de cada namespace: um store Rust no padrão de
 `adom-debrid/src/store.rs`, com importação única do `cache.db`; painel e
 `/stream-trace.json`/`/dashboard-status.json` lendo do Rust.
 
@@ -544,15 +545,52 @@ sem rede) — o `.node` e o gateway compartilham o MESMO código, como o
 - Perda consciente: `cache.hit.raw`/`cache.miss.raw` não existem mais (o L1 do
   Node não vê o namespace). Rollback = commit/imagem anterior.
 
+### F3.3 — banco VIVO (`magnets.db`) com dono único (entregue)
+
+A fatia fecha o segundo escritor e as leituras de busca que sobravam no Node. O
+gateway é o ÚNICO escritor do acervo e a captura é NATIVA desde a T2-L1: o fim
+do tail da busca grava a leva numa transação
+(`adom-search/orchestrator/late.rs` → `capture_items`, contrato em
+`orchestrator/index_source.rs`; o efeito `magnet_capture` do Node não existe
+mais). As regras do que gravar vivem em `adom-store::magnet_bank_capture`, o
+SQL do upsert em `magnet_bank_write`/`magnet_bank_upsert` (roteiro em
+`adom-store/src/magnet_bank.rs`) e os índices `magnet_last_seen`/
+`magnet_source_last_seen` estão sob o mesmo dono (`magnet_bank.rs`).
+
+- A leitura da busca é nativa: `MagnetBankSource`
+  (`adom-store/src/index_impl.rs` — `works_for_obra_many`, `sources_for_many`,
+  `bank_rows_many`, `has_br_row`) alimenta a instantânea e o fallback do
+  orquestrador (`orchestrator/fallback.rs`), com tetos e janela na config
+  (`orchestrator/config.rs`, `MAGNET_BANK*`).
+- Import/backfill pelo gateway: `POST /magnet-bank/import` na admin 8711
+  (`adom-server/src/magnet_bank_admin.rs`, credencial destrutiva + `confirm`;
+  `adom-store::magnet_bank_import*`) e o backfill de `dubbed`/`quality` no
+  boot do gateway (`spawn_boot_backfill`). O Node só spoola o arquivo
+  descompactado e repassa (`magnet-bank-native.ts`, rotas
+  `routes/magnet-bank-transfer.ts` montadas em `routes/register.ts`).
+- O painel lê pela admin do gateway: as ações `magnet-bank-summary`/
+  `magnet-bank-search` (`dashboard-actions-magnet.ts`) passam pela ponte
+  `magnet-bank-native.ts` contra `GET /magnet-bank/status` e
+  `GET /magnet-bank/search` na mesma admin (mesma guarda de credencial do
+  import; régua do `limit` default 50/teto 100), ecoando status e corpo dela —
+  503 `magnet-bank-admin` quando ela não responde, nunca totais zerados fingidos.
+- No Node sobram leituras read-only residuais (URI rica do play em
+  `debrid/common.ts`, inventário do painel em `magnetdb-inspect.ts` e o
+  `bankRowsForMediaSource` do índice em `release-index-media.ts`) e a
+  export/import de arquivo. O corte da família TS `magnet-bank*` tem plano em
+  [`superpowers/plans/2026-11-01-banco-vivo-corte.md`](superpowers/plans/2026-11-01-banco-vivo-corte.md).
+
 ### O que falta
 
 | namespace | hoje | falta |
 |---|---|---|
-| banco VIVO (`magnets.db`) | captura e escrita no Node (`magnet-bank*`); o Rust (nativo desde o R4) lê em lote e grava só o veredito do filtro (`MagnetBankSource`) | captura no Rust e os índices `magnet_last_seen`/`magnet_source_last_seen` sob o mesmo dono; painel lendo do Rust |
+| banco VIVO (`magnets.db`) | dono único no gateway (F3.3): captura, leitura da busca e import nativos; painel lendo pela admin (`GET /magnet-bank/status`/`/search`) | corte final da família TS `magnet-bank*` — leituras residuais do play/inventário e os módulos mortos (plano em `docs/superpowers/plans/2026-11-01-banco-vivo-corte.md`) |
 | `davail` (⚡ por hash/conta) | o Node grava no `cache.db`; o `adom-debrid` copia uma vez na subida (`import.rs`, marcador `__debrid:import:v1`) | dono único — hoje são dois escritores que divergem depois do import |
 
-Cada um segue a receita do F3.1: provas laterais no Rust com o Node inalterado,
-depois o Node vira fachada e recusa o namespace no L1/L2.
+O `davail` segue a receita do F3.1: provas laterais no Rust com o Node
+inalterado, depois o Node vira fachada e recusa o namespace no L1/L2. O que
+sobra do banco VIVO é corte de família TS, não troca de dono — ordem e
+catraca no plano ligado na tabela.
 
 ## F4 — Corte final (F4.4 ENTREGUE, sem Docker)
 

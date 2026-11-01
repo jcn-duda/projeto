@@ -412,14 +412,19 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `NoVideoError`; `lie` só do `DubLieError` (áudio EN em post PT).
   **Banco VIVO** (`magnet-bank*`, `data/magnets.db`): acervo permanente por hash
   do que o Jackett devolveu; alimenta a URI rica do play e o fallback 📦 quando
-  um indexer falha. Captura é assíncrona e a busca nunca espera o disco.
+  um indexer falha. Captura é NATIVA desde a T2-L1: o fim do tail da busca
+  grava a leva (`capture_items`; regras em `adom-store::magnet_bank_capture`; o
+  efeito `magnet_capture` do Node não existe mais) — o gateway é o único
+  escritor do acervo.
   **O Node não grava no `magnets.db`**: o import do painel descompacta o
   upload num spool (`/tmp/adom-magnets-import-*.ndjson`) e o gateway mescla
   (`POST /magnet-bank/import` na admin 8711, credencial destrutiva + `confirm`;
   `adom-store::magnet_bank_import*`); o backfill de `dubbed`/`quality` roda no
   boot do gateway. `importLines`/`backfillClassification` TS ficam como régua.
-  Os índices `magnet_last_seen` / `magnet_source_last_seen` seguram o `MAX` do
-  status do painel: sem eles o poll travava o event loop por ~7 s. A via rápida
+  Os índices `magnet_last_seen` / `magnet_source_last_seen` vivem no store do
+  gateway (`adom-store::magnet_bank`); o painel lê pela admin do gateway
+  (`GET /magnet-bank/status`/`/search` via `magnet-bank-native.ts`, 503 quando
+  ela não responde). A via rápida
   do `/stream` é do orquestrador nativo (`adom-search/orchestrator/fast_path.rs`:
   instantânea antes do índice coberto); a leitura do índice/instantânea para o
   fallback também é nativa (R4) — as rotas Node `/internal/search/index` e
