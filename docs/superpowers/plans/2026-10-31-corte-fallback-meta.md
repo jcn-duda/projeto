@@ -622,5 +622,32 @@ Sinais de reversão no pós-corte: aumento de `NOTICE_SEARCHING` na resposta de
 `/stream` para obras que ontem tinham metadado (o sintoma visível de
 `meta.native.error` sem fallback). Ação: reverter o argumento de `meta_source`
 em `stream.rs` (rollback do passo 1) antes de investigar o primário.
+_(Sinal e ação substituídos pela errata abaixo.)_
 
 Passos 1-5 liberados a partir daqui.
+
+### Errata da assinatura — 2026-11-01
+
+A decisão de cortar não muda; mudam a leitura da evidência e o sinal de reversão.
+O texto assinado acima fica como registro. Vale o que segue, também para o que os
+§1 e o passo 1 dizem sobre `NOTICE_SEARCHING`.
+
+- **O fallback quase nunca podia disparar.** `lookup` não devolve `Result` e
+  `meta_from_lookup` preenche `name` com o IMDb quando os títulos faltam, então o
+  gate de nome vazio não abre. O teste `nativo_incompleto_com_imdb_nao_chama_o_node`
+  fixa isso. O Node só era chamado no `Err`: tipo desconhecido ou id sem IMDb, e o
+  manifesto só declara `idPrefixes: ['tt']`. O `fallback.used` = 0 da janela era
+  praticamente garantido e não mede a saúde do nativo.
+- **Falha de rede não vira `meta.native.error`.** Cinemeta/TMDB fora sobem
+  `meta.native.incomplete` e a busca segue com o id como nome.
+- **`NOTICE_SEARCHING` não é sintoma de metadado.** Ele vem do prazo estourado
+  (`route.rs:98`) e de lista vazia com coleta parcial ou falha (`respond.rs:173`).
+- **Única diferença real do passo 1:** se os clientes nativos não montarem, antes
+  caía no Node; agora fica o `IdOnlyMeta`. O sinal é o log
+  `[gateway] clientes de metadados nativos não montaram` no boot, com
+  `meta.resolve.total` parado.
+
+Sinal de pós-corte: alta sustentada de `meta.native.incomplete` sobre
+`meta.resolve.total`. Ação: investigar Cinemeta/TMDB (rede, `TMDB_API_KEY`).
+Reverter o passo 1 não resolve esse caso, porque o Node não era chamado nele; o
+rollback só faz sentido com o log de boot acima.

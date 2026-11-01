@@ -1,5 +1,5 @@
 //! Contadores do NATIVO (`meta.resolve.total`/`meta.native.*`) — a migração
-//! do corte do fallback (plano 2026-10-31, passo 2). O dono dos números é o
+//! do corte do fallback (plano 2026-10-31, antecipada do passo 2). O dono dos números é o
 //! [`NativeMetaSource::resolve`] via `record_native_outcome`: com a rota Node
 //! desligada (passo 1, `meta_source(None)`), o `/metrics` segue vivo.
 //!

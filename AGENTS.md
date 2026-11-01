@@ -258,14 +258,13 @@ npm run docker:up / docker:logs
 ## Fluxo de busca (um `stream` request)
 
 Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
-o Node não monta mais lista. O Node fica com I/O e rede: metadados em
-**fallback**, painel, `/configure` e o estado do
+o Node não monta mais lista. O Node fica com I/O e rede: painel, `/configure` e o estado do
 raspador (o crawl em si é do sidecar).
 
 ```
 Caddy → adom-server (:7000) → Orchestrator (adom-search)
   ├─ cache SWR nativo (data/streams.db, streams:v21) + coalescing inFlight
-  ├─ metadados: nativo (fonte primária) + POST /internal/search/meta (fallback vivo)
+  ├─ metadados: só nativo (fallback Node desligado; rede fora → busca pelo id)
   ├─ coleta: as CINCO fontes nativas (jackett, prowlarr, torrentio, bludv, mico)
   │  e o inventário da conta — incondicional
   ├─ índice/banco: nativos (`adom-index`/`IdxStore`, `data/magnets.db`)
@@ -275,7 +274,8 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 ```
 
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
-caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
+caminho: `POST /internal/search/meta` (montada, sem chamador desde o passo 1 do
+corte; sai no passo 3), `/internal/search/effects`,
 a rota do sidecar (`/internal/activity`),
 painel/config e as pontes do Chupim (o crawl é do sidecar). O
 `harvester_enqueue` entra direto na fila do colhedor do gateway
@@ -717,7 +717,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`/internal/search/meta`, em `src/routes/internal-search.ts`), os efeitos (o feed de holds saiu: o gateway calcula os fatos; `applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou a rota de metadados sem chamador (`/internal/search/meta`, em `src/routes/internal-search.ts`, até o passo 3 do corte), os efeitos (o feed de holds saiu: o gateway calcula os fatos; `applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
 | Fontes | Jackett, Prowlarr, Torrentio, BLUDV e Mico nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |

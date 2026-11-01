@@ -17,10 +17,9 @@
 //! - **fail-open**: `lookup` nunca devolve erro; campo sem resposta fica `None`.
 //!   O `Orchestrator` ainda cobre o caso de erro com o `SearchMeta::from_id`.
 //!
-//! O Node segue no caminho como FALLBACK: o [`FallbackMetaSource`] o chama
-//! quando o nativo falha (ou volta sem nome) — a rede de segurança fica até
-//! haver medida da taxa de fallback. A taxa é medida em `meta.*`
-//! ([`super::meta_metrics`]): os contadores do primário
+//! O [`FallbackMetaSource`] chamava o Node quando o nativo falhava (ou voltava
+//! sem nome); a produção não o monta desde o passo 1 do corte e ele sai no passo
+//! 2. A medida fica em `meta.*` ([`super::meta_metrics`]): os contadores do primário
 //! (`meta.resolve.total`/`meta.native.*`) nascem aqui, no
 //! [`NativeMetaSource::resolve`], e os `meta.fallback.*` no wrapper — com a
 //! rota Node desligada, o `/metrics` segue vivo. Nada muda de comportamento
@@ -175,7 +174,8 @@ fn has_real_title(meta: &SearchMeta) -> bool {
 /// `meta.native.incomplete` (Ok sem título real) ou `meta.native.error` (Err).
 /// Função pura: o teste prova os incrementos sem rede; o `resolve` só a aplica.
 ///
-/// Migração do corte do fallback (plano 2026-10-31, passo 2): os contadores
+/// Migração do corte do fallback (plano 2026-10-31, antecipada do passo 2 para
+/// antes do passo 1): os contadores
 /// moravam no `FallbackMetaSource::resolve` — se ficassem lá, desligar a rota
 /// Node congelaria o `/metrics`. A soma ao vivo não muda: no caminho com
 /// fallback o nativo roda UMA vez por chamada do wrapper (mesmos incrementos,

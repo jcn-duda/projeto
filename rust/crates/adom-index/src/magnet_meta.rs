@@ -30,12 +30,13 @@
 //!
 //! Regras que este arquivo garante:
 //! - ausente, vencido ou ILEGÍVEL devolve `None` — nunca uma contagem inventada;
-//!   quem lê reconta o acervo (o `adoptRebuild` do Node) e regrava;
-//! - a leitura NÃO apaga a linha vencida: o rebuild regrava por cima e a
+//!   o painel reconta só para exibir (o `adoptRebuild` do Node, sem gravar) e
+//!   quem regrava é o próximo [`MagnetStateStore::bump_counts`];
+//! - a leitura NÃO apaga a linha vencida: o bump regrava por cima e a
 //!   varredura não existe para o agregado (é uma linha só, não um namespace);
 //! - remoção física do acervo (`forget_bad`, `forget_bad_of`, `clear`, `sweep`)
-//!   invalida a linha (ver [`invalidate_counts`]) em vez de decrementar: a
-//!   próxima leitura reconta;
+//!   invalida a linha (ver [`invalidate_counts`]) em vez de decrementar: o
+//!   próximo bump reconta o físico;
 //! - `version` desconhecida, `adapters` que não é objeto e JSON quebrado contam
 //!   como ausente — payload de significado incerto não vira verdade;
 //! - entrada torta (texto onde se espera número, contagem negativa) vira 0 em

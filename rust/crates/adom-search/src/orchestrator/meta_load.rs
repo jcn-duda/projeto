@@ -12,8 +12,8 @@
 //!   E sem temporada E não demo. A data alimenta o corte pré-home-release do
 //!   filtro de título.
 //!
-//! Quem responde é o nativo, com o Node de FALLBACK; a montagem é a mesma
-//! ([`super::meta::build_search_meta`]).
+//! Quem responde é o nativo (o fallback Node foi desligado no passo 1 do corte);
+//! a montagem é a mesma ([`super::meta::build_search_meta`]).
 
 use serde_json::Value;
 

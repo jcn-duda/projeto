@@ -138,9 +138,9 @@ function adoptRebuild() {
   }
   ttlBasis = ttlReal ? 'l1-rebuild' : 'aggregate-estimate';
   // NÃO grava: o reconto alimenta o PAINEL; o dono do agregado é o gateway.
-  // O reconto DURÁVEL dele só acontece com a base ausente/vencida/ilegível
-  // (`bump_counts`) — drift por esquecimento/expiração vive só nesta leitura.
-  // Gravar daqui reabriria a janela de sobrescrita que este corte fecha.
+  // O reconto DURÁVEL dele acontece no `bump_counts` com a base
+  // ausente/vencida/ilegível — e a remoção física (`forget_bad*`, `clear`,
+  // `sweep`) apaga a base justamente para forçá-lo. Gravar daqui reabriria a janela de sobrescrita que este corte fecha.
 }
 
 export function loadPersistentCounts() {
@@ -189,11 +189,12 @@ export function ensureCountsLoaded(l1Entries: number) {
   // namespace mag e a soma dos lados conta a mesma coisa, então tolerância
   // aqui só serviria para deixar passar deriva pequena. O preço do desacordo é
   // uma passada O(namespace mag) por LEITURA divergente (29,6 ms medidos em 50
-  // mil chaves, a cota cheia), nunca no caminho de busca. E o desacordo não se
-  // cura sozinho enquanto a base durar: forget/sweep/expiração não decrementam
-  // o agregado e cada `bump_counts` renova o `expires_at` da linha — só quando
-  // o tráfego cessa por tempo maior que o TTL dela é que o próximo bump reconta
-  // durável. Até lá, cada leitura do painel volta aqui. O alcance da sentinela
+  // mil chaves, a cota cheia), nunca no caminho de busca. A remoção física
+  // invalida o agregado no núcleo, então a leitura cai no ramo de ausente acima
+  // e o próximo bump reconta durável. O que ainda chega aqui é a marca vencida
+  // que a poda não levou (ela sai do físico vivo, mas segue somada no agregado)
+  // e a corrida com um bump: cada leitura do painel volta aqui até a próxima
+  // poda invalidar a base. O alcance da sentinela
   // — e o que ela deliberadamente não vê — está em `totalDiverges`.
   const restored = restoreFromAggregate(raw);
   if (totalDiverges(restored, l1Entries)) {
