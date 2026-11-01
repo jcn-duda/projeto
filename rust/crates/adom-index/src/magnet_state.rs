@@ -37,7 +37,7 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use adom_core::{account_scope, prefix};
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde_json::Value;
 
 const SCHEMA: &str = "
@@ -148,6 +148,9 @@ impl MagnetStateStore {
     /// antes). Hash com `bad` vivo é recusado: o play já provou que está
     /// quebrado e uma renovação não pode ressuscitá-lo. Hash fora de
     /// [`is_valid_hash`] é ignorado, sem impedir os outros do lote.
+    /// IMMEDIATE aqui e nas outras marcas: elas leem antes de escrever, e em WAL
+    /// uma transação DEFERRED nessa ordem falha na hora se outro processo comitar
+    /// no intervalo (`SQLITE_BUSY_SNAPSHOT`), sem passar pelo `busy_timeout`.
     pub fn mark_alive(
         &self,
         adapter: &str,
@@ -163,8 +166,7 @@ impl MagnetStateStore {
             return Ok(0);
         };
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         let mut born = 0usize;
         for hash in hashes {
@@ -207,8 +209,7 @@ impl MagnetStateStore {
             return Ok(false);
         };
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         let key = magnet_key("bad", adapter, api_key, hash);
         let born = !row_exists(&tx, &key)?;
@@ -237,8 +238,7 @@ impl MagnetStateStore {
             return Ok(false);
         };
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         let key = magnet_key("lie", adapter, api_key, hash);
         let born = !row_exists(&tx, &key)?;

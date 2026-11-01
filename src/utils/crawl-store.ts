@@ -229,7 +229,9 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         // falhar, o erro ORIGINAL é o que sobe — o da limpeza não o mascara.
         let transactionStarted = false;
         try {
-          db.exec('BEGIN');
+          // IMMEDIATE: o laço lê antes de escrever e o sidecar grava no mesmo
+          // arquivo; DEFERRED nessa ordem falha sem respeitar o busy_timeout.
+          db.exec('BEGIN IMMEDIATE');
           transactionStarted = true;
           for (const entry of entries) {
             const { row, outcome } = decideUpsert(s, selectUrl(s, String(entry.url || '')), entry, now);

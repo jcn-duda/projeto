@@ -37,7 +37,10 @@ pub(super) fn flush(
     if batch.magnets.is_empty() && batch.sources.is_empty() && batch.works.is_empty() {
         return Ok(());
     }
-    let tx = conn.transaction().map_err(sql_err)?;
+    // IMMEDIATE: o lote lê o que vai mesclar antes de escrever (ver `mark_alive`).
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(sql_err)?;
     let hashes = unique_hashes(&batch);
     let local_m = read_magnets(&tx, &hashes).map_err(sql_err)?;
     let local_s = read_sources(&tx, &hashes).map_err(sql_err)?;

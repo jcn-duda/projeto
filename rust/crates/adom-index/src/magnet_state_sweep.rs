@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use rusqlite::params;
+use rusqlite::{params, Transaction, TransactionBehavior};
 
 use super::{pair, parse_key, scan_rows, MagCount, MagSweep};
 use crate::magnet_state::{is_expired, MagnetStateStore};
@@ -20,8 +20,7 @@ impl MagnetStateStore {
     /// Tudo numa transação só, em ordem de escrita.
     pub fn sweep(&self, max_entries: u32, now_ms: i64) -> Result<MagSweep, String> {
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         let mut expired = 0u32;
         let mut counts: BTreeMap<(String, String), u32> = BTreeMap::new();

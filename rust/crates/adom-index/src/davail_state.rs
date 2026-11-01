@@ -34,7 +34,7 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use adom_core::{account_scope, prefix};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde_json::Value;
 
 const SCHEMA: &str = "
@@ -254,8 +254,7 @@ impl DavailStore {
     /// `rowid` (ordem de escrita). Numa transação só.
     pub fn sweep(&self, max_entries: u32, now_ms: i64) -> Result<DavailSweep, String> {
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         // Varredura completa ANTES de apagar: deletar enquanto o `SELECT` anda
         // pode pular linha, e a conta do teto sairia errada.

@@ -10,7 +10,7 @@
 //! `clear_all` não apagar o próprio contador que ele incrementa.
 
 use adom_search::{fence_valid, obra_of_key, StreamsEntry};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 
 use crate::streams::{enforce_quota, is_streams_key, streams_prefix, StreamsStore};
 
@@ -109,8 +109,7 @@ impl StreamsStore {
             ));
         }
         let conn = self.lock();
-        let tx = conn
-            .unchecked_transaction()
+        let tx = Transaction::new_unchecked(&conn, TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
         let atual = read(&tx, key)?;
         if !fence_valid(*fence, atual) {
