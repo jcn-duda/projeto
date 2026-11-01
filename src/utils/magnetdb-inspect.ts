@@ -17,7 +17,7 @@
 import * as magnetdb from './magnetdb.js';
 import { magnetState } from './debrid-state-native.js';
 import { MAG_SIDES, type MagSide } from './magnetdb-counts.js';
-import * as magnetBank from './magnet-bank.js';
+import { bankLookupUriNative } from './magnet-bank-native.js';
 
 export { MAG_SIDES };
 export type { MagSide };
@@ -65,7 +65,8 @@ function inspect(filters: MagFilters, limit: number): MagInspectResult {
     hash: item.hash,
     // O restante já vem calculado do núcleo; linha vencida não é devolvida.
     ttlRemainingSeconds: item.ttlRemainingSeconds,
-    magnet: magnetBank.lookup(item.hash)?.uri ?? null,
+    // Ponte read-only do banco vivo: null quando o hash não está lá.
+    magnet: bankLookupUriNative(item.hash),
   }));
   return { items, matched: page.matched, truncated: page.truncated };
 }

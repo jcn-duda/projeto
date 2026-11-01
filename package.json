@@ -305,6 +305,7 @@
     "test/magnet-bank-cut.test.js",
     "test/magnet-bank-lifecycle.test.js",
     "test/magnet-bank-memory-lru.test.js",
+    "test/magnet-bank-native-read.test.js",
     "test/magnet-bank-native.test.js",
     "test/magnet-bank-status.test.js",
     "test/magnet-bank-transfer.test.js",

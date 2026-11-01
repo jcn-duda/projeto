@@ -1,8 +1,12 @@
 // Rotas de EXPORTAR/IMPORTAR o banco de magnets vivo (aba Magnets do painel).
-// O EXPORT lê pelo Node (`utils/magnet-bank-transfer.ts`). O IMPORT é do gateway
-// Rust: o Node só descompacta o upload para um temporário e pede a mescla à
-// admin (`utils/magnet-bank-native.ts`), porque ele não pode gravar no mesmo
-// SQLite que o gateway. Aqui fica só o transporte HTTP.
+// As duas mãos são PROXY: o gateway Rust é o único escritor do `data/magnets.db`
+// e o Node só transporta.
+//   EXPORT — `GET /magnet-bank/export` na admin (credencial destrutiva) devolve
+//   o NDJSON cru; aqui sai gzipado para o download com o nome de sempre. Sem
+//   resposta da admin é 503 — nunca acervo vazio fingido.
+//   IMPORT — o upload descompacta para um spool em disco e a mescla é pedida à
+//   admin (`POST /magnet-bank/import`, `utils/magnet-bank-native.ts`), porque
+//   o Node não pode gravar no mesmo SQLite que o gateway.
 //
 // Fora do `/dashboard-action.json` de propósito: aquele é JSON com teto de 4 KB
 // e a transferência é um ARQUIVO de dezenas de MB, em fluxo nos dois sentidos.
@@ -19,8 +23,6 @@ import { pipeline } from 'node:stream/promises';
 import { asyncRoute } from './async.js';
 import { unavailable } from './stream-trace.js';
 import type { AppServices } from './types.js';
-import { flushBarrier, invalidateStatusCache, readEngine } from '../utils/magnet-bank.js';
-import { exportLines } from '../utils/magnet-bank-transfer.js';
 import { importNativeBank } from '../utils/magnet-bank-native.js';
 
 let busy = false;
@@ -43,20 +45,59 @@ function byteCap(max: number): Transform {
 }
 
 export function makeMagnetBankTransferHandlers(services: AppServices) {
+  /**
+   * Fetch do NDJSON cru na admin do gateway (`GET /magnet-bank/export`):
+   * credencial destrutiva com a MESMA precedência da ponte do import
+   * (`config.streamStore.token/url`) — o token de diagnóstico o gateway
+   * recusaria com 403. Sem token não há conexão (`null`). O prazo é o do
+   * import (`MAGNET_BANK_IMPORT_TIMEOUT_MS`): acervo grande leva minutos, e o
+   * prazo curto de leitura de painel cortaria o stream no meio. `null` = a
+   * admin não respondeu; quem chama devolve 503, nunca acervo vazio fingido.
+   */
+  const fetchAdminExport = async (): Promise<Response | null> => {
+    const token = services.config.streamStore.token || '';
+    if (!token) return null;
+    const base = String(services.config.streamStore.url || '').replace(/\/+$/, '');
+    try {
+      return await fetch(`${base}/magnet-bank/export`, {
+        headers: { 'x-indexer-test-token': token, accept: 'application/x-ndjson' },
+        signal: AbortSignal.timeout(Math.max(1000, services.config.magnetBank.importTimeoutMs)),
+      });
+    } catch (err: unknown) {
+      services.log.warn(`[magnetbank] admin não respondeu ao export: ${services.log.errorMessage(err)}`);
+      return null;
+    }
+  };
+
   const exportBank = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
-    const engine = readEngine();
-    if (!engine) return res.status(409).json({ ok: false, error: 'banco de magnets desligado (MAGNET_BANK=false)' });
     if (busy) return res.status(409).json({ ok: false, error: 'outra exportação/importação em andamento' });
     busy = true;
     try {
-      // A fila de captura grava em lote fora da resposta: sem a barreira, o que
-      // a última busca achou ainda não estaria no arquivo.
-      flushBarrier();
+      const admin = await fetchAdminExport();
+      if (!admin || !admin.body) {
+        services.metrics.count('magnetbank.export.failed');
+        return res.status(503).json({ ok: false, error: 'magnet-bank-admin' });
+      }
+      if (admin.status !== 200) {
+        // Recusa do gateway repassa status e motivo (kill-switch, token, 500):
+        // desligar o banco é decisão DELE, não do proxy.
+        services.metrics.count('magnetbank.export.failed');
+        const body = (await admin.json().catch(() => null)) as Record<string, unknown> | null;
+        return res.status(admin.status).json(body ?? { ok: false, error: 'magnet-bank-admin' });
+      }
       res.setHeader('Content-Type', 'application/gzip');
       res.setHeader('Content-Disposition', `attachment; filename="adom-magnets-${stamp()}.ndjson.gz"`);
       res.setHeader('Cache-Control', 'no-store');
-      await pipeline(Readable.from(exportLines(engine)), zlib.createGzip(), res);
+      // O NDJSON cru da admin entra, o gzip sai: nada do acervo passa pela RAM
+      // do Node de uma vez — o stream é a fronteira entre os dois processos. O
+      // cast é a ponte dos DOIS typings do mesmo `ReadableStream` (fetch/undici
+      // × `node:stream/web`); em runtime é o mesmo objeto.
+      await pipeline(
+        Readable.fromWeb(admin.body as unknown as import('node:stream/web').ReadableStream),
+        zlib.createGzip(),
+        res,
+      );
       services.metrics.count('magnetbank.export');
     } catch (err: unknown) {
       services.metrics.count('magnetbank.export.failed');
@@ -70,7 +111,7 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
 
   const importBank = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'diagnóstico desativado pelo operador', { ok: false })) return;
-    // Sem `readEngine()` aqui: quem grava é o gateway. O `MAGNET_BANK=false`
+    // Sem leitura local aqui: quem grava é o gateway. O `MAGNET_BANK=false`
     // continua sendo o kill-switch da GRAVAÇÃO (o mesmo `.env` do gateway), por
     // isso a recusa fica antes de qualquer upload ou chamada à admin.
     if (!services.config.magnetBank.enabled) {
@@ -81,9 +122,6 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
     const started = Date.now();
     let spool = '';
     try {
-      // A fila do Node grava por cima do mesmo acervo: drená-la antes evita que
-      // a mescla do gateway compita com um lote pendente de captura local.
-      flushBarrier();
       // `Content-Type: application/gzip` é o export do painel; NDJSON cru
       // (`application/x-ndjson`) também entra, para quem montou o arquivo à mão.
       const gz = /gzip/i.test(String(req.get('Content-Type') || ''));
@@ -98,7 +136,6 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
       else await pipeline(req, cap, out);
 
       const result = await importNativeBank(spool);
-      invalidateStatusCache();
       const ms = Date.now() - started;
       if (!result) {
         services.metrics.count('magnetbank.import.failed');
@@ -117,7 +154,6 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
       const status = result.status >= 200 && result.status < 600 ? result.status : 502;
       return res.status(status).json({ ...result.body, ms });
     } catch (err: unknown) {
-      invalidateStatusCache();
       services.metrics.count('magnetbank.import.failed');
       const message = services.log.errorMessage(err);
       services.log.warn('[magnetbank] importação falhou:', message);

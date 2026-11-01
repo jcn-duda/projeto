@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
 use super::MagnetBankStore;
@@ -255,6 +255,22 @@ impl MagnetBankStore {
             },
         )
     }
+
+    /// URI gravada do magnet por hash — porte do `lookup` (`magnet-bank-read.ts`):
+    /// PK em minúsculas, `now_ms` reservado (a leitura não tem relógio) e a URI
+    /// sai TAL COMO foi gravada — dn/tracker foram resolvidos no WRITE. Linha
+    /// ausente é `None`; URI vazia fica `Some("")` (o TS testa truthiness).
+    pub fn bank_lookup_uri(&self, hash: &str, now_ms: i64) -> Result<Option<String>, String> {
+        let _ = now_ms;
+        self.lock()
+            .query_row(
+                "SELECT uri FROM magnet WHERE hash = ?1",
+                params![hash.to_lowercase()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(err_ctx("lookup do banco de magnets"))
+    }
 }
 
 /// Linha do magnet com a allowlist do TS (`toItem`): flags viram booleano.
@@ -369,6 +385,10 @@ fn max_last_seen(conn: &Connection, table: &str) -> Result<i64, String> {
 fn err_ctx(ctx: &'static str) -> impl Fn(rusqlite::Error) -> String {
     move |e| format!("{ctx}: {e}")
 }
+
+// Export NDJSON do acervo (régua byte-fiel do `exportLines` do TS) — catraca.
+#[path = "magnet_bank_export.rs"]
+pub(crate) mod export;
 
 // Testes embutidos aqui (e não no `magnet_bank.rs`) porque o arquivo-pai
 // estava a 5 linhas do teto de 400.

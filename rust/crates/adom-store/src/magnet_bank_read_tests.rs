@@ -271,3 +271,56 @@ fn busca_recusa_query_curta_e_longa() {
     assert_eq!(ok["mode"], "title");
     assert_eq!(ok["matched"], 0);
 }
+
+#[test]
+fn lookup_uri_devolve_a_uri_gravada_e_none_para_fora() {
+    let store = MagnetBankStore::open_memory().unwrap();
+    let h = hash('a');
+    insert_magnet(&store, &h, "Filme A", 2500);
+
+    // Case-insensível: o `normHash` do TS é toLowerCase, sem trim.
+    let uri = store.bank_lookup_uri(&h.to_uppercase(), 1).unwrap();
+    assert_eq!(
+        uri.as_deref(),
+        Some(format!("magnet:?xt=urn:btih:{h}&dn=T").as_str())
+    );
+
+    // Hash fora do banco: None (o consumidor TS cai no magnet padrão).
+    assert_eq!(store.bank_lookup_uri(&hash('9'), 1).unwrap(), None);
+
+    // O relógio é reservado: qualquer `now_ms` dá o mesmo resultado.
+    assert_eq!(store.bank_lookup_uri(&h, 0).unwrap(), uri);
+}
+
+#[test]
+fn lookup_uri_vazia_volta_como_foi_gravada() {
+    let store = MagnetBankStore::open_memory().unwrap();
+    let h = hash('e');
+    store.exec_fixture(&format!("INSERT INTO magnet (hash) VALUES ('{h}')"));
+    // URI vazia NÃO é None: o TS devolve a linha e o consumidor testa truthiness.
+    assert_eq!(store.bank_lookup_uri(&h, 5).unwrap().as_deref(), Some(""));
+}
+
+#[test]
+fn bank_rows_many_devolve_o_shape_do_indice() {
+    // O método vive no `magnet_bank.rs`; o contrato testado aqui é o que o
+    // `record` do índice consome via napi (`BankRowNapi` = hash/uri/title).
+    let store = MagnetBankStore::open_memory().unwrap();
+    let (a, b) = (hash('a'), hash('b'));
+    insert_magnet(&store, &a, "Filme A", 2500);
+    insert_magnet(&store, &b, "Filme B", 1000);
+
+    let mut rows = store
+        .bank_rows_many(&[a.to_uppercase(), b.clone(), hash('9')])
+        .unwrap();
+    rows.sort_by(|x, y| x.hash.cmp(&y.hash));
+    assert_eq!(rows.len(), 2, "hash fora do banco não gera linha");
+    assert_eq!(rows[0].hash, a);
+    assert_eq!(rows[0].uri, format!("magnet:?xt=urn:btih:{a}&dn=T"));
+    assert_eq!(rows[0].title, "Filme A");
+    assert_eq!(rows[1].hash, b);
+    assert_eq!(rows[1].title, "Filme B");
+
+    // Lista vazia: Ok vazio, sem tocar o banco.
+    assert!(store.bank_rows_many(&[]).unwrap().is_empty());
+}

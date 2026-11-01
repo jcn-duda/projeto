@@ -8,8 +8,9 @@
 //! | `POST /magnet-bank/import` `{"path":"<spool>","confirm":true}` | mescla um NDJSON no acervo vivo + backfill de classificação — DESTRUTIVA + `confirm` |
 //! | `GET /magnet-bank/status` | panorama do acervo vivo (totais, último visto, por indexer) — leitura do painel |
 //! | `GET /magnet-bank/search?q=<hash\|trecho>&limit=<1..100>` | busca por hash (40-hex), trecho do título ou recentes — leitura do painel |
+//! | `GET /magnet-bank/export` | streaming NDJSON do acervo inteiro (o backup que o Node servia) — leitura total |
 //!
-//! As duas leituras usam a MESMA credencial destrutiva do import (o token de
+//! As três leituras usam a MESMA credencial destrutiva do import (o token de
 //! diagnóstico não basta) e dispensam `confirm`: não escrevem nada. O
 //! kill-switch `MAGNET_BANK` do env vira o `enabled` que o store devolve.
 //!
@@ -21,6 +22,7 @@
 //! O arquivo chega como spool que o Node grava em disco; a rota só lê caminho
 //! que passa na guarda (`valid_spool_path`), para não virar leitor arbitrário.
 
+use crate::magnet_bank_status_memo::{status_ttl_ms, STATUS_MEMO};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Component, Path, PathBuf};
@@ -75,13 +77,19 @@ pub(crate) fn admin_router() -> Router<Arc<AdminState>> {
         .route("/magnet-bank/import", post(import))
         .route("/magnet-bank/status", get(status))
         .route("/magnet-bank/search", get(search))
+        // O export vive em módulo próprio (teto de 400 linhas): mesmo
+        // `AdminState`, mesmas guardas.
+        .route(
+            "/magnet-bank/export",
+            get(crate::magnet_bank_export::export),
+        )
 }
 
 /// Guarda de credencial das rotas do banco — a MESMA do import: sem token
 /// destrutivo configurado é 409 (nada a comparar) e token que não casa é 403.
 /// A leitura também exige: a superfície é administrativa e o acervo é interno.
 /// `None` = autorizado; `Some` = recusa pronta para devolver.
-fn destructive_refusal(state: &AdminState, headers: &HeaderMap) -> Option<Response> {
+pub(crate) fn destructive_refusal(state: &AdminState, headers: &HeaderMap) -> Option<Response> {
     let Some(expected) = state.destructive_token.as_deref() else {
         return Some(refuse(
             StatusCode::CONFLICT,
@@ -134,7 +142,10 @@ async fn import(
         // importação termina, não quando o handler responde.
         let _guard = guard;
         let store = MagnetBankStore::from_env()?;
-        run_import(&store, &path)
+        let outcome = run_import(&store, &path);
+        // Mesmo com falha: o lote anterior à falha pode ter entrado.
+        STATUS_MEMO.invalidate();
+        outcome
     })
     .await;
     match joined {
@@ -160,7 +171,14 @@ async fn status(State(state): State<Arc<AdminState>>, headers: HeaderMap) -> Res
     }
     let enabled = magnet_bank_enabled();
     let joined = tokio::task::spawn_blocking(move || {
-        MagnetBankStore::from_env().and_then(|store| status_payload(&store, enabled))
+        let compute =
+            || MagnetBankStore::from_env().and_then(|store| status_payload(&store, enabled));
+        // Desligado não abre o banco: não há agregação a poupar.
+        if enabled {
+            STATUS_MEMO.get_or_compute(adom_sources::now_ms(), status_ttl_ms(), compute)
+        } else {
+            compute()
+        }
     })
     .await;
     match joined {
@@ -260,7 +278,7 @@ pub(crate) fn valid_spool_path(path: &str) -> Option<PathBuf> {
 /// Kill-switch do banco: só o literal `false` (com trim) desliga — mesma régua
 /// do `stream_config` e do boot do Node. Qualquer outro valor, ou ausência,
 /// mantém o banco LIGADO.
-fn magnet_bank_enabled() -> bool {
+pub(crate) fn magnet_bank_enabled() -> bool {
     !std::env::var("MAGNET_BANK").is_ok_and(|raw| raw.trim() == "false")
 }
 
@@ -290,11 +308,11 @@ fn header_token(headers: &HeaderMap) -> &str {
         .unwrap_or("")
 }
 
-fn refuse(status: StatusCode, error: &'static str) -> Response {
+pub(crate) fn refuse(status: StatusCode, error: &'static str) -> Response {
     (status, Json(json!({ "ok": false, "error": error }))).into_response()
 }
 
-fn internal(what: &str, err: String) -> Response {
+pub(crate) fn internal(what: &str, err: String) -> Response {
     eprintln!("[magnetbank] {what} falhou: {err}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -309,4 +327,6 @@ mod tests;
 
 #[cfg(test)]
 #[path = "magnet_bank_admin_read_tests.rs"]
-mod read_tests;
+/// Testes das leituras; o módulo de teste do export REUSA o lock de env
+/// daqui (mesmas vars) e os helpers HTTP.
+pub(crate) mod read_tests;

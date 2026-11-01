@@ -35,6 +35,8 @@
 //! | `cacheNamespaceFor`       | `cache_quotas::namespace_for`| Namespace de uma chave            |
 //! | `cacheQuotasDump`         | `cache_quotas` (tabela)    | Contrato inteiro das cotas em JSON  |
 //! | `releaseIndexMediaMerge`  | `merge_media_source`       | Fonte de mídia do índice            |
+//! | `bankLookupUri`           | `bank_lookup_uri`          | URI do acervo por hash (play)       |
+//! | `bankRowsForMediaSource`  | `bank_rows_many`           | Linhas do acervo p/ o índice        |
 //! | `evaluateAutofetchCandidates` | módulos `autofetch_*`  | Lote da seleção de candidatos       |
 //!
 //! ## Responsabilidade
@@ -52,6 +54,9 @@ mod autofetch;
 // Fim da busca, via do banco, saída do play e corte final: decisões puras que
 // o TS deixou de decidir (as cascas chamam estas pontes).
 mod bank;
+// Leituras do banco de magnets vivo (play e índice): conexão POR CHAMADA, o
+// TS passa o caminho (`config.magnetBank.dbPath`) e só transporta.
+mod bank_read;
 mod cache;
 mod catalog;
 mod idx_store;
@@ -96,6 +101,8 @@ mod title_matching;
 pub use autofetch::*;
 // Decisões que o TS só transporta: fim da busca, via do banco, play e corte final.
 pub use bank::*;
+// Leituras do banco vivo: URI do play e linhas do índice (fail-open no TS).
+pub use bank_read::*;
 pub use catalog::*;
 pub use finish::*;
 pub use play::*;

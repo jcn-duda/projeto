@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { TRACKERS } from '../utils/format.js';
 import * as log from '../utils/logger.js';
-import * as magnetBank from '../utils/magnet-bank.js';
+import { bankLookupUriNative } from '../utils/magnet-bank-native.js';
 export {
   WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError,
   NoVideoError, isNoVideoError, DubLieError, isDubLieError,
@@ -26,7 +26,9 @@ function magnetFor(infoHash: string) {
  */
 function magnetForPlay(infoHash: string): string {
   try {
-    const stored = magnetBank.lookup(infoHash)?.uri;
+    // Ponte read-only do banco vivo (`magnet-bank-native.ts`): quem abre o
+    // SQLite é o núcleo; o kill-switch e a falha de leitura viram null.
+    const stored = bankLookupUriNative(infoHash);
     if (stored) return stored;
   } catch (err: unknown) {
     log.warn('[debrid] leitura do banco de magnets falhou, usando magnet padrão:', log.errorMessage(err));

@@ -15,13 +15,18 @@ const hex = (c: string) => c.repeat(40);
 const tempDirs: string[] = [];
 const saved = {
   releaseIndex: config.releaseIndex.enabled,
+  dbPath: config.magnetBank.dbPath,
 };
 
 beforeEach(() => {
   bank.resetForTests();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idx-tracker-'));
   tempDirs.push(dir);
-  bank.open(dir);
+  // SQLite real no tmp (antes `open(dir)` caía na engine de memória: dir é
+  // pasta, não arquivo) + a ponte lendo o MESMO arquivo de `dbPath`.
+  const dbPath = path.join(dir, 'magnets.db');
+  bank.open(dbPath);
+  config.magnetBank.dbPath = dbPath;
   config.releaseIndex.enabled = true;
   config.magnetBank.enabled = true;
 });
@@ -29,6 +34,7 @@ beforeEach(() => {
 after(() => {
   bank.resetForTests();
   config.releaseIndex.enabled = saved.releaseIndex;
+  config.magnetBank.dbPath = saved.dbPath;
   for (const dir of tempDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
   }

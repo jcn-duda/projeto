@@ -14,6 +14,7 @@ import { magnetForPlay, magnetFor } from '../src/debrid/common.js';
 import { bodies as dlBodies } from './helpers/pipeline-oracle/debrid-bodies/debridlink.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'magnet-for-play-'));
+const SAVED_DB_PATH = config.magnetBank.dbPath;
 const hex = (c: string) => c.repeat(40);
 const richMagnet = (h: string, dn: string) =>
   `magnet:?xt=urn:btih:${h}&dn=${encodeURIComponent(dn)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
@@ -39,15 +40,19 @@ function mockFetch(handler: (url: URL, init?: RequestInit) => any) {
 
 beforeEach(() => {
   bank.resetForTests();
-  // Engine de memória: o contrato testado é a leitura do banco, não o SQLite
-  // (coberto pelos testes de magnet-bank). Evita abrir arquivo no checkout.
-  bank.open(FRESH_DIR(), { forceMemory: true });
+  // SQLite REAL em tmp: a leitura do play passa pela ponte napi, que abre o
+  // MESMO arquivo de `config.magnetBank.dbPath` (a engine TS semeia por lá).
+  // Engine de memória não serve mais: a ponte só lê SQLite.
+  const dbPath = path.join(FRESH_DIR(), 'magnets.db');
+  bank.open(dbPath);
+  config.magnetBank.dbPath = dbPath;
   config.magnetBank.enabled = true;
 });
 
 after(() => {
   bank.resetForTests();
   config.magnetBank.enabled = true;
+  config.magnetBank.dbPath = SAVED_DB_PATH;
 });
 
 test('magnetForPlay devolve a URI rica guardada no banco', () => {

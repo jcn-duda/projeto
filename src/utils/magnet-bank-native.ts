@@ -23,6 +23,7 @@
 // viraria ruído.
 import config from '../config.js';
 import * as log from './logger.js';
+import { requireCore } from './rust-core.js';
 
 /** `null` = a admin não respondeu; senão o status HTTP e o corpo devolvidos. */
 export type NativeImportResult = { status: number; body: Record<string, unknown> } | null;
@@ -137,4 +138,76 @@ export async function bankSearchNative(q: string, limit?: number, options: Nativ
   const params = new URLSearchParams({ q });
   if (limit != null) params.set('limit', String(Math.trunc(limit)));
   return adminRead(`/magnet-bank/search?${params.toString()}`, options);
+}
+
+// --- Leituras do banco vivo direto no núcleo (ponte read-only) -------------
+//
+// Fase 2 do corte (docs/superpowers/plans/2026-11-01-banco-vivo-corte.md):
+// quem abre o `data/magnets.db` no caminho do play/índice é o núcleo
+// (`bank_read.rs`); o TS só transporta o caminho de `config.magnetBank`.
+// Síncrono e fail-open SEMPRE: `null`/`[]` significa "banco desligado, núcleo
+// sem a leitura ou SQLite falhou" e o consumidor cai no fallback de hoje — a
+// leitura do acervo nunca derruba o play. O kill-switch vem ANTES do require:
+// com o banco desligado nem o arquivo é criado.
+
+/** Superfície das leituras do banco no núcleo (`bank_read.rs`). */
+export type BankReadCore = {
+  /** URI gravada do magnet por hash; `null` = hash fora do banco. */
+  bankLookupUri(dbPath: string, hash: string, nowMs: number): string | null;
+  /** Linhas do acervo por hash, no shape plano que o `record` do índice consome. */
+  bankRowsForMediaSource(
+    dbPath: string,
+    hashes: string[],
+  ): Array<{ hash: string; uri: string; title: string }>;
+};
+
+/** Núcleo com as leituras do banco, ou null quando não deve tocá-lo. */
+function bankReadCore(): BankReadCore | null {
+  // Kill-switch (MAGNET_BANK=false): o banco nem existe no TS — abrir o SQLite
+  // aqui criaria um arquivo vazio que o gateway desligado não usa.
+  if (!config.magnetBank?.enabled) return null;
+  try {
+    const core = requireCore();
+    return core.bankLookupUri && core.bankRowsForMediaSource
+      ? (core as unknown as BankReadCore)
+      : null;
+  } catch (err: unknown) {
+    log.debug(`[magnetbank] núcleo sem a leitura do banco: ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
+/**
+ * URI do banco vivo por hash (o `lookup` do TS, consumido pelo play e pelo
+ * inventário do painel). Hash fora do banco, banco desligado ou falha: `null`.
+ */
+export function bankLookupUriNative(hash: string): string | null {
+  const core = bankReadCore();
+  if (!core) return null;
+  try {
+    // Mesma régua do `normHash` do TS (toLowerCase, sem trim); o store
+    // normaliza de novo do lado de lá. O relógio é reservado no Rust.
+    return core.bankLookupUri(config.magnetBank.dbPath, String(hash || '').toLowerCase(), Date.now()) ?? null;
+  } catch (err: unknown) {
+    log.debug(`[magnetbank] leitura nativa do banco falhou: ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
+/**
+ * Linhas do acervo para a fonte de mídia do índice (o lote de
+ * `bankRowsForMediaSource`): [] com lista vazia, banco desligado ou falha.
+ */
+export function bankRowsForMediaSourceNative(
+  hashes: readonly string[],
+): Array<{ hash: string; uri: string; title: string }> {
+  const core = bankReadCore();
+  if (!core || hashes.length === 0) return [];
+  try {
+    const rows = core.bankRowsForMediaSource(config.magnetBank.dbPath, [...hashes]);
+    return Array.isArray(rows) ? rows : [];
+  } catch (err: unknown) {
+    log.debug(`[magnetbank] leitura nativa do acervo falhou: ${log.errorMessage(err)}`);
+    return [];
+  }
 }

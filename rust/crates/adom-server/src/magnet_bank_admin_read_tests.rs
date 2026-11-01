@@ -12,7 +12,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use axum::body::Body;
-use http::{Request, StatusCode};
+use http::{header, Request, StatusCode};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tokio::net::TcpListener;
@@ -27,23 +27,24 @@ const DESTRUCTIVE: &str = "token-destrutivo";
 const ALPHA: &str = "2222222222222222222222222222222222222222";
 const BETA: &str = "3333333333333333333333333333333333333333";
 
-/// Testes que tocam env rodam SOZINHOS: a var é do processo inteiro e os
+/// Trava ÚNICA dos testes que tocam env — compartilhada com
+/// `magnet_bank_export_tests` (mesmas vars): a var é do processo inteiro e os
 /// testes do crate correm em threads paralelas.
-static ENV_LOCK: Mutex<()> = Mutex::new(());
+pub(crate) static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-fn env_lock() -> MutexGuard<'static, ()> {
+pub(crate) fn env_lock() -> MutexGuard<'static, ()> {
     ENV_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Seta a var e restaura o valor anterior ao sair (padrão de
 /// `dub_audit_writes_tests`): nada vaza para os testes irmãos.
-struct EnvVar {
+pub(crate) struct EnvVar {
     key: &'static str,
     saved: Option<String>,
 }
 
 impl EnvVar {
-    fn set(key: &'static str, value: &str) -> Self {
+    pub(crate) fn set(key: &'static str, value: &str) -> Self {
         let saved = std::env::var(key).ok();
         unsafe { std::env::set_var(key, value) };
         Self { key, saved }
@@ -64,12 +65,13 @@ impl Drop for EnvVar {
 /// GET no roteador completo num socket efêmero. `surface` é o token que o
 /// middleware aceita; `destructive` é o que o handler compara; `header` é o
 /// que o cliente manda (`None` = sem header, para o 401 do middleware).
-async fn get_admin(
+/// Versão crua: devolve corpo e content-type (o export responde NDJSON).
+pub(crate) async fn get_admin_raw(
     surface: &str,
     destructive: Option<&str>,
     header: Option<&str>,
     uri: &str,
-) -> (StatusCode, Value) {
+) -> (StatusCode, Vec<u8>, Option<String>) {
     let cfg = AdminConfig {
         listen: DEFAULT_LISTEN.parse().unwrap(),
         token: surface.to_string(),
@@ -101,7 +103,24 @@ async fn get_admin(
     let req = builder.body(Body::empty()).unwrap();
     let response = crate::proxy::client().request(req).await.unwrap();
     let status = response.status();
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, bytes.to_vec(), content_type)
+}
+
+/// Mesma chamada com o corpo parseado como JSON (`unwrap_or(Null)`, porque
+/// as rotas de guarda só falam JSON).
+pub(crate) async fn get_admin(
+    surface: &str,
+    destructive: Option<&str>,
+    header: Option<&str>,
+    uri: &str,
+) -> (StatusCode, Value) {
+    let (status, bytes, _) = get_admin_raw(surface, destructive, header, uri).await;
     (
         status,
         serde_json::from_slice(&bytes).unwrap_or(Value::Null),
@@ -160,7 +179,7 @@ async fn search_herdas_mesmas_guardas_do_status() {
 // ---------------------------------------------------------------------------
 
 /// Spool com DOIS magnets de títulos distintos (busca por título e limite).
-fn two_magnets_file() -> tempfile::NamedTempFile {
+pub(crate) fn two_magnets_file() -> tempfile::NamedTempFile {
     let mut file = tempfile::Builder::new()
         .prefix("adom-magnets-import-")
         .suffix(".ndjson")

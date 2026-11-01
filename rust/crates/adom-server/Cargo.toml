@@ -32,6 +32,8 @@ http = "1"
 http-body-util = "0.1"
 hyper = "1"
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+# Stream do `Body::from_stream` no export do banco (NDJSON sai em blocos).
+futures-util = "0.3"
 # Serialização do snapshot do colhedor (`harvest/status.rs`) e das rotas.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

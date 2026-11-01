@@ -45,7 +45,11 @@ function seed() {
 /** Só HASH_BAD_1 tem URI no banco: prova que a view vê o banco por hash. */
 function seedBank() {
   bank.resetForTests();
-  bank.open(FRESH_DIR(), { forceMemory: true });
+  // SQLite REAL em tmp: a URI da view vem da ponte napi, que abre o MESMO
+  // arquivo de `config.magnetBank.dbPath` (a engine de memória não serve).
+  const dbPath = path.join(FRESH_DIR(), 'magnets.db');
+  bank.open(dbPath);
+  config.magnetBank.dbPath = dbPath;
   config.magnetBank.enabled = true;
   const magnet = `magnet:?xt=urn:btih:${HASH_BAD_1}&dn=${encodeURIComponent(BANK_DN)}&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
   bank.captureItems([{ infoHash: HASH_BAD_1, magnet, title: 'URI do posto' }], ADAPTER, {});
@@ -57,6 +61,7 @@ before(async () => {
   saved.lieEnabled = config.magnetDb.lieEnabled;
   saved.testToken = config.jackett.testToken;
   saved.bankEnabled = config.magnetBank.enabled;
+  saved.dbPath = config.magnetBank.dbPath;
   config.magnetDb.enabled = true;
   config.magnetDb.lieEnabled = true;
   seedBank();
@@ -70,6 +75,7 @@ after(async () => {
   config.magnetDb.enabled = saved.enabled;
   config.magnetDb.lieEnabled = saved.lieEnabled;
   config.magnetBank.enabled = saved.bankEnabled;
+  config.magnetBank.dbPath = saved.dbPath;
   config.jackett.testToken = saved.testToken;
 });
 

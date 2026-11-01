@@ -19,6 +19,9 @@ mod harvest;
 mod harvest_effect;
 /// Rotas do banco de magnets (import no boot/admin) — ver o módulo.
 mod magnet_bank_admin;
+/// `GET /magnet-bank/export`: streaming NDJSON do acervo (o Node vira proxy).
+mod magnet_bank_export;
+mod magnet_bank_status_memo;
 /// Flush dos contadores `meta.*` no KV nativo: a janela de medição do
 /// fallback sobrevive ao deploy (Fatia 0 do corte dos metadados).
 mod meta_metrics_flush;

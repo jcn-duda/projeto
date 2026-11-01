@@ -37,6 +37,10 @@ net = []
 adom-core = { path = "../adom-core" }
 # Índice idx:v14 (store SQLite, sem rede): handle `IdxStore` para o Node.
 adom-index = { path = "../adom-index" }
+# Banco de magnets vivo (`data/magnets.db`): leituras por hash (play) e por
+# obra (índice). Já entra no grafo via `adom-autofetch` — dep direta é só o
+# caminho de import, sem custo de binário novo.
+adom-store = { path = "../adom-store" }
 # Estado do Chupim: o formato v3 da fila por busca (`adom-autofetch::v3`).
 adom-autofetch = { path = "../adom-autofetch" }
 adom-crawl = { path = "../adom-crawl" }
