@@ -135,7 +135,7 @@ pub use index_source::{
     allowed_source_indexer, bank_limits, bank_read_window, obra_targets, BankFilterCtx, BankLookup,
     IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource, SharedBank, SharedIndex,
 };
-pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
+pub use internal_routes::{InternalRoutes, MetaRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
     plan_jackett_searches, try_jackett_collector_from_env, JackettCollector, PlannedJackettSearch,
 };
@@ -151,9 +151,7 @@ pub use live_state::{
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
 pub use meta_metrics::{meta_metrics_restore, meta_metrics_snapshot, MetaMetrics};
-pub use meta_native::{
-    meta_from_lookup, FallbackMetaSource, NativeMetaSource, DEFAULT_LOOKUP_TIMEOUT_MS,
-};
+pub use meta_native::{meta_from_lookup, NativeMetaSource, DEFAULT_LOOKUP_TIMEOUT_MS};
 pub use mico_collector::{try_mico_collector_from_env, MicoCollector};
 pub use prowlarr_collector::{try_prowlarr_collector_from_env, ProwlarrCollector};
 pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};

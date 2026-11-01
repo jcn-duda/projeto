@@ -2,8 +2,8 @@
 //! de metadados).
 //!
 //! Os contadores vivem em RAM (`meta_metrics.rs`, `OnceLock`): cada recriação
-//! de container zerava a janela de medição `meta.fallback.*`, e a decisão de
-//! cortar o fallback do Node exigia horas de uso sem deploy para acumulá-la.
+//! de container zerava a janela de medição, e a decisão de cortar o fallback do
+//! Node exigia horas de uso sem deploy para acumulá-la.
 //! O snapshot vai para o `cache.db` compartilhado a cada minuto
 //! (`metam:v1:counts`, permanente, agregado O(1) como o `mag_meta`) e volta no
 //! boot deste módulo, chamado no `run_gateway`.

@@ -17,13 +17,15 @@
 //! - **fail-open**: `lookup` nunca devolve erro; campo sem resposta fica `None`.
 //!   O `Orchestrator` ainda cobre o caso de erro com o `SearchMeta::from_id`.
 //!
-//! O [`FallbackMetaSource`] chamava o Node quando o nativo falhava (ou voltava
-//! sem nome); a produção não o monta desde o passo 1 do corte e ele sai no passo
-//! 2. A medida fica em `meta.*` ([`super::meta_metrics`]): os contadores do primário
+//! O Node NÃO está mais no caminho: o `FallbackMetaSource` e a rota
+//! `POST /internal/search/meta` saíram no passo 2 do corte de 2026-10-31. Sobrou
+//! o [`NativeMetaSource`]; o [`NodeMetaSource`](super::meta::NodeMetaSource) vive
+//! só no replay congelado, com as rotas gravadas em memória.
+//!
+//! A medida fica em `meta.*` ([`super::meta_metrics`]): os contadores do primário
 //! (`meta.resolve.total`/`meta.native.*`) nascem aqui, no
-//! [`NativeMetaSource::resolve`], e os `meta.fallback.*` no wrapper — com a
-//! rota Node desligada, o `/metrics` segue vivo. Nada muda de comportamento
-//! por causa deles.
+//! [`NativeMetaSource::resolve`], via `record_native_outcome` — desligar a rota
+//! Node não cegou o `/metrics`.
 
 use std::sync::Arc;
 
@@ -60,7 +62,7 @@ impl NativeMetaSource {
     }
 
     /// Instância própria de métricas: os testes não disputam a global entre
-    /// casos paralelos (mesmo padrão do [`FallbackMetaSource::with_metrics`]).
+    /// casos paralelos.
     pub fn with_metrics(sources: Arc<MetaSources>, metrics: MetaMetrics) -> Self {
         Self {
             sources,
@@ -121,46 +123,6 @@ impl MetaSource for NativeMetaSource {
     }
 }
 
-/// Fallback do caminho nativo: usa o Node quando o nativo falha ou volta sem
-/// nome (nunca deve acontecer, mas falha de rede não pode zerar a busca). Se o
-/// Node também falhar, devolve o parcial do nativo quando houver.
-///
-/// A instrumentação (`meta.fallback.*`) só MEDE: a ordem, as chamadas e o
-/// valor devolvido são exatamente os de antes dela. Os contadores do primário
-/// (`meta.resolve.total`/`meta.native.*`) são do [`NativeMetaSource`] — o
-/// wrapper não os toca, para o corte da rota Node não congelar o `/metrics`.
-pub struct FallbackMetaSource {
-    primary: Arc<dyn MetaSource>,
-    fallback: Arc<dyn MetaSource>,
-    /// Contadores `meta.*` (a global em produção; instância local no teste).
-    metrics: MetaMetrics,
-}
-
-impl FallbackMetaSource {
-    pub fn new(primary: Arc<dyn MetaSource>, fallback: Arc<dyn MetaSource>) -> Self {
-        Self::with_metrics(primary, fallback, meta_metrics::global_metrics().clone())
-    }
-
-    /// Instância própria de métricas: os testes não disputam a global entre
-    /// casos paralelos.
-    pub fn with_metrics(
-        primary: Arc<dyn MetaSource>,
-        fallback: Arc<dyn MetaSource>,
-        metrics: MetaMetrics,
-    ) -> Self {
-        Self {
-            primary,
-            fallback,
-            metrics,
-        }
-    }
-
-    /// Contadores desta instância (diagnóstico/teste).
-    pub fn metrics(&self) -> &MetaMetrics {
-        &self.metrics
-    }
-}
-
 /// Título "de verdade": não vazio e diferente do próprio IMDb. É a régua do
 /// `meta.native.incomplete` — `meta_from_lookup` cai no IMDb quando os títulos
 /// faltaram, então `name` vazio não é a única forma de metadado incompleto.
@@ -175,64 +137,16 @@ fn has_real_title(meta: &SearchMeta) -> bool {
 /// Função pura: o teste prova os incrementos sem rede; o `resolve` só a aplica.
 ///
 /// Migração do corte do fallback (plano 2026-10-31, antecipada do passo 2 para
-/// antes do passo 1): os contadores
-/// moravam no `FallbackMetaSource::resolve` — se ficassem lá, desligar a rota
-/// Node congelaria o `/metrics`. A soma ao vivo não muda: no caminho com
-/// fallback o nativo roda UMA vez por chamada do wrapper (mesmos incrementos,
-/// outro sítio); `meta.fallback.*` segue no wrapper, mesmo sítio e mesmo
-/// momento (a janela em produção não desliza).
+/// antes do passo 1): os contadores moravam no `FallbackMetaSource::resolve` —
+/// se ficassem lá, desligar a rota Node congelaria o `/metrics`. O dono agora é
+/// o nativo; o `FallbackMetaSource` e os `meta.fallback.*` saíram no passo 2,
+/// então este é o único sítio que incrementa `meta.*`.
 fn record_native_outcome(metrics: &MetaMetrics, outcome: &Result<SearchMeta, String>) {
     metrics.inc(meta_metrics::RESOLVE_TOTAL, 1);
     match outcome {
         Ok(meta) if has_real_title(meta) => metrics.inc(meta_metrics::NATIVE_OK, 1),
         Ok(_) => metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1),
         Err(_) => metrics.inc(meta_metrics::NATIVE_ERROR, 1),
-    }
-}
-
-impl MetaSource for FallbackMetaSource {
-    fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta> {
-        Box::pin(async move {
-            match self.primary.resolve(req.clone()).await {
-                // Gate INALTERADO (nome vazio): `name == imdb_id` devolve o
-                // primário sem chamar o Node. A contagem do primário é do
-                // NATIVO (`record_native_outcome`); aqui sobe só
-                // `meta.fallback.*`, nos mesmos sítios e momentos de antes da
-                // migração.
-                Ok(meta) if !meta.name.trim().is_empty() => Ok(meta),
-                Ok(meta) => match self.fallback.resolve(req).await {
-                    Ok(fallback) if has_real_title(&fallback) => {
-                        self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
-                        Ok(fallback)
-                    }
-                    Ok(fallback) => {
-                        self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
-                        Ok(fallback)
-                    }
-                    Err(_) => {
-                        self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
-                        Ok(meta)
-                    }
-                },
-                Err(err) => {
-                    eprintln!("[search] metadados nativos falharam ({err}); usando Node");
-                    match self.fallback.resolve(req).await {
-                        Ok(fallback) if has_real_title(&fallback) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
-                            Ok(fallback)
-                        }
-                        Ok(fallback) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
-                            Ok(fallback)
-                        }
-                        Err(err) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
-                            Err(err)
-                        }
-                    }
-                }
-            }
-        })
     }
 }
 

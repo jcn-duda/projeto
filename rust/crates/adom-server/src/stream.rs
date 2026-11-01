@@ -101,7 +101,7 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
 /// recusa subir em vez de responder lista vazia para sempre. Fonte que falha
 /// sozinha loga `[search] <fonte> nativa indisponível` e fica fora (reduz
 /// resultado, nunca derruba a busca). Metadados são SÓ nativos (o fallback Node
-/// foi desligado no passo 1 do corte — `docs/superpowers/plans/2026-10-31-corte-fallback-meta.md`);
+/// saiu no passo 2 do corte — `docs/superpowers/plans/2026-10-31-corte-fallback-meta.md`);
 /// os efeitos de cauda continuam no Node quando as rotas existem.
 pub fn build_orchestrator_from(
     stores: StreamStores,
@@ -133,12 +133,6 @@ pub fn build_orchestrator_from(
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            // Corte do fallback (passo 1): o nativo responde sozinho. O pior caso
-            // já era vivo — `meta_load` deriva metadados do próprio id e a
-            // resposta degrada em `NOTICE_SEARCHING`. O `routes` continua
-            // alimentando o tail/efeitos (`NativeTailEffects` e
-            // `with_internal_routes`) e NÃO pode cair junto.
-            let meta = stream_meta::meta_source(None);
             // T3-L7a: o `dub_audit` passou a ser executado AQUI (fila + veredito
             // nativos, com as escritas em `mag`/`idx`/`adprot`/`streams`). O
             // alvo abaixo só recebe os efeitos que ainda são do Node.
@@ -159,18 +153,15 @@ pub fn build_orchestrator_from(
             }
             tail = tail.with_harvest(harvest);
             orch = orch.with_tail(Arc::new(tail)).with_internal_routes(routes);
-            if let Some(meta) = meta {
-                orch = orch.with_meta(meta);
-            }
         }
         None => {
-            eprintln!("[gateway] sem rotas Node — tail indisponível; metadados só nativos");
-            // C5: sem rotas internas o nativo é a única fonte de metadados
-            // (Cinemeta/TMDB); não há para onde cair.
-            if let Some(meta) = stream_meta::meta_source(None) {
-                orch = orch.with_meta(meta);
-            }
+            eprintln!("[gateway] sem rotas Node — tail indisponível");
         }
+    }
+    // Metadados são SÓ nativos (passo 2 do corte): o nativo responde sozinho e
+    // não há mais Node de fallback. O `routes` acima segue só para os efeitos.
+    if let Some(meta) = stream_meta::native_source() {
+        orch = orch.with_meta(meta);
     }
     orch = orch.with_debrid(Arc::new(
         AdapterDebridFactory::new(rd_ledger_store()).with_holds(holds_feed()),

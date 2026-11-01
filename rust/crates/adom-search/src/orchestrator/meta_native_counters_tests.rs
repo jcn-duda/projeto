@@ -1,12 +1,11 @@
 //! Contadores do NATIVO (`meta.resolve.total`/`meta.native.*`) — a migração
 //! do corte do fallback (plano 2026-10-31, antecipada do passo 2). O dono dos números é o
 //! [`NativeMetaSource::resolve`] via `record_native_outcome`: com a rota Node
-//! desligada (passo 1, `meta_source(None)`), o `/metrics` segue vivo.
+//! desligada (passo 1, `native_source()`), o `/metrics` segue vivo.
 //!
 //! O fio é provado SEM rede: Cinemeta pré-cacheado no store (o `get_meta`
 //! devolve do cache, `adom-sources/src/cinemeta.rs:76-80`) e TMDB sem chave
-//! (fail-open sem rede, `adom-sources/src/tmdb/mod.rs:115-117`). Os casos de
-//! wrapper (`meta.fallback.*`) estão em `meta_native_tests.rs`.
+//! (fail-open sem rede, `adom-sources/src/tmdb/mod.rs:115-117`).
 
 use std::sync::Arc;
 
@@ -17,8 +16,7 @@ use adom_sources::{
 
 // Métricas de instância própria: casos paralelos não disputam a global.
 use super::super::meta_metrics::{
-    MetaMetrics, FALLBACK_EMPTY, FALLBACK_ERROR, FALLBACK_USED, NATIVE_ERROR, NATIVE_INCOMPLETE,
-    NATIVE_OK, RESOLVE_TOTAL,
+    MetaMetrics, NATIVE_ERROR, NATIVE_INCOMPLETE, NATIVE_OK, RESOLVE_TOTAL,
 };
 
 /// `MetaQuery` do nativo SEM os opt-ins de rede extra (mesmo shape do corpus:
@@ -66,11 +64,10 @@ fn nativo_com_cinemeta(meta: CinemetaMeta) -> (NativeMetaSource, MetaMetrics) {
     )
 }
 
-/// (2) nativo completo: `resolve.total` + `native.ok` NO nativo, ZERO
-/// `fallback.*` — é o fio que o passo 1 do corte (desligar a rota) alimenta
-/// sozinho, sem cegar o `/metrics`.
+/// (2) nativo completo: `resolve.total` + `native.ok` no nativo — o `/metrics`
+/// não depende mais de wrapper nenhum para medir.
 #[tokio::test]
-async fn nativo_completo_conta_ok_e_denominador_sem_fallback() {
+async fn nativo_completo_conta_ok_e_denominador() {
     let (source, metrics) = nativo_com_cinemeta(cinemeta_com(Some("Duna")));
     let meta = source
         .resolve(query_nativa("tt1160419", "movie"))
@@ -81,9 +78,6 @@ async fn nativo_completo_conta_ok_e_denominador_sem_fallback() {
     assert_eq!(metrics.get(NATIVE_OK), 1);
     assert_eq!(metrics.get(NATIVE_INCOMPLETE), 0);
     assert_eq!(metrics.get(NATIVE_ERROR), 0);
-    assert_eq!(metrics.get(FALLBACK_USED), 0);
-    assert_eq!(metrics.get(FALLBACK_EMPTY), 0);
-    assert_eq!(metrics.get(FALLBACK_ERROR), 0);
 }
 
 /// (1) `name` cai no IMDb quando os títulos faltaram: incomplete, nunca ok.

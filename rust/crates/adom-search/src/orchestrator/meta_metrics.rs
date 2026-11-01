@@ -1,19 +1,18 @@
-//! Contadores do caminho de metadados NATIVOS × fallback Node (Fase 2).
+//! Contadores do caminho de metadados NATIVOS.
 //!
-//! Quem incrementa (migração do corte do fallback, plano 2026-10-31): os
-//! contadores do primário (`meta.resolve.total`/`meta.native.*`) nascem no
-//! `NativeMetaSource::resolve` — se ficassem no wrapper, desligar a rota Node
-//! congelaria o `/metrics`; os `meta.fallback.*` continuam no
-//! `FallbackMetaSource::resolve`, mesmo sítio e mesmo momento (a janela em
-//! produção não desliza). Por resolução nativa: completa, incompleta ou erro;
-//! e, quando o Node é chamado, se ele devolveu título real, vazio ou erro.
+//! Quem incrementa: o `NativeMetaSource::resolve`, via `record_native_outcome`
+//! (migração antecipada do passo 2 do corte de 2026-10-31) — eram do
+//! `FallbackMetaSource`, que saiu junto com a rota Node; se ficassem lá, o
+//! `/metrics` ficaria cego. Por resolução nativa: completa, incompleta ou erro.
 //! `meta.resolve.total` é o denominador da taxa.
 //!
-//! `meta.native.incomplete` existe porque `meta_from_lookup` preenche `name`
-//! com o próprio IMDb quando os títulos faltaram: o gate de "nome vazio" do
-//! fallback NÃO dispara nesse caso, e a taxa de fallback pareceria zero mesmo
-//! sem título utilizável. Aqui só se MEDE — mudar o gate fica para depois da
-//! medição em produção.
+//! `meta.native.incomplete` existe porque `meta_from_lookup` preenche `name` com
+//! o próprio IMDb quando os títulos faltaram — com o fallback fora, é o único
+//! sinal de metadado degradado que sobra no `/metrics`.
+//!
+//! Os `meta.fallback.*` foram APOSENTADOS no passo 2: sem wrapper não há o que
+//! medir, e o `restore` descarta chave fora de `KEYS` (contador aposentado não
+//! reaparece depois do deploy).
 //!
 //! Exposto em `/metrics` do gateway por [`meta_metrics_snapshot`].
 
@@ -28,24 +27,10 @@ pub const NATIVE_OK: &str = "meta.native.ok";
 /// O nativo voltou Ok, mas `name` vazio OU igual ao IMDb: os títulos
 /// faltaram. O comportamento segue o de hoje (o gate é por nome vazio).
 pub const NATIVE_INCOMPLETE: &str = "meta.native.incomplete";
-/// O nativo devolveu Err — o Node é chamado, como hoje.
+/// O nativo devolveu Err (tipo desconhecido, id sem IMDb, falha do lookup).
 pub const NATIVE_ERROR: &str = "meta.native.error";
-/// Node Ok com título real e essa resposta foi devolvida.
-pub const FALLBACK_USED: &str = "meta.fallback.used";
-/// Node Ok sem título real (devolveu o parcial do nativo).
-pub const FALLBACK_EMPTY: &str = "meta.fallback.empty";
-/// Node Err (devolveu o parcial do nativo, ou propagou o erro como hoje).
-pub const FALLBACK_ERROR: &str = "meta.fallback.error";
 
-const KEYS: &[&str] = &[
-    RESOLVE_TOTAL,
-    NATIVE_OK,
-    NATIVE_INCOMPLETE,
-    NATIVE_ERROR,
-    FALLBACK_USED,
-    FALLBACK_EMPTY,
-    FALLBACK_ERROR,
-];
+const KEYS: &[&str] = &[RESOLVE_TOTAL, NATIVE_OK, NATIVE_INCOMPLETE, NATIVE_ERROR];
 
 /// Contadores dos metadados. `Clone` barato (`Arc<Mutex<..>>`): em produção a
 /// instância é a global; os testes usam uma local e não disputam estado.
@@ -79,7 +64,7 @@ impl MetaMetrics {
     }
 
     /// Restaura contadores persistidos nesta instância (o boot do gateway lê o
-    /// flush do deploy anterior do KV nativo). Chave fora das 7 vivas é
+    /// flush do deploy anterior do KV nativo). Chave fora das vivas é
     /// descartada: o `/metrics` não expõe contador aposentado.
     pub fn restore(&self, counts: BTreeMap<String, u64>) {
         for (key, by) in counts {

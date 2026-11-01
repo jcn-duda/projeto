@@ -1,18 +1,23 @@
-//! As rotas internas que o orquestrador ainda consome, atrás de uma trait.
+//! As rotas internas que o orquestrador ainda consome, atrás de traits.
 //!
-//! Em produção o adaptador é [`NodeRoutes`], sobre o `InternalSearchClient`
-//! (loopback + `X-Indexer-Test-Token` + `encoded` no corpo). Em teste é um
-//! stub que devolve metadados/efeitos gravados — nenhuma chamada de rede,
-//! nenhum servidor.
+//! Em produção o adaptador de EFEITOS é [`NodeRoutes`], sobre o
+//! `InternalSearchClient` (loopback + `X-Indexer-Test-Token` + `encoded` no
+//! corpo). Em teste é um stub que devolve efeitos gravados — nenhuma chamada de
+//! rede, nenhum servidor.
 //!
 //! Coleta, índice de releases e banco de magnets NÃO passam mais por aqui: são
 //! nativos (`Collector`/`IdxStore`/`MagnetBankStore`). O único resíduo do Node é
 //! o replay congelado (`fallback_injected`), que injeta o RESULTADO gravado do
 //! caso.
 //!
-//! Por que uma trait e não o cliente direto: os testes do orquestrador não
-//! podem depender de um Node no ar, e a fronteira do strangler é justamente
-//! esta — o "lado Node" de metadados/efeitos é substituível.
+//! **Metadados saíram do caminho de produção** (corte de 2026-10-31, passo 2):
+//! o `NodeRoutes` não fala mais com `/internal/search/meta`. O [`MetaRoutes`]
+//! ficou separado porque o único impl vivo é o do replay congelado
+//! (`FrozenRoutes`), que serve o caso gravado ao `NodeMetaSource` sem rede.
+//!
+//! Por que traits e não o cliente direto: os testes do orquestrador não podem
+//! depender de um Node no ar, e a fronteira do strangler é justamente esta — o
+//! "lado Node" de metadados/efeitos é substituível.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -24,9 +29,15 @@ use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaRe
 /// Futuro das rotas internas (boxed: trait object estável sem `async_trait`).
 pub type RouteFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + Send + 'a>>;
 
-/// `POST /internal/search/*` do Node.
-pub trait InternalRoutes: Send + Sync {
+/// `POST /internal/search/meta` — SÓ o replay congelado implanta esta trait
+/// (rotas gravadas em memória). O caminho de produção não consulta metadado no
+/// Node desde o passo 2 do corte de 2026-10-31.
+pub trait MetaRoutes: Send + Sync {
     fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse>;
+}
+
+/// `POST /internal/search/effects` do Node — o que ainda vive em produção.
+pub trait InternalRoutes: Send + Sync {
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse>;
 
     /// Itens da reserva 📦 JÁ CALCULADOS pelo Node (`collectFallbackForBuild`).
@@ -62,10 +73,6 @@ impl NodeRoutes {
 }
 
 impl InternalRoutes for NodeRoutes {
-    fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
-        Box::pin(async move { self.client.meta(&req).await })
-    }
-
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async move { self.client.effects(&req).await })
     }

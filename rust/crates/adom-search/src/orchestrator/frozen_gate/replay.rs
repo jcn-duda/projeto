@@ -43,7 +43,7 @@ pub(super) async fn replay(
     let frozen_routes = Arc::new(frozen.routes());
     let routes: Arc<dyn InternalRoutes> = frozen_routes.clone();
     let mut orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
-        .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
+        .with_meta(Arc::new(NodeMetaSource::new(frozen_routes.clone())))
         .with_collector(Arc::new(ReplayCollector::new(frozen_routes)))
         .with_internal_routes(routes)
         .with_debrid(Arc::new(debrid))

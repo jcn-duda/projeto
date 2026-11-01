@@ -5,7 +5,7 @@ fn flush_e_leitura_fazem_ida_e_volta() {
     let kv = NativeKv::open_memory().expect("kv em memória");
     let mut snapshot = BTreeMap::new();
     snapshot.insert("meta.resolve.total".to_string(), 12);
-    snapshot.insert("meta.fallback.used".to_string(), 3);
+    snapshot.insert("meta.native.ok".to_string(), 3);
     flush_now(&kv, snapshot.clone(), 1_000).expect("grava o agregado");
 
     let counts = load_persisted(&kv, 2_000).expect("lê o agregado");

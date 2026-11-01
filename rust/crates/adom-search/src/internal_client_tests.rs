@@ -15,7 +15,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 use super::InternalSearchClient;
-use crate::internal_types::MetaRequest;
+use crate::internal_types::EffectsRequest;
 
 const TOKEN: &str = "tok-internal-search";
 const ENCODED: &str = "eyJwIjoiamFja2V0dCJ9";
@@ -52,16 +52,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
     }
 
     let payload = match path.as_str() {
-        "/internal/search/meta" => json!({
-            "ok": true,
-            "type": "movie",
-            "id": "tt0000001",
-            "imdb_id": "tt0000001",
-            "season": null,
-            "episode": null,
-            "meta": { "name": "Filme", "year": "2024", "type": "movie" },
-            "titles": { "pt": "Filme", "en": "Movie", "original": null, "br": [], "year": "2024" },
-        }),
         "/internal/search/effects" => {
             return (
                 StatusCode::ACCEPTED,
@@ -76,7 +66,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
 
 async fn serve(seen: Arc<Seen>) -> String {
     let app = Router::new()
-        .route("/internal/search/meta", post(catch_all))
         .route("/internal/search/effects", post(catch_all))
         .with_state(seen);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -92,16 +81,13 @@ fn client(base: &str) -> InternalSearchClient {
 }
 
 #[tokio::test]
-async fn meta_manda_token_no_header_e_encoded_no_body() {
+async fn effects_manda_token_no_header_e_encoded_no_body() {
     let seen = Arc::new(Seen::default());
     let base = serve(seen.clone()).await;
     let res = client(&base)
-        .meta(&MetaRequest {
+        .effects(&EffectsRequest {
             encoded: ENCODED.into(),
-            media_type: "movie".into(),
-            id: "tt0000001".into(),
-            include_multiwork: None,
-            include_home_release: None,
+            effects: Vec::new(),
         })
         .await
         .unwrap();
@@ -115,8 +101,7 @@ async fn meta_manda_token_no_header_e_encoded_no_body() {
     assert!(body.get("token").is_none());
     assert_eq!(body.get("apiKey"), None);
     assert!(res.ok);
-    assert_eq!(res.imdb_id, "tt0000001");
-    assert_eq!(res.meta.as_ref().unwrap()["name"], json!("Filme"));
+    assert_eq!(res.accepted, 1);
 }
 
 #[tokio::test]
@@ -125,12 +110,9 @@ async fn http_erro_nao_vira_sucesso() {
     *seen.status.lock().await = 503;
     let base = serve(seen).await;
     let err = client(&base)
-        .meta(&MetaRequest {
+        .effects(&EffectsRequest {
             encoded: ENCODED.into(),
-            media_type: "movie".into(),
-            id: "tt0000001".into(),
-            include_multiwork: None,
-            include_home_release: None,
+            effects: Vec::new(),
         })
         .await
         .unwrap_err();

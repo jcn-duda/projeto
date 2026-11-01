@@ -1,5 +1,5 @@
 //! Cliente HTTP das rotas internas de busca do Node
-//! (`POST /internal/search/{meta,effects}`).
+//! (`POST /internal/search/effects`).
 //!
 //! Índice/banco e coleta NÃO passam mais por aqui: são nativos. Rede ainda no
 //! Node: o orquestrador Rust fala em loopback com token no **header**
@@ -16,7 +16,7 @@ use reqwest::Method;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaResponse};
+use crate::internal_types::{EffectsRequest, EffectsResponse};
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
@@ -58,12 +58,6 @@ impl InternalSearchClient {
 
     pub fn base(&self) -> &str {
         &self.base
-    }
-
-    /// POST `/internal/search/meta` — Cinemeta+TMDB (+opt-in multiwork/home).
-    pub async fn meta(&self, req: &MetaRequest) -> Result<MetaResponse, String> {
-        self.post_ok("/internal/search/meta", req, self.timeout)
-            .await
     }
 
     /// POST `/internal/search/effects` — fire-and-forget; espera **202**.

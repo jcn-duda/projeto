@@ -28,7 +28,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use crate::internal_types::{MetaRequest, MetaResponse};
-use crate::orchestrator::internal_routes::{InternalRoutes, RouteFuture};
+use crate::orchestrator::internal_routes::{MetaRoutes, RouteFuture};
 
 pub(super) use super::meta_build::{build_search_meta, MetaParts, MetaTitles};
 pub(super) use super::meta_helpers::first_year;
@@ -155,19 +155,20 @@ pub struct MetaQuery {
     pub deadline_at_ms: Option<i64>,
 }
 
-/// Fonte de metadados injetada. Produção: `NativeMetaSource`, com
-/// [`NodeMetaSource`] de FALLBACK; testes: stub.
+/// Fonte de metadados injetada. Produção: [`NativeMetaSource`]; [`NodeMetaSource`]
+/// só no replay do frozen gate (rotas gravadas, nenhuma rede); testes: stub.
 pub trait MetaSource: Send + Sync {
     fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta>;
 }
 
-/// FALLBACK de produção: a rota interna do Node.
+/// Reprodução do caso congelado: devolve o metadado GRAVADO pela rota do Node.
+/// Não há mais impl de produção — o `/internal/search/meta` saiu do caminho.
 pub struct NodeMetaSource {
-    routes: Arc<dyn InternalRoutes>,
+    routes: Arc<dyn MetaRoutes>,
 }
 
 impl NodeMetaSource {
-    pub fn new(routes: Arc<dyn InternalRoutes>) -> Self {
+    pub fn new(routes: Arc<dyn MetaRoutes>) -> Self {
         NodeMetaSource { routes }
     }
 }

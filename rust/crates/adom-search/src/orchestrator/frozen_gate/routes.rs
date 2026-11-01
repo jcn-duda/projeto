@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaResponse};
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
-use crate::orchestrator::internal_routes::{InternalRoutes, RouteFuture};
+use crate::orchestrator::internal_routes::{InternalRoutes, MetaRoutes, RouteFuture};
 use crate::orchestrator::live_state::LiveBatchState;
 use crate::raw_item::raw_item_from_value;
 
@@ -98,11 +98,13 @@ impl Collector for ReplayCollector {
     }
 }
 
-impl InternalRoutes for FrozenRoutes {
+impl MetaRoutes for FrozenRoutes {
     fn meta<'a>(&'a self, _req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
         Box::pin(async move { Ok(self.meta.clone()) })
     }
+}
 
+impl InternalRoutes for FrozenRoutes {
     fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async {
             Ok(EffectsResponse {

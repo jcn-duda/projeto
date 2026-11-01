@@ -178,17 +178,21 @@ async fn metrics_expoe_checagem_alldebrid_zerada() {
     // As métricas dos caminhos nativos continuam no snapshot.
     assert!(snap.get("account.rust.fetch").is_some());
     assert!(snap.get("index.rust.lookup").is_some());
-    // Metadados nativos × fallback Node (Fase 2): chaves presentes e zeradas
-    // neste gateway que ainda não atendeu busca.
+    // Metadados nativos (Fase 2): chaves presentes e zeradas neste gateway que
+    // ainda não atendeu busca. Os `meta.fallback.*` foram aposentados no
+    // passo 2 do corte — não podem reaparecer no snapshot.
     for key in [
         "meta.resolve.total",
+        "meta.native.ok",
         "meta.native.incomplete",
-        "meta.fallback.used",
-        "meta.fallback.empty",
-        "meta.fallback.error",
+        "meta.native.error",
     ] {
         assert_eq!(snap.get(key), Some(&json!(0)), "{key} zerada");
     }
+    assert!(
+        snap.get("meta.fallback.used").is_none(),
+        "contador aposentado"
+    );
 }
 
 // ── `/resolve` NATIVO (sem flag: é o caminho único do gateway) ─────────────
