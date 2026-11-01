@@ -24,6 +24,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const ESM = path.resolve(REPO, '..', 'adom-esm');
 
 const [script, ...args] = process.argv.slice(2);
+// Gerador único que cobre mais de um golden id: o gen-cache.mjs é o mesmo
+// contrato para cache-keys e cache-quotas (os registries são entradas dele).
+const GEN_ALIAS = { 'cache-keys': 'cache', 'cache-quotas': 'cache' };
 if (!script) {
   console.error('[golden-esm] FALHA: falta o nome do script npm (ex.: golden:release-filters:check)');
   process.exit(1);
@@ -57,6 +60,9 @@ if (missingDist) {
 // search-pool-coverage) NÃO têm entrada npm no `package.json` do worktree
 // oráculo — ele não é editado por esta fatia. Para esses, o mesmo contrato roda
 // com `node` direto: `golden:<nome>[:check]` → `scripts/golden/dump-<nome>.mjs`.
+// Quando o oráculo só tem o GERADOR (cache: sem script npm e sem dump lá), o
+// degrau seguinte é `scripts/golden/gen-<nome>.mjs` — o gen-cache.mjs do esm
+// cobre o par cache-keys/cache-quotas num único passe, e `--check` é só leitura.
 // Se o script existir no package.json do esm, o caminho npm continua valendo
 // (é o dos goldens antigos).
 function esmHasScript(name) {
@@ -77,14 +83,24 @@ const r = esmHasScript(script)
       process.exit(1);
     }
     const dump = path.join('scripts', 'golden', `dump-${m[1]}.mjs`);
-    if (!fs.existsSync(path.join(ESM, dump))) {
-      console.error(`[golden-esm] FALHA: oráculo sem ${dump} (e sem o script "${script}" no package.json)`);
-      process.exit(1);
+    if (fs.existsSync(path.join(ESM, dump))) {
+      return spawnSync(
+        process.execPath,
+        [dump, ...(m[2] ? ['--check'] : []), ...args],
+        { cwd: ESM, stdio: 'inherit' },
+      );
     }
-    return spawnSync(
-      process.execPath,
-      [dump, ...(m[2] ? ['--check'] : []), ...args],
-      { cwd: ESM, stdio: 'inherit' },
-    );
+    // Oráculo que só tem o gerador: o golden de cache é contrato do esm/rust
+    // (o TS daqui apagou dlmag/vres), então o check corre contra o gen do esm.
+    const gen = path.join('scripts', 'golden', `gen-${GEN_ALIAS[m[1]] ?? m[1]}.mjs`);
+    if (fs.existsSync(path.join(ESM, gen))) {
+      return spawnSync(
+        process.execPath,
+        [gen, ...(m[2] ? ['--check'] : []), ...args],
+        { cwd: ESM, stdio: 'inherit' },
+      );
+    }
+    console.error(`[golden-esm] FALHA: oráculo sem ${dump} e sem ${gen} (e sem o script "${script}" no package.json)`);
+    process.exit(1);
   })();
 process.exit(r.status ?? 1);
