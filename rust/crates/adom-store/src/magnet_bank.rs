@@ -40,6 +40,10 @@ mod import;
 #[cfg(test)]
 #[path = "magnet_bank_import_tests.rs"]
 mod import_tests;
+// Leitura do painel (`bank_status`/`bank_search`, porte fiel do TS) — catraca:
+// o arquivo estava no teto de 400 linhas (o módulo embute os próprios testes).
+#[path = "magnet_bank_read.rs"]
+mod read;
 
 pub use import::{ImportCounter, ImportReport};
 pub use write::WorkCtx;
