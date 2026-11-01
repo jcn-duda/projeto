@@ -89,6 +89,16 @@ trabalho de código é em `src/`.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.
+- **Build da imagem**: o estágio `rustcore` usa cache mounts do `cargo` e um
+  `RUN` único que dá `touch` nas fontes. Não tire o `touch`: o BuildKit
+  reaproveita a camada do `COPY` com datas antigas, e sem ele o `cargo` entrega
+  binário de outra versão sem erro. Os defaults do Dockerfile são os da VPS
+  (`CARGO_JOBS=1`, sem incremental). A aceleração é só local, nos build args do
+  `docker-compose.override.yml` (não versionado): `CARGO_JOBS: "24"`,
+  `CARGO_RELEASE_INCREMENTAL: "true"`, `CARGO_RELEASE_CODEGEN_UNITS: "256"`.
+  Medido (2026-11-01, estágio Rust): alterar `adom-server`/`adom-core` leva
+  31–35 s, contra 261–275 s sem incremental; do zero, 322 s. Com incremental o
+  binário fica menos otimizado: não meça desempenho nessa imagem.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
   `esm`, que é o oráculo dos goldens): os **nove resolvers** (oito BR + o
   TorrentGalaxy, que é global) são o binário `adom-resolvers` (portas
