@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
-import * as rdLedger from '../src/debrid/rd-ledger.js';
+// A escrita do ledger RD é do gateway; no oráculo ela é simulada aqui.
+import * as rdLedger from './helpers/pipeline-oracle/rd-ledger.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';

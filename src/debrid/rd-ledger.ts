@@ -1,22 +1,27 @@
-// Ledger durável de disponibilidade do Real-Debrid.
+// Ledger durável de disponibilidade do Real-Debrid (`rdc:v2`) — LADO NODE:
+// leitura e vocabulário; a escrita inteira é do GATEWAY (a DECISÃO também):
+// o veredito combinado (ledger + miss nunca condena + kill-switches) é
+// computado no Rust (`adom-debrid::verdict` → `verdict_ledger::rd_ledger_known`,
+// chamado pela ponte 8710) e as escritas de produção são nativas — a
+// renovação de hit é `rd_renew_hits`, o `blocked` do play é
+// `play_effects_native_writes::note_rd_blocked` e os sinais do warmer são
+// `rd_warmer_ledger`. A simulação de escrita dos testes mora no oráculo
+// (`test/helpers/pipeline-oracle/rd-ledger.ts`).
 //
-// O CDN/cache do RD pertence ao SERVIÇO, não à conta que observou o resultado;
-// por isso a chave deste ledger (`rdc:v2:<hash>`) deliberadamente não leva
-// apiKey nem accountScope. Isto convive com `mag:alive`, que continua por conta
-// e registra um play que funcionou naquela credencial. O ledger alimenta o
-// ranking, o filtro ternário do cachedOnly e o oráculo. Falso negativo é pior
-// que falso positivo, então miss expira com backoff e nunca condena uma release
-// sem nova medição.
+// O CDN/cache do RD pertence ao SERVIÇO, não à conta que observou o
+// resultado; por isso a chave deste ledger (`rdc:v2:<hash>`) deliberadamente
+// não leva apiKey nem accountScope. Isto convive com `mag:alive`, que continua
+// por conta e registra um play que funcionou naquela credencial. Falso
+// negativo é pior que falso positivo: miss expira com backoff e nunca condena
+// uma release sem nova medição.
 import config from '../config.js';
-import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
 import { QUOTAS } from '../utils/cache-quotas.js';
-import { kvKeys, kvPeek, kvRemaining, kvSet } from '../utils/native-kv.js';
+import { kvKeys, kvPeek } from '../utils/native-kv.js';
 import { rdNextBlocked, rdNextHit, rdNextMiss } from '../utils/rust-debrid-rd.js';
 
 type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
 type LedgerValue = { s: Exclude<LedgerState, 'unknown'>; at: number; n: number };
-type Tracked = { state: Exclude<LedgerState, 'unknown'>; expiresAt: number };
 
 /** Próximo valor do ledger. `hash` só vem em miss/blocked (a chave lógica). */
 type RdLedgerWrite = {
@@ -26,8 +31,6 @@ type RdLedgerWrite = {
   ttlSeconds: number;
   hash?: string;
 };
-
-const tracked = new Map<string, Tracked>();
 
 /** 40 hex depois de lower; qualquer outra forma é vazio e a leitura é unknown. */
 export function normalizeRdHash(hash: string): string {
@@ -104,47 +107,6 @@ function read(hash: string): LedgerValue | null {
   return value;
 }
 
-function pruneTracked() {
-  const now = Date.now();
-  for (const [hash, item] of tracked) {
-    if (item.expiresAt <= now) {
-      tracked.delete(hash);
-    }
-  }
-  if (tracked.size > 5000) {
-    const overflow = tracked.size - 5000;
-    let removed = 0;
-    for (const hash of tracked.keys()) {
-      tracked.delete(hash);
-      removed += 1;
-      if (removed >= overflow) break;
-    }
-  }
-}
-
-// `prune=false` é para lotes: noteHit já podou uma vez antes do laço, e podar
-// por hash faria a varredura de expirados custar O(|lote| × |tracked|).
-function track(
-  hash: string,
-  state: Exclude<LedgerState, 'unknown'>,
-  ttlSeconds: number,
-  prune = true,
-) {
-  if (ttlSeconds <= 0) return;
-  if (prune) pruneTracked();
-  tracked.set(hash, { state, expiresAt: Date.now() + ttlSeconds * 1000 });
-}
-
-// `kvSet` com TTL <= 0 gravaria PERMANENTE; o cache antigo ignorava esse caso,
-// então o filtro fica aqui para o ledger nunca criar linha sem validade.
-// Não há lote nativo: cada `kvSet` é uma escrita SQLite e o lote é pequeno
-// (um hash por chamada, exceto o `noteHit` de uma lista de play).
-function writeMany(entries: { key: string; value: LedgerValue; ttlSeconds: number }[]) {
-  for (const entry of entries) {
-    if (entry.ttlSeconds > 0) kvSet(entry.key, entry.value, entry.ttlSeconds);
-  }
-}
-
 function peek(hash: string): LedgerState {
   // `blocked` ocupa a mesma chave e não é sobrescrito por hit/miss; assim ele
   // vence mesmo quando uma evidência antiga ainda existe no processo.
@@ -158,117 +120,21 @@ function peekQuiet(hash: string): LedgerState {
   return peekLedgerState(true, kvPeek(key(normalized)) as LedgerValue | null);
 }
 
-function isHit(hash: string) {
-  return peek(hash) === 'hit';
-}
-
-function noteHit(hashes: string[]) {
-  const ttl = config.debrid.rdLedger.hitTtl;
-  if (!config.debrid.rdLedger.enabled || ttl <= 0) return;
-  const unique = [...new Set(hashes.map(hashOf))].filter(Boolean);
-  const now = Date.now();
-  // A lista elegível (não-blocked) é calculada UMA vez e serve tanto para a
-  // escrita quanto para o `track` do processo. Antes o `track` reconsultava
-  // `peek` pós-escrita, custando mais uma leitura L1+SQLite por hash; o peek
-  // pós-write só distinguia "escrita venceu" de "blocked", e assumindo que o
-  // writeMany não falha silenciosamente a elegibilidade já cobre isso.
-  const eligible: string[] = [];
-  const writes: { key: string; value: LedgerValue; ttlSeconds: number }[] = [];
-  for (const hash of unique) {
-    // Bloqueio legal é mais específico que confirmação anterior e não pode ser
-    // apagado por um caminho atrasado de inventário/recheck.
-    const write = nextOnHit({ enabled: true, hitTtl: ttl, now, current: peek(hash) });
-    if (!write) continue;
-    eligible.push(hash);
-    writes.push({ key: key(hash), value: { s: 'hit', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds });
-  }
-  writeMany(writes);
-  // Podar uma vez pelo lote inteiro: o prune varre o Map `tracked` inteiro, e
-  // chamá-lo por hash seria O(|lote| × |tracked|).
-  if (eligible.length) pruneTracked();
-  for (const hash of eligible) {
-    track(hash, 'hit', ttl, false);
-  }
-  if (writes.length) {
-    metrics.count('debrid.rd.ledger.hit', writes.length);
-    metrics.count('debrid.rd.ledger.noted', writes.length);
-  }
-}
-
-function noteMiss(hash: string) {
-  if (!config.debrid.rdLedger.enabled) return;
-  const normalized = hashOf(hash);
-  const backoff = config.debrid.rdLedger.missBackoffMs;
-  if (!normalized || backoff.length === 0 || peek(normalized) === 'blocked') return;
-  const prior = read(normalized);
-  const write = nextOnMiss({
-    enabled: true,
-    hash: normalized,
-    backoffMs: backoff,
-    now: Date.now(),
-    current: peekLedgerState(true, prior),
-    prior,
-  });
-  if (!write?.hash) return;
-  writeMany([{ key: key(write.hash), value: { s: 'miss', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds }]);
-  track(write.hash, 'miss', write.ttlSeconds);
-  metrics.count('debrid.rd.ledger.miss');
-  metrics.count('debrid.rd.ledger.noted');
-}
-
-function noteBlocked(hash: string) {
-  const ttl = config.debrid.rdLedger.blockedTtl;
-  const normalized = hashOf(hash);
-  const write = nextOnBlocked({
-    enabled: config.debrid.rdLedger.enabled,
-    hash: normalized,
-    blockedTtl: ttl,
-    now: Date.now(),
-  });
-  if (!write?.hash) return;
-  writeMany([{ key: key(write.hash), value: { s: 'blocked', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds }]);
-  track(write.hash, 'blocked', write.ttlSeconds);
-  metrics.count('debrid.rd.ledger.blocked');
-  metrics.count('debrid.rd.ledger.noted');
-}
-
-/** Renova confirmação já conhecida só na segunda metade do TTL, como magnetdb. */
-function renewHits(hashes: string[]) {
-  const ttl = config.debrid.rdLedger.hitTtl;
-  if (!config.debrid.rdLedger.enabled || ttl <= 0) return;
-  const stale = [...new Set(hashes.map(hashOf))].filter((hash) => {
-    if (!hash || peek(hash) !== 'hit') return false;
-    const remaining = kvRemaining(key(hash));
-    return remaining == null || remaining < ttl / 2;
-  });
-  noteHit(stale);
-}
-
-/** Amostra local para diagnóstico; nunca inclui hash, conta ou credencial. */
+/**
+ * Diagnóstico do painel. A amostra em processo morreu com as escritas: quem
+ * grava o ledger é o gateway (`rd_renew_hits`, `note_rd_blocked`,
+ * `rd_warmer_ledger`), então os contadores do Node são sempre 0 — o número
+ * REAL de linhas vivas é a ocupação durável do namespace `rdc` no KV nativo
+ * (`l1Entries`, com a cota `rdc`). Pode diferir da amostra: inclui linhas
+ * escritas pelo gateway e de outros processos. Sem a cota, inventar um número
+ * no painel é pior que zero.
+ */
 function status() {
-  const now = Date.now();
-  let hits = 0;
-  let misses = 0;
-  let blocked = 0;
-  for (const [hash, item] of tracked) {
-    // Evicção/forget não notifica o Map — sem o peek a amostra SUPERCONTA
-    // depois que a cota rdc gira (mesmo padrão do magnetdb).
-    if (item.expiresAt <= now || kvPeek(key(hash)) == null) {
-      tracked.delete(hash);
-      continue;
-    }
-    if (item.state === 'hit') hits += 1;
-    else if (item.state === 'miss') misses += 1;
-    else blocked += 1;
-  }
-  // Ocupação real do namespace `rdc` no KV nativo (linhas vivas). Pode diferir
-  // da amostra: inclui linhas de outros processos e órfãs sem track.
-  // Sem a cota, inventar um número no painel é pior que zero.
   return {
-    tracked: hits + misses + blocked,
-    hits,
-    misses,
-    blocked,
+    tracked: 0,
+    hits: 0,
+    misses: 0,
+    blocked: 0,
     l1Entries: kvKeys(prefix('rdc')).length,
     l1Max: QUOTAS.rdc || 0,
     _origem: {
@@ -282,8 +148,4 @@ function status() {
   };
 }
 
-function reset() {
-  tracked.clear();
-}
-
-export { key, peek, peekQuiet, isHit, noteHit, noteMiss, noteBlocked, renewHits, status, reset };
+export { key, peekQuiet, status };

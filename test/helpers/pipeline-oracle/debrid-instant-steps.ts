@@ -5,14 +5,15 @@
 // `debrid-cache-steps.ts`, aqui ao lado.
 import config from '../../../src/config.js';
 import type { DebridAdapter, Stream } from '../../../types/domain.js';
-import debrid from '../../../src/debrid/index.js';
 import { inventory } from './inventory-for.js';
+import { peek as inventoryMemoPeek } from './inventory-memo.js';
 import { peekDavail } from './play/davail.js';
 import { reuploadBlocked } from './alldebrid-reupload.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import { magnetState } from '../../../src/utils/debrid-state-native.js';
-import * as rdLedger from '../../../src/debrid/rd-ledger.js';
-import * as autofetch from '../../../src/providers/autofetch.js';
+// Escrita do ledger no oráculo sai da fachada irmã (`./rd-ledger.js`), que
+// reexporta a régua de `src/` — em produção quem escreve é o gateway.
+import * as rdLedger from './rd-ledger.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import { assertSafeTestDb } from '../db-guard.js';
@@ -66,7 +67,7 @@ export function enrichInstantWithoutCacheCheck(
   // vazio e o corte apagaria a lista inteira.
   let accountKnown = false;
   if (!adapter.cacheCheck && adapter.autofetchSource) {
-    const peek = debrid.inventoryPeek(adapter, apiKey);
+    const peek = inventoryMemoPeek(adapter.id, apiKey);
     if (peek) {
       const inv = new Set(peek.map((i) => String(i.infoHash || '').toLowerCase()));
       knownForAutofetch = true;

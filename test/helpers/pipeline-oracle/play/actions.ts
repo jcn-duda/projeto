@@ -1,7 +1,8 @@
 import { opts } from '../../../../src/runtime.js';
 import type { PlayHint } from '../../../../types/domain.js';
 import * as log from '../../../../src/utils/logger.js';
-import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
+// Ledger RD: escrita é simulada no oráculo (a produção é do gateway).
+import * as rdLedger from '../rd-ledger.js';
 import { current } from '../../../../src/debrid/registry.js';
 import { bridgedResolveLink } from './bridge.js';
 import { withBodies } from '../debrid-bodies/index.js';

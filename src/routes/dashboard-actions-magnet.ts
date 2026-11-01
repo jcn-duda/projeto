@@ -141,7 +141,9 @@ export const magnetBankSearch: MagnetAction = ({ services, req, res, action }) =
  * DESTRUTIVA (confirm central): apaga registros `bad` casados pelos filtros,
  * até `limit` por passagem. Idempotente — repetir devolve cleared 0. Só
  * `bad`: alive/lie do mesmo hash não são tocados, e a contagem durável por
- * adapter fica coerente pelo hook onForget do magnetdb.
+ * adapter segue coerente sem escrita do Node: quem mantém o agregado
+ * `mag_meta` é o gateway (régua `bump_counts`) e a leitura do painel
+ * reconcilia por sentinela (`ensureCountsLoaded` de `magnetdb-persist.ts`).
  */
 export const magnetClearBad: MagnetAction = ({ services, req, res, action }) => {
   const parsed = parseFilters(req, { withSide: true });

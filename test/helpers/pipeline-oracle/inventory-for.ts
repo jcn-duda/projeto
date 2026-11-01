@@ -7,7 +7,7 @@
 import { opts } from '../../../src/runtime.js';
 import type { DebridAdapter, InventoryItem } from '../../../types/domain.js';
 import config from '../../../src/config.js';
-import * as inventoryMemo from '../../../src/debrid/inventory-memo.js';
+import * as inventoryMemo from './inventory-memo.js';
 import * as cache from '../../../src/utils/cache.js';
 import * as log from '../../../src/utils/logger.js';
 import { current } from '../../../src/debrid/registry.js';

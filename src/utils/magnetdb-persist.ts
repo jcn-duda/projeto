@@ -1,31 +1,28 @@
-// Persistência dos contadores duráveis do banco de magnets (agregado O(1) em
-// `mag_meta:v1:counts`) e o relógio PRÓPRIO da varredura nativa que os mantém
-// sincronizados.
+// LEITURA do agregado durável do banco de magnets (`mag_meta:v1:counts`) e o
+// relógio PRÓPRIO da varredura nativa de `mag`/`davail`.
 // Módulo separado do magnetdb.ts por um motivo só: aquele arquivo está no teto
 // de 400 linhas. A API continua exposta por magnetdb.ts (save/load reexportados
 // para addon e testes); nenhuma rota ou consumidor importa daqui diretamente.
 //
-// O dono das linhas `mag:v1` é o núcleo Rust: escrita e leitura vão pela ponte
-// (`debrid-state-native.ts`), então nem a gravação nem a poda passam pelo cache
-// do Node. O AGREGADO (`mag_meta:v1:counts`) seguiu o mesmo caminho nesta leva:
-// ele é DERIVADO do acervo, e enquanto o Node o gravava por `cache.set` havia
-// dois escritores de opinião sobre o mesmo dado — com uma janela extra, porque o
-// `cache.set` só despeja no SQLite no `setImmediate` seguinte. Hoje quem grava e
-// lê é o `MagnetStateStore` (`counts`/`putCounts`), no mesmo handle e na mesma
-// tabela `cache` do `cache.db`. O que sobra para cá é a POLÍTICA: quando
-// reconstruir, quando restaurar e o decremento que a varredura nativa devolve
-// por lado.
+// O agregado tem UM escritor: o GATEWAY. Os marks do play, do tail e da
+// checagem sobem `mag_meta:v1:counts` O(1) pela régua `bump_counts` do núcleo
+// (`rust/crates/adom-index/src/magnet_meta.rs`), e o Node NÃO grava mais: a
+// amostra dele não enxerga os bumps do gateway (a escrita de evidência já tinha
+// saído para o oráculo) e regravá-la no sweep/forget apagava os bumps do dono
+// até o boot recontar. O que sobra para cá é a POLÍTICA DE LEITURA: quando
+// restaurar o agregado (O(1)) e quando recontar o físico (`summary`) pela
+// sentinela de divergência de total — e o relógio da poda física dos namespaces
+// que o Node varre (o painel reconcilia por leitura, não por decremento).
 //
 // `ttlRemainingBasis` resolve uma ambiguidade do diagnóstico: a soma de TTL
-// restante pode vir de dois lugares com precisão diferente. O rebuild pela
-// ponte (`summary`) soma o restante REAL de cada linha, mas essa precisão morre
-// na primeira mutação — renovação/remoção passam a subtrair o TTL nominal, não
-// o restante exato de cada chave. O painel precisa saber qual dos dois está
-// mostrando para não chamar de precisa uma média que envelhece.
-import config from '../config.js';
+// restante exibida pode vir de dois lugares com precisão diferente. O reconto
+// pela ponte (`summary`) soma o restante REAL de cada linha; a restauração do
+// agregado envelhece uma soma carimbada no `updatedAt` do escritor. O painel
+// precisa saber qual dos dois está mostrando para não chamar de precisa uma
+// média que envelhece.
 import { QUOTAS } from './cache-quotas.js';
 import {
-  davailState, magnetState, type MagCount, type MagMetaPayload, type MagnetSide,
+  davailState, magnetState, type MagCount, type MagMetaPayload,
 } from './debrid-state-native.js';
 import { emptyAdapterTotals, type AdapterTotals } from './magnetdb-counts.js';
 
@@ -53,12 +50,7 @@ export function ttlRemainingBasis(): TtlRemainingBasis {
   return ttlBasis;
 }
 
-/** Toda mutação degrada o rebuild para estimativa — o restante real já era. */
-export function markMutation() {
-  ttlBasis = 'aggregate-estimate';
-}
-
-export function getOrCreateAdapter(adapterId: string): AdapterTotals {
+function getOrCreateAdapter(adapterId: string): AdapterTotals {
   let totals = adapterCounts.get(adapterId);
   if (!totals) {
     totals = emptyAdapterTotals();
@@ -67,28 +59,14 @@ export function getOrCreateAdapter(adapterId: string): AdapterTotals {
   return totals;
 }
 
-let persistTimer: ReturnType<typeof setImmediate> | null = null;
-
-export function savePersistentCounts() {
-  if (persistTimer) { clearImmediate(persistTimer); persistTimer = null; }
-  if (!config.magnetDb.enabled) return;
-  const adapters: Record<string, AdapterTotals> = Object.create(null);
-  for (const [id, totals] of adapterCounts) {
-    if (totals.alive > 0 || totals.bad > 0 || totals.lie > 0) {
-      adapters[id] = { alive: totals.alive, bad: totals.bad, lie: totals.lie, ttlRemainingSums: { ...totals.ttlRemainingSums } };
-    }
-  }
-  // Gravação SÍNCRONA pelo dono do acervo, no MESMO `cache.db`: o núcleo carimba
-  // `updatedAt` com o `Date.now()` recebido e mantém `ttlRemainingSums` por lado.
-  // Nada de `cache.set` aqui — seria o segundo escritor que esta leva removeu.
-  magnetState().putCounts(adapters, Math.max(config.magnetDb.aliveTtl, 7 * 86400), Date.now());
-}
-
-export function schedulePersistentSave() {
-  if (persistTimer) return;
-  persistTimer = setImmediate(() => { persistTimer = null; savePersistentCounts(); });
-  persistTimer.unref?.();
-}
+/**
+ * Despejo do shutdown (`src/addon.ts` chama `services.magnetdb.savePersistentCounts?.()`):
+ * NO-OP de régua. O agregado tem um escritor só — o gateway, pelos deltas O(1)
+ * do `bump_counts` — e a amostra lida aqui não enxerga os bumps dele: regravá-la
+ * os apagava até o boot recontar. A função continua existindo para o registro
+ * de shutdown não precisar saber da mudança.
+ */
+export function savePersistentCounts() {}
 
 /** Envelhece o agregado lido para um mapa de contadores, sem tocar o estado. */
 function restoreFromAggregate(raw: PersistentCountsPayload): Map<string, AdapterTotals> {
@@ -159,12 +137,31 @@ function adoptRebuild() {
     }
   }
   ttlBasis = ttlReal ? 'l1-rebuild' : 'aggregate-estimate';
-  if (adapterCounts.size > 0) schedulePersistentSave();
+  // NÃO grava: o reconto alimenta o PAINEL; o dono do agregado é o gateway.
+  // O reconto DURÁVEL dele só acontece com a base ausente/vencida/ilegível
+  // (`bump_counts`) — drift por esquecimento/expiração vive só nesta leitura.
+  // Gravar daqui reabriria a janela de sobrescrita que este corte fecha.
 }
 
 export function loadPersistentCounts() {
-  const l1Entries = magnetState().liveCount(Date.now());
-  if (l1Entries === 0) { adapterCounts.clear(); return; }
+  ensureCountsLoaded(magnetState().liveCount(Date.now()));
+}
+
+/**
+ * Sincroniza a foto do painel com o DONO antes de o status ler `adapterCounts`:
+ * namespace vazio zera a foto; senão lê o agregado persistido (que o gateway
+ * mantém vivo pelos bumps) e decide entre restaurá-lo (O(1)) ou recontar o
+ * físico pela sentinela. Roda a CADA leitura do status — a foto do boot não
+ * serve, porque os bumps do gateway acontecem depois dela.
+ */
+export function ensureCountsLoaded(l1Entries: number) {
+  if (l1Entries === 0) {
+    adapterCounts.clear();
+    // Sem registro algum não existe média reconstruída a qualificar: a próxima
+    // leitura nasce estimativa, e um `l1-rebuild` órfão mentiria no painel.
+    ttlBasis = 'aggregate-estimate';
+    return;
+  }
   // Leitura pela ponte: o núcleo devolve `null` para ausente, vencido, versão
   // desconhecida ou estrutura torta — o fail-closed mora lá. O guarda de forma
   // continua porque o handle pode ser um dublê injetado por teste.
@@ -174,9 +171,10 @@ export function loadPersistentCounts() {
   // cheio o dado verdadeiro está nas linhas, não num payload que este processo
   // não sabe ler — cair no rebuild é mais honesto que restaurar lixo.
   if (!raw || typeof raw !== 'object' || raw.version !== 1 || !raw.adapters || typeof raw.adapters !== 'object' || Array.isArray(raw.adapters)) {
-    // Agregado ausente/ilegível com o namespace cheio: reconta pela ponte e
-    // regrava. Devolver zero aqui seria mentira rotulada de `duravel`. A soma
-    // nasce precisa (restante real) e vira estimativa na primeira mutação.
+    // Agregado ausente/ilegível com o namespace cheio: reconta pela ponte.
+    // Devolver zero aqui seria mentira rotulada de `duravel`. A soma nasce
+    // precisa (restante real); o gateway a regrava no próximo `bump_counts`
+    // com a base ainda ausente/vencida — não este processo.
     adoptRebuild();
     return;
   }
@@ -190,9 +188,13 @@ export function loadPersistentCounts() {
   // A comparação é exata de propósito: `liveCount()` é a contagem física do
   // namespace mag e a soma dos lados conta a mesma coisa, então tolerância
   // aqui só serviria para deixar passar deriva pequena. O preço do desacordo é
-  // uma passada O(namespace mag) por boot (29,6 ms medidos em 50 mil chaves,
-  // a cota cheia), nunca no caminho de busca. O alcance da sentinela — e o que
-  // ela deliberadamente não vê — está em `totalDiverges`.
+  // uma passada O(namespace mag) por LEITURA divergente (29,6 ms medidos em 50
+  // mil chaves, a cota cheia), nunca no caminho de busca. E o desacordo não se
+  // cura sozinho enquanto a base durar: forget/sweep/expiração não decrementam
+  // o agregado e cada `bump_counts` renova o `expires_at` da linha — só quando
+  // o tráfego cessa por tempo maior que o TTL dela é que o próximo bump reconta
+  // durável. Até lá, cada leitura do painel volta aqui. O alcance da sentinela
+  // — e o que ela deliberadamente não vê — está em `totalDiverges`.
   const restored = restoreFromAggregate(raw);
   if (totalDiverges(restored, l1Entries)) {
     adoptRebuild();
@@ -202,55 +204,18 @@ export function loadPersistentCounts() {
   for (const [id, totals] of restored) adapterCounts.set(id, totals);
 }
 
-/**
- * Sincroniza a amostra com o namespace antes de o status ler `adapterCounts`:
- * namespace vazio zera a amostra (o banco de verdade esvaziou); amostra vazia
- * com namespace cheio carrega o agregado persistido (ex.: primeiro status de
- * testes/runner sem passar pelo load do boot).
- */
-export function ensureCountsLoaded(l1Entries: number) {
-  if (l1Entries === 0) {
-    adapterCounts.clear();
-    // Sem registro algum não existe média reconstruída a qualificar: a próxima
-    // gravação nasce estimativa, e um `l1-rebuild` órfão mentiria no painel.
-    ttlBasis = 'aggregate-estimate';
-  } else if (adapterCounts.size === 0) {
-    loadPersistentCounts();
-  }
-}
-
-// Varredura única de decremento: quem tira linha do `mag`/`davail` no dia a dia
-// é a VARREDURA NATIVA (TTL vencido e teto do namespace). O antigo `onForget`
-// não serve mais: a escrita nativa não passa pelo cache do Node, então nenhum
-// forget daqui veria essas linhas — sem a varredura os contadores só cresceriam.
-// Com os namespaces órfãos do L1 migrados para a ponte, o prune do cache Node
-// deixou de ser relógio de manutenção alheio: a varredura tem setInterval
-// PRÓPRIO com a mesma cadência de 10 min que o prune antigo tinha (ver o pé
-// do arquivo). Exportada para o teste disparar sem esperar o timer.
-const nominalTtl = (side: MagnetSide): number =>
-  side === 'alive' ? config.magnetDb.aliveTtl : side === 'bad' ? config.magnetDb.badTtl : config.magnetDb.lieTtl;
-
+// Varredura das linhas órfãs do L1 (`mag`/`davail`): quem tira linha do
+// namespace no dia a dia é a VARREDURA NATIVA (TTL vencido e teto), porque a
+// escrita nativa não passa pelo cache do Node — nenhum forget daqui veria essas
+// linhas. A PODA continua sendo papel do Node (o relógio fica); o CONTADOR que
+// a remoção devolvia por lado alimentava a amostra regravada e morreu com a
+// escrita: o painel reconcilia por leitura (sentinela + reconto), e o dono do
+// agregado é o gateway. Exportada para o teste disparar sem esperar o timer.
 export function sweepNativeNamespaces(): void {
   const now = Date.now();
-  const removed = magnetState().sweep(QUOTAS.mag, now);
+  magnetState().sweep(QUOTAS.mag, now);
   davailState().sweep(QUOTAS.davail, now);
-  if (removed.counts.length === 0) return;
-  // Quem remove é a varredura nativa, que devolve a contagem EXATA por lado:
-  // o decremento é por lado, com o TTL nominal e piso 0 — a soma restante já
-  // é estimativa, porque não há restante real por linha depois da remoção.
-  for (const c of removed.counts) {
-    const totals = adapterCounts.get(c.adapter);
-    if (!totals) continue;
-    totals[c.side] = Math.max(0, totals[c.side] - c.count);
-    totals.ttlRemainingSums[c.side] = Math.max(0, totals.ttlRemainingSums[c.side] - c.count * nominalTtl(c.side));
-  }
-  markMutation();
-  schedulePersistentSave();
 }
-
-// Restauração no boot: rodava no carregamento do magnetdb.ts antes do split e
-// continua rodando uma vez, quando o módulo de persistência é carregado.
-loadPersistentCounts();
 
 // Relógio PRÓPRIO da varredura nativa: a mesma cadência de 10 min que o timer
 // do prune do L1 tinha (com os namespaces órfãos migrados, o prune do Node não

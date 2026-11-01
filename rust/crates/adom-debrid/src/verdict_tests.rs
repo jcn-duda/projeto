@@ -294,6 +294,25 @@ async fn realdebrid_ledger_off_respeita_kill_switch() {
     assert!(outcome.cached.is_empty());
 }
 
+/// `DEBRID_RD_ORACLE` ligado com a sonda ainda não portada: a decisão continua
+/// HONESTA — hash sem entrada no ledger sai Unknown, nunca Missing, e o switch
+/// não transforma "não sei" em "nada em cache" (falso negativo é pior que
+/// falso positivo).
+#[tokio::test]
+async fn realdebrid_oracle_on_sem_sonda_continua_unknown() {
+    let _env = EnvGuard::set(&[("DEBRID_RD_ORACLE", Some("true"))]);
+    let store = store_with(&[]);
+    let outcome = check_service("realdebrid", KEY, &[HIT.into()], None, Some(&store))
+        .await
+        .unwrap();
+    assert!(
+        !outcome.known,
+        "sem ledger e sem sonda = Unknown, nunca Missing"
+    );
+    assert!(outcome.cached.is_empty());
+    assert!(rd_oracle_enabled(), "o switch deve estar legível (ligado)");
+}
+
 #[test]
 fn kill_switches_leem_env() {
     let _env = EnvGuard::set(&[

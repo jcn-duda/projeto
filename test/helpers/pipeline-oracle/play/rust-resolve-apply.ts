@@ -7,7 +7,8 @@
 import { applyMagnetEffect } from './rust-resolve-magnet.js';
 import { applyCacheEffect } from './rust-resolve-cache.js';
 import { applyIndexEffect } from './rust-resolve-index.js';
-import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
+// Ledger RD: escrita é simulada no oráculo (a produção é do gateway).
+import * as rdLedger from '../rd-ledger.js';
 import {
   isBlockedError,
   isDubLieError,

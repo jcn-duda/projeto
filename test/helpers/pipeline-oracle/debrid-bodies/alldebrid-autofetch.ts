@@ -19,7 +19,7 @@ import { raceWithDeadline } from '../../../../src/utils/deadline.js';
 import { call, isDeadMagnet, ACTIVE_STATES, id as adapterId, type AllDebridMagnet } from '../../../../src/debrid/alldebrid-api.js';
 import { preexisting, knownBefore, rememberSubmitted } from '../../../../src/debrid/alldebrid-inventory.js';
 import { reuploadBlocked, forgetReuploadBlock } from '../alldebrid-reupload.js';
-import { peek as inventoryMemoPeek } from '../../../../src/debrid/inventory-memo.js';
+import { peek as inventoryMemoPeek } from '../inventory-memo.js';
 import type { TorrentStatusEntry } from '../../../../types/domain.js';
 import { assertSafeTestDb } from '../../db-guard.js';
 

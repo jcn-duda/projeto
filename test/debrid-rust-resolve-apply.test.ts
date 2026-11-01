@@ -15,7 +15,8 @@ import { prefix } from '../src/utils/cache-keys.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import * as rdLedger from '../src/debrid/rd-ledger.js';
+// A escrita do ledger RD é do gateway; no oráculo ela é simulada aqui.
+import * as rdLedger from './helpers/pipeline-oracle/rd-ledger.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
 import { BlockedError, DubLieError, EpisodePickError } from '../src/debrid/common.js';
@@ -79,7 +80,6 @@ test('451 no Real-Debrid anota o ledger uma vez e não marca magnet bad', () => 
   assert.ok(config.magnetDb.badTtl > 0);
 
   cache.clearNamespace('rdc');
-  rdLedger.reset();
   metrics.reset();
   // O banco está armado: se o 451 virasse bad, isBad ficaria true.
   magnetdbWrites.markBad('realdebrid', API_KEY, HASH_CONTROL);
@@ -102,7 +102,6 @@ test('451 no Real-Debrid anota o ledger uma vez e não marca magnet bad', () => 
 
 test('451 noutro debrid não chama noteBlocked', () => {
   cache.clearNamespace('rdc');
-  rdLedger.reset();
   metrics.reset();
 
   const stub = stubServices();

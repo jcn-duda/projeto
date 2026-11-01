@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as metrics from '../src/utils/metrics.js';
-import { NAMESPACE_VERSIONS, LEGACY_PREFIXES, AUTOFETCH_NATIVE_PREFIXES, prefix } from '../src/utils/cache-keys.js';
+import {
+  NAMESPACE_VERSIONS, LEGACY_PREFIXES, AUTOFETCH_NATIVE_PREFIXES, RUST_OWNED, prefix,
+} from '../src/utils/cache-keys.js';
 import { quotaFor, QUOTAS } from '../src/utils/cache-quotas.js';
 
 const RDT_QUOTA = 2500;
@@ -76,25 +78,43 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     assert.equal('tsj' in NAMESPACE_VERSIONS, false, 'tsj não é mais versionado');
     assert.ok(LEGACY_PREFIXES.includes('tsj:'), 'julgamento do Jev é descartado no boot');
     assert.equal(cache.MAX_ENTRIES, 93000);
-    // O que o teto precisa cobrir não é a lista de `QUOTAS`: `quotaFor` devolve
-    // `__default` para todo nome sem entrada própria, então namespace
-    // versionado sem cota some da soma nomeada e ocupa o store igual — foi
-    // assim que o teto ficou abaixo da conta real sem nenhum teste reclamar.
-    // O universo honesto é a união dos dois registros, mais o balde das chaves
-    // sem `:`.
+    // A conta que o teto tem que cobrir mudou com o corte do L1 (fatia F4):
+    // os 16 namespaces RUST_OWNED (`RUST_OWNED` em cache-keys.ts) têm dono único
+    // no gateway e as guardas do motor (isRustOwned/isForeignKey) recusam a
+    // chave ANTES de contar no store (`set`/`forget`/`forgetMany`/`persist` em
+    // cache.ts) — nenhuma linha deles entra no L1. A cota que a tabela ainda
+    // carrega para esses baldes é o contrato do porte/golden
+    // (`adom-core::cache_quotas` + rust/golden/cache-quotas.jsonl), não verba
+    // do Node. O universo ALCANÇÁVEL é a união dos dois registros MENOS os
+    // Rust-owned, mais o balde `__default` das chaves sem `:`. E o que pode
+    // entrar no L1 continua sem viver de fallback: `quotaFor` devolve
+    // `__default` para todo nome sem entrada própria — foi assim que o teto
+    // ficou abaixo da conta real sem nenhum teste reclamar.
     const universo = new Set([...Object.keys(cache.QUOTAS), ...Object.keys(NAMESPACE_VERSIONS)]);
     universo.delete('__default');
-    const deFallback = [...universo].filter((ns) => cache.QUOTAS[ns] === undefined);
+    const rustOwned = new Set(RUST_OWNED);
+    const noL1 = [...universo].filter((ns) => !rustOwned.has(ns));
+    // A lista de donos no gateway está fechada em 16: surgiu um 17º, a conta
+    // abaixo muda e tem que ser refeita aqui.
+    assert.equal(universo.size - noL1.length, RUST_OWNED.length, 'RUST_OWNED é fechado');
+    const deFallback = noL1.filter((ns) => cache.QUOTAS[ns] === undefined);
     assert.deepEqual(
       deFallback,
       [],
       `namespace sem cota explícita soma ${cache.QUOTAS.__default} cada ao universo: ${deFallback.join(', ')}`,
     );
     const somaUniverso =
-      [...universo].reduce((sum, ns) => sum + cache.QUOTAS[ns], 0) + cache.QUOTAS.__default;
+      noL1.reduce((sum, ns) => sum + cache.QUOTAS[ns], 0) + cache.QUOTAS.__default;
+    // Conta fechada de hoje: tmdb/tmdbc/meta 500×3, rdt 2.500, indexer-status
+    // 200, cfg/dinv 50×2, notify 100, seed 20 = 4.420 nomeados, + 500 do
+    // `__default` = 4.920 contra o teto de 93.000. Os 82.801 dos 16 Rust-owned
+    // (mag 50.000, rdc 14.000, autofetch 4.000…) saíram da conta do L1.
+    // Mexeu em cota de namespace que ainda tem leitor/escritor no Node,
+    // reconta aqui.
+    assert.equal(somaUniverso, 4920);
     assert.ok(
       somaUniverso < cache.MAX_ENTRIES,
-      `soma do universo (${somaUniverso}, ${universo.size} namespaces + __default) < teto (${cache.MAX_ENTRIES})`,
+      `soma do universo (${somaUniverso}, ${noL1.length} namespaces no L1 + __default) < teto (${cache.MAX_ENTRIES})`,
     );
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;

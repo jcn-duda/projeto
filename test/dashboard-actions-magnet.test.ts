@@ -221,9 +221,10 @@ test('magnet-clear-bad com confirm apaga só bad, preserva alive/lie e é idempo
     const deNovo = await post({ action: 'magnet-clear-bad', confirm: true, adapterId: 'magfake2' });
     assert.equal(deNovo.json.cleared, 0);
 
-    // Contagem durável por adapter acompanha as remoções (hook onForget) —
-    // o delta da passagem é que é contrato, não o valor absoluto: testes
-    // anteriores semearam o mesmo adapter e cache.clear() não dispara hook.
+    // Contagem durável por adapter acompanha as remoções (reconciliação da
+    // leitura: `ensureCountsLoaded` reconta pelo `liveCount` quando a amostra
+    // diverge) — o delta da passagem é que é contrato, não o valor absoluto:
+    // testes anteriores semearam o mesmo adapter e nada aqui grava agregado.
     const sizeBadAntes = magnetdb.status().byAdapter[ADAPTER].sizeBad;
     const geral = await post({ action: 'magnet-clear-bad', confirm: true });
     assert.equal(geral.json.cleared, 2);

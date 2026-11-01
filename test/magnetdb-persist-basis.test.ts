@@ -1,7 +1,8 @@
 // Persistência do MagnetDB extraída (magnetdb-persist.ts) + base da soma de
 // TTL restante (`ttlRemainingBasis`). Cobre: reexportação pela fachada pública,
-// degradação l1-rebuild → aggregate-estimate na primeira mutação e o valor do
-// qualificador exposto pelo status (consumido pelo modelo do /painel).
+// o rótulo da última LEITURA (l1-rebuild enquanto o dono não grava,
+// aggregate-estimate com o agregado em dia) e o valor do qualificador exposto
+// pelo status (consumido pelo modelo do /painel).
 //
 // O AGREGADO (`mag_meta:v1:counts`) passou a ser do núcleo: escrita e leitura
 // vão pela ponte (`magnetState().putCounts/counts`), no MESMO handle do acervo
@@ -9,7 +10,9 @@
 // (a) a escrita nativa é lida de volta com o MESMO formato que o Node lia;
 // (b) boot com agregado presente NÃO rebuild-a;
 // (c) boot sem agregado rebuild-a (fail-closed, nunca contagem inventada);
-// (d) o Node não grava mais a chave no `cache` (nada de `cache.set`/`peek`).
+// (d) o Node não grava a chave NEM pela ponte: o `savePersistentCounts` do
+// shutdown virou no-op de régua e o sweep só poda — quem grava é o dono
+// (gateway), simulado nos testes pelo helper `magnetdb-gateway-sim`.
 //
 // Payload ILEGÍVEL (versão estranha, `adapters` em array, JSON quebrado) não é
 // plantável pela escrita tipada — esses casos vivem no teste Rust
@@ -22,6 +25,7 @@ import * as persist from '../src/utils/magnetdb-persist.js';
 import * as cache from '../src/utils/cache.js';
 import { magMetaCountsKey } from '../src/utils/cache-keys.js';
 import { magnetState } from '../src/utils/debrid-state-native.js';
+import { persistAggregateLikeGateway as persistGateway } from './helpers/magnetdb-gateway-sim.js';
 import type { AdapterTotals } from '../src/utils/magnetdb-counts.js';
 
 const H = (c: string) => c.repeat(40);
@@ -43,9 +47,19 @@ test('fachada pública: magnetdb reexporta save/load e a base do TTL', () => {
   assert.equal(typeof magnetdb.status().ttlRemainingBasis, 'string');
 });
 
-test('mutação normal usa aggregate-estimate e sobrevive ao status()', () => {
+// O rótulo é da ÚLTIMA LEITURA, não da mutação: o markMutation morreu com a
+// escrita do Node. Evidência nova sem gravação do dono deixa o agregado atrás
+// do físico — a leitura reconta (l1-rebuild) em vez de servir total velho.
+test('evidência nova deixa o agregado atrás e a leitura reconta até o bump do dono', () => {
+  clearMag();
+  magnetState().forgetCounts();
+  persist.adapterCounts.clear();
   magnetdbWrites.markAlive('premiumize', 'conta-basis-1', [H('a')]);
-  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
+  // Agregado ausente com o namespace cheio: a leitura reconta o físico.
+  assert.equal(magnetdb.status().ttlRemainingBasis, 'l1-rebuild');
+  // O gateway bumpa junto do mark: agregado em dia, leitura volta à estimativa.
+  persistGateway();
+  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild', 'sem leitura nova, o rótulo é o da última');
   assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
   assert.ok(magnetdb.status().sizeAlive >= 1);
 });
@@ -58,7 +72,7 @@ test('agregado: a escrita é nativa e o valor mantém o formato de sempre', () =
   magnetdbWrites.markAlive('premiumize', 'conta-formato', [H('a'), H('b')]);
   magnetdbWrites.markBad('torbox', 'conta-formato', H('c'));
   const before = Date.now();
-  persist.savePersistentCounts();
+  persistGateway();
 
   const payload = magnetState().counts(Date.now());
   assert.ok(payload, 'a gravação nativa deixa o agregado legível');
@@ -83,7 +97,7 @@ test('boot com agregado presente NÃO rebuild-a: restaura sem pagar O(n)', () =>
   clearMag();
   persist.adapterCounts.clear();
   magnetdbWrites.markAlive('premiumize', 'conta-confere', [H('4'), H('5')]);
-  persist.savePersistentCounts();
+  persistGateway();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
 
@@ -92,7 +106,7 @@ test('boot com agregado presente NÃO rebuild-a: restaura sem pagar O(n)', () =>
 });
 
 // (c) Sem agregado e com namespace cheio: reconta o acervo e marca l1-rebuild.
-test('boot sem agregado rebuild-a o L1 e marca l1-rebuild até a primeira mutação', () => {
+test('boot sem agregado rebuild-a o L1 e cada leitura reconta até o dono curar', () => {
   clearMag();
   persist.adapterCounts.clear();
   magnetdbWrites.markAlive('premiumize', 'conta-basis-2', [H('b')]);
@@ -105,28 +119,37 @@ test('boot sem agregado rebuild-a o L1 e marca l1-rebuild até a primeira mutaç
   // A média reconstruída nasce do restante real: TTL vivo logo após a marca.
   const st = magnetdb.status();
   assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do L1, não de soma nominal');
-  // A primeira mutação degrada para estimativa — a precisão do rebuild já era.
+  // Não existe mais "mutação degrada o rótulo": mutação não escreve nada. Com
+  // o agregado ausente, CADA leitura reconta (o custo é do painel, nunca do
+  // caminho de busca) — a cura é o dono gravando de novo.
   magnetdbWrites.markBad('premiumize', 'conta-basis-2', H('c'));
-  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
+  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild', 'mutação não muda rótulo — rótulo é da última leitura');
+  assert.equal(magnetdb.status().ttlRemainingBasis, 'l1-rebuild', 'sem agregado, a leitura reconta de novo');
+  // O dono reconta e grava: a leitura seguinte volta à estimativa O(1).
+  persistGateway();
   assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
+  assert.equal(magnetdb.status().sizeBad, 1, 'reconto do dono conferiu com o físico');
 });
 
-// (d) A chave não é mais escrita pelo cache do Node: quem grava é o núcleo.
-test('o Node não grava mais mag_meta no cache — escrita só pela ponte nativa', () => {
+// (d) O corte da escrita: o Node não grava a chave nem pela ponte. O save do
+// shutdown virou no-op de régua e o sweep de 10 min só poda as linhas físicas —
+// se qualquer um deles regravasse a amostra, apagaria os bumps do dono.
+test('o Node não grava mag_meta: nem shutdown (save) nem sweep regravam o agregado', () => {
   clearMag();
   persist.adapterCounts.clear();
   magnetdbWrites.markAlive('premiumize', 'conta-via', [H('e')]);
   magnetState().forgetCounts();
   cache.forget(magMetaCountsKey());
   persist.savePersistentCounts();
+  magnetdb.sweepNativeNamespaces();
 
+  assert.equal(magnetState().counts(Date.now()), null, 'o agregado segue ausente — quem grava é o gateway');
   assert.equal(cache.peek(magMetaCountsKey()), null, 'nada no L1/L2 do Node');
-  assert.ok(magnetState().counts(Date.now()), 'mas o agregado existe na via nativa');
 });
 
 test('restauração do agregado persistido (payload válido) é aggregate-estimate', () => {
   magnetdbWrites.markAlive('premiumize', 'conta-basis-3', [H('d')]);
-  persist.savePersistentCounts();
+  persistGateway();
   persist.adapterCounts.clear();
   persist.loadPersistentCounts();
   assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
@@ -144,22 +167,27 @@ test('painel: o status expõe ttlRemainingBasis consumível pelo modelo do paine
   assert.ok(basis.length > 0);
 });
 
-test('renewAlive sobre chave existente degrada l1-rebuild para aggregate-estimate', () => {
-  magnetdbWrites.markAlive('premiumize', 'conta-basis-4', [H('e')]);
+test('renewAlive do Node não muda o rótulo nem grava mag_meta — leitura reconta', () => {
+  clearMag();
   magnetState().forgetCounts();
   persist.adapterCounts.clear();
+  magnetdbWrites.markAlive('premiumize', 'conta-basis-4', [H('e')]);
+  persistGateway();
+  persist.adapterCounts.clear();
   persist.loadPersistentCounts();
-  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
+  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate');
   // Chave viva na primeira metade do TTL não seria renovada; para forçar a
   // renovação, plantamos o alive já envelhecido (restante < ttl/2). O `nowMs`
   // de `markAlive` é o relógio da janela: recuá-lo envelhece a marca sem
   // precisar de sono real.
   magnetState().markAlive('premiumize', 'conta-basis-4', [H('f')], 60, Date.now() - 45_000);
-  persist.loadPersistentCounts();
-  assert.equal(persist.ttlRemainingBasis(), 'l1-rebuild');
   magnetdbWrites.renewAlive('premiumize', 'conta-basis-4', [H('f')]);
-  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'renovação sem gravação nova também degrada');
-  assert.equal(magnetdb.status().ttlRemainingBasis, 'aggregate-estimate');
+  assert.equal(persist.ttlRemainingBasis(), 'aggregate-estimate', 'mutação não escreve nada — o rótulo é o da última leitura');
+  // A evidência nova (H('f')) ficou atrás do agregado do dono: a leitura
+  // seguinte reconta pela sentinela em vez de servir total velho.
+  const st = magnetdb.status();
+  assert.equal(st.ttlRemainingBasis, 'l1-rebuild');
+  assert.equal(st.sizeAlive, 2);
 });
 
 test('ensureCountsLoaded com L1 vazio reseta a base para aggregate-estimate', () => {

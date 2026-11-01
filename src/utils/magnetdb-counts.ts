@@ -1,11 +1,12 @@
 // Contadores e formato do banco de magnets. Módulo separado do magnetdb.ts
 // porque aquele arquivo está no teto de 400 linhas.
 //
-// O DONO das linhas `mag:v1` é o núcleo Rust (`MagnetStateStore`): a
-// enumeração, o formato da chave e o agregado vêm de `entries()`/`summary()`/
-// `liveCount()` da ponte (`debrid-state-native.ts`). Aqui mora só o que o NODE
-// ainda é dono: os totais por adapter que ele persiste em `mag_meta:v1:counts`
-// e a régua de hash que a escrita usa antes de chamar o núcleo.
+// O DONO das linhas `mag:v1` e do AGREGADO (`mag_meta:v1:counts`) é o núcleo
+// Rust (`MagnetStateStore`): a enumeração, o formato da chave e a gravação
+// (régua `bump_counts`) vêm de `entries()`/`summary()`/`liveCount()`/
+// `counts()` da ponte (`debrid-state-native.ts`). Aqui moram os TIPOS do
+// agregado que a leitura do Node restaura (`AdapterTotals`) e a régua de hash
+// que a escrita aplica antes de chamar o núcleo.
 
 export const MAG_SIDES = ['alive', 'bad', 'lie'] as const;
 export type MagSide = (typeof MAG_SIDES)[number];

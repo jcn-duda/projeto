@@ -9,7 +9,8 @@ import { prefix } from '../src/utils/cache-keys.js';
 import { kvClearPrefix, kvForget } from '../src/utils/native-kv.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import * as rdLedger from '../src/debrid/rd-ledger.js';
+// A escrita do ledger RD é do gateway; no oráculo ela é simulada aqui.
+import * as rdLedger from './helpers/pipeline-oracle/rd-ledger.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
@@ -70,7 +71,6 @@ function resetAll() {
   // A semente vive no KV nativo: o `clearNamespace` do L1 não a alcança mais.
   kvClearPrefix(prefix('seed'));
   cache.clearNamespace('cfg');
-  rdLedger.reset();
   brCoverage.reset();
   metrics.reset();
 }

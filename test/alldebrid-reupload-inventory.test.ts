@@ -11,7 +11,7 @@ import { kvForget } from '../src/utils/native-kv.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as metrics from '../src/utils/metrics.js';
 import { bodies as alldebridBodies } from './helpers/pipeline-oracle/debrid-bodies/alldebrid.js';
-import * as inventoryMemo from '../src/debrid/inventory-memo.js';
+import * as inventoryMemo from './helpers/pipeline-oracle/inventory-memo.js';
 import { reuploadBlocked, markReuploadBlocked } from './helpers/pipeline-oracle/alldebrid-reupload.js';
 import { adrmKey, counter, mockAd } from './helpers/alldebrid-mock.js';
 

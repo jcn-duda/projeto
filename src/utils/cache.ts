@@ -269,26 +269,19 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
   if (store.size > MAX_ENTRIES) prune();
 }
 
+// Mecanismo interno dos ganchos de forget/prune — sem registrador vivo. Quem
+// tinha estado fora do L1 saiu: a contagem do agregado do magnetdb passou para
+// o dono nativo (o gateway mantém `mag_meta` pela régua `bump_counts`; o Node
+// só lê pela ponte) e a varredura de vencidos é nativa, com relógio próprio
+// (`magnetdb-persist.ts`). `onForget`/`onPrune` saíram por falta de chamador —
+// só sobreviviam em comentários e docs. Os laços de disparo em
+// `prune`/`forget`/`forgetMany` ficam; um futuro dono de estado externo volta a
+// registrar acrescentando no set aqui.
 type ForgetHook = (key: string) => void;
 const forgetHooks = new Set<ForgetHook>();
 
-function onForget(hook: ForgetHook) {
-  forgetHooks.add(hook);
-  return () => { forgetHooks.delete(hook); };
-}
-
 type PruneHook = () => void;
 const pruneHooks = new Set<PruneHook>();
-
-/**
- * Registra uma varredura que roda junto com a poda periódica. É para dono de
- * estado que NÃO está no L1: sem isto o processo não teria onde varrer vencidos
- * nem aplicar teto, porque `prune` é o único relógio de manutenção do cache.
- */
-function onPrune(hook: PruneHook) {
-  pruneHooks.add(hook);
-  return () => { pruneHooks.delete(hook); };
-}
 
 function forget(key: string) {
   if (isRustOwned(namespaceFor(key)) || isForeignKey(key)) return;
@@ -393,6 +386,6 @@ pruneTimer.unref();
 function l2Stats() { return persistence.l2Stats(); }
 
 export {
-  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany, onForget, onPrune,
+  MAX_ENTRIES, QUOTAS, get, getWithStale, set, setMany, forget, forgetMany,
   prune, clear, clearNamespace, clearWhere, size, snapshot, has, peek, peekRemaining, usage, maintain, close, l2Stats,
 };

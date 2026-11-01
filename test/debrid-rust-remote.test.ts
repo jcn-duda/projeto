@@ -268,7 +268,7 @@ test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', a
 // Fase 0.2 (`adrm`): `blocked` do outcome nativo só vira ⚡ com PROVA no `dinv`.
 test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡', async () => {
   const adrm = await import('./helpers/pipeline-oracle/alldebrid-reupload.js');
-  const memo = await import('../src/debrid/inventory-memo.js');
+  const memo = await import('./helpers/pipeline-oracle/inventory-memo.js');
   const { accountScope } = await import('../src/utils/request-key.js');
   const adapter = debrid.BY_ID.get('alldebrid');
   if (!adapter) throw new Error('alldebrid ausente');

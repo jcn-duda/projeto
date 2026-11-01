@@ -2,18 +2,18 @@
  * Escrita do magnetdb — régua TS CONGELADA no oráculo de teste. Eram
  * `markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad` e as leituras de
  * decisão (`isAlive`/`isBad`/`isLie`/`peekAlive`) em `src/utils/magnetdb.ts`.
- * Em produção quem grava a evidência (`alive`/`bad`/`lie`) é o gateway
+ * Em produção quem grava a evidência (`alive`/`bad`/`lie`) E o agregado
+ * (`mag_meta:v1:counts`, régua `bump_counts`) é o gateway
  * (`play_effects_native*`); aqui só os testes do contrato do magnetdb escrevem
- * e leem por essa régua de referência.
+ * a evidência física por essa régua de referência — sem tocar agregado nenhum:
+ * a amostra do Node morreu e a leitura do painel reconcilia com o físico
+ * (sentinela + reconto em `magnetdb-persist.ts`).
  */
 import { assertSafeTestDb } from '../../db-guard.js';
 import config from '../../../../src/config.js';
 import * as metrics from '../../../../src/utils/metrics.js';
 import { magnetState } from '../../../../src/utils/debrid-state-native.js';
 import { isSupportedHash } from '../../../../src/utils/magnetdb-counts.js';
-import {
-  adapterCounts, getOrCreateAdapter, schedulePersistentSave, markMutation,
-} from '../../../../src/utils/magnetdb-persist.js';
 
 // Grava o banco de magnets no MESMO cache.db: sem setup-env o destino seria o banco real.
 assertSafeTestDb('pipeline-oracle/play/magnetdb-writes');
@@ -51,19 +51,10 @@ export function markAlive(adapterId: string, apiKey: string, hashes: string[]) {
   if (refused > 0) metrics.count('magnetdb.alive.refused-bad', refused);
   if (allowed.length === 0) return;
 
-  // `born` = quantas chaves NASCERAM; renovação de chave viva não conta.
-  const born = magnetState().markAlive(adapterId, apiKey, allowed, ttl, now);
-
-  // Qualquer escrita degrada a base para estimativa — inclusive a renovação
-  // econômica do renewAlive (born === 0): a soma não sabe o restante
-  // anterior da chave renovada, então `l1-rebuild` não sobrevive nem a ela.
-  markMutation();
-  if (born > 0) {
-    const totals = getOrCreateAdapter(adapterId);
-    totals.alive += born;
-    totals.ttlRemainingSums.alive += born * ttl;
-    schedulePersistentSave();
-  }
+  // `born` = quantas chaves NASCERAM; renovação de chave viva não conta. O
+  // AGREGADO não é tocado aqui: quem o sobe em produção é o `bump_counts` do
+  // gateway, e a leitura do painel reconcilia com o físico pela sentinela.
+  magnetState().markAlive(adapterId, apiKey, allowed, ttl, now);
   metrics.count('magnetdb.alive.set', allowed.length);
 }
 
@@ -89,28 +80,9 @@ export function markBad(adapterId: string, apiKey: string, hash: string) {
   const ttl = config.magnetDb.badTtl;
   if (!config.magnetDb.enabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
-  const now = Date.now();
-  // `mark_bad` apaga o `alive` do mesmo hash na MESMA transação, mas a ponte
-  // só informa se o `bad` nasceu — sem olhar a janela do alive aqui, o agregado
-  // ficaria contando um vivo que o núcleo já apagou até a sentinela do boot.
-  // `remaining` consulta a chave `alive` direto (não passa pela precedência
-  // bad > lie > alive), então enxerga o alive mesmo quando há `lie`.
-  const hadAlive = magnetState().remaining(adapterId, apiKey, 'alive', hash, now) !== null;
-  // `true` = o bad nasceu agora; o alive do mesmo hash sai na mesma transação.
-  const born = magnetState().markBad(adapterId, apiKey, hash, ttl, now);
-  if (born || hadAlive) {
-    const totals = getOrCreateAdapter(adapterId);
-    if (born) {
-      totals.bad += 1;
-      totals.ttlRemainingSums.bad += ttl;
-    }
-    if (hadAlive) {
-      totals.alive = Math.max(0, totals.alive - 1);
-      totals.ttlRemainingSums.alive = Math.max(0, totals.ttlRemainingSums.alive - config.magnetDb.aliveTtl);
-    }
-    markMutation();
-    schedulePersistentSave();
-  }
+  // `true` = o bad nasceu agora; o alive do mesmo hash sai na MESMA transação
+  // do núcleo (bad vence) — o agregado não é tocado daqui (dono: gateway).
+  magnetState().markBad(adapterId, apiKey, hash, ttl, Date.now());
   metrics.count('magnetdb.bad.set');
 }
 
@@ -129,19 +101,8 @@ export function isBad(adapterId: string, apiKey: string, hash: string) {
  * desfeita com segurança. Retorna true se havia um registro para apagar.
  */
 export function forgetBad(adapterId: string, apiKey: string, hash: string): boolean {
-  const removed = magnetState().forgetBad(adapterId, apiKey, hash);
-  // O antigo `onForget` do cache decrementava o agregado aqui; a escrita agora
-  // é nativa e não passa pelo Node, então o decremento é explícito.
-  if (removed) {
-    const totals = adapterCounts.get(adapterId);
-    if (totals) {
-      totals.bad = Math.max(0, totals.bad - 1);
-      totals.ttlRemainingSums.bad = Math.max(0, totals.ttlRemainingSums.bad - config.magnetDb.badTtl);
-      markMutation();
-      schedulePersistentSave();
-    }
-  }
-  return removed;
+  // Só a remoção física; o agregado reconcilia por leitura no painel.
+  return magnetState().forgetBad(adapterId, apiKey, hash);
 }
 /** Há vídeo, mas o post prometeu áudio PT e os arquivos provaram release EN. */
 export function markLie(adapterId: string, apiKey: string, hash: string) {
@@ -149,14 +110,7 @@ export function markLie(adapterId: string, apiKey: string, hash: string) {
   if (!config.magnetDb.enabled || !config.magnetDb.lieEnabled || ttl <= 0 || !adapterId || !apiKey || !hash) return;
   if (!isSupportedHash(hash)) { metrics.count('magnetdb.hash.refused'); return; }
   // `lie` NÃO apaga o alive do mesmo hash: o magnet toca, só não é dublado.
-  const born = magnetState().markLie(adapterId, apiKey, hash, ttl, Date.now());
-  if (born) {
-    const totals = getOrCreateAdapter(adapterId);
-    totals.lie += 1;
-    totals.ttlRemainingSums.lie += ttl;
-    markMutation();
-    schedulePersistentSave();
-  }
+  magnetState().markLie(adapterId, apiKey, hash, ttl, Date.now());
   metrics.count('magnetdb.lie.set');
 }
 

@@ -7,8 +7,8 @@
 // (`autofetch-bridge.ts`) e para os testes do contrato memo/limiar.
 import crypto from 'node:crypto';
 import autofetchLive from '../../../src/utils/autofetch-live.js';
-import debrid from '../../../src/debrid/index.js';
 import { accountScope } from '../../../src/utils/request-key.js';
+import { peek as inventoryMemoPeek } from './inventory-memo.js';
 import type { DebridAdapter } from '../../../types/domain.js';
 
 /**
@@ -45,7 +45,7 @@ function accountGateBlocked(adapter: DebridAdapter, apiKey: string): boolean {
   // Adapter com occupancy (TorBox) NÃO pode usar esse piso: 900 prontos não
   // dizem quantos slots ativos estão ocupados — foi a causa H3 medida.
   if (typeof adapter.occupancy !== 'function') {
-    const peek = debrid.inventoryPeek(adapter, apiKey);
+    const peek = inventoryMemoPeek(adapter.id, apiKey);
     if (Array.isArray(peek) && peek.length >= pauseAt) {
       accountGateObserved.set(key, {
         count: peek.length, max: pauseAt, blocked: true,

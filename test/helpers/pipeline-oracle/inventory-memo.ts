@@ -1,12 +1,26 @@
-import config from '../config.js';
-import { accountScope } from '../utils/request-key.js';
-import { prefix } from '../utils/cache-keys.js';
-import * as cache from '../utils/cache.js';
-import type { InventoryItem } from '../../types/domain.js';
+// Cópia de oráculo do memo do inventário PRONTO da conta (`dinv:`). Saiu de
+// `src/debrid/inventory-memo.ts`: nenhum caminho de produção escreve ou lê o
+// memo (a busca e a checagem são nativas no gateway e a contagem do painel vem
+// da rota `GET /debrid/inventory` da admin 8711) — os únicos consumidores
+// vivos eram testes e o oráculo. A cópia congelada mantém o comportamento do
+// memo (leitura síncrona sem rede, mutação só com memo QUENTE, renovação de
+// TTL na mutação) para os testes que o medem.
+//
+// O `peekQuiet` (leitura de diagnóstico via `cache.peek`) não veio: o funil do
+// `/stream-trace.json` que o consumia não existe mais e nenhum teste o mede.
+import config from '../../../src/config.js';
+import { accountScope } from '../../../src/utils/request-key.js';
+import { prefix } from '../../../src/utils/cache-keys.js';
+import * as cache from '../../../src/utils/cache.js';
+import type { InventoryItem } from '../../../types/domain.js';
+import { assertSafeTestDb } from '../db-guard.js';
+
+// Escreve no L1 (`cache.set`): sem setup-env o destino seria o banco real.
+assertSafeTestDb('pipeline-oracle/inventory-memo');
 
 /**
- * Memo do inventário PRONTO da conta (namespace `dinv:`), compartilhado entre
- * o registry (`index.ts`) e os adaptadores que precisam ler ou atualizar o
+ * Memo do inventário PRONTO da conta (namespace `dinv:`), compartilhado pelo
+ * oráculo (`inventory-for.ts`) e pelos módulos irmãos que leem ou atualizam o
  * retrato da conta sem rede.
  *
  * As mutações (`note`/`forget`) só valem com o memo QUENTE: memo frio continua
@@ -27,15 +41,7 @@ export function peek(adapterId: string, apiKey: string): InventoryItem[] | null 
   return Array.isArray(hit) ? hit : null;
 }
 
-/** Leitura de DIAGNÓSTICO (P5): `cache.peek` — não promove o LRU nem conta
- * hit/miss. O funil do /stream-trace.json só quer ler a conta do operador,
- * não aquecer o memo de produção. */
-export function peekQuiet(adapterId: string, apiKey: string): InventoryItem[] | null {
-  const hit = cache.peek(memoKey(adapterId, apiKey));
-  return Array.isArray(hit) ? hit : null;
-}
-
-/** Grava o carregamento completo (o registry chama após ler a conta). */
+/** Grava o carregamento completo (o oráculo chama após ler a conta). */
 export function store(adapterId: string, apiKey: string, items: InventoryItem[]) {
   cache.set(memoKey(adapterId, apiKey), items, config.debrid.inventoryTtl);
 }

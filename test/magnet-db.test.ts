@@ -8,7 +8,6 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
-import * as rdLedger from '../src/debrid/rd-ledger.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import { magnetState, davailState } from '../src/utils/debrid-state-native.js';
@@ -132,9 +131,11 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.equal(snapshot._origem.evictedQuota, 'duravel');
 });
 
-test('status: ocupação do namespace mag ≠ tamanho da amostra (órfã sem track)', () => {
-  // Linha escrita direto no núcleo não passa por mark*/track — o namespace
-  // sobe, a amostra não. Prova que o painel não pode fundir os dois campos.
+test('status: órfã escrita direto no núcleo é recolhida pela reconciliação da leitura', () => {
+  // Linha escrita direto no núcleo não passa por mark*/track: o namespace sobe
+  // e a sentinela (total restaurado × liveCount) acusa a diferença — a leitura
+  // seguinte reconta o físico e RECOLHE a órfã na amostra. Sem agregado
+  // gravado neste processo, o reconto é o caminho de toda leitura.
   const before = magnetdb.status();
   const sampleBefore = before.sizeAlive + before.sizeBad + before.sizeLie;
   const l1Before = before.l1Entries;
@@ -144,10 +145,11 @@ test('status: ocupação do namespace mag ≠ tamanho da amostra (órfã sem tra
     assert.equal(after.l1Entries, l1Before + 1, 'namespace conta a órfã');
     assert.equal(
       after.sizeAlive + after.sizeBad + after.sizeLie,
-      sampleBefore,
-      'amostra tracked não muda com a órfã',
+      sampleBefore + 1,
+      'a reconciliação da leitura recolhe a órfã',
     );
-    assert.ok(after.l1Entries !== after.sizeAlive + after.sizeBad + after.sizeLie, 'namespace e amostra são campos distintos');
+    assert.equal(after.l1Entries, after.sizeAlive + after.sizeBad + after.sizeLie, 'a leitura deixa amostra e namespace coerentes');
+    assert.equal(after.ttlRemainingBasis, 'l1-rebuild', 'sem agregado gravado, a soma nasce do reconto');
   } finally {
     // Relógio à frente do TTL da órfã: a varredura nativa apaga só ela.
     magnetState().sweep(0, Date.now() + 61_000);

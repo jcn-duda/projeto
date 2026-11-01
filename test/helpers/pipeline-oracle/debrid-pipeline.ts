@@ -26,7 +26,8 @@ import { signResolve } from '../../../src/utils/sign.js';
 import { prefix, opts } from '../../../src/runtime.js';
 import { remainingCheckBudget } from '../../../src/utils/deadline.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
-import * as rdLedger from '../../../src/debrid/rd-ledger.js';
+// Ledger RD: escrita e leitura de paridade simuladas aqui (a produção é do gateway).
+import * as rdLedger from './rd-ledger.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
 // Chupim pós-B4: seleção (`decideAutofetch`), holds (`protected.ts`) e disparo

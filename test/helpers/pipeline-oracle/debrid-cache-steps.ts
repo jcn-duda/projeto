@@ -5,7 +5,8 @@ import config from '../../../src/config.js';
 import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import debrid from '../../../src/debrid/index.js';
 import { magnetState } from '../../../src/utils/debrid-state-native.js';
-import * as rdLedger from '../../../src/debrid/rd-ledger.js';
+// Ledger RD: escrita e leitura de paridade simuladas aqui (a produção é do gateway).
+import * as rdLedger from './rd-ledger.js';
 import * as autofetch from '../../../src/providers/autofetch.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';
 import * as log from '../../../src/utils/logger.js';

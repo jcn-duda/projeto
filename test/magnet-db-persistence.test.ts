@@ -7,11 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
-/**
- * Rotulo legivel -> infoHash de 40 hex de verdade. O magnetdb so grava hash no
- * formato que `parseMagKey` aceita de volta; hash de brinquedo criaria chave
- * fisica que a recontagem nao conta, e o teste passaria sem provar nada.
- */
+/** Rotulo legivel -> infoHash de 40 hex: hash de brinquedo criaria chave fisica
+ * que a recontagem nao conta, e o teste passaria sem provar nada. */
 const MH = (label: string) => createHash('sha1').update(label).digest('hex');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,12 +20,14 @@ try {
 }
 
 // URLs absolutas dos módulos compilados. Os filhos importam cache/magnetdb SEM
-// query: assim o `./cache.js` interno do magnetdb resolve para a MESMA instância
-// que o teste importou, e os contadores do banco de magnets batem.
+// query: o `./cache.js` interno resolve para a MESMA instância do processo-pai.
 const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 const MAGNETDB_URL = new URL('../src/utils/magnetdb.js', import.meta.url).href; const MAGNETDB_WRITES_URL = new URL('./helpers/pipeline-oracle/play/magnetdb-writes.js', import.meta.url).href;
 const CACHE_KEYS_URL = new URL('../src/utils/cache-keys.js', import.meta.url).href;
 const DEBRID_STATE_URL = new URL('../src/utils/debrid-state-native.js', import.meta.url).href;
+// Escritor do agregado nos testes: o DONO (gateway), simulado pelo helper.
+const GATEWAY_SIM_URL = new URL('./helpers/magnetdb-gateway-sim.js', import.meta.url).href;
+const GATEWAY_IMPORT = `const { persistAggregateLikeGateway: persistGateway } = await import(${JSON.stringify(GATEWAY_SIM_URL)});`;
 
 function runMultiStageTest(scripts: string[]) {
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -69,7 +68,7 @@ test(
       "const { DatabaseSync } = await import('node:sqlite');",
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
       `const { magMetaCountsKey } = await import(${JSON.stringify(CACHE_KEYS_URL)});`,
       "",
       "magnetdbWrites.markAlive('premiumize', 'acc1', ['" + MH('hash1') + "', '" + MH('hash2') + "']);",
@@ -78,7 +77,8 @@ test(
       "// Idempotência: reinserção e renew não podem duplicar contadores",
       "magnetdbWrites.markAlive('premiumize', 'acc1', ['" + MH('hash1') + "']);",
       "magnetdbWrites.renewAlive('premiumize', 'acc1', ['" + MH('hash2') + "']);",
-      "magnetdb.savePersistentCounts();",
+      "// Quem grava o agregado é o DONO (gateway); o save do Node é no-op de régua.",
+      "persistGateway();",
       "cache.close();",
       "",
       "const db = new DatabaseSync(process.env.CACHE_DB_PATH);",
@@ -102,11 +102,11 @@ test(
     const stage1 = [
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
       "magnetdbWrites.markAlive('premiumize', 'acc1', ['" + MH('h1') + "', '" + MH('h2') + "', '" + MH('h3') + "']);",
       "magnetdbWrites.markBad('realdebrid', 'acc2', '" + MH('h4') + "');",
       "magnetdbWrites.markLie('premiumize', 'acc1', '" + MH('h5') + "');",
-      "magnetdb.savePersistentCounts();",
+      "persistGateway();",
       "cache.close();",
     ].join('\n');
 
@@ -152,7 +152,7 @@ test(
       "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
       "magnetdbWrites.markAlive('premiumize', 'acc1', ['" + MH('hash-swap') + "']);",
       "let st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 1);",
@@ -161,7 +161,7 @@ test(
       "st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 0, 'alive decrementado');",
       "assert.strictEqual(st.sizeBad, 1, 'bad incrementado');",
-      "magnetdb.savePersistentCounts();",
+      "persistGateway();",
       "cache.close();",
     ].join('\n');
 
@@ -190,7 +190,7 @@ test(
       "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
       "magnetdbWrites.markBad('torbox', 'acc1', '" + MH('bad-1') + "');",
       "magnetdbWrites.markBad('torbox', 'acc1', '" + MH('bad-2') + "');",
       "let st = magnetdb.status();",
@@ -198,7 +198,7 @@ test(
       "magnetdbWrites.forgetBad('torbox', 'acc1', '" + MH('bad-1') + "');",
       "st = magnetdb.status();",
       "assert.strictEqual(st.sizeBad, 1, 'bad decrementado no esquecimento');",
-      "magnetdb.savePersistentCounts();",
+      "persistGateway();",
       "cache.close();",
     ].join('\n');
 
@@ -241,19 +241,21 @@ test(
 );
 
 test(
-  'evicção por expiração (TTL): sweep nativo expurga vencidos do mag e decrementa contadores sem vazamento',
+  'evicção por expiração (TTL): sweep poda o físico e o painel reconcilia por leitura',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
       "import assert from 'node:assert';",
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
       "",
       "magnetdbWrites.markAlive('premiumize', 'acc1', ['" + MH('alive1') + "', '" + MH('alive2') + "']);",
       "magnetdbWrites.markBad('premiumize', 'acc1', '" + MH('bad1') + "');",
       "magnetdbWrites.markLie('premiumize', 'acc1', '" + MH('lie1') + "');",
       "",
+      "// O dono grava a foto cheia (em produção o bump vai junto do mark).",
+      "persistGateway();",
       "let st = magnetdb.status();",
       "assert.strictEqual(st.sizeAlive, 2, 'alive inicial correto');",
       "assert.strictEqual(st.sizeBad, 1, 'bad inicial correto');",
@@ -268,8 +270,10 @@ test(
       "  Date.now = origNow;",
       "}",
       "",
+      "// O sweep NÃO é escritor: não decrementa nada. A leitura reconcilia —",
+      "// agregado diz 4, físico ficou 3, sentinela reconta e o bad some do painel.",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeBad, 0, 'bad expirado foi decrementado pela varredura nativa');",
+      "assert.strictEqual(st.sizeBad, 0, 'bad expirado saiu na reconciliação da leitura');",
       "assert.strictEqual(st.sizeAlive, 2, 'alive continua ativo antes de 7 dias');",
       "assert.strictEqual(st.sizeLie, 1, 'lie continua ativo antes de 7 dias');",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeBad, 0);",
@@ -285,14 +289,14 @@ test(
       "}",
       "",
       "st = magnetdb.status();",
-      "assert.strictEqual(st.sizeAlive, 0, 'alive expirado foi decrementado sem vazamento fantasma');",
-      "assert.strictEqual(st.sizeLie, 0, 'lie expirado foi decrementado sem vazamento fantasma');",
+      "assert.strictEqual(st.sizeAlive, 0, 'alive expirado sai pela reconciliação, sem fantasma');",
+      "assert.strictEqual(st.sizeLie, 0, 'lie expirado sai pela reconciliação, sem fantasma');",
       "assert.strictEqual(st.sizeBad, 0);",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeAlive ?? 0, 0);",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeLie ?? 0, 0);",
       "assert.deepStrictEqual(Object.keys(st.byAdapter), []);",
       "",
-      "magnetdb.savePersistentCounts();",
+      "// NÃO regrava aqui: o dono é quem grava — o stage2 prova o boot curando.",
       "cache.close();",
     ].join('\n');
 
@@ -337,8 +341,7 @@ test(
       "assert.strictEqual(after.sizeAlive, before.sizeAlive);",
       "assert.strictEqual(after.sizeBad, before.sizeBad);",
       "assert.strictEqual(after.sizeLie, before.sizeLie);",
-      "// Enumeração nativa: regravar não pode duplicar linha (o `keysMatching` do",
-      "// cache não enxerga mais mag — o namespace é do núcleo).",
+      "// Enumeração nativa: regravar não pode duplicar linha no namespace do núcleo.",
       "for (const side of ['alive', 'bad', 'lie']) {",
       "  assert.strictEqual(magnetState().entries('premiumize', side, null, 0, Date.now()).matched, 1, 'uma linha por lado: ' + side);",
       "}",
@@ -356,18 +359,16 @@ test(
     const stage1 = [
       "delete process.env.CACHE_PERSIST;",
       `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)});`,
-      "// Hash de 40-hex de verdade: o parse do L1 descarta chave malformada,",
-      "// entao hash de brinquedo nao seria recontado (e o teste mentiria).",
+      `const magnetdb = await import(${JSON.stringify(MAGNETDB_URL)}); const magnetdbWrites = await import(${JSON.stringify(MAGNETDB_WRITES_URL)}); ${GATEWAY_IMPORT}`,
+      "// Hash de 40-hex: hash de brinquedo nao seria recontado (e o teste mentiria).",
       "const H = (c) => c.repeat(40);",
       "magnetdbWrites.markAlive('premiumize', 'acc1', [H('a'), H('b'), H('c')]);",
       "magnetdbWrites.markBad('realdebrid', 'acc2', H('d'));",
-      "magnetdb.savePersistentCounts();",
+      "persistGateway();",
       "cache.close();",
     ].join('\n');
 
-    // O caso real: cache.db herdado sobrevive ao rebuild do container, mas a
-    // chave do agregado não veio junto (versão antiga, evicção, payload novo).
+    // Caso real: o cache.db herdou as linhas físicas, mas o agregado não veio.
     const stage2 = [
       "import assert from 'node:assert';",
       "const { DatabaseSync } = await import('node:sqlite');",
@@ -386,12 +387,11 @@ test(
       "assert.strictEqual(st.byAdapter.realdebrid?.sizeBad, 1);",
       "assert.strictEqual(st._origem.sizeAlive, 'duravel', 'rótulo só é honesto porque houve recontagem');",
       "assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do L1, não de soma nominal');",
-      "magnetdb.savePersistentCounts();",
+      "magnetdb.savePersistentCounts();", // no-op de régua: nem o shutdown regrava
       "cache.close();",
       "const post = new DatabaseSync(process.env.CACHE_DB_PATH);",
       "const row = post.prepare('SELECT value FROM cache WHERE key = ?').get(magMetaCountsKey());",
-      "assert.ok(row, 'agregado regravado após a reconstrução');",
-      "assert.strictEqual(JSON.parse(row.value).adapters.premiumize.alive, 3);",
+      "assert.strictEqual(row, undefined, 'o Node NÃO regrava o agregado — escrita é do dono (gateway)');",
       "post.close();",
     ].join('\n');
 

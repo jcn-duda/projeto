@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as realdebrid from '../src/debrid/realdebrid.js';
 import { bodies as rdBodies } from './helpers/pipeline-oracle/debrid-bodies/realdebrid.js';
-import * as memo from '../src/debrid/inventory-memo.js';
+import * as memo from './helpers/pipeline-oracle/inventory-memo.js';
 import * as cache from '../src/utils/cache.js';
 
 /**

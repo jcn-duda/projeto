@@ -5,7 +5,7 @@
  * nativo (gateway). Produção não roda isto: `current()` embrulha o adaptador na
  * ponte nativa. Só o oráculo de paridade chama, via `rawAdapter()`.
  */
-import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
+import * as rdLedger from '../rd-ledger.js';
 import type { TorrentStatusEntry } from '../../../../types/domain.js';
 import {
   READY, WORKING, listTorrents, rawRemoveTorrent,

@@ -21,9 +21,10 @@
 // `debrid-state-native.ts` — este módulo não monta chave nem toca o `cache` do
 // Node, que não é dono desse namespace. A ESCRITA saiu para o oráculo de teste
 // (`test/helpers/pipeline-oracle/play/magnetdb-writes.ts`): quem grava a
-// evidência em produção é o gateway. Aqui ficam a leitura sem efeito, a
-// limpeza do painel e o status; o AGREGADO persistido (`mag_meta:v1:counts`)
-// vive em magnetdb-persist.ts e o TTL vem da config.
+// evidência e o AGREGADO (`mag_meta:v1:counts`, régua `bump_counts`) é o
+// gateway. Aqui ficam a leitura sem efeito, a limpeza do painel e o status;
+// a política de leitura do agregado vive em magnetdb-persist.ts e o TTL vem
+// da config.
 import config from '../config.js';
 import * as metrics from './metrics.js';
 import { magnetState } from './debrid-state-native.js';
@@ -31,7 +32,7 @@ import { QUOTAS } from './cache-quotas.js';
 import type { AdapterTotals } from './magnetdb-counts.js';
 import {
   adapterCounts, ensureCountsLoaded,
-  savePersistentCounts, loadPersistentCounts, schedulePersistentSave, markMutation,
+  savePersistentCounts, loadPersistentCounts,
   ttlRemainingBasis, sweepNativeNamespaces, type TtlRemainingBasis,
 } from './magnetdb-persist.js';
 
@@ -75,9 +76,10 @@ export type MagnetDbStatus = {
   _origem: Record<string, MagnetDbOrigem>;
 };
 
-// Contadores, persistência (mag_meta:v1) e o relógio da varredura nativa moram
-// em magnetdb-persist.ts — este arquivo estava no teto de 400 linhas. A API
-// pública continua aqui (reexportação acima de save/load e do sweep).
+// A leitura do agregado persistido (`mag_meta:v1:counts`) e o relógio da
+// varredura nativa moram em magnetdb-persist.ts — este arquivo estava no teto
+// de 400 linhas. A API pública continua aqui (reexportação acima de save/load
+// e do sweep).
 
 /**
  * Apaga o `bad` de QUALQUER conta do adapter. É o caminho da limpeza do painel,
@@ -85,26 +87,15 @@ export type MagnetDbStatus = {
  * warmer saiu com o warmer TS). Idempotente: a segunda passada devolve false.
  * `alive`/`lie` do mesmo hash não são tocados.
  *
- * O núcleo apaga o par (adapter, hash) em TODAS as contas e devolve quantas
- * linhas saíram; o agregado durável baixa esse número — o antigo `onForget` do
- * cache fazia isso e morreu com a escrita nativa. Sem o decremento, o painel
- * mostrava `bad` fantasma até a sentinela do boot.
+ * Só a remoção FÍSICA no núcleo: o núcleo apaga o par (adapter, hash) em TODAS
+ * as contas e devolve quantas linhas saíram. O agregado NÃO é tocado daqui —
+ * quem o mantém é o gateway (régua `bump_counts`), e o painel reconcilia por
+ * leitura (sentinela de total × físico em `ensureCountsLoaded`). O antigo
+ * decremento da amostra regravava `mag_meta:v1:counts` por cima dos bumps do
+ * gateway — segunda escrita que este corte apagou.
  */
 function forgetBadOf(adapterId: string, hash: string): boolean {
-  const removed = magnetState().forgetBadOf(adapterId, hash);
-  if (removed > 0) {
-    const totals = adapterCounts.get(adapterId);
-    if (totals) {
-      totals.bad = Math.max(0, totals.bad - removed);
-      totals.ttlRemainingSums.bad = Math.max(
-        0,
-        totals.ttlRemainingSums.bad - removed * config.magnetDb.badTtl,
-      );
-      markMutation();
-      schedulePersistentSave();
-    }
-  }
-  return removed > 0;
+  return magnetState().forgetBadOf(adapterId, hash) > 0;
 }
 
 
@@ -130,7 +121,9 @@ function peekLie(adapterId: string, apiKey: string, hash: string) {
 
 /**
  * Estado de diagnóstico do painel.
- * - sizeAlive/Bad/Lie + byAdapter: contagens duráveis agregadas por adapter.
+ * - sizeAlive/Bad/Lie + byAdapter: contagens duráveis agregadas por adapter,
+ *   restauradas do agregado que o GATEWAY mantém (régua `bump_counts`) ou
+ *   recontadas do físico quando a sentinela acusa divergência.
  * - l1Entries: linhas vivas do namespace mag, contadas pelo NÚCLEO (o Node não
  *   tem mais o namespace no L1, então `snapshot()` não as enxerga).
  * - l1Max: cota do namespace, de `QUOTAS` (mesmo motivo).
