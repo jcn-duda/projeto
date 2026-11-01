@@ -256,7 +256,6 @@ impl MagnetStateStore {
         }
         Ok(to_u32(removed))
     }
-
 }
 
 // A poda (`sweep`) saiu para o submódulo irmão — só pelo teto de 400 linhas da

@@ -126,7 +126,9 @@ fn forget_bad_of_invalida_o_agregado_pelas_contas_apagadas() {
     let hash = "ab".repeat(20);
     // O mesmo hash condenado em duas contas: bad=2 no agregado.
     for chave in ["conta-a", "conta-b"] {
-        store.mark_bad("premiumize", chave, &hash, TTL, NOW).unwrap();
+        store
+            .mark_bad("premiumize", chave, &hash, TTL, NOW)
+            .unwrap();
     }
     let (c, s) = delta(0, 2, 0, (0, 0, 0));
     store.bump_counts("premiumize", c, s, TTL, NOW).unwrap();
@@ -150,7 +152,10 @@ fn forget_bad_of_invalida_o_agregado_pelas_contas_apagadas() {
     store
         .bump_counts("premiumize", c, s, TTL, NOW + 1_000)
         .unwrap();
-    assert_eq!(store.forget_bad_of("premiumize", &"cd".repeat(20)).unwrap(), 0);
+    assert_eq!(
+        store.forget_bad_of("premiumize", &"cd".repeat(20)).unwrap(),
+        0
+    );
     assert!(
         store.counts(NOW + 1_000).unwrap().is_some(),
         "sem remoção, preservado"
@@ -185,7 +190,10 @@ fn clear_invalida_o_agregado_so_quando_apaga_linha() {
         .unwrap();
     assert!(store.counts(NOW + 1_000).unwrap().is_some());
     assert_eq!(store.clear().unwrap(), 1);
-    assert!(store.counts(NOW + 1_000).unwrap().is_none(), "apagão invalida");
+    assert!(
+        store.counts(NOW + 1_000).unwrap().is_none(),
+        "apagão invalida"
+    );
 }
 
 #[test]
@@ -290,7 +298,10 @@ fn mark_bad_nao_invalida_o_agregado_o_delta_do_chamador_compensa() {
     store
         .mark_bad("premiumize", "chave", &hash, TTL, NOW + 1_000)
         .unwrap();
-    let read = store.counts(NOW + 1_000).unwrap().expect("agregado preservado");
+    let read = store
+        .counts(NOW + 1_000)
+        .unwrap()
+        .expect("agregado preservado");
     assert_eq!(
         read.adapters.get("premiumize"),
         Some(&totals(1, 0, 0, (TTL, 0, 0))),
