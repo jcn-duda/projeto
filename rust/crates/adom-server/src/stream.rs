@@ -13,8 +13,8 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    AdapterDebridFactory, Collector, CompositeCollector, InternalRoutes, NodeRoutes,
-    NodeTailEffects, Orchestrator, StreamRequest,
+    AdapterDebridFactory, Collector, CompositeCollector, NodeRoutes, NodeTailEffects, Orchestrator,
+    StreamRequest,
 };
 use adom_search::{MemorySwrStore, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -100,8 +100,9 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
 /// Falha de boot: se NENHUMA fonte nativa montar, devolve `Err` — o gateway
 /// recusa subir em vez de responder lista vazia para sempre. Fonte que falha
 /// sozinha loga `[search] <fonte> nativa indisponível` e fica fora (reduz
-/// resultado, nunca derruba a busca). Metadados são nativos, com o Node de
-/// FALLBACK; os efeitos de cauda continuam no Node quando as rotas existem.
+/// resultado, nunca derruba a busca). Metadados são SÓ nativos (o fallback Node
+/// foi desligado no passo 1 do corte — `docs/superpowers/plans/2026-10-31-corte-fallback-meta.md`);
+/// os efeitos de cauda continuam no Node quando as rotas existem.
 pub fn build_orchestrator_from(
     stores: StreamStores,
     autofetch: Option<crate::autofetch::AutofetchHandle>,
@@ -132,9 +133,12 @@ pub fn build_orchestrator_from(
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            // C5: fonte nativa de metadados, com o Node de FALLBACK (rede
-            // fora/título não resolvido).
-            let meta = stream_meta::meta_source(Some(routes.clone() as Arc<dyn InternalRoutes>));
+            // Corte do fallback (passo 1): o nativo responde sozinho. O pior caso
+            // já era vivo — `meta_load` deriva metadados do próprio id e a
+            // resposta degrada em `NOTICE_SEARCHING`. O `routes` continua
+            // alimentando o tail/efeitos (`NativeTailEffects` e
+            // `with_internal_routes`) e NÃO pode cair junto.
+            let meta = stream_meta::meta_source(None);
             // T3-L7a: o `dub_audit` passou a ser executado AQUI (fila + veredito
             // nativos, com as escritas em `mag`/`idx`/`adprot`/`streams`). O
             // alvo abaixo só recebe os efeitos que ainda são do Node.

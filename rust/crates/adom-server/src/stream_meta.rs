@@ -5,9 +5,10 @@
 //! valores são gravados no MESMO formato (`meta:`, `tmdb:`, `tmdbc:`, `tmdbh:`),
 //! então reinício/queda não esfriam metadados nem mudam o que o Node lê.
 //!
-//! Com rotas internas o Node entra como FALLBACK (rede fora/título não
-//! resolvido) via [`FallbackMetaSource`] — ele fica até haver medida da taxa de
-//! fallback. Sem rotas, o nativo responde sozinho.
+//! Com rotas internas o Node entrava como FALLBACK (rede fora/título não
+//! resolvido). O corte do passo 1 desligou essa montagem: `stream.rs` chama
+//! `meta_source(None)` e o nativo responde sozinho. A via com rotas continua
+//! existindo até o passo 2 (é ela que apaga o `FallbackMetaSource`).
 
 use std::sync::Arc;
 
