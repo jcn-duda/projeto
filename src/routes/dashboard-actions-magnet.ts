@@ -3,9 +3,10 @@
 // - magnet-inspect: NÃO destrutiva — lista entradas do L1 com filtros.
 // - magnet-clear-bad: DESTRUTIVA (confirm central) — apaga registros `bad`.
 // - magnet-summary: NÃO destrutiva — agregado por adapter × side.
-// - magnet-bank-summary: NÃO destrutiva — panorama do banco vivo (magnet-bank).
+// - magnet-bank-summary: NÃO destrutiva — panorama do banco vivo (magnet-bank)
+//   lido pela ponte da admin do gateway; sem resposta, 503.
 // - magnet-bank-search: NÃO destrutiva — busca read-only por hash/título no
-//   banco vivo (allowlist de campos, teto de 100).
+//   banco vivo, pela ponte da admin (allowlist de campos e teto de 100 lá).
 //
 // Segurança de payload: nenhuma resposta inclui apiKey, accountScope (digest
 // da conta), nem chave interna completa — o parse das chaves mag descarta o
@@ -16,7 +17,7 @@ import type express from 'express';
 import type { AppServices } from './types.js';
 import config from '../config.js';
 import { MAG_SIDES, magInspect, magClearBads, magSummary, type MagFilters, type MagSide } from '../utils/magnetdb-inspect.js';
-import { searchBank } from '../utils/magnet-bank-search.js';
+import { bankStatusNative, bankSearchNative } from '../utils/magnet-bank-native.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -108,33 +109,41 @@ export const magnetSummary: MagnetAction = ({ services, res, action }) => {
 
 /**
  * NÃO destrutiva: panorama do banco VIVO do Jackett (`magnet-bank`), separado
- * do `magnet-summary` (estoque por conta). Totais, último visto e quebra por
- * indexer; a engine agrega numa passada, sem N+1.
+ * do `magnet-summary` (estoque por conta). Quem abre o `data/magnets.db` é o
+ * gateway: a ação lê pela ponte da admin e ecoa o JSON dele — o client do
+ * painel consome os mesmos campos de antes, só a origem mudou. Sem resposta
+ * (gateway fora, sem credencial, prazo) é 503, nunca totais zerados fingidos.
  */
-export const magnetBankSummary: MagnetAction = ({ services, res, action }) => {
+export const magnetBankSummary: MagnetAction = async ({ services, res, action }) => {
   services.metrics.count('dashboard.magnet.bank_summary');
-  return res.json({ ok: true, action, ...services.magnetBank.status() });
+  const native = await bankStatusNative();
+  if (!native) {
+    return res.status(503).json({ ok: false, error: 'magnet-bank-admin' });
+  }
+  return res.status(native.status).json({ ...native.body, action });
 };
 
 /**
  * NÃO destrutiva: busca READ-ONLY no banco vivo por hash (40 hex) OU substring
- * de título. Query vazia devolve os recentes (limitados); texto de 1 caractere
- * é 400 — não há varredura ampla. Teto de 100 itens. Payload por allowlist
- * (URI, metadados, fontes e obras), sem credencial nem digest de conta.
+ * de título, pela ponte da admin — a validação da query, os modos e o teto de
+ * 100 itens são régua do gateway agora, e o status/corpo dele são ecoados.
+ * Query não-string continua 400 local: payload malformado não justifica rede.
  */
-export const magnetBankSearch: MagnetAction = ({ services, req, res, action }) => {
+export const magnetBankSearch: MagnetAction = async ({ services, req, res, action }) => {
   const body = req.body || {};
   if (body.query != null && typeof body.query !== 'string') {
     return res.status(400).json({ ok: false, action, error: 'query inválida; informe hash ou trecho do título' });
   }
-  const result = searchBank(body.query ?? '', body.max);
-  if (!result.ok) {
-    return res.status(400).json({ ok: false, action, error: result.error });
-  }
   services.metrics.count('dashboard.magnet.bank_search');
-  // `result` já carrega `ok:true` (o ramo de erro saiu no `if` acima); o spread
-  // evita repetir a chave e o `action` identifica a ação na resposta.
-  return res.json({ ...result, action });
+  // Mesma régua de teto que o `searchBank` aplicava: número finito positivo
+  // vira inteiro limitado ao teto; qualquer outra coisa cai no default.
+  const max = Math.trunc(Number(body.max));
+  const limit = Number.isFinite(max) && max > 0 ? Math.min(MAX_ITEMS, max) : DEFAULT_ITEMS;
+  const native = await bankSearchNative(body.query ?? '', limit);
+  if (!native) {
+    return res.status(503).json({ ok: false, error: 'magnet-bank-admin' });
+  }
+  return res.status(native.status).json({ ...native.body, action });
 };
 
 /**

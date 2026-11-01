@@ -15,11 +15,27 @@
 //
 // Nunca lança: `null` quer dizer "a admin não respondeu" (sem token, rede
 // fora ou prazo vencido) e quem chama devolve 503 em vez de fingir sucesso.
+//
+// As LEITURAS do painel (`bankStatusNative`/`bankSearchNative`) seguem o mesmo
+// contrato, com a diferença de prazo que a operação pede: status e busca são
+// leitura rápida (prazo curto `streamStore.timeoutMs`), não a mescla longa do
+// import — e a falha sai em debug, porque o painel faz poll e warn repetido
+// viraria ruído.
 import config from '../config.js';
 import * as log from './logger.js';
 
 /** `null` = a admin não respondeu; senão o status HTTP e o corpo devolvidos. */
 export type NativeImportResult = { status: number; body: Record<string, unknown> } | null;
+
+/** Mesmo contrato do import, para as leituras de painel. */
+export type NativeBankResult = { status: number; body: Record<string, unknown> } | null;
+
+/** Dublê de fetch e prazo próprios de teste. */
+export type NativeReadOptions = {
+  fetchImpl?: typeof fetch;
+  /** Sobrepõe o prazo curto da admin (ms). */
+  timeoutMs?: number;
+};
 
 /**
  * Credencial DESTRUTIVA — a mesma precedência de `config/stream-store.ts`
@@ -68,4 +84,57 @@ export async function importNativeBank(spoolPath: string): Promise<NativeImportR
     log.warn(`[magnetbank] admin não respondeu ao import: ${log.errorMessage(err)}`);
     return null;
   }
+}
+
+/**
+ * GET de leitura na admin (`/magnet-bank/status` e `/magnet-bank/search`):
+ * mesmas guardas do import — credencial DESTRUTIVA no `x-indexer-test-token`,
+ * sem ela não há conexão — e mesmo contrato: qualquer falha (rede fora, prazo
+ * vencido, resposta ilegível) devolve `null` sem lançar. O prazo é o
+ * `streamStore.timeoutMs` curto (leitura de painel), não o `importTimeoutMs`.
+ */
+async function adminRead(path: string, options: NativeReadOptions = {}): Promise<NativeBankResult> {
+  const token = destructiveToken();
+  if (!token) return null;
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const timeoutMs = options.timeoutMs ?? (Number(config.streamStore.timeoutMs) || 2000);
+  try {
+    const res = await fetchImpl(`${baseUrl()}${path}`, {
+      headers: {
+        'x-indexer-test-token': token,
+        accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(Math.max(1000, timeoutMs)),
+    });
+    let body: Record<string, unknown> = { ok: false, error: `HTTP ${res.status} sem corpo JSON` };
+    try {
+      const parsed = (await res.json()) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
+    } catch {
+      // corpo não-JSON: o status e o `error` padrão acima já dizem o essencial
+    }
+    return { status: res.status || 0, body };
+  } catch (err: unknown) {
+    log.debug(`[magnetbank] admin não respondeu a ${path}: ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
+/**
+ * Panorama do banco vivo pela admin do gateway (`GET /magnet-bank/status`):
+ * quem abre o `data/magnets.db` é o gateway; o Node só repassa o JSON.
+ */
+export async function bankStatusNative(options: NativeReadOptions = {}): Promise<NativeBankResult> {
+  return adminRead('/magnet-bank/status', options);
+}
+
+/**
+ * Busca read-only no banco vivo pela admin (`GET /magnet-bank/search`). A
+ * validação da query e o teto de itens são régua do gateway: aqui só vai o
+ * `q` cru (encodado) e o `limit` já resolvido por quem chama.
+ */
+export async function bankSearchNative(q: string, limit?: number, options: NativeReadOptions = {}): Promise<NativeBankResult> {
+  const params = new URLSearchParams({ q });
+  if (limit != null) params.set('limit', String(Math.trunc(limit)));
+  return adminRead(`/magnet-bank/search?${params.toString()}`, options);
 }

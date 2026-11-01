@@ -21,6 +21,7 @@ import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-
 import { pullNativeMetrics } from '../src/utils/native-metrics.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 import { stubFetch } from './helpers/stub.js';
+import { MAGNET_ADMIN_BASE, MAGNET_ADMIN_STATUS, withMagnetAdmin } from './helpers/magnet-admin-stub.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-bank-'));
 const TOKEN = 'tok-magnet-bank';
@@ -107,77 +108,80 @@ function metricsStub(body: () => Record<string, number>, sink?: { headers?: http
   });
 }
 
-test('magnet-bank-summary é leitura e devolve totais/byIndexer sem confirm', () => {
+test('magnet-bank-summary é leitura e ecoa a admin do gateway sem confirm', async () => {
   assert.ok(DASHBOARD_ACTIONS.has('magnet-bank-summary'));
   assert.equal(DESTRUCTIVE_ACTIONS.has('magnet-bank-summary'), false);
-  return post({ action: 'magnet-bank-summary' }).then((res: any) => {
+  let seenToken: unknown;
+  await withMagnetAdmin(TOKEN, (url, init) => {
+    assert.equal(url, `${MAGNET_ADMIN_BASE}/magnet-bank/status`);
+    seenToken = (init?.headers as Record<string, unknown>)?.['x-indexer-test-token'];
+    return { ok: true, status: 200, json: async () => ({ ...MAGNET_ADMIN_STATUS }) };
+  }, async () => {
+    const res = await post({ action: 'magnet-bank-summary' });
     assert.equal(res.status, 200);
-    assert.equal(res.json.ok, true);
-    assert.equal(res.json.enabled, true);
-    assert.equal(res.json.engine, 'memory');
-    assert.equal(res.json.magnets, 2);
-    assert.equal(res.json.sources, 2);
-    assert.equal(res.json.works, 2);
-    assert.ok(res.json.lastSeen > 0);
-    assert.equal(res.json.byIndexer.length, 2);
-    const byId = new Map<string, any>(res.json.byIndexer.map((row: any) => [row.indexer, row]));
-    assert.equal(byId.get('bludv').hashes, 1);
-    assert.equal(byId.get('nerdfilmes').hashes, 1);
-    assert.equal(typeof res.json.queue, 'number');
-    // Engine de memória (forceMemory): o teto e os despejos viajam no payload.
-    assert.equal(res.json.memoryMax, config.magnetBank.memoryMax);
-    assert.equal(res.json.memoryEvictions, 0);
+    assert.deepEqual(res.json, { ...MAGNET_ADMIN_STATUS, action: 'magnet-bank-summary' });
+  });
+  assert.equal(seenToken, TOKEN, 'a ponte leva o token destrutivo da streamStore');
+});
+
+test('magnet-bank-search por hash ecoa a admin sem credencial no payload', async () => {
+  assert.ok(DASHBOARD_ACTIONS.has('magnet-bank-search'));
+  assert.equal(DESTRUCTIVE_ACTIONS.has('magnet-bank-search'), false, 'busca é read-only');
+  const item = {
+    hash: H1, uri: `magnet:?xt=urn:btih:${H1}&dn=Filme%20Um`, isBr: true, dubbed: true,
+    sources: [{ indexer: 'nerdfilmes' }], works: [{ imdb: 'tt111' }],
+  };
+  await withMagnetAdmin(TOKEN, (url) => {
+    assert.equal(url, `${MAGNET_ADMIN_BASE}/magnet-bank/search?q=${encodeURIComponent(H1.toUpperCase())}&limit=50`);
+    return { ok: true, status: 200, json: async () => ({
+      ok: true, mode: 'hash', query: H1.toUpperCase(), limit: 50, matched: 1, returned: 1, truncated: false, items: [item],
+    }) };
+  }, async () => {
+    const res = await post({ action: 'magnet-bank-search', query: H1.toUpperCase() });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.mode, 'hash');
+    assert.deepEqual(res.json.items[0], item);
+    const raw = JSON.stringify(res.json);
+    assert.ok(!raw.includes('accountScope'), 'sem digest de conta no payload');
+    assert.ok(!raw.toLowerCase().includes('apikey'), 'sem credencial no payload');
   });
 });
 
-test('magnet-bank-search por hash devolve URI/fontes/obras sem credencial', async () => {
-  assert.ok(DASHBOARD_ACTIONS.has('magnet-bank-search'));
-  assert.equal(DESTRUCTIVE_ACTIONS.has('magnet-bank-search'), false, 'busca é read-only');
+test('magnet-bank-search: título, vazio, validação da admin e teto local', async () => {
+  const seen: string[] = [];
+  await withMagnetAdmin(TOKEN, (url) => {
+    seen.push(url);
+    const q = new URL(url).searchParams.get('q') ?? '';
+    const limit = Number(new URL(url).searchParams.get('limit'));
+    if (q === 'serie dois') {
+      return { ok: true, status: 200, json: async () => ({ ok: true, mode: 'title', matched: 1, items: [{ hash: H2 }] }) };
+    }
+    if (q === 'a') {
+      return { ok: true, status: 200, json: async () => ({ ok: false, error: 'ao menos 2 caracteres' }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, mode: 'recent', limit, matched: 2, items: [] }) };
+  }, async () => {
+    const titulo = await post({ action: 'magnet-bank-search', query: 'serie dois' });
+    assert.equal(titulo.json.mode, 'title');
+    assert.equal(titulo.json.items[0].hash, H2);
 
-  const res = await post({ action: 'magnet-bank-search', query: H1.toUpperCase() });
-  assert.equal(res.status, 200);
-  assert.equal(res.json.ok, true);
-  assert.equal(res.json.mode, 'hash');
-  assert.equal(res.json.returned, 1);
-  const item = res.json.items[0];
-  assert.equal(item.hash, H1);
-  assert.match(item.uri, /dn=Filme/);
-  assert.equal(item.isBr, true);
-  assert.equal(item.dubbed, true);
-  assert.equal(item.sources.length, 1);
-  assert.equal(item.sources[0].indexer, 'nerdfilmes');
-  assert.equal(item.works.length, 1);
-  assert.equal(item.works[0].imdb, 'tt111');
+    const vazio = await post({ action: 'magnet-bank-search', query: '' });
+    assert.equal(vazio.json.mode, 'recent');
 
-  const raw = JSON.stringify(res.json);
-  assert.ok(!raw.includes('accountScope'), 'sem digest de conta no payload');
-  assert.ok(!raw.toLowerCase().includes('apikey'), 'sem credencial no payload');
-});
+    const semQuery = await post({ action: 'magnet-bank-search' });
+    assert.equal(semQuery.json.mode, 'recent', 'sem query cai nos recentes');
 
-test('magnet-bank-search por título, vazio, validação e teto', async () => {
-  const titulo = await post({ action: 'magnet-bank-search', query: 'serie dois' });
-  assert.equal(titulo.json.mode, 'title');
-  assert.equal(titulo.json.matched, 1);
-  assert.equal(titulo.json.items[0].hash, H2);
+    const curta = await post({ action: 'magnet-bank-search', query: 'a' });
+    assert.equal(curta.status, 200, 'a validação da query é do gateway e volta no corpo');
+    assert.equal(curta.json.ok, false);
 
-  const vazio = await post({ action: 'magnet-bank-search', query: '' });
-  assert.equal(vazio.status, 200);
-  assert.equal(vazio.json.mode, 'recent');
-  assert.equal(vazio.json.matched, 2);
+    const tipoErrado = await post({ action: 'magnet-bank-search', query: 123 });
+    assert.equal(tipoErrado.status, 400, 'payload malformado é 400 local, sem rede');
+    assert.ok(!seen.some((u) => u.includes('q=123')), 'tipo errado não viaja');
 
-  const semQuery = await post({ action: 'magnet-bank-search' });
-  assert.equal(semQuery.status, 200);
-  assert.equal(semQuery.json.mode, 'recent', 'sem query cai nos recentes');
-
-  const curta = await post({ action: 'magnet-bank-search', query: 'a' });
-  assert.equal(curta.status, 400);
-  assert.match(curta.json.error, /ao menos 2 caracteres/);
-
-  const tipoErrado = await post({ action: 'magnet-bank-search', query: 123 });
-  assert.equal(tipoErrado.status, 400);
-
-  const limitada = await post({ action: 'magnet-bank-search', max: 9999 });
-  assert.equal(limitada.json.limit, 100);
+    const limitada = await post({ action: 'magnet-bank-search', max: 9999 });
+    assert.equal(limitada.json.limit, 100, 'régua max→limit: teto 100');
+  });
 });
 
 test('dashboard-status.json entrega o bloco magnetBank sem quebrar o magnetdb', async () => {
@@ -197,24 +201,18 @@ test('dashboard-status.json entrega o bloco magnetBank sem quebrar o magnetdb', 
   assert.ok(ambos.json.magnetBank, 'magnetBank convive com o magnetdb');
 });
 
-test('magnet-bank-summary é memoizado e o flush derruba o memo', async () => {
-  // Baseline conhecido: a ação passa pelo MESMO `status()` memoizado do bloco.
+test('bloco magnetBank do status é memoizado e o flush derruba o memo', async () => {
   seed();
-  const antes = await post({ action: 'magnet-bank-summary' });
-  assert.equal(antes.json.magnets, 2);
+  const antes = await get('?blocos=magnetBank');
+  assert.equal(antes.json.magnetBank.magnets, 2);
 
   bank.captureItems([
     { title: 'Extra Novo', infoHash: H3, magnet: `magnet:?xt=urn:btih:${H3}` },
   ], 'bludv', {});
   bank.flushNow();
 
-  const depois = await post({ action: 'magnet-bank-summary' });
-  assert.equal(depois.json.magnets, 3, 'a escrita efetiva invalida o memo do status');
-
-  // Duas leituras seguidas sem escrita devolvem a MESMA foto.
-  const a = await post({ action: 'magnet-bank-summary' });
-  const b = await post({ action: 'magnet-bank-summary' });
-  assert.deepEqual(a.json, b.json);
+  const depois = await get('?blocos=magnetBank');
+  assert.equal(depois.json.magnetBank.magnets, 3, 'a escrita efetiva invalida o memo do bloco');
 });
 
 test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contador)', async () => {
