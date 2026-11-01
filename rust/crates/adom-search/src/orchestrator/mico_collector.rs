@@ -238,6 +238,7 @@ fn live_from_items(items: &[MicoRawItem], job: &CollectJob) -> LiveBatchState {
             guid: None,
             is_br: item.is_br,
             media_source: None,
+            ..Default::default()
         })
         .collect();
     if relevant_count(&entries, job, process_title_precision_tail_cut()) == 0 {

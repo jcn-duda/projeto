@@ -44,9 +44,10 @@ mod file_evidence; // Prova de arquivo `idx:v14:file:<hash>` (o `applyFileEviden
 mod file_sizes; // Fonte nativa `fsz`/`tsz` por hash: o `💾` de pack sai da lista de arquivos.
 mod finish;
 mod finish_build;
-// Reuso da coleta/gravação de índice FORA do `/stream` (colhedor de fundo do
-// `adom-server`): Jackett → `RawItem`, entrada do índice e `record` + marca do
-// filtro — sem orquestrador e sem rota HTTP interna.
+mod shared_works; // Hash aprovado em outras obras: evidência do corte de magnet alheio.
+                  // Reuso da coleta/gravação de índice FORA do `/stream` (colhedor de fundo do
+                  // `adom-server`): Jackett → `RawItem`, entrada do índice e `record` + marca do
+                  // filtro — sem orquestrador e sem rota HTTP interna.
 pub mod harvest_support;
 mod index_effects;
 mod index_metrics;

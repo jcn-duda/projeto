@@ -244,6 +244,22 @@ fn reabre_do_disco() {
 }
 
 #[test]
+fn outras_obras_contam_so_a_aprovacao_e_ignoram_a_propria() {
+    let store = MagnetBankStore::open_empty_memory();
+    for (imdb, passed) in [("tt1", 1), ("tt2", 1), ("tt3", 1), ("tt4", 0)] {
+        seed_work(&store, &h(1), imdb, -1, -1, passed, 100);
+    }
+    // Duas linhas da mesma obra valem uma.
+    seed_work(&store, &h(1), "tt2", 1, -1, 1, 100);
+    let hashes = [h(1), h(2)];
+    let counts = store.other_works_passed(&hashes, "tt1").expect("conta");
+    assert_eq!(counts.get(&h(1)), Some(&2));
+    assert_eq!(counts.get(&h(2)), None);
+    let counts = store.other_works_passed(&hashes, "tt9").expect("conta");
+    assert_eq!(counts.get(&h(1)), Some(&3));
+}
+
+#[test]
 fn hash_of_do_item() {
     assert_eq!(
         hash_of(&json!({"infoHash": "ABCDEF0123456789ABCDEF0123456789ABCDEF01"})),

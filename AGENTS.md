@@ -793,6 +793,13 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   (2026)" da Tubi); CAM/TS passa. Trailer/teaser/trilha saiam sempre
   (regra do non-feature no núcleo, `adom-core::non_feature_release`). O build
   lê a data por `peekHomeReleaseAt`.
+- Post BR pode trazer magnet de OUTRA obra: bloco fixo "CONVERTER MKV para MP4"
+  (programa) e link colado de outro filme do mesmo ano (Kong em "A Grande
+  Muralha"). O corte é `foreign-magnet` (`adom-core::release_guards::foreign_magnet`):
+  programa no `dn=` sai sempre; em filme BR, sai quando o `dn=` nomeia outro título
+  E o hash está aprovado em `SEARCH_FOREIGN_MAGNET_MIN_WORKS` (2; 0 desliga) outras
+  obras. `dn=` divergente sozinho não condena: título traduzido é a regra. O cortado
+  não entra em `entered_raw`: zerar o `passed_filter` apagaria a evidência.
 - Sigla com ponto ("G.O.R.A.", "S.W.A.T.") vira uma palavra (`collapseAcronyms`)
   no `normalizeTitle` e na consulta dos **globais** (`shapeSearchQuery`); os BR
   ficam com os pontos (BLUDV: "S.W.A.T." 127, "SWAT" 0).

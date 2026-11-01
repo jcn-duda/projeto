@@ -125,6 +125,7 @@ fn main() {
             guid: None,
             is_br: r.is_br,
             media_source: None,
+            ..Default::default()
         })
         .collect();
     let query = adom_core::RelevanceQuery {

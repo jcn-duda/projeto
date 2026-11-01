@@ -245,6 +245,9 @@ pub fn operator_search_build_from_env() -> BuildOptions {
     if let Some(ms) = env_i64("SEARCH_PRE_HOME_RELEASE_MARGIN_MS") {
         b.pre_home_release_margin_ms = ms;
     }
+    if let Some(works) = env_i64("SEARCH_FOREIGN_MAGNET_MIN_WORKS") {
+        b.foreign_magnet_min_works = works;
+    }
     if let Some(ms) = env_i64("SEARCH_UNAIRED_MARGIN_MS") {
         b.unaired_margin_ms = ms;
     }

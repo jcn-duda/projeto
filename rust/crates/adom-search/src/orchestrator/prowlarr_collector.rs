@@ -115,6 +115,7 @@ fn live_from_items(items: &[ProwlarrRawItem], job: &CollectJob) -> LiveBatchStat
             // build. A relevância lê o mesmo que o `mapResults` leria aqui.
             is_br: false,
             media_source: None,
+            ..Default::default()
         })
         .collect();
     let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());

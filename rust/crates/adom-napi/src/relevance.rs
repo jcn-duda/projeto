@@ -81,6 +81,7 @@ fn to_items(entries: Vec<RelevanceEntry>) -> Vec<CoreItem> {
             guid: e.guid,
             is_br: e.is_br,
             media_source: None,
+            ..Default::default()
         })
         .collect()
 }

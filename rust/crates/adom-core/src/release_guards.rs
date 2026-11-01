@@ -11,7 +11,11 @@
 //! A temporada no `dn=` usa a cobertura já portada: temporada explícita que
 //! não inclui a pedida descarta, e episódio nomeado que não é o pedido também.
 
+mod foreign_magnet;
+
 use std::sync::OnceLock;
+
+pub(crate) use foreign_magnet::{dn_names_other_work, is_software_magnet};
 
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;

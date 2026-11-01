@@ -107,6 +107,16 @@ pub trait MagnetBankSource: Send + Sync {
 
     fn bank_rows_many(&self, hashes: &[String]) -> Vec<BankRow>;
 
+    /// Em quantas obras, fora `imdb`, cada hash está aprovado no filtro. Default
+    /// vazio: stub de teste e colhedor não medem a repetição.
+    fn other_works_passed(
+        &self,
+        _hashes: &[String],
+        _imdb: &str,
+    ) -> std::collections::BTreeMap<String, i64> {
+        std::collections::BTreeMap::new()
+    }
+
     fn mark_filter_outcome(
         &self,
         entered: &[Value],

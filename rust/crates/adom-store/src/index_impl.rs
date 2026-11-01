@@ -134,6 +134,14 @@ impl MagnetBankSource for MagnetBankStore {
         MagnetBankStore::bank_rows_many(self, hashes).unwrap_or_default()
     }
 
+    fn other_works_passed(
+        &self,
+        hashes: &[String],
+        imdb: &str,
+    ) -> std::collections::BTreeMap<String, i64> {
+        MagnetBankStore::other_works_passed(self, hashes, imdb).unwrap_or_default()
+    }
+
     fn mark_filter_outcome(
         &self,
         entered: &[Value],

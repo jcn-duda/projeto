@@ -65,6 +65,8 @@ pub struct RawItem {
     /// magnet. Só a origem BR lê ([`RawItem::origin_dn`]): filtros e play
     /// seguem sem `dn`, como antes.
     pub bank_dn: Option<String>,
+    /// O acervo já aprovou este hash em outras obras — refeito a cada build.
+    pub shared_by_other_works: bool,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
     pub multi_work_admitted: bool,
     /// Campos públicos preservados que o build não lê.
@@ -141,6 +143,8 @@ impl RawItem {
             guid: self.guid.clone(),
             is_br: self.is_br,
             media_source: self.media_source.clone(),
+            bank_dn: self.bank_dn.clone(),
+            shared_by_other_works: self.shared_by_other_works,
         }
     }
 
@@ -233,6 +237,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         tracker: str_of(&["tracker", "Tracker", "Indexer"]),
         media_source: str_of(&["mediaSource"]),
         bank_dn: None,
+        shared_by_other_works: false,
         multi_work_admitted: false,
         extra,
     }

@@ -175,6 +175,12 @@ impl Orchestrator {
         // `applyProbedQuality(applyFileEvidence(raw))`): quem já tem prova não é recarimbado.
         let items = super::file_evidence::apply_file_evidence(self.file_evidence.as_deref(), items);
         let items = super::proven_quality::stamp_proven_quality(&items, &ctx.files_by_hash, meta);
+        let items = super::shared_works::mark_shared_works(
+            self.bank.as_deref(),
+            &items,
+            meta,
+            self.config.build.foreign_magnet_min_works,
+        );
         let items: &[RawItem] = &items;
         let opts = build_options_from(&input.options, &self.config.build);
         let debrid_ctx = self.debrid_context(input, deadline_at);

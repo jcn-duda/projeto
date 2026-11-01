@@ -12,9 +12,12 @@
 //! esse texto em `year` (`""` para ausente). Ano dual (`altYear`) vale o que
 //! passar por QUALQUER um dos dois anos.
 
+mod reject_reason;
 mod series_markers;
 
 use std::collections::HashSet;
+
+pub use reject_reason::RelevanceRejectReason;
 
 use crate::admits_multi_work_pack;
 use crate::franchise_extension_contradicts;
@@ -33,44 +36,12 @@ use crate::matching_decisions::{
     adaptation_identity_contradicts, first_year_in, named_sequel_contradicts, year_contradicts,
 };
 use crate::pre_home_release_contradicts;
+use crate::release_guards::{dn_names_other_work, is_software_magnet};
 use crate::short_name_identity;
 use crate::short_name_tail_contradicts;
 use crate::title_tokens;
 use crate::ShortNameIdentity;
 use series_markers::{movie_carries_series_marker, series_release_looks_like_movie};
-
-/// Motivo de rejeição, na mesma grafia do TS (`RelevanceRejectReason`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelevanceRejectReason {
-    Title,
-    MagnetYear,
-    NamedSequel,
-    Identity,
-    Episode,
-    SeriesWork,
-    MovieIsSeries,
-    SeriesIsMovie,
-    PreHomeRelease,
-    NonFeature,
-}
-
-impl RelevanceRejectReason {
-    /// Rótulo idêntico ao literal do TS (`'magnet-year'`, `'series-is-movie'`…).
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Title => "title",
-            Self::MagnetYear => "magnet-year",
-            Self::NamedSequel => "named-sequel",
-            Self::Identity => "identity",
-            Self::Episode => "episode",
-            Self::SeriesWork => "series-work",
-            Self::MovieIsSeries => "movie-is-series",
-            Self::SeriesIsMovie => "series-is-movie",
-            Self::PreHomeRelease => "pre-home-release",
-            Self::NonFeature => "non-feature",
-        }
-    }
-}
 
 /// Campos de `RawItem` que a relevância lê. `title_pascal` é o `Title`.
 /// Strings vazias valem como ausentes, como o `||` do JS.
@@ -83,6 +54,11 @@ pub struct RelevanceItem {
     pub guid: Option<String>,
     pub is_br: bool,
     pub media_source: Option<String>,
+    /// `dn=` do acervo para o item do índice, que não carrega magnet. Só o corte
+    /// de magnet alheio lê: as outras guardas seguem sem `dn` nesse item.
+    pub bank_dn: Option<String>,
+    /// O acervo já aprovou este hash em outras obras (a repetição é a evidência).
+    pub shared_by_other_works: bool,
 }
 
 impl RelevanceItem {
@@ -260,6 +236,20 @@ impl<'a> Decider<'a> {
             } else {
                 Some(RelevanceRejectReason::Title)
             };
+        }
+
+        let judged_dn = Some(dn)
+            .filter(|own| !own.is_empty())
+            .or(item.bank_dn.as_deref())
+            .unwrap_or("");
+        let is_movie = !q.is_series && q.season.is_none();
+        if is_software_magnet(judged_dn)
+            || (is_movie
+                && item.is_br
+                && item.shared_by_other_works
+                && dn_names_other_work(title, judged_dn, q.names))
+        {
+            return Some(RelevanceRejectReason::ForeignMagnet);
         }
 
         // Série: contaminação de identidade por adaptação (One Piece 2023/2026).

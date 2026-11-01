@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use adom_core::{
     admits_multi_work_pack, annotate_movie_sizes_core, annotate_pack_sizes_core, decode_entities,
     filter_relevant_raw, filter_series_episode, is_multi_work_collection, normalize_title,
-    sort_and_limit, PackOpts, RankingStream, RelevanceQuery, RelevanceSettings, SortInput,
-    SortOptions, StreamDisplayConfig, WorkHint as DebridWorkHint,
+    sort_and_limit, PackOpts, RankingStream, RelevanceQuery, RelevanceRejectReason,
+    RelevanceSettings, SortInput, SortOptions, StreamDisplayConfig, WorkHint as DebridWorkHint,
 };
 
 use crate::raw_item::RawItem;
@@ -115,6 +115,19 @@ pub fn build_stream_list(
             &relevance_query(ctx),
             &relevance_settings(ctx, opts),
         );
+        // Magnet alheio não conta como "entrou e não passou": a marca zerada do
+        // `passed_filter` apagaria a repetição que é a evidência do corte, e o
+        // magnet voltaria à lista depois de cortado em poucas obras.
+        let foreign: BTreeSet<String> = outcome
+            .rejected
+            .iter()
+            .filter(|(_, reason)| *reason == RelevanceRejectReason::ForeignMagnet)
+            .map(|&(i, _)| restantes[i].hash())
+            .collect();
+        if !foreign.is_empty() {
+            out.count("foreign-magnet", foreign.len());
+            out.entered_raw.retain(|r| !foreign.contains(&r.hash()));
+        }
         raw = from_account
             .into_iter()
             .chain(outcome.kept.iter().map(|&i| restantes[i].clone()))

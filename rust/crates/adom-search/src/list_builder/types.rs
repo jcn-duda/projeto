@@ -112,6 +112,9 @@ pub struct BuildOptions {
     pub pre_home_release_margin_ms: i64,
     /// `config.search.titlePrecisionTailCut` (default `true`).
     pub title_precision_tail_cut: bool,
+    /// `SEARCH_FOREIGN_MAGNET_MIN_WORKS`: em quantas OUTRAS obras o hash precisa
+    /// estar aprovado para o `dn=` divergente valer como magnet alheio. 0 desliga.
+    pub foreign_magnet_min_works: i64,
     /// `config.audioAudit`: o `dn=` de cena EN anula a promessa de dublado.
     pub audio_audit: super::AudioAudit,
     /// Hashes que o debrid desta conta já provou tocáveis (inventário/alive).
@@ -156,6 +159,7 @@ impl Default for BuildOptions {
             pre_home_release_cut: true,
             pre_home_release_margin_ms: 48 * 60 * 60 * 1000,
             title_precision_tail_cut: true,
+            foreign_magnet_min_works: 2,
             audio_audit: super::AudioAudit::default(),
             instant_hashes: Vec::new(),
         }

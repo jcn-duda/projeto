@@ -111,6 +111,7 @@ fn core_item(p: &PreResolvePost) -> CoreItem {
         guid: p.guid.clone(),
         is_br: p.is_br,
         media_source: None,
+        ..Default::default()
     }
 }
 

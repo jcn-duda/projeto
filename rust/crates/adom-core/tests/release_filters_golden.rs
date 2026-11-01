@@ -55,6 +55,7 @@ fn item_of(v: &Value) -> RelevanceItem {
         guid: opt_str(&v["Guid"]),
         is_br: v["isBr"].as_bool().unwrap_or(false),
         media_source: None,
+        ..Default::default()
     }
 }
 

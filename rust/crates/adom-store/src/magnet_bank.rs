@@ -44,6 +44,8 @@ mod import_tests;
 // o arquivo estava no teto de 400 linhas (o módulo embute os próprios testes).
 #[path = "magnet_bank_read.rs"]
 mod read;
+#[path = "magnet_bank_shared.rs"]
+mod shared;
 
 pub use import::{ImportCounter, ImportReport};
 pub use write::WorkCtx;

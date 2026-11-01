@@ -96,6 +96,7 @@ fn relevance_entries(items: &[JackettRawItem]) -> Vec<RelevanceItem> {
             guid: None,
             is_br: item.is_br,
             media_source: None,
+            ..Default::default()
         })
         .collect()
 }
