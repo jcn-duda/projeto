@@ -32,20 +32,32 @@ FROM ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef7
 FROM rust:1.92.0-alpine AS rustcore
 RUN apk add --no-cache musl-dev
 WORKDIR /rust
-ENV CARGO_BUILD_JOBS=1
+# O default 1 é o da VPS; a máquina local sobe os jobs pelo override do compose.
+ARG CARGO_JOBS=1
+ENV CARGO_BUILD_JOBS=$CARGO_JOBS
 COPY rust/Cargo.toml rust/Cargo.lock ./
 COPY rust/crates ./crates
 ENV RUSTFLAGS="-C target-feature=-crt-static"
-RUN cargo build --locked --release -p adom-napi \
+# Os cache mounts guardam dependências e artefatos entre builds: o COPY acima
+# invalida a camada a cada .rs alterado, e sem eles tudo recompilaria do zero.
+RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
+    cargo build --locked --release -p adom-napi \
  && cp target/release/libadom_napi.so /adom_napi.node
 # Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
-RUN cargo build --locked --release --bin adom-sidecar \
+RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
+    cargo build --locked --release --bin adom-sidecar \
  && cp target/release/adom-sidecar /adom-sidecar
 # Compila os resolvers BR em Rust (binário estático musl, mesmo padrão)
-RUN cargo build --locked --release --bin adom-resolvers \
+RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
+    cargo build --locked --release --bin adom-resolvers \
  && cp target/release/adom-resolvers /adom-resolvers
 # Gateway (GATEWAY=on): escuta a 7000 e encaminha ao Node na 7100.
-RUN cargo build --locked --release --bin adom-server \
+RUN --mount=type=cache,id=adom-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=adom-cargo-target,target=/rust/target,sharing=locked \
+    cargo build --locked --release --bin adom-server \
  && cp target/release/adom-server /adom-server
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
