@@ -1,9 +1,13 @@
 //! Contadores do caminho de metadados NATIVOS × fallback Node (Fase 2).
 //!
-//! `meta.*` mede, por chamada de `FallbackMetaSource::resolve`, quem respondeu:
-//! o primário nativo (completo, incompleto ou erro) e, quando o Node é
-//! chamado, se ele devolveu título real, vazio ou erro. `meta.resolve.total`
-//! é o denominador da taxa.
+//! Quem incrementa (migração do corte do fallback, plano 2026-10-31): os
+//! contadores do primário (`meta.resolve.total`/`meta.native.*`) nascem no
+//! `NativeMetaSource::resolve` — se ficassem no wrapper, desligar a rota Node
+//! congelaria o `/metrics`; os `meta.fallback.*` continuam no
+//! `FallbackMetaSource::resolve`, mesmo sítio e mesmo momento (a janela em
+//! produção não desliza). Por resolução nativa: completa, incompleta ou erro;
+//! e, quando o Node é chamado, se ele devolveu título real, vazio ou erro.
+//! `meta.resolve.total` é o denominador da taxa.
 //!
 //! `meta.native.incomplete` existe porque `meta_from_lookup` preenche `name`
 //! com o próprio IMDb quando os títulos faltaram: o gate de "nome vazio" do
@@ -16,14 +20,15 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-/// Toda chamada a `FallbackMetaSource::resolve` (denominador da taxa).
+/// Toda resolução do `NativeMetaSource` (denominador da taxa) — com ou sem
+/// fallback montado.
 pub const RESOLVE_TOTAL: &str = "meta.resolve.total";
-/// Primário devolveu título real (nome não vazio e diferente do IMDb).
+/// O nativo devolveu título real (nome não vazio e diferente do IMDb).
 pub const NATIVE_OK: &str = "meta.native.ok";
-/// Primário Ok, mas `name` vazio OU igual ao IMDb: os títulos faltaram. O
-/// comportamento segue o de hoje (o gate é por nome vazio).
+/// O nativo voltou Ok, mas `name` vazio OU igual ao IMDb: os títulos
+/// faltaram. O comportamento segue o de hoje (o gate é por nome vazio).
 pub const NATIVE_INCOMPLETE: &str = "meta.native.incomplete";
-/// Primário devolveu Err — o Node é chamado, como hoje.
+/// O nativo devolveu Err — o Node é chamado, como hoje.
 pub const NATIVE_ERROR: &str = "meta.native.error";
 /// Node Ok com título real e essa resposta foi devolvida.
 pub const FALLBACK_USED: &str = "meta.fallback.used";

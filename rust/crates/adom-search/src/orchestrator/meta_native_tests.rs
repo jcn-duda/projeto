@@ -207,10 +207,12 @@ async fn fallback_usa_o_node_quando_o_nativo_falha() {
     assert_eq!(nome(&meta), json!("Do Node"));
     assert_eq!(native.calls(), 1);
     assert_eq!(node.calls(), 1);
-    // (3) primário Err + Node Ok: erro do nativo e uso do Node contados.
-    assert_eq!(metrics.get(NATIVE_ERROR), 1);
+    // (3) primário Err + Node Ok: o uso do Node é contado no wrapper; a
+    // contagem do primário (native.*/total) é DO NATIVO — com Stub no lugar
+    // dele, nada sobe aqui.
     assert_eq!(metrics.get(FALLBACK_USED), 1);
-    assert_eq!(metrics.get(RESOLVE_TOTAL), 1);
+    assert_eq!(metrics.get(NATIVE_ERROR), 0);
+    assert_eq!(metrics.get(RESOLVE_TOTAL), 0);
 }
 
 #[tokio::test]
@@ -226,7 +228,9 @@ async fn fallback_usa_o_node_quando_o_nativo_volta_sem_nome() {
     let meta = source.resolve(query("tt1", "movie")).await.expect("Node");
     assert_eq!(nome(&meta), json!("Do Node"));
     assert_eq!(node.calls(), 1);
-    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 1);
+    assert_eq!(metrics.get(FALLBACK_USED), 1);
+    // A classificação do primário (`meta.native.*`) migrou para o nativo.
+    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 0);
 }
 
 #[tokio::test]
@@ -242,8 +246,10 @@ async fn nativo_bom_nao_chama_o_node() {
     let meta = source.resolve(query("tt1", "movie")).await.expect("nativo");
     assert_eq!(nome(&meta), json!("Do Nativo"));
     assert_eq!(node.calls(), 0);
-    // (2) título real no primário: `meta.native.ok`, sem chamar o Node.
-    assert_eq!(metrics.get(NATIVE_OK), 1);
+    // (2) título real no primário: o gate segue sem chamar o Node; a
+    // contagem (`meta.native.ok`) é do NATIVO, não do wrapper.
+    assert_eq!(metrics.get(FALLBACK_USED), 0);
+    assert_eq!(metrics.get(NATIVE_OK), 0);
 }
 
 /// (1) `name == imdb_id`: o caso que o gate de nome vazio NÃO enxerga. O
@@ -261,7 +267,8 @@ async fn nativo_incompleto_com_imdb_nao_chama_o_node() {
     let meta = source.resolve(query("tt1", "movie")).await.expect("nativo");
     assert_eq!(nome(&meta), json!("tt1"));
     assert_eq!(node.calls(), 0);
-    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 1);
+    // A classificação do primário é do NATIVO; o wrapper não conta.
+    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 0);
     // Nenhum `meta.fallback.*` quando o Node nem é chamado.
     assert_eq!(metrics.get(FALLBACK_USED), 0);
     assert_eq!(metrics.get(FALLBACK_EMPTY), 0);
@@ -286,9 +293,10 @@ async fn node_com_erro_propaga_e_conta() {
         .expect_err("Node Err propaga");
     assert_eq!(err, "rede fora");
     assert_eq!(node.calls(), 1);
-    assert_eq!(metrics.get(NATIVE_ERROR), 1);
+    // Wrapper só conta o fallback; o primário é do NATIVO.
     assert_eq!(metrics.get(FALLBACK_ERROR), 1);
-    assert_eq!(metrics.get(RESOLVE_TOTAL), 1);
+    assert_eq!(metrics.get(NATIVE_ERROR), 0);
+    assert_eq!(metrics.get(RESOLVE_TOTAL), 0);
 }
 
 /// (5) primário Ok vazio + Node Ok vazio: nada de título real sai daqui, e o
@@ -309,29 +317,8 @@ async fn node_ok_sem_titulo_conta_vazio_e_devolve_parcial() {
         .expect("Node Ok");
     assert_eq!(nome(&meta), json!(""));
     assert_eq!(node.calls(), 1);
-    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 1);
+    assert_eq!(metrics.get(NATIVE_INCOMPLETE), 0);
     assert_eq!(metrics.get(FALLBACK_EMPTY), 1);
-}
-
-/// (6) o denominador bate com o número de chamadas a `resolve`.
-#[tokio::test]
-async fn resolve_total_bate_com_as_chamadas() {
-    let native = Stub::ok("Do Nativo");
-    let node = Stub::ok("Do Node");
-    let metrics = MetaMetrics::new();
-    let source = FallbackMetaSource::with_metrics(
-        native.clone() as Arc<dyn MetaSource>,
-        node.clone() as Arc<dyn MetaSource>,
-        metrics.clone(),
-    );
-    for _ in 0..3 {
-        let meta = source.resolve(query("tt1", "movie")).await.expect("nativo");
-        assert_eq!(nome(&meta), json!("Do Nativo"));
-    }
-    assert_eq!(metrics.get(RESOLVE_TOTAL), 3);
-    assert_eq!(metrics.get(NATIVE_OK), 3);
-    assert_eq!(native.calls(), 3);
-    assert_eq!(node.calls(), 0);
 }
 
 // ── episodeAired → guarda de 48h (ponta a ponta no build) ──────────────────

@@ -20,7 +20,11 @@
 //! O Node segue no caminho como FALLBACK: o [`FallbackMetaSource`] o chama
 //! quando o nativo falha (ou volta sem nome) — a rede de segurança fica até
 //! haver medida da taxa de fallback. A taxa é medida em `meta.*`
-//! ([`super::meta_metrics`]); nada aqui muda de comportamento por causa dela.
+//! ([`super::meta_metrics`]): os contadores do primário
+//! (`meta.resolve.total`/`meta.native.*`) nascem aqui, no
+//! [`NativeMetaSource::resolve`], e os `meta.fallback.*` no wrapper — com a
+//! rota Node desligada, o `/metrics` segue vivo. Nada muda de comportamento
+//! por causa deles.
 
 use std::sync::Arc;
 
@@ -44,13 +48,25 @@ pub struct NativeMetaSource {
     sources: Arc<MetaSources>,
     /// Prazo do lookup quando o [`MetaQuery`] não traz `deadline_at_ms`.
     fallback_timeout_ms: i64,
+    /// Contadores do primário (`meta.resolve.total`/`meta.native.*`): a global
+    /// em produção, instância local no teste. Dono dos números a partir da
+    /// migração do corte do fallback — com a rota Node desligada, o `/metrics`
+    /// segue vivo.
+    metrics: MetaMetrics,
 }
 
 impl NativeMetaSource {
     pub fn new(sources: Arc<MetaSources>) -> Self {
+        Self::with_metrics(sources, meta_metrics::global_metrics().clone())
+    }
+
+    /// Instância própria de métricas: os testes não disputam a global entre
+    /// casos paralelos (mesmo padrão do [`FallbackMetaSource::with_metrics`]).
+    pub fn with_metrics(sources: Arc<MetaSources>, metrics: MetaMetrics) -> Self {
         Self {
             sources,
             fallback_timeout_ms: DEFAULT_LOOKUP_TIMEOUT_MS,
+            metrics,
         }
     }
 
@@ -63,37 +79,45 @@ impl NativeMetaSource {
     pub fn sources(&self) -> &Arc<MetaSources> {
         &self.sources
     }
+
+    /// Resolução SEM contagem: quem aplica os contadores é
+    /// [`record_native_outcome`], no `resolve`, sobre ESTE resultado.
+    async fn resolve_outcome(&self, req: MetaQuery) -> Result<SearchMeta, String> {
+        let media_type = MediaType::parse(&req.kind)
+            .ok_or_else(|| format!("tipo de metadados desconhecido: {}", req.kind))?;
+        let parsed = adom_core::parse_stremio_id(&req.id);
+        let imdb = parsed
+            .get("imdbId")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if imdb.is_empty() {
+            return Err(format!("id sem IMDb: {}", req.id));
+        }
+        let deadline = req
+            .deadline_at_ms
+            .unwrap_or_else(|| adom_sources::now_ms().saturating_add(self.fallback_timeout_ms));
+        let options = LookupOptions {
+            include_multiwork: req.include_multiwork,
+            include_home_release: req.include_home_release,
+            // O teto do opt-in é do operador (`TMDB_COLLECTION_TIMEOUT_MS`).
+            collection_timeout_ms: None,
+        };
+        let lookup = self
+            .sources
+            .lookup(&imdb, media_type, deadline, &options)
+            .await;
+        Ok(meta_from_lookup(&lookup, &req))
+    }
 }
 
 impl MetaSource for NativeMetaSource {
     fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta> {
         Box::pin(async move {
-            let media_type = MediaType::parse(&req.kind)
-                .ok_or_else(|| format!("tipo de metadados desconhecido: {}", req.kind))?;
-            let parsed = adom_core::parse_stremio_id(&req.id);
-            let imdb = parsed
-                .get("imdbId")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            if imdb.is_empty() {
-                return Err(format!("id sem IMDb: {}", req.id));
-            }
-            let deadline = req
-                .deadline_at_ms
-                .unwrap_or_else(|| adom_sources::now_ms().saturating_add(self.fallback_timeout_ms));
-            let options = LookupOptions {
-                include_multiwork: req.include_multiwork,
-                include_home_release: req.include_home_release,
-                // O teto do opt-in é do operador (`TMDB_COLLECTION_TIMEOUT_MS`).
-                collection_timeout_ms: None,
-            };
-            let lookup = self
-                .sources
-                .lookup(&imdb, media_type, deadline, &options)
-                .await;
-            Ok(meta_from_lookup(&lookup, &req))
+            let outcome = self.resolve_outcome(req).await;
+            record_native_outcome(&self.metrics, &outcome);
+            outcome
         })
     }
 }
@@ -102,8 +126,10 @@ impl MetaSource for NativeMetaSource {
 /// nome (nunca deve acontecer, mas falha de rede não pode zerar a busca). Se o
 /// Node também falhar, devolve o parcial do nativo quando houver.
 ///
-/// A instrumentação (`meta.*`) só MEDE: a ordem, as chamadas e o valor
-/// devolvido são exatamente os de antes dela.
+/// A instrumentação (`meta.fallback.*`) só MEDE: a ordem, as chamadas e o
+/// valor devolvido são exatamente os de antes dela. Os contadores do primário
+/// (`meta.resolve.total`/`meta.native.*`) são do [`NativeMetaSource`] — o
+/// wrapper não os toca, para o corte da rota Node não congelar o `/metrics`.
 pub struct FallbackMetaSource {
     primary: Arc<dyn MetaSource>,
     fallback: Arc<dyn MetaSource>,
@@ -144,40 +170,51 @@ fn has_real_title(meta: &SearchMeta) -> bool {
     !name.is_empty() && name != meta.imdb_id.trim()
 }
 
+/// Classifica a resolução NATIVA nos contadores do primário:
+/// `meta.resolve.total` em toda resolução e `meta.native.ok` (título real),
+/// `meta.native.incomplete` (Ok sem título real) ou `meta.native.error` (Err).
+/// Função pura: o teste prova os incrementos sem rede; o `resolve` só a aplica.
+///
+/// Migração do corte do fallback (plano 2026-10-31, passo 2): os contadores
+/// moravam no `FallbackMetaSource::resolve` — se ficassem lá, desligar a rota
+/// Node congelaria o `/metrics`. A soma ao vivo não muda: no caminho com
+/// fallback o nativo roda UMA vez por chamada do wrapper (mesmos incrementos,
+/// outro sítio); `meta.fallback.*` segue no wrapper, mesmo sítio e mesmo
+/// momento (a janela em produção não desliza).
+fn record_native_outcome(metrics: &MetaMetrics, outcome: &Result<SearchMeta, String>) {
+    metrics.inc(meta_metrics::RESOLVE_TOTAL, 1);
+    match outcome {
+        Ok(meta) if has_real_title(meta) => metrics.inc(meta_metrics::NATIVE_OK, 1),
+        Ok(_) => metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1),
+        Err(_) => metrics.inc(meta_metrics::NATIVE_ERROR, 1),
+    }
+}
+
 impl MetaSource for FallbackMetaSource {
     fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta> {
         Box::pin(async move {
-            self.metrics.inc(meta_metrics::RESOLVE_TOTAL, 1);
             match self.primary.resolve(req.clone()).await {
                 // Gate INALTERADO (nome vazio): `name == imdb_id` devolve o
-                // primário sem chamar o Node — só a contagem o distingue.
-                Ok(meta) if !meta.name.trim().is_empty() => {
-                    if has_real_title(&meta) {
-                        self.metrics.inc(meta_metrics::NATIVE_OK, 1);
-                    } else {
-                        self.metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1);
+                // primário sem chamar o Node. A contagem do primário é do
+                // NATIVO (`record_native_outcome`); aqui sobe só
+                // `meta.fallback.*`, nos mesmos sítios e momentos de antes da
+                // migração.
+                Ok(meta) if !meta.name.trim().is_empty() => Ok(meta),
+                Ok(meta) => match self.fallback.resolve(req).await {
+                    Ok(fallback) if has_real_title(&fallback) => {
+                        self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
+                        Ok(fallback)
                     }
-                    Ok(meta)
-                }
-                Ok(meta) => {
-                    self.metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1);
-                    match self.fallback.resolve(req).await {
-                        Ok(fallback) if has_real_title(&fallback) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
-                            Ok(fallback)
-                        }
-                        Ok(fallback) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
-                            Ok(fallback)
-                        }
-                        Err(_) => {
-                            self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
-                            Ok(meta)
-                        }
+                    Ok(fallback) => {
+                        self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
+                        Ok(fallback)
                     }
-                }
+                    Err(_) => {
+                        self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
+                        Ok(meta)
+                    }
+                },
                 Err(err) => {
-                    self.metrics.inc(meta_metrics::NATIVE_ERROR, 1);
                     eprintln!("[search] metadados nativos falharam ({err}); usando Node");
                     match self.fallback.resolve(req).await {
                         Ok(fallback) if has_real_title(&fallback) => {
@@ -271,6 +308,10 @@ pub fn meta_from_lookup(lookup: &MetaLookup, req: &MetaQuery) -> SearchMeta {
 #[cfg(test)]
 #[path = "meta_native_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "meta_native_counters_tests.rs"]
+mod counters_tests;
 
 #[cfg(test)]
 #[path = "meta_corpus_tests.rs"]
