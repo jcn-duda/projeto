@@ -6,6 +6,12 @@
 //! | rota | efeito |
 //! |---|---|
 //! | `POST /magnet-bank/import` `{"path":"<spool>","confirm":true}` | mescla um NDJSON no acervo vivo + backfill de classificação — DESTRUTIVA + `confirm` |
+//! | `GET /magnet-bank/status` | panorama do acervo vivo (totais, último visto, por indexer) — leitura do painel |
+//! | `GET /magnet-bank/search?q=<hash\|trecho>&limit=<1..100>` | busca por hash (40-hex), trecho do título ou recentes — leitura do painel |
+//!
+//! As duas leituras usam a MESMA credencial destrutiva do import (o token de
+//! diagnóstico não basta) e dispensam `confirm`: não escrevem nada. O
+//! kill-switch `MAGNET_BANK` do env vira o `enabled` que o store devolve.
 //!
 //! Por que a importação é "destrutiva" se a mescla nunca apaga: ela GRAVA no
 //! acervo permanente (URI, `is_br`, `lied` podem trocar de valor), e um arquivo
@@ -22,11 +28,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use adom_store::MagnetBankStore;
@@ -39,6 +46,10 @@ const SPOOL_PREFIX: &str = "adom-magnets-import-";
 const SPOOL_EXT: &str = ".ndjson";
 /// Linhas por transação do backfill: lote curto para não segurar o SQLite.
 const BACKFILL_BATCH: usize = 500;
+/// `limit` da busca: default e teto iguais aos do painel (`clampLimit` do
+/// `magnet-bank-search.ts`) — a rota nativa não serve mais que a do Node.
+const SEARCH_DEFAULT_LIMIT: i64 = 50;
+const SEARCH_MAX_LIMIT: i64 = 100;
 
 /// Uma importação por vez. Não é fila: quem chega durante outra recebe 409,
 /// porque duas mesclas no mesmo `magnets.db` disputariam as mesmas linhas.
@@ -60,7 +71,25 @@ fn acquire() -> Option<BusyGuard> {
 }
 
 pub(crate) fn admin_router() -> Router<Arc<AdminState>> {
-    Router::new().route("/magnet-bank/import", post(import))
+    Router::new()
+        .route("/magnet-bank/import", post(import))
+        .route("/magnet-bank/status", get(status))
+        .route("/magnet-bank/search", get(search))
+}
+
+/// Guarda de credencial das rotas do banco — a MESMA do import: sem token
+/// destrutivo configurado é 409 (nada a comparar) e token que não casa é 403.
+/// A leitura também exige: a superfície é administrativa e o acervo é interno.
+/// `None` = autorizado; `Some` = recusa pronta para devolver.
+fn destructive_refusal(state: &AdminState, headers: &HeaderMap) -> Option<Response> {
+    let Some(expected) = state.destructive_token.as_deref() else {
+        return Some(refuse(
+            StatusCode::CONFLICT,
+            "magnet_bank_requires_admin_token",
+        ));
+    };
+    (!tokens_match(expected, header_token(headers)))
+        .then(|| refuse(StatusCode::FORBIDDEN, "magnet_bank_token_insufficient"))
 }
 
 /// `POST /magnet-bank/import`. A ordem das guardas importa: primeiro a
@@ -72,11 +101,8 @@ async fn import(
     // Corpo CRU, como no `suppressed-drain`: um JSON ilegível não confirma.
     body: Bytes,
 ) -> Response {
-    let Some(expected) = state.destructive_token.as_deref() else {
-        return refuse(StatusCode::CONFLICT, "magnet_bank_requires_admin_token");
-    };
-    if !tokens_match(expected, header_token(&headers)) {
-        return refuse(StatusCode::FORBIDDEN, "magnet_bank_token_insufficient");
+    if let Some(refusal) = destructive_refusal(&state, &headers) {
+        return refusal;
     }
     let parsed: Option<Value> = serde_json::from_slice(&body).ok();
     let confirmed = parsed
@@ -120,9 +146,80 @@ async fn import(
             };
             (status, Json(value)).into_response()
         }
-        Ok(Err(err)) => internal(err),
-        Err(join) => internal(join.to_string()),
+        Ok(Err(err)) => internal("importação", err),
+        Err(join) => internal("importação", join.to_string()),
     }
+}
+
+/// `GET /magnet-bank/status`. Panorama do acervo para o painel: o store monta
+/// o JSON (mesmo shape do `status()` do Node), a rota só aplica a credencial,
+/// resolve o kill-switch e devolve 200. Falha de store/SQLite vira 500.
+async fn status(State(state): State<Arc<AdminState>>, headers: HeaderMap) -> Response {
+    if let Some(refusal) = destructive_refusal(&state, &headers) {
+        return refusal;
+    }
+    let enabled = magnet_bank_enabled();
+    let joined = tokio::task::spawn_blocking(move || {
+        MagnetBankStore::from_env().and_then(|store| status_payload(&store, enabled))
+    })
+    .await;
+    match joined {
+        Ok(Ok(value)) => (StatusCode::OK, Json(value)).into_response(),
+        Ok(Err(err)) => internal("leitura do status", err),
+        Err(join) => internal("leitura do status", join.to_string()),
+    }
+}
+
+/// Corpo do status SEM HTTP. O relógio entra por parâmetro (mesma régua dos
+/// stores: o relógio nunca mora dentro do store).
+fn status_payload(store: &MagnetBankStore, enabled: bool) -> Result<Value, String> {
+    store.bank_status(adom_sources::now_ms(), enabled)
+}
+
+/// Query de `GET /magnet-bank/search`. Campo ausente é legítimo; tipo lixo cai
+/// no default do [`search_limit`], como o `clampLimit` do painel.
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    q: Option<String>,
+    limit: Option<String>,
+}
+
+/// `GET /magnet-bank/search?q=<hash 40-hex|trecho do título>&limit=<1..100>`.
+/// Query vazia devolve os recentes; erro de validação volta no próprio JSON do
+/// store (`ok:false`) e falha de store/SQLite vira 500.
+async fn search(
+    State(state): State<Arc<AdminState>>,
+    headers: HeaderMap,
+    Query(query): Query<SearchQuery>,
+) -> Response {
+    if let Some(refusal) = destructive_refusal(&state, &headers) {
+        return refusal;
+    }
+    let q = query.q.unwrap_or_default().trim().to_string();
+    let limit = search_limit(query.limit.as_deref());
+    let joined = tokio::task::spawn_blocking(move || {
+        MagnetBankStore::from_env().and_then(|store| search_payload(&store, &q, limit))
+    })
+    .await;
+    match joined {
+        Ok(Ok(value)) => (StatusCode::OK, Json(value)).into_response(),
+        Ok(Err(err)) => internal("busca do banco", err),
+        Err(join) => internal("busca do banco", join.to_string()),
+    }
+}
+
+/// Busca SEM HTTP: o store valida a query e devolve o payload do painel.
+fn search_payload(store: &MagnetBankStore, q: &str, limit: i64) -> Result<Value, String> {
+    store.bank_search(q, limit)
+}
+
+/// `limit` da query com a régua do painel: ausente/inválido/<=0 cai no default
+/// 50; acima do teto corta em 100 (`clampLimit` do `magnet-bank-search.ts`).
+fn search_limit(raw: Option<&str>) -> i64 {
+    raw.and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|limit| *limit > 0)
+        .map(|limit| limit.min(SEARCH_MAX_LIMIT))
+        .unwrap_or(SEARCH_DEFAULT_LIMIT)
 }
 
 /// Importa o spool e, se o arquivo foi aceito, roda o backfill de classificação.
@@ -160,12 +257,18 @@ pub(crate) fn valid_spool_path(path: &str) -> Option<PathBuf> {
     Some(candidate.to_path_buf())
 }
 
+/// Kill-switch do banco: só o literal `false` (com trim) desliga — mesma régua
+/// do `stream_config` e do boot do Node. Qualquer outro valor, ou ausência,
+/// mantém o banco LIGADO.
+fn magnet_bank_enabled() -> bool {
+    !std::env::var("MAGNET_BANK").is_ok_and(|raw| raw.trim() == "false")
+}
+
 /// Backfill da classificação no boot: linhas gravadas antes do núcleo ganhar a
 /// classificação ficam sem ela até serem reescritas. Roda em thread própria
 /// para o gateway subir sem esperar o banco, e nunca derruba o processo.
 pub(crate) fn spawn_boot_backfill() {
-    // Mesmo critério de `stream_config`: só o literal `false` desliga.
-    if std::env::var("MAGNET_BANK").is_ok_and(|raw| raw.trim() == "false") {
+    if !magnet_bank_enabled() {
         return;
     }
     std::thread::spawn(|| {
@@ -191,8 +294,8 @@ fn refuse(status: StatusCode, error: &'static str) -> Response {
     (status, Json(json!({ "ok": false, "error": error }))).into_response()
 }
 
-fn internal(err: String) -> Response {
-    eprintln!("[magnetbank] importação falhou: {err}");
+fn internal(what: &str, err: String) -> Response {
+    eprintln!("[magnetbank] {what} falhou: {err}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({ "ok": false, "error": err })),
@@ -203,3 +306,7 @@ fn internal(err: String) -> Response {
 #[cfg(test)]
 #[path = "magnet_bank_admin_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "magnet_bank_admin_read_tests.rs"]
+mod read_tests;
