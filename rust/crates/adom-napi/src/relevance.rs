@@ -80,6 +80,7 @@ fn to_items(entries: Vec<RelevanceEntry>) -> Vec<CoreItem> {
             magnet_uri: e.magnet_uri,
             guid: e.guid,
             is_br: e.is_br,
+            media_source: None,
         })
         .collect()
 }

@@ -105,6 +105,7 @@ pub(super) fn relevance_items(items: &[RawItem]) -> Vec<RelevanceItem> {
             magnet_uri: item.magnet_uri.clone(),
             guid: item.guid.clone(),
             is_br: item.is_br,
+            media_source: None,
         })
         .collect()
 }

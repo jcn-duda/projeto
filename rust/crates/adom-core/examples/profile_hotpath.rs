@@ -124,6 +124,7 @@ fn main() {
             magnet_uri: None,
             guid: None,
             is_br: r.is_br,
+            media_source: None,
         })
         .collect();
     let query = adom_core::RelevanceQuery {

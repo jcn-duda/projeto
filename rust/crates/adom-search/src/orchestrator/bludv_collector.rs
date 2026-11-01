@@ -131,6 +131,7 @@ pub(super) fn live_from_items(items: &[BludvRawItem], job: &CollectJob) -> LiveB
             guid: None,
             // O provider marca `isBr: true`; o filtro de título lê igual.
             is_br: true,
+            media_source: None,
         })
         .collect();
     let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());

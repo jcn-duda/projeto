@@ -140,6 +140,7 @@ impl RawItem {
             magnet_uri: self.magnet_uri.clone(),
             guid: self.guid.clone(),
             is_br: self.is_br,
+            media_source: self.media_source.clone(),
         }
     }
 

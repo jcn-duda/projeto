@@ -114,6 +114,7 @@ fn live_from_items(items: &[ProwlarrRawItem], job: &CollectJob) -> LiveBatchStat
             // O Prowlarr do Node não marca `isBr`: origem BR vem do título no
             // build. A relevância lê o mesmo que o `mapResults` leria aqui.
             is_br: false,
+            media_source: None,
         })
         .collect();
     let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());

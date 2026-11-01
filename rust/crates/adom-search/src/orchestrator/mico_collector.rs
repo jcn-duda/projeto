@@ -237,6 +237,7 @@ fn live_from_items(items: &[MicoRawItem], job: &CollectJob) -> LiveBatchState {
             magnet_uri: None,
             guid: None,
             is_br: item.is_br,
+            media_source: None,
         })
         .collect();
     if relevant_count(&entries, job, process_title_precision_tail_cut()) == 0 {

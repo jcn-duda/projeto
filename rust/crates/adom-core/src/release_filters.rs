@@ -82,6 +82,7 @@ pub struct RelevanceItem {
     pub magnet_uri: Option<String>,
     pub guid: Option<String>,
     pub is_br: bool,
+    pub media_source: Option<String>,
 }
 
 impl RelevanceItem {
@@ -287,7 +288,7 @@ impl<'a> Decider<'a> {
                 return Some(RelevanceRejectReason::MagnetYear);
             }
             if pre_home_release_contradicts(
-                &[title, dn],
+                &[title, dn, item.media_source.as_deref().unwrap_or("")],
                 q.home_release_at,
                 self.settings.now_ms,
                 self.settings.pre_home_release_cut,

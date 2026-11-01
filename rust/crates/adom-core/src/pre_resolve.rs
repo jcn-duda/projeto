@@ -110,6 +110,7 @@ fn core_item(p: &PreResolvePost) -> CoreItem {
         magnet_uri: p.magnet_uri.clone(),
         guid: p.guid.clone(),
         is_br: p.is_br,
+        media_source: None,
     }
 }
 

@@ -131,6 +131,7 @@ fn live_from_items(items: &[TorrentioRawItem], job: &CollectJob) -> LiveBatchSta
             guid: None,
             // `torrentio.ts` não marca `isBr`; o build decide por `looksPtBr`.
             is_br: false,
+            media_source: None,
         })
         .collect();
     let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());

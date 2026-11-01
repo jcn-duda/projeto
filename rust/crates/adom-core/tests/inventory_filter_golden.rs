@@ -37,6 +37,7 @@ fn item_of(v: &Value) -> RelevanceItem {
         magnet_uri: text(&v["MagnetUri"]),
         guid: text(&v["Guid"]),
         is_br: v["isBr"].as_bool().unwrap_or(false),
+        media_source: None,
     }
 }
 
