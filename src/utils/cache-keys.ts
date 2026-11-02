@@ -70,7 +70,6 @@ const NAMESPACE_VERSIONS = Object.freeze({
   streams: 'v21',
   autofetch: 'v3',
   raw: 'v1',
-  dinv: 'v1',
   davail: 'v1',
   mag: 'v1',
   // Metadados agregados do banco de magnets (contagens por adapter persistidas O(1))
@@ -86,10 +85,6 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // reconstruíveis (Torrentio reconsultado, fila re-enfileirada sob demanda),
   // então não há perda funcional e não se apaga hit corrente em toda subida.
   rdc: 'v2',
-  // Cache por título da resposta do Torrentio do oráculo (*rd-oracle*), chave
-  // `rdt:v1:trt:<type>:<id>` com TTL ~6h por obra. Separado do ledger para o
-  // veredicto por hash não competir com o histórico por título na mesma cota.
-  rdt: 'v1',
   // Fila persistente do warmer RD nativo, chave `rdq:v1:wq` (uma única entrada
   // que carrega o array). Separado do ledger para o bump do rdc não arrastar um
   // estado vivo: a fila não é histórico reconstructivo — é trabalho pendente.
@@ -183,8 +178,11 @@ const NAMESPACE_VERSIONS = Object.freeze({
 // `NAMESPACE_VERSIONS`
 // sozinho NÃO limpa o que já está no disco. `tsj:` é o julgamento do Jev
 // (runtime TypeSafe removido): sem o descarte, as entradas órfãs ocupariam o
-// balde `__default` até o TTL.
-const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:', 'tsj:']);
+// balde `__default` até o TTL. `rdt:`/`dinv:` (F2 da guilhotina do cache L1):
+// o cache por título do Torrentio e o memo do inventário RD não têm mais
+// escritor em nenhum lado (o oráculo nativo usa memo em processo) — as linhas
+// órfãs no disco são descartadas no boot como os demais legados.
+const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:', 'tsj:', 'rdt:', 'dinv:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 

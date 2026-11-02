@@ -15,9 +15,10 @@
 // `__default` (500) para todo nome sem entrada própria, então cada namespace
 // que exista em `NAMESPACE_VERSIONS` sem cota nomeada soma mais 500 aqui. O
 // universo real é a união dos dois registros, mais o balde `__default` das
-// chaves sem `:`. Hoje: 85.721 + 500 = 86.221 entradas alcançáveis contra o
-// teto de 93.000 — folga de 6.779 (a aposentadoria de baldes sem escritor no
-// Node devolveu a folga que estava em 279). A conta é
+// chaves sem `:`. Hoje: 83.171 + 500 = 83.671 entradas alcançáveis contra o
+// teto de 93.000 — folga de 9.329 (a aposentadoria de baldes sem escritor no
+// Node devolveu a folga que estava em 279; rdt/dinv saíram na F2 da guilhotina
+// do cache L1). A conta é
 // refeita no teste
 // (test/cache-namespaces.test.ts), que também exige cota explícita para todo
 // namespace versionado. Foi a falta dessa segunda guarda que deixou `dinv`,
@@ -28,19 +29,21 @@
 // antes da repartição por namespace, que foi bug real.
 //
 // Cotas nomeadas: mag=50.000, rdc=14.000, autofetch=4.000,
-// fsz=3.000, rdt=2.500, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
+// fsz=3.000, streams=2.000, idx=2.000, adprot=2.000, davail=1.000,
 // adsub=1.000, tsz=1.000, raw=800, rdq=500,
-// adrm=500, adhold=500, harvest=500, indexer-status=200, notify=100, seed=20, dinv=50,
+// adrm=500, adhold=500, harvest=500, indexer-status=200, notify=100, seed=20,
 // cfg=50, mag_meta=1. Memória: o raw domina (800 × ~100 KB ≈ 79 MB no pior
 // caso) e o streams cresceu com o /stream-trace.json (cap de 300 itens ≈ 27 KB
 // por entrada): no teto teórico do namespace (2.000) soma ~54 MB — observado
 // ~13 MB. O idx (2.000 × ~14,7 KB ≈ 29 MB) fecha a conta dos gordos;
-// rdc/davail/mag/rdt/adprot/adsub/adrm/autofetch guardam registros pequenos —
-// mag 50k ≈ 19 MB. Os quatro que saíram do fallback cabem na conta porque a
-// população é fixa e minúscula (medido no L2: `dinv` 0 linhas, `notify` 0,
-// `seed` 2, `harvest` 2) — `dinv:v1:<adapter>:<conta>` é uma por conta, `seed`
+// rdc/davail/mag/adprot/adsub/adrm/autofetch guardam registros pequenos —
+// mag 50k ≈ 19 MB. Os três que restaram do fallback cabem na conta porque a
+// população é fixa e minúscula (medido no L2: `notify` 0,
+// `seed` 2, `harvest` 2) — `seed`
 // são duas chaves fixas (`cohort`, `last`), `notify:v1:<evento>` uma por
 // evento. `harvest` fica em 500 porque `harvest:v1:seen:<sha>` cresce por obra.
+// (O quarto, `dinv`, saiu na F2: sem escritor no Node e o oráculo nativo usa
+// memo em processo — o LEGACY_PREFIXES apaga o órfão no boot.)
 //
 // DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `indexer-status`
 // tem cota mas NÃO está em `NAMESPACE_VERSIONS`, porque monta a chave sem
@@ -76,15 +79,13 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // Ledger global do Real-Debrid: cache de serviço, sem credencial na chave.
   // A cota alta evita perder a evidência rara das sondas entre instalações.
   // Era 20 mil, mas agora o namespace é só de hashes (o cache por título do
-  // Torrentio migrou para `rdt` e a fila do warmer para `rdq`), então abriu
+  // Torrentio migrou para `rdt` — aposentado no Node na F2; sem escritor em
+  // nenhum lado hoje — e a fila do warmer para `rdq`), então abriu
   // espaço para os dois novos baldes sem estourar o teto global.
   rdc: 14000,
   // Fila do warmer RD nativo: uma única chave `rdq:v1:wq` carrega o array
   // inteiro; cota pequena por ser essencialmente um registro de estado.
   rdq: 500,
-  // Cache por título do Torrentio (`rdt:v1:trt:<type>:<id>`): uma entrada por
-  // obra consultada, TTL ~6h — cota média para conviver com o ledger.
-  rdt: 2500,
   // Índice de releases por obra (~14,7 KB por chave medido no pior caso, com teto
   // de 60 releases): 2.000 chaves ≈ 29 MB. É o que faz o addon responder do
   // próprio índice sem esperar Jackett. Folga tranquila no limite de 3 GB.
@@ -138,10 +139,9 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // hash cacheado no Premiumize, ~25 por busca. Registro minúsculo; 1.000
   // cobre ~40 buscas distintas até o LRU reciclar.
   tsz: 1000,
-  // Estes quatro existiam em `NAMESPACE_VERSIONS` sem entrada própria e
+  // Estes três existiam em `NAMESPACE_VERSIONS` sem entrada própria e
   // pagavam o fallback de 500 cada — foi o buraco que estourou o teto (conta
-  // no cabeçalho). População medida no L2 em 2026-09-17: 0 / 0 / 2 / 2.
-  dinv: 50,
+  // no cabeçalho). População medida no L2 em 2026-09-17: 0 / 2 / 2.
   notify: 100,
   seed: 20,
   harvest: 500,

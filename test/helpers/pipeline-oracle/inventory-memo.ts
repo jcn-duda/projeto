@@ -10,7 +10,6 @@
 // `/stream-trace.json` que o consumia não existe mais e nenhum teste o mede.
 import config from '../../../src/config.js';
 import { accountScope } from '../../../src/utils/request-key.js';
-import { prefix } from '../../../src/utils/cache-keys.js';
 import * as cache from '../../../src/utils/cache.js';
 import type { InventoryItem } from '../../../types/domain.js';
 import { assertSafeTestDb } from '../db-guard.js';
@@ -32,7 +31,9 @@ assertSafeTestDb('pipeline-oracle/inventory-memo');
  */
 
 export function memoKey(adapterId: string, apiKey: string) {
-  return `${prefix('dinv')}${adapterId}:${accountScope(apiKey)}`;
+  // Literal (não `prefix('dinv')`): o namespace saiu de NAMESPACE_VERSIONS na
+  // F2 da guilhotina do cache L1 — o formato da chave não muda.
+  return `dinv:v1:${adapterId}:${accountScope(apiKey)}`;
 }
 
 /** Leitura síncrona do memo: sem rede, sem in-flight. null = memo frio. */

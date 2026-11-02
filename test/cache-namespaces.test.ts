@@ -9,7 +9,9 @@ import {
 } from '../src/utils/cache-keys.js';
 import { quotaFor, QUOTAS } from '../src/utils/cache-quotas.js';
 
-const RDT_QUOTA = 2500;
+// Balde vivo do Node e pequeno, usado nos testes de estouro/LRU desde que o
+// `rdt` saiu na F2 da guilhotina do cache L1 (o formato do invariante é o mesmo).
+const NOTIFY_QUOTA = 100;
 const TTL_S = 3600;
 
 let hasNodeSqlite = true;
@@ -27,30 +29,30 @@ const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
 let cacheSeq = 0;
 const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
-test('estouro de rdt despeja só o próprio namespace e preserva outro balde', async () => {
+test('estouro de notify despeja só o próprio namespace e preserva outro balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
     const cache = await freshCache();
 
-    // `streams` saiu do L1 no F4.2(c) (Rust-owned) e `davail`/`mag` saíram na
-    // T2-L5b: o vizinho agora é um balde vivo do Node. O invariante é o mesmo —
-    // cota de um não despeja o outro.
+    // `streams` saiu do L1 no F4.2(c) (Rust-owned), `davail`/`mag` saíram na
+    // T2-L5b e `rdt` saiu na F2: o vizinho agora é um balde vivo do Node. O
+    // invariante é o mesmo — cota de um não despeja o outro.
     cache.set('meta:movie:tt-vizinho', { available: true }, TTL_S);
-    for (let i = 0; i < RDT_QUOTA; i++) cache.set(`rdt:url-${i}`, { n: i }, TTL_S);
-    cache.set('rdt:overflow', { n: 'overflow' }, TTL_S);
+    for (let i = 0; i < NOTIFY_QUOTA; i++) cache.set(`notify:url-${i}`, { n: i }, TTL_S);
+    cache.set('notify:overflow', { n: 'overflow' }, TTL_S);
 
     assert.deepEqual(cache.get('meta:movie:tt-vizinho'), { available: true });
-    assert.equal(cache.get('rdt:url-0'), null, 'LRU de rdt sai na própria cota');
-    assert.deepEqual(cache.get('rdt:overflow'), { n: 'overflow' });
-    assert.equal(cache.snapshot().namespaces.rdt.entries, RDT_QUOTA);
+    assert.equal(cache.get('notify:url-0'), null, 'LRU de notify sai na própria cota');
+    assert.deepEqual(cache.get('notify:overflow'), { n: 'overflow' });
+    assert.equal(cache.snapshot().namespaces.notify.entries, NOTIFY_QUOTA);
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
   }
 });
 
-test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do UNIVERSO sob o teto', async () => {
+test('cotas: split RD (rdc ledger, rdq fila) preserva a folga do UNIVERSO sob o teto', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -61,7 +63,6 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     assert.equal(cache.QUOTAS.mag, 50000);
     assert.equal(cache.QUOTAS.rdc, 14000);
     assert.equal(cache.QUOTAS.rdq, 500);
-    assert.equal(cache.QUOTAS.rdt, 2500);
     assert.equal(cache.QUOTAS.adprot, 2000);
     assert.equal(cache.QUOTAS.idx, 2000);
     assert.equal(cache.QUOTAS.fsz, 3000);
@@ -77,6 +78,15 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     // `tsj` saiu com o runtime Jev: julgamento órfão não pode ficar no disco.
     assert.equal('tsj' in NAMESPACE_VERSIONS, false, 'tsj não é mais versionado');
     assert.ok(LEGACY_PREFIXES.includes('tsj:'), 'julgamento do Jev é descartado no boot');
+    // F2 da guilhotina: `rdt` (cache Torrentio do oráculo) e `dinv` (memo do
+    // inventário RD) não têm escritor no Node — cota e versão saíram e o órfão
+    // no disco é podado no boot pelo LEGACY_PREFIXES.
+    assert.equal(cache.QUOTAS.rdt, undefined, 'rdt não é mais cota do Node');
+    assert.equal('rdt' in NAMESPACE_VERSIONS, false, 'rdt não é mais versionado');
+    assert.ok(LEGACY_PREFIXES.includes('rdt:'), 'rdt órfão é descartado no boot');
+    assert.equal(cache.QUOTAS.dinv, undefined, 'dinv não é mais cota do Node');
+    assert.equal('dinv' in NAMESPACE_VERSIONS, false, 'dinv não é mais versionado');
+    assert.ok(LEGACY_PREFIXES.includes('dinv:'), 'dinv órfão é descartado no boot');
     assert.equal(cache.MAX_ENTRIES, 93000);
     // A conta que o teto tem que cobrir mudou com o corte do L1 (fatia F4):
     // os 16 namespaces RUST_OWNED (`RUST_OWNED` em cache-keys.ts) têm dono único
@@ -105,14 +115,15 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
     );
     const somaUniverso =
       noL1.reduce((sum, ns) => sum + cache.QUOTAS[ns], 0) + cache.QUOTAS.__default;
-    // Conta fechada de hoje: rdt 2.500, indexer-status 200, cfg/dinv 50×2,
-    // notify 100, seed 20 = 2.920 nomeados, + 500 do `__default` = 3.420 contra
-    // o teto de 93.000. Os 82.801 dos 16 Rust-owned (mag 50.000, rdc 14.000,
-    // autofetch 4.000…) saíram da conta do L1, e tmdb/tmdbc/meta (500×3)
-    // saíram no passo 4 do corte do fallback.
+    // Conta fechada de hoje: indexer-status 200, notify 100, cfg 50, seed 20
+    // = 370 nomeados, + 500 do `__default` = 870 contra o teto de 93.000. Os
+    // 82.801 dos 16 Rust-owned (mag 50.000, rdc 14.000, autofetch 4.000…)
+    // saíram da conta do L1; rdt 2.500 e dinv 50 saíram na F2 (baldes sem
+    // escritor no Node); tmdb/tmdbc/meta (500×3) saíram no passo 4 do corte do
+    // fallback.
     // Mexeu em cota de namespace que ainda tem leitor/escritor no Node,
     // reconta aqui.
-    assert.equal(somaUniverso, 3420);
+    assert.equal(somaUniverso, 870);
     assert.ok(
       somaUniverso < cache.MAX_ENTRIES,
       `soma do universo (${somaUniverso}, ${noL1.length} namespaces no L1 + __default) < teto (${cache.MAX_ENTRIES})`,
@@ -147,20 +158,20 @@ test('raw é dono no gateway: o set do Node recusa o namespace inteiro e não mo
   }
 });
 
-test('LRU de rdt é escolhido dentro do namespace, não pela ordem global', async () => {
+test('LRU de notify é escolhido dentro do namespace, não pela ordem global', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
     const cache = await freshCache();
 
     cache.set('meta:movie:tt-vizinho', { title: 'vizinho antigo' }, TTL_S);
-    for (let i = 0; i < RDT_QUOTA; i++) cache.set(`rdt:lru-${i}`, { n: i }, TTL_S);
-    assert.deepEqual(cache.get('rdt:lru-0'), { n: 0 }, 'renova o LRU de rdt');
-    cache.set('rdt:overflow', { n: 'overflow' }, TTL_S);
+    for (let i = 0; i < NOTIFY_QUOTA; i++) cache.set(`notify:lru-${i}`, { n: i }, TTL_S);
+    assert.deepEqual(cache.get('notify:lru-0'), { n: 0 }, 'renova o LRU de notify');
+    cache.set('notify:overflow', { n: 'overflow' }, TTL_S);
 
     assert.deepEqual(cache.get('meta:movie:tt-vizinho'), { title: 'vizinho antigo' });
-    assert.deepEqual(cache.get('rdt:lru-0'), { n: 0 }, 'entrada renovada sobrevive');
-    assert.equal(cache.get('rdt:lru-1'), null, 'próximo LRU do rdt é expulso');
+    assert.deepEqual(cache.get('notify:lru-0'), { n: 0 }, 'entrada renovada sobrevive');
+    assert.equal(cache.get('notify:lru-1'), null, 'próximo LRU do notify é expulso');
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;

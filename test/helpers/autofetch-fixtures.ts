@@ -1,7 +1,6 @@
 import type { AccountStatus, DebridAdapter } from '../../types/domain.js';
 import * as runtime from '../../src/runtime.js';
 import { accountScope } from '../../src/utils/request-key.js';
-import { prefix } from '../../src/utils/cache-keys.js';
 import config from '../../src/config.js';
 import debrid from '../../src/debrid/index.js';
 import debridCheck from './pipeline-oracle/debrid-check.js';
@@ -92,7 +91,9 @@ export function premiumizeRunCtx(apiKey: string, encoded: string) {
 }
 
 export function dinvKeyFor(adapterId: string, apiKey: string): string {
-  return `${prefix('dinv')}${adapterId}:${accountScope(apiKey)}`;
+  // Literal (não `prefix('dinv')`): o namespace saiu de NAMESPACE_VERSIONS na
+  // F2 da guilhotina do cache L1 — o formato da chave não muda.
+  return `dinv:v1:${adapterId}:${accountScope(apiKey)}`;
 }
 
 export type DrainHarness = {

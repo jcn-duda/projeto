@@ -185,14 +185,14 @@ test(
 );
 
 // Migração RD (G1): o ledger `rdc` ficou MISTURADO com o cache por título do
-// Torrentio (`rdc:v1:trt:...`) e com a fila do warmer (`rdc:v1:wq`) sob o mesmo
-// prefixo v1. Em v2 o ledger é só de hashes; o cache por título de Torrentio migrou
-// para `rdt:v1` e a fila para `rdq:v1`. Este teste garante que o boot:
-//   * apaga TODOS os `rdc:v1:*` (ledger histórico + trt/wq legados embutidos) —
-//     a limpeza única dos misses suspeitos, idempotente (não se repete em
-//     subidas seguintes porque a versão corrente já é v2);
-//   * preserva `rdc:v2`, `rdt:v1` e `rdq:v1` — os formatos novos não são lixo,
-//     e a fila/cache Torrentio vivos não podem ser derrubados pelo bump.
+// Torrentio (`rdc:v1:trt:...`) e com a fila do warmer (`rdc:v1:wq`) sob o v1.
+// Em v2 o ledger é só de hashes (título migrou para `rdt`, fila para `rdq`).
+// Este teste garante que o boot:
+//   * apaga TODOS os `rdc:v1:*` (limpeza única dos misses suspeitos, idempotente
+//     — não se repete porque a versão corrente já é v2);
+//   * preserva `rdc:v2` e `rdq:v1` (formatos novos não são lixo);
+//   * apaga `rdt:v1` — órfão desde a F2 da guilhotina (sem escritor nos dois
+//     lados; o oráculo nativo usa memo em processo), LEGACY_PREFIXES poda no boot.
 const RD_VERSION_DISCARD_SCRIPT = [
   "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
@@ -205,7 +205,7 @@ const RD_VERSION_DISCARD_SCRIPT = [
   "insert.run('rdc:v1:aaaa', JSON.stringify({ s: 'miss', n: 23, at: now }), now + 900000);",
   "insert.run('rdc:v1:trt:movie:ttantigo', JSON.stringify([['bbbbbbb', true]]), now + 900000);",
   "insert.run('rdc:v1:wq', JSON.stringify([{ hash: 'ccccccc', score: 5, enqueuedAt: now }]), now + 900000);",
-  // Formatos novos: ledger v2, cache Torrentio separado (rdt), fila separada (rdq).
+  // Semeadura do rdt: prova da aposentadoria (F2) — órfão, o boot poda.
   "insert.run('rdc:v2:ddddddd', JSON.stringify({ s: 'hit', n: 0, at: now }), now + 900000);",
   "insert.run('rdt:v1:trt:movie:ttnovo', JSON.stringify([['eeeeeee', true]]), now + 900000);",
   "insert.run('rdq:v1:wq', JSON.stringify([{ hash: 'fffffff', score: 7, enqueuedAt: now }]), now + 900000);",
@@ -214,11 +214,10 @@ const RD_VERSION_DISCARD_SCRIPT = [
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   `const kv = await import(${JSON.stringify(NATIVE_KV_URL)});`,
   '',
-  // Só os formatos novos sobem no L1. O ledger `rdc` é Rust-owned desde a
-  // migração do KV: o L1 não o carrega, e quem o lê é a ponte nativa.
+  // Só os formatos novos sobem; o ledger `rdc` é Rust-owned (lê pela ponte).
   "assert.strictEqual(cache.get('rdc:v2:ddddddd'), null, 'rdc:v2 não sobe ao L1 (é do KV nativo)');",
   "assert.deepStrictEqual(kv.kvPeek('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 segue legível pela ponte');",
-  "assert.deepStrictEqual(cache.get('rdt:v1:trt:movie:ttnovo'), [['eeeeeee', true]], 'rdt:v1 preservado');",
+  "assert.strictEqual(cache.get('rdt:v1:trt:movie:ttnovo'), null, 'rdt aposentado (F2): órfão não sobe no L1');",
   "assert.strictEqual(cache.get('rdc:v1:aaaa'), null, 'miss legado do ledger não entra no L1');",
   "assert.strictEqual(cache.get('rdc:v1:wq'), null, 'fila legada embutida no v1 não entra no L1');",
   '',
@@ -229,14 +228,14 @@ const RD_VERSION_DISCARD_SCRIPT = [
   "const rdcV2 = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdc:v2:%'\").all();",
   "assert.strictEqual(rdcV2.length, 1, 'rdc:v2 preservado no disco');",
   "const rdtRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdt:v1:%'\").all();",
-  "assert.strictEqual(rdtRows.length, 1, 'rdt:v1 (cache Torrentio vivo) preservado no disco');",
+  "assert.strictEqual(rdtRows.length, 0, 'rdt:v1 órfão é podado do disco no boot (LEGACY_PREFIXES, F2)');",
   "const rdqRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdq:v1:%'\").all();",
   "assert.strictEqual(rdqRows.length, 1, 'rdq:v1 (fila do warmer viva) preservado no disco');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'migração RD (G1): rdc v2 limpa o v1 inteiro (ledger+trt+wq) numa passada; rdt/rdq sobrevivem',
+  'migração RD (G1): rdc v2 limpa o v1 inteiro (ledger+trt+wq) numa passada; rdq sobrevive e rdt aposentado é podado',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(RD_VERSION_DISCARD_SCRIPT),
 );

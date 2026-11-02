@@ -5,10 +5,14 @@ import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 // A escrita do ledger RD é do gateway; no oráculo ela é simulada aqui.
 import * as rdLedger from './helpers/pipeline-oracle/rd-ledger.js';
-import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream } from '../types/domain.js';
+
+// Literal (não `prefix('dinv')`): o namespace saiu de NAMESPACE_VERSIONS na F2
+// da guilhotina do cache L1 — o formato da chave não muda (o memo do oráculo
+// nativo continua `dinv:v1`).
+const DINV_KEY_PREFIX = 'dinv:v1:';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -48,7 +52,7 @@ function comConfig(extra: Record<string, unknown>, streams: Stream[]) {
 
 function semeiaInventario() {
   cache.set(
-    `${prefix('dinv')}realdebrid:${accountScope(KEY)}`,
+    `${DINV_KEY_PREFIX}realdebrid:${accountScope(KEY)}`,
     [{ title: 'Filme Pronto 1080p.mkv', infoHash: NA_CONTA, size: 100 }],
     600,
   );
@@ -114,7 +118,7 @@ test('cachedOnly preserva desconhecido no Real-Debrid com ledger ativo (regra te
  * trava, cachedOnly com conjunto vazio apagaria a lista inteira.
  */
 test('cachedOnly nao corta nada quando o inventario esta frio', async () => {
-  cache.forget(`${prefix('dinv')}realdebrid:${accountScope(KEY)}`);
+  cache.forget(`${DINV_KEY_PREFIX}realdebrid:${accountScope(KEY)}`);
   const out = await comConfig({ dc: true }, [
     stream(NA_CONTA, 'Filme Pronto 1080p'),
     stream(FORA, 'Outro Filme 1080p'),
@@ -134,7 +138,7 @@ test('cachedOnly nao corta nada quando o inventario esta frio', async () => {
 test('hash com play comprovado nesta conta volta com ⚡ pelo histórico', async () => {
   const magnetdb = await import('../src/utils/magnetdb.js');
   const magnetdbWrites = await import('./helpers/pipeline-oracle/play/magnetdb-writes.js');
-  cache.forget(`${prefix('dinv')}realdebrid:${accountScope(KEY)}`);
+  cache.forget(`${DINV_KEY_PREFIX}realdebrid:${accountScope(KEY)}`);
   magnetdbWrites.markAlive('realdebrid', KEY, [FORA]);
 
   const out = await comConfig({ dc: false }, [
