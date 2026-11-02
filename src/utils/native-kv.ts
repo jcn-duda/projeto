@@ -18,8 +18,6 @@ export type NativeKvNapi = {
   forget(key: string): boolean;
   /** TTL restante em segundos; `null` = ausente, permanente ou vencida. */
   remainingSeconds(key: string, nowMs: number): number | null;
-  /** Apaga as chaves VENCIDAS com o prefixo e devolve quantas saíram. */
-  pruneExpired(prefix: string, nowMs: number): number;
   /** Apaga o namespace inteiro e devolve quantas linhas saíram. */
   forgetPrefix(prefix: string): number;
 };

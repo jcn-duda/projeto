@@ -1,9 +1,10 @@
 // Ponte Node → KV nativo (`NativeKv` do `.node`, tabela `cache` do `cache.db`).
 //
 // O store é do Rust (T2-L2): aqui provamos só o contrato da ponte — leitura do
-// JSON, miss como `null`, varredura por prefixo sem vazar namespace alheio,
-// TTL vencido sumindo na leitura e a poda das vencidas por prefixo. A regra em
-// si é testada no Rust (`cargo test -p adom-index kv::`).
+// JSON, miss como `null`, varredura por prefixo sem vazar namespace alheio e
+// TTL vencido sumindo na leitura. A regra em si é testada no Rust
+// (`cargo test -p adom-index kv::`); a poda de vencidas é dos donos Rust
+// (varreduras `mag`/`davail`, `file_sizes` e `keys_matching`).
 process.env.CACHE_PERSIST = 'false';
 
 import { test, beforeEach } from 'node:test';
