@@ -198,7 +198,7 @@ test('magnet-clear-bad exige confirmação central (400 confirmation_required)',
     assert.equal(res.status, 400);
     assert.equal(res.json.error, 'confirmation_required');
     // Nada foi apagado pela recusa.
-    assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_1), true);
+    assert.equal(magnetdbWrites.isBad(ADAPTER, API_KEY, HASH_BAD_1), true);
   } finally {
     cache.clear();
     config.jackett.testToken = '';
@@ -217,10 +217,10 @@ test('magnet-clear-bad com confirm apaga só bad, preserva alive/lie e é idempo
     assert.equal(res.json.cleared, 1);
     assert.equal(res.json.remaining, 0);
 
-    assert.equal(magnetdb.peekBad('magfake2', API_KEY, HASH_BAD_OUTRO), false);
-    assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_1), true, 'bad de outro adapter permanece');
+    assert.equal(magnetdbWrites.isBad('magfake2', API_KEY, HASH_BAD_OUTRO), false);
+    assert.equal(magnetdbWrites.isBad(ADAPTER, API_KEY, HASH_BAD_1), true, 'bad de outro adapter permanece');
     assert.equal(magnetdbWrites.peekAlive(ADAPTER, API_KEY, HASH_ALIVE), true, 'alive não é tocado');
-    assert.equal(magnetdb.peekLie(ADAPTER, API_KEY, HASH_LIE), true, 'lie não é tocado');
+    assert.equal(magnetdbWrites.isLie(ADAPTER, API_KEY, HASH_LIE), true, 'lie não é tocado');
 
     // Idempotência: segunda passada no mesmo escopo não tem o que apagar.
     const deNovo = await post({ action: 'magnet-clear-bad', confirm: true, adapterId: 'magfake2' });
@@ -233,8 +233,8 @@ test('magnet-clear-bad com confirm apaga só bad, preserva alive/lie e é idempo
     const sizeBadAntes = magnetdb.status().byAdapter[ADAPTER].sizeBad;
     const geral = await post({ action: 'magnet-clear-bad', confirm: true });
     assert.equal(geral.json.cleared, 2);
-    assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_1), false);
-    assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_2), false);
+    assert.equal(magnetdbWrites.isBad(ADAPTER, API_KEY, HASH_BAD_1), false);
+    assert.equal(magnetdbWrites.isBad(ADAPTER, API_KEY, HASH_BAD_2), false);
     const status = magnetdb.status();
     assert.equal(status.byAdapter[ADAPTER].sizeBad, sizeBadAntes - 2);
     assert.equal(status.byAdapter[ADAPTER].sizeAlive >= 1, true);
@@ -263,7 +263,7 @@ test('magnet-clear-bad respeita filtro de hash, teto e valida side alheio', asyn
     // Alvo específico por hash.
     const alvo = await post({ action: 'magnet-clear-bad', confirm: true, hash: HASH_BAD_2 });
     assert.equal(alvo.json.cleared, 1);
-    assert.equal(magnetdb.peekBad(ADAPTER, API_KEY, HASH_BAD_2), false);
+    assert.equal(magnetdbWrites.isBad(ADAPTER, API_KEY, HASH_BAD_2), false);
   } finally {
     cache.clear();
     config.jackett.testToken = '';

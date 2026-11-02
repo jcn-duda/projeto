@@ -99,26 +99,6 @@ function forgetBadOf(adapterId: string, hash: string): boolean {
 }
 
 
-// Variantes de LEITURA SEM EFEITO (P5 diagnóstico): a leitura nativa também não
-// aquece LRU, não conta hit/miss e não promove nada — diagnóstico não pode
-// aquecer o cache de produção nem poluir a medição. Mesma semântica de
-// isAlive/isBad/isLie.
-//
-// A precedência `bad > lie > alive` é do NÚCLEO: `state()` devolve o veredito
-// único do hash, então as três leituras nunca divergem entre si nem dependem da
-// ordem em que o pipeline consulta.
-function peekBad(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'bad'
-    : false;
-}
-function peekLie(adapterId: string, apiKey: string, hash: string) {
-  return config.magnetDb.enabled && config.magnetDb.lieEnabled && adapterId && apiKey && hash
-    ? magnetState().state(adapterId, apiKey, hash, Date.now()) === 'lie'
-    : false;
-}
-
-
 /**
  * Estado de diagnóstico do painel.
  * - sizeAlive/Bad/Lie + byAdapter: contagens duráveis agregadas por adapter,
@@ -198,5 +178,5 @@ function status(): MagnetDbStatus {
 }
 
 export {
-  peekBad, peekLie, forgetBadOf, status,
+  forgetBadOf, status,
 };
