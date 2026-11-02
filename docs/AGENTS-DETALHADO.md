@@ -542,10 +542,9 @@ o erro da conta subir: marca `debrid:false` e os outros blocos seguem.
 **Banco de magnets por conta (`src/utils/magnetdb.ts`).** Histórico durável POR
 HASH, escopado por serviço+conta (`mag:v1:<lado>:<adapterId>:<sha256(apiKey)>:<hash>`) —
 nunca vaza credencial, não cruza contas. `magnetdb.ts` é a fachada de LEITURA
-(`peek*`, `forgetBadOf`, `status()`); a família
-tem `magnetdb-persist.ts` (leitura do agregado `mag_meta`, sentinela de
-reconciliação `ensureCountsLoaded`, `ttlRemainingBasis`), `magnetdb-counts.ts`
-(tipos do agregado + `isSupportedHash`) e
+(`forgetBadOf`, `status()`); a família
+tem `mag-davail-sweep.ts` (relógio de 10 min da poda nativa de `mag`/`davail`),
+`magnetdb-counts.ts` (`MAG_SIDES`/`MagSide` + `isSupportedHash`) e
 `magnetdb-inspect.ts` (ações do painel). A ESCRITA saiu do Node: evidência e
 agregado são do gateway (`bump_counts`), e a régua de escrita TS ficou
 congelada no oráculo (`test/helpers/pipeline-oracle/play/magnetdb-writes.ts`).
@@ -905,50 +904,40 @@ hashes enviados à rede: o numerador são positivos de resposta completa, e o
 denominador são consultas reais. Hit local de `davail` fica separado em
 `davail.servedHashes`; nunca entra na taxa, que assim não ultrapassa 100%.
 
-**Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side que
-o painel mostra não vêm de scan no SQLite nem de um `Map` que morre no restart:
-vêm de um único agregado (`mag_meta:v1:counts`, cota 1) com UM escritor — o
-GATEWAY, que sobe os deltas O(1) pela régua `bump_counts`
+**Contadores duráveis O(1) (`mag_meta:v1`).** As contagens por adapter/side do
+GATEWAY vêm de um único agregado (`mag_meta:v1:counts`, cota 1) com UM escritor
+— o GATEWAY, que sobe os deltas O(1) pela régua `bump_counts`
 (`rust/crates/adom-index/src/magnet_meta.rs`) nos marks do play, do tail e da
-checagem. O Node NÃO grava: a amostra dele não enxerga os bumps do dono e
-regravá-la os apagava até o boot recontar — o hook `cache.onForget`, que
-alimentava esse decremento, saiu por falta de chamador (só a telemetria
-`usageByNamespace` do L1 sobrou). O que resta no Node é a POLÍTICA DE LEITURA,
-em `magnetdb-persist.ts` (módulo separado porque o `magnetdb.ts` encostou no
-teto de 400 linhas): a cada leitura do `status()` o `ensureCountsLoaded`
-restaura o agregado O(1) e decai o TTL restante pelo tempo decorrido
-(`updatedAt`); com o agregado ausente, ilegível (versão estranha conta como
-ilegível) ou com o TOTAL divergente da contagem física do namespace
-(`liveCount`), a SENTINELA **reconta o físico pela ponte** (`summary`) —
-devolver zero ou servir a deriva antiga ali seria mentira rotulada de
-`duravel`, e o primeiro boot com `cache.db` herdado é o caso normal do
-rebuild do container. O reconto é O(namespace `mag`): medido em 50 mil
-chaves (cota cheia do namespace), 29,6 ms, só na leitura divergente — nunca no
-caminho de busca e sem gravar de volta (o dono é o gateway); `status()` segue
-O(adapters). Aceitável na cota atual — **remedir se a cota `mag` crescer**.
-`status()` marca esses campos com `_origem: duravel`; os contadores de
+checagem. O Node NÃO grava e (fechamento do mag, 2026-11-01) NÃO LÊ: a amostra
+dele não enxergava os bumps do dono e regravá-la os apagava — a AMOSTRA que
+restaurava o agregado com sentinela de divergência (`ensureCountsLoaded`,
+`ttlRemainingBasis`, `_origem`) saiu INTEIRA, junto com o hook `cache.onForget`
+que alimentava seu decremento (só a telemetria `usageByNamespace` do L1
+sobrou). O `status()` do painel RECONTA O FÍSICO a cada leitura pela ponte
+(`summary`/`liveCount` em `magnetdb.ts`): contagens e restante de TTL são
+sempre o que está no núcleo agora — a deriva medida em produção (agregado
+dizia 77 `alive` com 190 chaves, adapter sumido) fica impossível por
+construção. O reconto é O(namespace `mag`): medido em 50 mil chaves (cota
+cheia do namespace), 29,6 ms, a cada leitura — nunca no caminho de busca e sem
+gravar de volta (o dono é o gateway); `status()` segue O(adapters). Aceitável
+na cota atual — **remedir se a cota `mag` crescer**. Os contadores de
 *eventos* (`magnetdb.*.set`, `dropped`) são do processo e a escrita que os
-inflam saiu — ficam em 0, porque quem grava a evidência é o gateway. A soma de
-TTL restante declara a própria base (`ttlRemainingBasis`): `l1-rebuild` =
-restante real de cada linha (`summary` da ponte), preciso só no instante do
-reconto; `aggregate-estimate` = soma restaurada do agregado, envelhecida pelo
-tempo decorrido. Toda leitura restaurada é estimativa, e o painel mostra o
-qualificador em vez de chamar de exata uma média que envelheceu. As contagens
-são exatas, a média é conservadora. A limpeza de `bad` do painel usa o
-`forgetBadOf`: remoção FÍSICA no núcleo por par (adapter, hash), em todas as
-contas, sem tocar o agregado — a próxima leitura reconcilia pela sentinela.
+inflam saiu — ficam em 0, porque quem grava a evidência é o gateway. A limpeza
+de `bad` do painel usa o `forgetBadOf`: remoção FÍSICA no núcleo por par
+(adapter, hash), em todas as contas, sem tocar o agregado — a próxima leitura
+já nasce recontada.
 
 **Ações do banco no painel** (`POST /dashboard-action.json`, atrás do mesmo
 token): `magnet-inspect` e `magnet-summary` são leitura; `magnet-clear-bad` é
 destrutiva (entra em `DESTRUCTIVE_ACTIONS`, exige `{"confirm": true}`) e apaga
-só o lado `bad`, preservando `alive`/`lie` do mesmo hash. Todas varrem o **L1**
-por prefixo (`keysMatching` + `peek`/`peekRemaining` — nenhuma query síncrona no
-SQLite, sem promover LRU nem inflar `cache.hit`), com teto de **100 itens** por
+só o lado `bad`, preservando `alive`/`lie` do mesmo hash. Todas leem a PONTE
+NATIVA (`magnetState().entries`/`summary` — sem namespace `mag` no L1, nenhuma
+query síncrona no SQLite do processo), com teto de **100 itens** por
 resposta/passagem (default 50) e filtros `adapterId`/`side`/`hash` validados
 (valor inválido é 400, não ignorado em silêncio). O `clear-bad` é idempotente:
-repetir devolve `cleared: 0` — e a decisão de "existia" usa `cache.has`, não
-`peek` (`008eecd`: bad expirado ainda não podado É apagado e tem que contar no
-`cleared`, senão a ação reportava zero fantasma). A lógica mora em
+repetir devolve `cleared: 0` — o `forgetBadOf` reporta a remoção física do par
+(e reporta a vencida ainda não podada se chamado direto por hash: a enumeração
+ignora vencida, quem a apaga é o `sweep` do relógio). A lógica mora em
 `src/utils/magnetdb-inspect.ts` e os handlers em
 `src/routes/dashboard-actions-magnet.ts`. Segurança de payload: o parse das
 chaves `mag` é **um só**, em `src/utils/magnetdb-counts.ts` (`008eecd` removeu
@@ -3378,9 +3367,9 @@ fire-and-forget) continua.
 | `src/utils/logger.ts` | Níveis via `ADDON_LOG_LEVEL` (não `LOG_LEVEL` — essa é do FlareSolverr) |
 | `src/utils/metrics.ts` | Contadores/histogramas do `/metrics.json` |
 | `src/utils/diagnostic-guard.ts` | Token + rate limit das rotas operacionais |
-| `src/utils/magnetdb.ts` | Fachada de LEITURA do banco de magnets por hash/adapter (alive/bad/lie): `peek*`, `forgetBadOf` (remoção física no núcleo), `status()` (panorama do painel: tamanhos por adapter, TTLs com `ttlRemainingBasis` e taxa ⚡ — `debrid.check.cached`/`hashes`). A ESCRITA saiu (gateway + oráculo `play/magnetdb-writes.ts`); reexporta a persistência; nenhuma rota importa os módulos internos direto |
-| `src/utils/magnetdb-persist.ts` | LEITURA do agregado durável `mag_meta:v1:counts` (escritor ÚNICO: o gateway, régua `bump_counts`), sentinela de reconciliação `ensureCountsLoaded` e `ttlRemainingBasis` (`l1-rebuild` × `aggregate-estimate`). Extraído do `magnetdb.ts`, que encostou no teto de 400 linhas |
-| `src/utils/magnetdb-counts.ts` | TIPOS do agregado (`AdapterTotals`), `MAG_SIDES`, `emptyAdapterTotals` e `isSupportedHash` (régua de hash recusada antes de chamar o núcleo). O dono das linhas e do agregado é o núcleo; sem ciclo com o `magnetdb` |
+| `src/utils/magnetdb.ts` | Fachada de LEITURA do banco de magnets por hash/adapter (alive/bad/lie): `forgetBadOf` (remoção física no núcleo) e `status()` (panorama do painel: tamanhos por adapter com média de TTL restante e taxa ⚡ — `debrid.check.cached`/`hashes`), RECONTO DIRETO do físico pela ponte (`summary`/`liveCount`) a cada leitura. A ESCRITA saiu (gateway + oráculo `play/magnetdb-writes.ts`); reexporta o relógio de poda; nenhuma rota importa os módulos internos direto |
+| `src/utils/mag-davail-sweep.ts` | Dono do relógio de 10 min (`setInterval` + `unref`) da poda NATIVA de `mag` (magnetdb por conta) e `davail` (⚡ por hash/conta): `sweepNativeNamespaces()` devolve o par de remoções reportado pelo núcleo (`magnet_state_sweep.rs`/`davail_state.rs`, via ponte napi). O Rust não faz sweep próprio; sem este relógio o `cache.db` cresce sem teto |
+| `src/utils/magnetdb-counts.ts` | `MAG_SIDES`/`MagSide` e `isSupportedHash` (régua de hash recusada antes de chamar o núcleo). O dono das linhas é o núcleo; sem ciclo com o `magnetdb` |
 | `src/utils/magnetdb-inspect.ts` | Leitura/limpeza operacional do banco para o painel (Fase 3): `magInspect`/`magSummary`/`magClearBads` pela ponte nativa (`magnetState().entries`/`summary`), sem namespace `mag` no L1. Handlers em `src/routes/dashboard-actions-magnet.ts` (`magnet-inspect`/`magnet-summary`/`magnet-clear-bad`; clear-bad é destrutiva, teto 100) |
 | ~~`src/utils/magnet-bank.ts`~~ | **Removido no corte da família (2026-11-01).** Era a fachada do banco VIVO: `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash`. A leitura é a ponte (`magnet-bank-native.ts`) e o acervo é do gateway |
 | ~~`src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` / `magnet-bank-memory.ts`~~ | **Removidos no corte.** Eram as linhas/engines (`sqliteEngine` lazy, WAL; LRU de memória `MAGNET_BANK_MEMORY_MAX`) + tipos/codec. O dono é o `MagnetBankStore` do `adom-store` |

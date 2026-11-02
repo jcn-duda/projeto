@@ -241,11 +241,11 @@ npm run docker:up / docker:logs
   respondeu; a view mostra gateway → local (só com consultas) → '—', nunca
   0% falso. Contadores são da RAM do processo: zeram no restart.
   O **KV persistente do Node é só a ponte nativa** (`src/utils/native-kv.ts`):
-  órfãos do L1 (`notify`, `imdb-seed`, `indexer-status`, `magnetdb-persist`)
+  órfãos do L1 (`notify`, `imdb-seed`, `indexer-status`)
   e as chaves `cfg:v1:*` (`autofetch-live*`, `harvester-*`, `crawler-live`)
   leem/escrevem pela mesma tabela `cache` do `data/cache.db` (kvSet com
   `ttl<=0` grava permanente — gate `ttl>0` obrigatório). O relógio de 10 min
-  é o `setInterval` PRÓPRIO do `magnetdb-persist` (`sweepNativeNamespaces`):
+  é o `setInterval` PRÓPRIO do `mag-davail-sweep` (`sweepNativeNamespaces`):
   a varredura de `mag`/`davail` é NATIVA (o núcleo devolve a contagem
   removida por lado); a ponte não tem mais `kvPruneExpired` (o `prune_expired`
   do `NativeKv` é só do Rust). Órfãos do Chupim na mesma régua: o
@@ -258,8 +258,8 @@ npm run docker:up / docker:logs
   (`markAlive`/`markBad`/`markLie`/`renewAlive`/`forgetBad` e derivadas)
   também saiu do Node — a régua congelada é o oráculo
   `test/helpers/pipeline-oracle/play/magnetdb-writes.ts` e o agregado
-  `mag_meta:v1:counts` tem escritor ÚNICO no gateway (`bump_counts`; o Node só
-  lê e reconcilia por sentinela em `magnetdb-persist.ts`).
+  `mag_meta:v1:counts` tem escritor ÚNICO no gateway (`bump_counts`); o Node não
+  o lê — o `status()` do painel reconta o físico pela ponte (`magnetdb.ts`).
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
