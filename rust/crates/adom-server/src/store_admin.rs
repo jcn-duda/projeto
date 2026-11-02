@@ -194,6 +194,7 @@ pub(crate) fn router_with_ownership(
         .merge(crate::al_sweeps::admin_router())
         .merge(crate::rd_warmer::admin_router())
         .merge(crate::magnet_bank_admin::admin_router())
+        .merge(crate::br_coverage_io::admin_router())
         .merge(crate::catalog_admin::router())
         .merge(account_catalog::admin_router())
         .merge(al_inventory_admin::router())

@@ -7,6 +7,9 @@ mod al_sweeps;
 /// Worker do Chupim em modo preparado (sem dreno até a fase B).
 mod autofetch;
 /// Catálogo de indexers do Jackett no gateway (F4.2): cache/refresh + rota.
+mod br_coverage;
+/// Parte de I/O da cobertura BR (leitores do cache.db, laço e rota admin).
+mod br_coverage_io;
 mod catalog_admin;
 mod config;
 /// Interrogatório de áudio do tail (T3-L7a): fila e veredito sem o Node.
@@ -84,6 +87,8 @@ async fn run_gateway() {
     // Flush dos contadores `meta.*`: reidrata o deploy anterior e grava por
     // minuto. Independente do proxy — a 8710 pura não precisa dele.
     meta_metrics_flush::spawn_from_env();
+    // Cobertura BR da coorte popular (F3.1): laço de fundo, só leitura do cache.db.
+    br_coverage_io::spawn_from_env();
     // O warmer, o worker do Chupim e o agendador das varreduras da AllDebrid
     // são construídos no boot do gateway, junto com o tail que os recebe
     // (`proxy::run`): o gateway é o dono único do spawn.
