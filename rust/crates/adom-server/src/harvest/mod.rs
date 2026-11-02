@@ -41,6 +41,7 @@ mod evidence;
 mod handle;
 mod live;
 mod routes;
+mod seed;
 mod serve;
 mod settle;
 mod status;
@@ -271,6 +272,9 @@ pub fn spawn(
         );
     }
     let index = orch.index_source().cloned();
+    // A semente de populares usa o mesmo índice nativo (a obra já indexada
+    // não volta à fila) e o mesmo handle do colhedor.
+    let seed_index = index.clone();
     let snap = EvidenceSnapshot::from_index(index.as_deref(), &queue_identities(&queue), now);
     queue.prioritize(&snap, now);
     let mut worker = HarvestWorker::new(HarvestWorkerConfig {
@@ -341,5 +345,7 @@ pub fn spawn(
         eprintln!("[harvest] thread do colhedor não subiu: {err}");
         return None;
     }
-    Some(HarvestHandle { inner })
+    let handle = HarvestHandle { inner };
+    seed::spawn(handle.clone(), seed_index);
+    Some(handle)
 }
