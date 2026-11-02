@@ -19,7 +19,7 @@ use crate::sitemap::CrawlPageKind;
 const BLUDV: &str = "bludv-cardigann";
 const BLUDV_HOST: &str = "bludvfilmes.xyz";
 const VACA: &str = "vacatorrent";
-const VACA_HOST: &str = "vaqueirofilmes1.com";
+const VACA_HOST: &str = "vaqueirofilmes.com";
 const NERD: &str = "nerdfilmes";
 const NERD_HOST: &str = "xnerdfilmes.net";
 const REDE: &str = "redetorrent-cardigann";

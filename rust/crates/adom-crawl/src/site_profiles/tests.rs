@@ -11,8 +11,8 @@ fn vacatorrent_has_flare() {
     assert_eq!(
         cfg.candidate_hosts,
         vec![
-            "vaqueirofilmes1.com",
             "vaqueirofilmes.com",
+            "vaqueirofilmes1.com",
             "vacatorrentmov.com"
         ]
     );

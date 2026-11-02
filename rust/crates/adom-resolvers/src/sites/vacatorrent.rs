@@ -23,8 +23,7 @@ use crate::common::{release_title, search_page_html, SearchItem, SitePost};
 
 pub use crate::common::vaca::{clean_mark_title, VacaParseOptions};
 
-#[path = "vacatorrent_protector.rs"]
-pub mod protector;
+pub use adom_crawl::br_core::vaca_protector as protector;
 #[path = "vacatorrent_search.rs"]
 mod search;
 #[path = "vacatorrent_shapes.rs"]

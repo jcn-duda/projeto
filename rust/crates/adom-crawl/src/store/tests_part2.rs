@@ -306,3 +306,51 @@ fn requeue_errors_recupera() {
     assert_eq!(c2.error, 0);
     assert_eq!(c2.no_work, 0);
 }
+
+// ─── reparo único do Vaca ────────────────────────────────────────────────────
+
+/// O reparo devolve só o `no-torrent` do Vaca, e uma vez: obra sem torrent de
+/// verdade não pode voltar à fila a cada boot.
+#[test]
+fn reparo_do_vaca_roda_uma_vez_e_so_no_site() {
+    let (store, _dir) = temp_store();
+    for (site, key, status) in [
+        ("vacatorrent", "/a", "no-torrent"),
+        ("vacatorrent", "/b", "done"),
+        ("nerdfilmes", "/c", "no-torrent"),
+    ] {
+        store.upsert_urls(site, &[sample_url(key)]).expect("upsert");
+        store
+            .conn()
+            .execute(
+                "UPDATE crawl_url SET status=?1, tries=3, next_at=9 WHERE site=?2 AND url_key=?3",
+                rusqlite::params![status, site, key],
+            )
+            .expect("status");
+    }
+    assert_eq!(store.repair_vaca_no_torrent_once().expect("reparo"), 1);
+    let ler = |site: &str, key: &str| -> (String, i64) {
+        store
+            .conn()
+            .query_row(
+                "SELECT status, tries FROM crawl_url WHERE site=?1 AND url_key=?2",
+                [site, key],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("linha")
+    };
+    assert_eq!(ler("vacatorrent", "/a"), ("pending".to_string(), 0));
+    assert_eq!(ler("vacatorrent", "/b").0, "done");
+    assert_eq!(ler("nerdfilmes", "/c").0, "no-torrent");
+
+    // Fechou de novo como sem torrent: o segundo boot não mexe.
+    store
+        .conn()
+        .execute(
+            "UPDATE crawl_url SET status='no-torrent' WHERE site='vacatorrent' AND url_key='/a'",
+            [],
+        )
+        .expect("refecha");
+    assert_eq!(store.repair_vaca_no_torrent_once().expect("repete"), 0);
+    assert_eq!(ler("vacatorrent", "/a").0, "no-torrent");
+}

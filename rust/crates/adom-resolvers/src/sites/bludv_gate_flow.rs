@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use url::Url;
 
-use super::gate_links::{is_gate_url, safe_gate_url};
+use super::gate_links::{in_gate_hosts, is_gate_url, safe_gate_url};
 use super::gate_transport::{
-    at_regex, check_allowed, GateError, GateResult, GateTransport, UrlGuard,
+    at_regex, check_allowed, FlareGetResult, GateError, GateResult, GateTransport, UrlGuard,
 };
 
 /// Cache de sucesso (30 min). Falha NUNCA entra aqui.
@@ -69,6 +69,14 @@ fn href_of(html: &str, base: &str, guard: &UrlGuard) -> GateResult<String> {
     Err(GateError::refused("botao de saida ausente"))
 }
 
+/// Abre o portao: destino valido e a promo ou o proprio site (pagina de link
+/// expirado, que o chamador trata). Qualquer outro host segue recusado.
+async fn open_gate(transport: &dyn GateTransport, gate: &Url) -> GateResult<FlareGetResult> {
+    let jump = at_regex("promobr.online", r"^/jump/.+");
+    let guard = move |u: &Url| jump(u) || in_gate_hosts(u.host_str().unwrap_or(""));
+    transport.flare_get(gate.as_str(), &guard).await
+}
+
 /// Cadeia completa gate -> magnet. Sessao DESTRUIDA no finally.
 async fn run_chain(
     transport: &dyn GateTransport,
@@ -91,22 +99,40 @@ async fn try_chain(
     let gate_host = gate.host_str().unwrap_or("");
     let jump_guard = at_regex("promobr.online", r"^/jump/.+");
 
-    // 1. Flare GET gate -> promobr.online/jump/
-    let landing = transport.flare_get(gate.as_str(), &*jump_guard).await?;
+    // 1. Flare GET gate -> promobr.online/jump/. O site ora ou outra devolve
+    // "Link expirado" para um hash válido: o MESMO hash abriu logo depois
+    // (medido em 2026-11-02), então vale UMA nova tentativa.
+    let mut landing = open_gate(transport, gate).await?;
+    if !jump_guard(&landing.url) {
+        landing = open_gate(transport, gate).await?;
+    }
+    if !jump_guard(&landing.url) {
+        return Err(GateError::refused("link expirado"));
+    }
 
     // 2. HTML promocao -> extrai href x.gd
     let promo_html = transport
         .follow_text(landing.url.as_str(), &*jump_guard)
         .await?;
     let xg_guard = at_regex("x.gd", r"^/");
-    let short_url = href_of(&promo_html, landing.url.as_str(), &*xg_guard)?;
+    let voucher_guard = at_regex("valedesconto.shop", r"^/r/.+");
+    let promo_voucher = at_regex("valedesconto.shop", r"^/r/.+");
+    let exit_guard = move |u: &Url| xg_guard(u) || promo_voucher(u);
+    let exit = href_of(&promo_html, landing.url.as_str(), &exit_guard)?;
 
-    // 3. GET x.gd redirect manual -> valedesconto.shop/r/...?utm_content=CODE
-    let redir = transport.direct_get(&short_url).await?;
-    let voucher = redir
-        .location
-        .ok_or_else(|| GateError::refused("sem location"))?;
-    if !at_regex("valedesconto.shop", r"^/r/.+")(&voucher) {
+    // 3. A promo publica o encurtador OU, desde 2026-11, o voucher direto:
+    // só x.gd pede o redirect manual.
+    let exit_url = Url::parse(&exit).map_err(|_| GateError::refused("saida invalida"))?;
+    let voucher = if voucher_guard(&exit_url) {
+        exit_url
+    } else {
+        transport
+            .direct_get(&exit)
+            .await?
+            .location
+            .ok_or_else(|| GateError::refused("sem location"))?
+    };
+    if !voucher_guard(&voucher) {
         return Err(GateError::refused("saida do encurtador invalida"));
     }
     let codes: Vec<String> = voucher
@@ -155,7 +181,9 @@ async fn try_chain(
     let callback = go_res
         .location
         .ok_or_else(|| GateError::refused("callback invalido"))?;
-    if callback.host_str().unwrap_or("") != gate_host || callback.path() != "/gate/callback" {
+    // O callback pode voltar em outro host do site (botão em bludvfilmes1 e
+    // callback em bludvfilmes2): a lista fechada é a régua, não o host do botão.
+    if !in_gate_hosts(callback.host_str().unwrap_or("")) || callback.path() != "/gate/callback" {
         return Err(GateError::refused("callback invalido"));
     }
     let tok_n = callback
@@ -183,10 +211,7 @@ async fn try_chain(
     }
 
     // 8. Flare GET callback -> magnet
-    let cb_guard: Box<UrlGuard> = {
-        let h = gate_host.to_string();
-        Box::new(move |u: &Url| u.host_str().unwrap_or("") == h)
-    };
+    let cb_guard: Box<UrlGuard> = Box::new(|u: &Url| in_gate_hosts(u.host_str().unwrap_or("")));
     let solved = transport.flare_get(callback.as_str(), &*cb_guard).await?;
     if solved
         .url

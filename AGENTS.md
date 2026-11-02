@@ -692,11 +692,23 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   incluído (o TS o preservava).
 - **Vaca (`vacatorrent`)**: o fetch do crawl é `fetchTextCrawl` do profile — direto
   primeiro (reusa a sessão quente) e **FlareSolverr só com desafio do Cloudflare**
-  (domínio `vaqueirofilmes1.com` desafia o fetch direto frio; antes isso pausava o
+  (domínio `vaqueirofilmes.com` desafia o fetch direto frio; antes isso pausava o
   site por `error-streak`). Fica na faixa única `CRAWL_FLARE_SITES` e a resolução
   conta 1 requisição no custo da página; desafio persistente é erro, sem laço. Pelo
   Flare o sitemap do Yoast volta como **tabela HTML (viewer)**, não XML: o
   `parseSitemapEntries` cai em `parseViewerEntries` (`vaca-sitemap-viewer.ts`).
+  O post NÃO publica botão: filme vai a `/movie-links/<id>/`, série a
+  `/season-internal/` e aos cards. O botão é `<site>/enc/go.php`, e a cadeia
+  (`processar` → `t.co` → `relay` → `enc1/receber` → artigo de fachada →
+  `enc2/receber`, magnet em `data-link`) roda direta com o `cf_clearance` da
+  sessão (`page_engine_vaca.rs`). Ler só o post fechava tudo `no-torrent`
+  (medido em 2026-11-02); o reparo único `repair_vaca_no_torrent_once` devolve
+  essas linhas à fila no boot.
+- **BLUDV (portão)**: a promo pode publicar `valedesconto.shop` direto, sem o
+  `x.gd`, e o portão/callback podem cair em outro host da lista do site
+  (`bludvfilmes1` → `bludvfilmes2`). "Link expirado" no portão é intermitente: a
+  cadeia repete uma vez. Falha do pagamento recua a linha (`next_at`), senão as
+  mesmas linhas da cabeça comeriam o teto por hora para sempre.
 - **Identificação TMDB é NATIVA (T3-L3, `54209dc8`).** O `adom-crawl` declara
   `adom-sources` e liga `identify`/`get_titles` (`TmdbCatalog`,
   `ingest/native.rs`) à costura `ObraCatalog`: a página sem IMDb ganha o mesmo

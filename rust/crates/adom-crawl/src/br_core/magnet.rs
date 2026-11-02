@@ -357,7 +357,9 @@ impl MagnetExtractor {
                     .trim()
                     .to_string();
                 if B64_MAGNET.is_match(&decoded) {
-                    return Some(decoded);
+                    // O base64 de série traz `&#038;dn=` (medido em 2026-11-02):
+                    // sem decodificar, o `dn` some e o tracker vira lixo.
+                    return Some(decode_entities(&decoded));
                 }
                 if let Ok(Some(m)) = B64_MANGLED.captures(decoded.as_str()) {
                     return Some(format!("magnet:?xt=urn:btih:{}", m[1].to_lowercase()));

@@ -23,6 +23,7 @@ pub mod release;
 pub mod rules;
 pub mod text;
 pub mod vaca;
+pub mod vaca_protector;
 
 pub use collector::{parse_download_links, CollectorHooks, Resolved, Step};
 pub use http_date::{

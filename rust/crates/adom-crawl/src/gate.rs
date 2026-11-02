@@ -291,9 +291,14 @@ impl GateExecutor {
                     "[gate] {} {}: pagamento não saiu: {e}",
                     g.row.site, g.row.url_key
                 );
-                let mut rt = self.state.lock().await;
-                rt.spent_this_hour = rt.spent_this_hour.saturating_add(1);
-                return RowOutcome::Pending;
+                self.state.lock().await.spent_this_hour += 1;
+                // Sem recuo, as mesmas linhas da cabeça da fila comiam o teto
+                // por hora para sempre e o resto nunca era pago. Pendência da
+                // cadeia em curso não é falha: repete na rodada seguinte.
+                if e.starts_with("pendente") {
+                    return RowOutcome::Pending;
+                }
+                return self.defer_delivery(g, "pagamento", &e).await;
             }
         };
 
@@ -367,3 +372,7 @@ mod support;
 #[cfg(test)]
 #[path = "gate_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "gate_backoff_tests.rs"]
+mod backoff_tests;

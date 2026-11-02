@@ -32,6 +32,26 @@ pub const PROTECTOR_SUFFIXES: &[&str] = &[
 /// `/resolve` do Vaca acabava em "sem magnet no HTML final".
 pub const VACA_EXTRA_PROTECTOR_SUFFIXES: &[&str] = &["systemtech.space", "mundgostoso.site"];
 
+/// Hosts do próprio Vaca. Espelham `candidate_hosts` do registro de sites.
+pub const VACA_SITE_HOSTS: &[&str] = &[
+    "vaqueirofilmes.com",
+    "vaqueirofilmes1.com",
+    "vacatorrentmov.com",
+];
+
+/// Caminho da cadeia do protetor no PRÓPRIO site (`/enc/`, `/enc1/`, `/enc2/`):
+/// medido em 2026-11-02, a cadeia saiu de `systemtech.space` para o host do Vaca.
+/// O host sozinho não basta, porque o site inteiro também mora nele.
+pub fn is_vaca_own_chain(hostname: &str, path: &str) -> bool {
+    let host = hostname.to_lowercase();
+    if !VACA_SITE_HOSTS.contains(&host.as_str()) {
+        return false;
+    }
+    path.strip_prefix("/enc")
+        .map(|rest| rest.trim_start_matches(|c: char| c.is_ascii_digit()))
+        .is_some_and(|rest| rest.starts_with('/'))
+}
+
 /// Verifica se um hostname é um protetor conhecido (base comum).
 ///
 /// Aceita correspondência exata ou como subdomínio (`.ends_with`).
@@ -64,6 +84,18 @@ mod tests {
             assert!(is_protector_host(suffix), "{suffix}");
             assert!(is_protector_host(&format!("cdn.{suffix}")), "sub.{suffix}");
         }
+    }
+
+    #[test]
+    fn cadeia_propria_exige_host_do_site_e_caminho_enc() {
+        assert!(is_vaca_own_chain("vaqueirofilmes.com", "/enc/go.php"));
+        assert!(is_vaca_own_chain(
+            "VAQUEIROFILMES1.com",
+            "/enc2/receber.php"
+        ));
+        assert!(!is_vaca_own_chain("vaqueirofilmes.com", "/pt/movie/x/"));
+        assert!(!is_vaca_own_chain("vaqueirofilmes.com", "/encontro/"));
+        assert!(!is_vaca_own_chain("malicioso.example", "/enc/go.php"));
     }
 
     #[test]

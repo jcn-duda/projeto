@@ -42,11 +42,11 @@ export const resolvers = () => ({
   // 2026-10-24: xfilmeshd.org responde 301 para xfilmeshd.net.
   nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.xfilmeshd.net').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
-  // Vaca Torrent trocou de domínio de novo (2026-10-01): vaqueirofilmes1.com.
-  // vaqueirofilmes.com e vacatorrentmov.com agora servem só a página "Novo
-  // Endereço" (200, sem sitemap nem busca). Os três ficam na allowlist do
-  // profile, para redirect/failover não virar blocked_host.
-  vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes1.com').replace(/\/$/, ''),
+  // Vaca Torrent voltou ao domínio antigo: medido em 2026-11-02,
+  // vaqueirofilmes1.com redireciona para vaqueirofilmes.com, que serve o site.
+  // Os três ficam na allowlist do profile, para redirect/failover não virar
+  // blocked_host.
+  vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, ''),
   // Rede Torrent: atrás de desafio Cloudflare (o resolver resolve via
   // FlareSolverr), com magnets diretos no HTML do post.
   redetorrentUrl: (process.env.REDETORRENT_URL || 'https://www.redetorrent.xyz').replace(/\/$/, ''),
