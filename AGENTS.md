@@ -584,8 +584,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `davail_no_arquivo_do_node_e_somente_leitura`).
 - **O Node não poda o `cache.db`** (F3/F4 da guilhotina): o boot não sobe linha
   no L1 e nem o boot nem o `forget` apagam do arquivo. A faxina (versão menor,
-  prefixo legado e vencido dos namespaces sem dono) é do gateway, em thread
-  própria no boot (`NativeKv::boot_housekeeping`, lista fechada de prefixos).
+  prefixo legado e vencido da lista fechada de prefixos, que inclui
+  `adrm`/`adsub`/`adhold`/`autofetch`/`autofetch-worker`/`harvest`, cujos donos só
+  apagam vencido ao reler a chave) é do gateway, em thread própria no boot
+  (`NativeKv::boot_housekeeping`). Fora da lista: quem tem poda própria (`raw`,
+  `fsz`, `tsz`, `mag`, `davail`) e o `adprot`.
 - **KV de estado Rust-owned: `NativeKv`** (tabela `cache` do mesmo
   `data/cache.db`): store em `rust/crates/adom-index/src/kv.rs`, binding napi na
   classe `NativeKv` (`adom-napi/src/kv.rs`), reexportado pelo `adom-store`. O

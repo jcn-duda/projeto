@@ -38,8 +38,16 @@ CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
 const RETIRED_PREFIXES: &[&str] = &["rdt:", "dinv:"];
 
 /// Namespaces cujo vencido ninguém mais poda. A lista é fechada de propósito:
-/// um namespace novo com dono nunca entra aqui por omissão.
+/// um namespace novo com dono nunca entra aqui por omissão. Os donos do segundo
+/// bloco só apagam vencido na chave que releem, e `adrm`/`adsub` raramente são
+/// relidos; para todos os leitores deles, vencido e ausente já são a mesma coisa.
 const UNOWNED_EXPIRY_PREFIXES: &[&str] = &[
+    "adrm:",
+    "adsub:",
+    "adhold:",
+    "autofetch:",
+    "autofetch-worker:",
+    "harvest:",
     "tmdb:",
     "tmdbc:",
     "tmdbh:",

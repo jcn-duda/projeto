@@ -20,11 +20,21 @@ fn faxina_do_boot_apaga_velho_legado_e_vencido_sem_dono() {
         ("raw1:velho", live),
         ("rdt:v1:orfao", live),
         ("dinv:v1:orfao", live),
-        // Vencido: sem dono sai; com dono e permanente ficam.
+        // Vencido da lista fechada sai; vivo, permanente e fora da lista ficam.
         ("tmdb:v1:vencido", now - 1),
         ("tmdb:v1:vivo", live),
         ("cfg:v1:permanente", 0),
-        ("adsub:v1:vencido-do-dono", now - 1),
+        ("adrm:v1:vencido", now - 1),
+        ("adsub:v1:vencido", now - 1),
+        ("adsub:v1:vivo", live),
+        ("adhold:v1:vencido", now - 1),
+        ("autofetch:v3:m:vencido", now - 1),
+        ("autofetch:v3:q:permanente", 0),
+        ("autofetch-worker:v1:budget:vencido", now - 1),
+        ("autofetch-worker:v1:config", 0),
+        ("harvest:v1:seen:vencido", now - 1),
+        ("harvest:v1:q", 0),
+        ("adprot:v1:vencido-fora-da-lista", now - 1),
         ("metam:v1:counts", 0),
     ] {
         kv.lock()
@@ -42,7 +52,7 @@ fn faxina_do_boot_apaga_velho_legado_e_vencido_sem_dono() {
         super::BootHousekeeping {
             stale: 1,
             legacy: 3,
-            expired: 1
+            expired: 7
         }
     );
     let conn = kv.lock();
@@ -55,8 +65,12 @@ fn faxina_do_boot_apaga_velho_legado_e_vencido_sem_dono() {
     assert_eq!(
         left,
         [
-            "adsub:v1:vencido-do-dono",
+            "adprot:v1:vencido-fora-da-lista",
+            "adsub:v1:vivo",
+            "autofetch-worker:v1:config",
+            "autofetch:v3:q:permanente",
             "cfg:v1:permanente",
+            "harvest:v1:q",
             "idx:v1:dono-proprio",
             "metam:v1:counts",
             "rdc:v2:atual",
