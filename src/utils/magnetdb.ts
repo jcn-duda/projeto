@@ -25,12 +25,12 @@
 // gateway. Aqui ficam a limpeza do painel e o status — RECONTO DIRETO do
 // físico pela ponte (`summary`/`liveCount`): sem amostra, sem agregado lido
 // pelo Node, sem sentinela; a foto do painel é sempre o que está no núcleo
-// agora. O relógio da varredura nativa mora em magnetdb-persist.ts.
+// agora. O relógio da varredura nativa mora em mag-davail-sweep.ts.
 import config from '../config.js';
 import * as metrics from './metrics.js';
 import { magnetState, type MagnetSide } from './debrid-state-native.js';
 import { QUOTAS } from './cache-quotas.js';
-import { sweepNativeNamespaces } from './magnetdb-persist.js';
+import { sweepNativeNamespaces } from './mag-davail-sweep.js';
 
 export { sweepNativeNamespaces };
 

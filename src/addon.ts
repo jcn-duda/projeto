@@ -11,6 +11,10 @@ import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js'
 import { startRdWarmPolling, stopRdWarmPolling } from './utils/rd-warm-native.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
+// Relógio de poda de `mag`/`davail` registrado no boot, explicitamente: a
+// fachada magnetdb só reexporta o sweep para os testes — o dono do setInterval
+// é `mag-davail-sweep.ts`.
+import './utils/mag-davail-sweep.js';
 import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 import * as rustCore from './utils/rust-core.js';

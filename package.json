@@ -306,6 +306,7 @@
     "test/magnet-bank-native-read.test.js",
     "test/magnet-bank-native.test.js",
     "test/magnet-bank-transfer.test.js",
+    "test/mag-davail-sweep.test.js",
     "test/magnet-db-apply-drop.test.js",
     "test/magnet-db-empirical-challenge.test.js",
     "test/magnet-db-persistence.test.js",

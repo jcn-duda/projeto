@@ -273,7 +273,7 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
 // tinha estado fora do L1 saiu: a contagem do agregado do magnetdb passou para
 // o dono nativo (o gateway mantém `mag_meta` pela régua `bump_counts`; o Node
 // só lê pela ponte) e a varredura de vencidos é nativa, com relógio próprio
-// (`magnetdb-persist.ts`). `onForget`/`onPrune` saíram por falta de chamador —
+// (`mag-davail-sweep.ts`). `onForget`/`onPrune` saíram por falta de chamador —
 // só sobreviviam em comentários e docs. Os laços de disparo em
 // `prune`/`forget`/`forgetMany` ficam; um futuro dono de estado externo volta a
 // registrar acrescentando no set aqui.
