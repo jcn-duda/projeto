@@ -94,10 +94,10 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
 });
 
 // ===========================================================================
-// Descarte de versões obsoletas e prefixos aposentados no boot (loadFromDisk)
+// Descarte de versões obsoletas e prefixos aposentados no boot
 // ===========================================================================
 // A versão de cada namespace vive num lugar só (cache-keys.js). Estes testes
-// garantem que o loadFromDisk apaga do DISCO (não só do L1) o que não bate com
+// garantem que a poda do boot apaga do DISCO (não só do L1) o que não bate com
 // a versão corrente: sem o DELETE no SQLite, a linha morta voltaria a ser
 // carregada no próximo restart e ocuparia cota por todo o TTL.
 const STREAMS_VERSION_DISCARD_SCRIPT = [
@@ -315,35 +315,6 @@ test(
   'cota do raw é do gateway: o boot do Node não sobe nem poda uma linha que seja',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(RAW_QUOTA_RENAME_SCRIPT),
-);
-
-// O valor gordo agora é buscado por PK (selectValueStmt) só para as chaves que
-// passaram na cota; antes o SELECT único trazia key+value+expires de todas. Um
-// objeto aninhado com arrays, números fracionários, strings, null e boolean
-// prova que a serialização JSON não perde nada no caminho índice → valor.
-const PK_VALUE_INTEGRITY_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const now = Date.now();',
-  "const complexo = { titulo: 'Coringa', ano: 2019, tags: ['dublado', 'dual'], notas: [9.5, 8, 7.25], nested: { a: [1, 2, 3], b: 'x' }, nulo: null, flag: true };",
-  "insert.run('tmdb:movie:tt-complexa', JSON.stringify(complexo), now + 900000);",
-  "insert.run('tmdb:movie:tt-simples', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
-  "assert.deepStrictEqual(cache.get('tmdb:movie:tt-complexa'), complexo, 'objeto aninhado volta inteiro via PK');",
-  "assert.deepStrictEqual(cache.get('tmdb:movie:tt-simples'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
-].join('\n');
-
-test(
-  'valor íntegro via busca por PK: objeto aninhado carrega do disco sem truncar',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => runIsolatedCacheTest(PK_VALUE_INTEGRITY_SCRIPT),
 );
 
 const MAINTAIN_SCRIPT = [

@@ -32,7 +32,6 @@ const { pending, maxGraceMs, maintain } = persistence;
 
 const removeFromStore = (key: string) => dropFromStore(store, namespaceCounts, key);
 const incrementNamespace = (namespace: string) => bumpNamespace(namespaceCounts, namespace);
-const l1Hooks = { store, removeFromStore, incrementNamespace };
 
 // Telemetria de uso por namespace (guia do corte do L1): leituras e escritas
 // REAIS deste processo desde o boot, com o instante da última. A guilhotina do
@@ -386,7 +385,7 @@ function close() {
 }
 
 persistence.open();
-persistence.loadFromDisk(l1Hooks);
+persistence.pruneOnBoot();
 // Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
 pruneTimer = setInterval(prune, 10 * 60 * 1000);
 pruneTimer.unref();

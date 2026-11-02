@@ -93,61 +93,6 @@ function runIsolatedCacheTest(scriptContent: any) {
   }
 }
 
-// Contrato 1 roda num processo filho curto: o módulo abre a conexão SQLite no
-// import e não expõe close; com o filho morto, a conexão fecha e o tmpdir pode
-// ser apagado de verdade — no processo do runner a deleção esbarraria em EBUSY.
-// De quebra, o CACHE_DB_PATH/CACHE_PERSIST do runner nunca chegam ao módulo.
-const RELOAD_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST; // herança do runner não pode desligar o SQLite',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  `const total = ${MAX_ENTRIES} + ${EXTRA};`,
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  'seed.exec(',
-  "  'CREATE TABLE IF NOT EXISTS cache (' +",
-  "    'key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);'",
-  ');',
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const base = Date.now() + 60000;',
-  "seed.exec('BEGIN');",
-  'for (let i = 0; i < total; i++) {',
-  "  insert.run('k-' + i, JSON.stringify({ n: i }), base + i * 1000);",
-  '}',
-  "seed.exec('COMMIT');",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
-  '// Overflow IMEDIATAMENTE após o reload, antes de qualquer leitura: get()',
-  '// renova a recência e mascararia a ordem reconstruída pelo loadFromDisk.',
-  `cache.set('overflow', { n: 'overflow' }, ${TTL_S});`,
-  '',
-  '// Seleção DESC: k-0..k-4 (menores expires_at) nem chegam a ser carregadas.',
-  "assert.strictEqual(cache.get('k-0'), null, 'k-0 nao pode ser recarregada');",
-  "assert.strictEqual(cache.get('k-4'), null, 'as 5 de TTL mais curto saem juntas');",
-  '',
-  '// Ordem pós-reload: o menor expires_at entre os selecionados é o LRU e o',
-  '// maior é o mais recente. O estouro expulsa k-5 e poupa k-2004.',
-  "assert.strictEqual(cache.get('k-5'), null, 'k-5 e expulso como LRU do reload');",
-  `assert.deepStrictEqual(cache.get('k-' + (total - 1)), { n: total - 1 }, 'k-2004 sobrevive');`,
-  "assert.deepStrictEqual(cache.get('overflow'), { n: 'overflow' }, 'a nova entrada entra');",
-  '',
-  'let present = 0;',
-  'for (let i = 0; i < total; i++) {',
-  "  if (cache.get('k-' + i) !== null) present++;",
-  '}',
-  "if (cache.get('overflow') !== null) present++;",
-  `assert.strictEqual(present, ${MAX_ENTRIES}, 'o total continua na cota padrão');`,
-].join('\n');
-
-test(
-  'reload do SQLite: seleção DESC + ordem reconstruída expulsa o menor TTL selecionado na cota padrão',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — o contrato 1 precisa de Node 22+' },
-  () => {
-    runIsolatedCacheTest(RELOAD_SCRIPT);
-  },
-);
-
 test('get() de entrada válida renova a recência: no estouro ela sobrevive e o LRU válido sai', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   const originalDbPath = process.env.CACHE_DB_PATH;
@@ -223,50 +168,6 @@ test('setMany: lote com UMA evicção por namespace — as mais antigas saem, as
     else process.env.CACHE_DB_PATH = originalDbPath;
   }
 });
-
-const RESILIENT_LOAD_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  'seed.exec(',
-  "  'CREATE TABLE IF NOT EXISTS cache (' +",
-  "    'key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);'",
-  ');',
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const now = Date.now();',
-  "insert.run('val-1', JSON.stringify({ title: 'Filme A' }), now + 100000);",
-  "insert.run('corrupt-1', 'NOT_VALID_JSON{', now + 100000);",
-  "insert.run('val-2', JSON.stringify({ streams: ['s1'] }), now + 200000);",
-  "insert.run('corrupt-2', '{\"incomplete\":', now + 200000);",
-  "insert.run('val-3', JSON.stringify({ count: 42 }), now + 300000);",
-  "insert.run('expired-val', JSON.stringify({ old: true }), now - 50000);",
-  "insert.run('expired-corrupt', 'INVALID_OLD', now - 50000);",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
-  "assert.deepStrictEqual(cache.get('val-1'), { title: 'Filme A' }, 'val-1 carregado com sucesso');",
-  "assert.deepStrictEqual(cache.get('val-2'), { streams: ['s1'] }, 'val-2 carregado com sucesso');",
-  "assert.deepStrictEqual(cache.get('val-3'), { count: 42 }, 'val-3 carregado com sucesso');",
-  "assert.strictEqual(cache.get('corrupt-1'), null, 'corrupt-1 ignorado com segurança');",
-  "assert.strictEqual(cache.get('corrupt-2'), null, 'corrupt-2 ignorado com segurança');",
-  "assert.strictEqual(cache.get('expired-val'), null, 'expirado valido removido no start');",
-  "assert.strictEqual(cache.get('expired-corrupt'), null, 'expirado corrompido removido no start');",
-  'assert.strictEqual(cache.size(), 3, \'tamanho do cache em memoria reflete apenas os validos\');',
-  '',
-  "cache.set('new-val', { live: true }, 3600);",
-  "assert.deepStrictEqual(cache.get('new-val'), { live: true }, 'novas insercoes funcionam normalmente apos recuperacao');",
-  'assert.strictEqual(cache.size(), 4);',
-].join('\n');
-
-test(
-  'loadFromDisk(): deserialização resiliente pula linhas corrompidas e carrega todas as válidas',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => {
-    runIsolatedCacheTest(RESILIENT_LOAD_SCRIPT);
-  },
-);
 
 // A escrita no disco é diferida para o próximo tick (lote em transação única),
 // então o script espera um setImmediate antes de conferir o SQLite.

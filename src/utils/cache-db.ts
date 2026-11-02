@@ -1,7 +1,6 @@
 /**
- * Camada de abertura e persistência SQLite do cache multi-nível. Memória é o
- * L1; o SQLite só existe pra sobreviver ao restart do container. Sem ele o
- * addon funciona igual, só volta a esquentar do zero a cada subida.
+ * Camada de abertura e persistência SQLite do cache multi-nível. O L1 nasce
+ * vazio: desde a F3 da guilhotina o boot não sobe linha nenhuma, só poda.
  *
  * FÁBRICA, não módulo de estado: o handle do banco, os prepared statements, a
  * fila de despejo (`pending`) e o flush agendado nascem dentro da closure
@@ -14,17 +13,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import config from '../config.js';
 import * as log from './logger.js';
-import * as metrics from './metrics.js';
 import { NAMESPACE_VERSIONS, LEGACY_PREFIXES, RUST_OWNED, RUST_OWNED_PREFIXES, isRustOwned, isForeignKey } from './cache-keys.js';
-import { MAX_ENTRIES, namespaceFor, quotaFor } from './cache-quotas.js';
+import { namespaceFor } from './cache-quotas.js';
 import { openWithRecovery } from './cache-db-open.js';
-
-/** Pontos de contato com o L1, dono do store (cache.ts fornece as amarras). */
-interface CacheDbHooks {
-  store: Map<string, any>;
-  removeFromStore(key: string): boolean;
-  incrementNamespace(namespace: string): void;
-}
 
 export function createPersistence() {
   const DB_PATH = config.cache.dbPath;
@@ -34,8 +25,6 @@ export function createPersistence() {
   let deleteExpiredStmt: any = null;
   let deleteStaleStmt: any = null;
   let deleteLegacyStmt: any = null;
-  let selectIndexStmt: any = null;
-  let selectValueStmt: any = null;
   let clearStmt: any = null;
 
   // Prefixos que a poda do Node NUNCA apaga: donos com ciclo próprio no arquivo.
@@ -69,12 +58,6 @@ export function createPersistence() {
       // no `:`), sem materializar a linha no JS.
       deleteStaleStmt = database.prepare('DELETE FROM cache WHERE key LIKE ? AND CAST(substr(key, ?) AS INTEGER) < ?');
       deleteLegacyStmt = database.prepare('DELETE FROM cache WHERE key LIKE ?');
-      // Índice leve: decide QUEM sobe sem trazer os valores gordos junto. Um LIMIT
-      // global trocaria o problema de memória por um de correção (dlmag de TTL
-      // longo consumiria o corte e empurraria streams para fora), então o valor é
-      // buscado por PK só para as chaves que passaram na cota.
-      selectIndexStmt = database.prepare('SELECT key, expires_at FROM cache ORDER BY expires_at DESC');
-      selectValueStmt = database.prepare('SELECT value FROM cache WHERE key = ?');
       clearStmt = database.prepare('DELETE FROM cache');
 
       db = database;
@@ -86,8 +69,6 @@ export function createPersistence() {
       deleteExpiredStmt = null;
       deleteStaleStmt = null;
       deleteLegacyStmt = null;
-      selectIndexStmt = null;
-      selectValueStmt = null;
       clearStmt = null;
       return null;
     }
@@ -95,84 +76,29 @@ export function createPersistence() {
 
   /**
    * Máxima janela de graça entre os consumidores do cache. Hoje só as listas de
-   * stream usam (SWR); prune/loadFromDisk precisam respeitá-la, senão o timer de
+   * stream usam (SWR); as podas precisam respeitá-la, senão o timer de
    * 10 min apaga a entrada expirada antes de o refresh de fundo poder servi-la.
    */
   function maxGraceMs() {
     return Math.max(0, config.streamStaleGrace) * 1000;
   }
 
-  /** Sobe o que ainda é válido; o que expirou enquanto estava fora, morre aqui. */
-  function loadFromDisk(hooks: CacheDbHooks) {
-    const { store, removeFromStore, incrementNamespace } = hooks;
-    if (!db || !selectIndexStmt || !selectValueStmt || !deleteExpiredStmt || !deleteStaleStmt || !deleteLegacyStmt) return;
+  /**
+   * Poda do boot, sem subir nada: nenhum consumidor lê o L1, e varrer a tabela
+   * inteira do gateway a cada restart só custava memória e I/O.
+   */
+  function pruneOnBoot() {
+    if (!db || !deleteExpiredStmt || !deleteStaleStmt || !deleteLegacyStmt) return;
     try {
-      const now = Date.now();
-      // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
-      // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
-      deleteExpiredStmt.run(now - maxGraceMs(), ...ownedGuards);
+      deleteExpiredStmt.run(Date.now() - maxGraceMs(), ...ownedGuards);
       // Só versão MENOR que a conhecida: o gateway pode subir a de um namespace
       // dele antes do TS, e a linha nova não é lixo. `idx` é do Rust ponta a ponta.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
         if (ns !== 'idx') deleteStaleStmt.run(`${ns}:v%`, ns.length + 3, Number(version.slice(1)));
       }
       for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
-      // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
-      // recebe o próprio orçamento antes da ordem de recência ser reconstruída.
-      const rows = selectIndexStmt.all();
-      const selected: { key: any; value: any; expiresAt: number; namespace: string }[] = [];
-      const selectedCounts = new Map();
-      const skipped: any[] = [];
-      const quotaSkipped: any[] = [];
-      for (const row of rows) {
-        const namespace = namespaceFor(row.key);
-        // RUST_OWNED não sobe no boot: sem valor gordo, sem cota.
-        if (isRustOwned(namespace) || isForeignKey(row.key)) continue;
-        if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
-          skipped.push(row.key);
-          quotaSkipped.push(row.key);
-          continue;
-        }
-        try {
-          // O valor gordo só é trazido para quem passou na cota (busca por PK).
-          const valueRow = selectValueStmt.get(row.key);
-          // Sumiu entre a listagem e a busca do valor: acontece quando outro
-          // processo divide o mesmo cache.db (container + instância de teste).
-          // Não é registro corrompido — só não existe mais.
-          if (!valueRow) {
-            skipped.push(row.key);
-            continue;
-          }
-          selected.push({
-            key: row.key,
-            value: JSON.parse(valueRow.value),
-            expiresAt: Number(row.expires_at),
-            namespace,
-          });
-          selectedCounts.set(namespace, (selectedCounts.get(namespace) || 0) + 1);
-        } catch (rowErr) {
-          log.warn(`[cache] registro corrompido ignorado para chave '${row.key}':`, rowErr.message);
-          skipped.push(row.key);
-        }
-      }
-      // A seleção vem do TTL mais longo para o mais curto. Inserir ao contrário
-      // deixa o menor TTL selecionado como LRU dentro de cada namespace.
-      let loaded = 0;
-      for (const entry of selected.reverse()) {
-        store.set(entry.key, entry);
-        incrementNamespace(entry.namespace);
-        loaded++;
-      }
-      // Entradas acima da cota nunca voltariam a caber neste processo; removê-las
-      // evita revarrer o mesmo banco dominado no próximo restart.
-      for (const key of quotaSkipped) {
-        metrics.count('cache.evicted.quota');
-        metrics.count(`cache.evicted.quota.${namespaceFor(key)}`);
-      }
-      forgetMany(skipped, removeFromStore);
-      if (loaded) log.info(`[cache] ${loaded} entrada(s) recuperada(s) do disco`);
     } catch (err) {
-      log.warn('[cache] falha ao ler o cache do disco:', err.message);
+      log.warn('[cache] falha ao podar o disco no boot:', err.message);
     }
   }
 
@@ -335,8 +261,6 @@ export function createPersistence() {
       deleteExpiredStmt = null;
       deleteStaleStmt = null;
       deleteLegacyStmt = null;
-      selectIndexStmt = null;
-      selectValueStmt = null;
       clearStmt = null;
     }
   }
@@ -393,7 +317,7 @@ export function createPersistence() {
   }
 
   return {
-    open, loadFromDisk, persist, pending, forget, forgetMany,
+    open, pruneOnBoot, persist, pending, forget, forgetMany,
     clearDisk, maintain, close, maxGraceMs, l2Stats,
   };
 }

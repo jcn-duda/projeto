@@ -250,7 +250,7 @@ const RUST_OWNED = Object.freeze([
 //
 // `harvest:v1` entra aqui pelo namespace INTEIRO (Fase 5): a fila
 // (`harvest:v1:q`), o balde horário e o dedupe de 12h são escritos pelo colhedor
-// do gateway. O Node não pode carregar essas linhas no L1 (`loadFromDisk`) nem
+// do gateway. O Node não pode carregar essas linhas no L1 nem
 // regravá-las no SQLite: o L1 nasceria com uma fila velha e o flush sobrescreveria
 // o trabalho do Rust. O namespace continua em `NAMESPACE_VERSIONS` porque quem
 // monta a chave precisa da versão — o dono é que mudou.
