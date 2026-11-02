@@ -162,7 +162,7 @@ test('isSupportedHash é a MESMA guarda de 40 hex do núcleo', () => {
 });
 
 // Prefixo da versão VIVA de qualquer namespace de `RUST_OWNED` (para o teste de
-// L2 abaixo: chave fora da versão viva é apagada pelo `deleteStale` do boot).
+// L2 abaixo: chave fora da versão viva era apagada pela poda do boot, hoje do gateway).
 const liveKey = (ns: string) => `${prefix(ns as keyof typeof NAMESPACE_VERSIONS)}dono-rust`;
 
 // A guarda de escrita existe em `cache.set`/`setMany` (`cache.ts`: `isRustOwned

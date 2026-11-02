@@ -43,14 +43,13 @@
 // são duas chaves fixas (`cohort`, `last`), `notify:v1:<evento>` uma por
 // evento. `harvest` fica em 500 porque `harvest:v1:seen:<sha>` cresce por obra.
 // (O quarto, `dinv`, saiu na F2: sem escritor no Node e o oráculo nativo usa
-// memo em processo — o LEGACY_PREFIXES apaga o órfão no boot.)
+// memo em processo — a faxina do gateway apaga o órfão no boot.)
 //
-// DÍVIDA CONHECIDA — não "uniformizar" sem ler cache-db.ts: `indexer-status`
-// tem cota mas NÃO está em `NAMESPACE_VERSIONS`, porque monta a chave sem
-// segmento de versão, e o `maintain()` do boot
-// (src/utils/cache-db.ts:113-114) apaga todo `ns:%` que não bata com
-// `ns:<versão>:%`. Registrá-lo na lista sem migrar as chaves primeiro custa o
-// cache dele no próximo restart. `tmdb`/`tmdbc`/`meta` tinham cota pelo mesmo
+// DÍVIDA CONHECIDA — não "uniformizar" sem ler `boot_housekeeping` (kv.rs):
+// `indexer-status` tem cota mas NÃO está em `NAMESPACE_VERSIONS`, porque monta
+// a chave sem segmento de versão, e a faxina do gateway compara versão por
+// `ns:v<N>`. Registrá-lo na lista sem migrar as chaves primeiro é pedir para
+// perder o cache dele. `tmdb`/`tmdbc`/`meta` tinham cota pelo mesmo
 // motivo; saíram no passo 4 do corte do fallback (2026-10-31), quando os
 // escritores TS morreram.
 export const MAX_ENTRIES = 93000;

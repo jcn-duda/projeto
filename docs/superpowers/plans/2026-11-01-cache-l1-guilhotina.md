@@ -4,6 +4,11 @@
 > somente-leitura do Síndico. Estado: F1 (telemetria `usage` por namespace,
 > `5ed679a6`) pousada; a ordem acordada nas 5 frentes é L1 por último.
 
+> **Execução (2026-11-02):** F3 em `ea0c368a`; F4 pousou com um desvio. O plano
+> dizia que a expiração física passava ao `prune_expired`, mas só `fsz`/`tsz` o
+> chamam. Para não deixar `tmdb`/`meta`/legados sem poda, a F4 criou
+> `NativeKv::boot_housekeeping` no gateway.
+
 ## 0. Achado central
 
 **O L1 do Node está clinicamente morto em produção**: nenhum consumidor de

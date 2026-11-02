@@ -84,6 +84,19 @@ async fn run_gateway() {
         }
         Err(err) => eprintln!("[debrid] API interna não sobe: {err}"),
     }
+    // Faxina do cache.db em thread própria: o WAL pode segurar o DELETE e a
+    // porta 7000 não espera por ele. Falha só adia para o próximo boot.
+    std::thread::spawn(|| {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_millis() as i64);
+        let done = adom_store::NativeKv::open(&adom_store::default_cache_db_path())
+            .and_then(|kv| kv.boot_housekeeping(now_ms));
+        match done {
+            Ok(done) => println!("[gateway] faxina do cache.db: {done:?}"),
+            Err(err) => eprintln!("[gateway] faxina do cache.db falhou: {err}"),
+        }
+    });
     // Flush dos contadores `meta.*`: reidrata o deploy anterior e grava por
     // minuto. Independente do proxy — a 8710 pura não precisa dele.
     meta_metrics_flush::spawn_from_env();

@@ -195,8 +195,7 @@ const PERSISTENCE_SYNC_SCRIPT = [
   "assert.strictEqual(cache.get('k-b'), null, 'k-b esquecido no L1');",
   'assert.strictEqual(cache.size(), 2);',
   "const rowsAfterForget = dbVerify.prepare('SELECT key FROM cache ORDER BY key ASC').all();",
-  'assert.strictEqual(rowsAfterForget.length, 2);',
-  "assert.deepStrictEqual(rowsAfterForget.map(r => r.key), ['k-a', 'k-c']);",
+  "assert.deepStrictEqual(rowsAfterForget.map(r => r.key), ['k-a', 'k-b', 'k-c'], 'forget não apaga do arquivo (F4)');",
   '',
   'cache.clear();',
   'assert.strictEqual(cache.size(), 0);',
@@ -206,7 +205,7 @@ const PERSISTENCE_SYNC_SCRIPT = [
 ].join('\n');
 
 test(
-  'persistência e forget com statements pré-compilados: sincronia L1 (memória) e L2 (SQLite)',
+  'persist grava no SQLite, forget fica no L1 e clear trunca a tabela',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     runIsolatedCacheTest(PERSISTENCE_SYNC_SCRIPT);
@@ -236,7 +235,7 @@ const PRUNE_BATCH_SCRIPT = [
 ].join('\n');
 
 test(
-  'prune() e forgetMany(): remoção em lote via transação SQLite com statement pré-compilado',
+  'prune(): as chaves expulsas saem da fila e o disco recebe só o teto',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     runIsolatedCacheTest(PRUNE_BATCH_SCRIPT);

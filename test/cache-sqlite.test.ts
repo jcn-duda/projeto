@@ -23,7 +23,6 @@ try {
 // única (estado limpo); os filhos importam SEM query para compartilhar a
 // instância com o `./cache.js` interno do magnetdb.
 const CACHE_URL = new URL('../src/utils/cache.js', import.meta.url).href;
-const NATIVE_KV_URL = new URL('../src/utils/native-kv.js', import.meta.url).href;
 let cacheSeq = 0;
 const freshCache = (): Promise<any> => import(`${CACHE_URL}?fresh=${Date.now()}-${cacheSeq++}`);
 
@@ -65,8 +64,8 @@ function runIsolatedCacheTest(scriptContent: any) {
 const sleep = (ms: any) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('prune com janela de graça: expirado servível fica; graça zero volta ao corte duro', async () => {
-  // Sem esta janela o timer de 10 min apaga a entrada expirada antes de o
-  // refresh de fundo poder servi-la — o SWR morreria na prática.
+  // Sem esta janela o prune apaga a entrada expirada antes de o refresh de
+  // fundo poder servi-la — o SWR morreria na prática.
   const originalPersist = process.env.CACHE_PERSIST;
   const originalGrace = config.streamStaleGrace;
   try {
@@ -93,14 +92,10 @@ test('prune com janela de graça: expirado servível fica; graça zero volta ao 
   }
 });
 
-// ===========================================================================
-// Descarte de versões obsoletas e prefixos aposentados no boot
-// ===========================================================================
-// A versão de cada namespace vive num lugar só (cache-keys.js). Estes testes
-// garantem que a poda do boot apaga do DISCO (não só do L1) o que não bate com
-// a versão corrente: sem o DELETE no SQLite, a linha morta voltaria a ser
-// carregada no próximo restart e ocuparia cota por todo o TTL.
-const STREAMS_VERSION_DISCARD_SCRIPT = [
+// Desde a F4 da guilhotina o Node não poda o arquivo que divide com o gateway: a
+// faxina de versão, legado e vencido é do `NativeKv::boot_housekeeping`
+// (`kv_tests.rs`). Aqui a prova é a ausência: nem o boot nem o forget apagam.
+const NODE_NEVER_PRUNES_SCRIPT = [
   "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
   "const { DatabaseSync } = await import('node:sqlite');",
@@ -108,178 +103,25 @@ const STREAMS_VERSION_DISCARD_SCRIPT = [
   "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
   'const now = Date.now();',
-  "insert.run('streams:v7:movie:tt-antigo:{}:account:none', JSON.stringify({ streams: ['antigo'] }), now + 900000);",
-  "insert.run('streams:v8:movie:tt-meio:{}:account:none', JSON.stringify({ streams: ['meio'] }), now + 900000);",
-  "insert.run('streams:v9:movie:tt-novo:{}:account:none', JSON.stringify({ streams: ['novo'] }), now + 900000);",
-  "insert.run('streams:v10:movie:tt-pre-anterior:{}:account:none', JSON.stringify({ streams: ['pre-anterior'] }), now + 900000);",
-  "insert.run('streams:v11:movie:tt-v11:{}:account:none', JSON.stringify({ streams: ['v11'] }), now + 900000);",
-  "insert.run('streams:v12:movie:tt-anterior:{}:account:none', JSON.stringify({ streams: ['anterior'] }), now + 900000);",
-  "insert.run('streams:v13:movie:tt-prev:{}:account:none', JSON.stringify({ streams: ['prev'] }), now + 900000);",
-  "insert.run('streams:v14:movie:tt-quase:{}:account:none', JSON.stringify({ streams: ['quase'] }), now + 900000);",
-  "insert.run('streams:v15:movie:tt-anterior2:{}:account:none', JSON.stringify({ streams: ['anterior2'] }), now + 900000);",
-  "insert.run('streams:v21:movie:tt-atual:{}:account:none', JSON.stringify({ streams: ['atual'] }), now + 900000);",
+  "const keys = ['streams:v7:velho', 'rdc:v1:velho', 'raw1:legado', 'rdt:v1:orfao', 'tmdb:v1:vencido'];",
+  "for (const key of keys) insert.run(key, '1', now - 3600000);",
   'seed.close();',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  // TTL futuro: v7..v15 somem por serem versão morta, não por expirar.
-  // `streams` é Rust-owned na execução: v21 fica no disco, não sobe no L1.
-  "assert.strictEqual(cache.get('streams:v21:movie:tt-atual:{}:account:none'), null, 'v21 nao sobe no L1 (Rust-owned)');",
-  "assert.strictEqual(cache.get('streams:v15:movie:tt-anterior2:{}:account:none'), null, 'v15 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v14:movie:tt-quase:{}:account:none'), null, 'v14 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v13:movie:tt-prev:{}:account:none'), null, 'v13 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v12:movie:tt-anterior:{}:account:none'), null, 'v12 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v11:movie:tt-v11:{}:account:none'), null, 'v11 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v10:movie:tt-pre-anterior:{}:account:none'), null, 'v10 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v9:movie:tt-novo:{}:account:none'), null, 'v9 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v8:movie:tt-meio:{}:account:none'), null, 'v8 nao entra no L1');",
-  "assert.strictEqual(cache.get('streams:v7:movie:tt-antigo:{}:account:none'), null, 'v7 nao entra no L1');",
   '',
-  // Reabre o banco: o DELETE tem que ter corrido no SQLite, não só no Map.
+  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
+  "cache.forget('tmdb:v1:vencido');",
+  "cache.forgetMany(['raw1:legado']);",
+  'cache.prune();',
+  '',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v7:%' OR key LIKE 'streams:v8:%' OR key LIKE 'streams:v9:%' OR key LIKE 'streams:v10:%' OR key LIKE 'streams:v11:%' OR key LIKE 'streams:v12:%' OR key LIKE 'streams:v13:%' OR key LIKE 'streams:v14:%' OR key LIKE 'streams:v15:%'\").all();",
-  "assert.strictEqual(staleRows.length, 0, 'linhas streams:v7..v15 apagadas do disco');",
-  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'streams:v21:%'\").all();",
-  "assert.strictEqual(liveRows.length, 1, 'linha streams:v21 preservada no disco');",
+  "const left = dbVerify.prepare('SELECT key FROM cache').all().map((row) => row.key).sort();",
+  'assert.deepStrictEqual(left, [...keys].sort());',
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'descarte de versão obsoleta no disco — streams: v7..v20 somem, v21 fica no disco sem subir no L1',
+  'o Node não poda o cache.db: boot, forget e prune deixam todas as linhas',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => runIsolatedCacheTest(STREAMS_VERSION_DISCARD_SCRIPT),
-);
-
-// Mesmo contrato para o autofetch: a v2 (formato anterior ao cache-keys.js v3)
-// precisa sair do disco no boot, senão um marker antigo sobrevive ao restart e
-// segura vaga de autofetch sem nunca ser lido com a chave nova. A v3 do marker
-// é RUST_OWNED (KV nativo): a linha FICA no disco (é lida pelo NativeKv), mas
-// não sobe para o L1 do Node — o mesmo desenho de `streams:v21` acima.
-const AUTOFETCH_VERSION_DISCARD_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const now = Date.now();',
-  "insert.run('autofetch:v2:alldebrid:acc:abc123', JSON.stringify({ hash: 'abc123' }), now + 900000);",
-  "insert.run('autofetch:v3:m:alldebrid:acc:def456', JSON.stringify({ hash: 'def456' }), now + 900000);",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
-  "assert.strictEqual(cache.get('autofetch:v3:m:alldebrid:acc:def456'), null, 'autofetch v3 é Rust-owned: não sobe no L1');",
-  "assert.strictEqual(cache.get('autofetch:v2:alldebrid:acc:abc123'), null, 'autofetch v2 nao entra no L1');",
-  '',
-  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const staleRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v2:%'\").all();",
-  "assert.strictEqual(staleRows.length, 0, 'linha autofetch:v2 apagada do disco');",
-  "const liveRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'autofetch:v3:%'\").all();",
-  "assert.strictEqual(liveRows.length, 1, 'linha autofetch:v3 preservada no disco');",
-  'dbVerify.close();',
-].join('\n');
-
-test(
-  'descarte de versão obsoleta no disco — autofetch: v2 some, v3 fica no disco sem subir no L1',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => runIsolatedCacheTest(AUTOFETCH_VERSION_DISCARD_SCRIPT),
-);
-
-// Migração RD (G1): o ledger `rdc` ficou MISTURADO com o cache por título do
-// Torrentio (`rdc:v1:trt:...`) e com a fila do warmer (`rdc:v1:wq`) sob o v1.
-// Em v2 o ledger é só de hashes (título migrou para `rdt`, fila para `rdq`).
-// Este teste garante que o boot:
-//   * apaga TODOS os `rdc:v1:*` (limpeza única dos misses suspeitos, idempotente
-//     — não se repete porque a versão corrente já é v2);
-//   * preserva `rdc:v2` e `rdq:v1` (formatos novos não são lixo);
-//   * apaga `rdt:v1` — órfão desde a F2 da guilhotina (sem escritor nos dois
-//     lados; o oráculo nativo usa memo em processo), LEGACY_PREFIXES poda no boot.
-const RD_VERSION_DISCARD_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const now = Date.now();',
-  // Legado embutido no ledger: miss histórico suspeito + cache Torrentio + fila.
-  "insert.run('rdc:v1:aaaa', JSON.stringify({ s: 'miss', n: 23, at: now }), now + 900000);",
-  "insert.run('rdc:v1:trt:movie:ttantigo', JSON.stringify([['bbbbbbb', true]]), now + 900000);",
-  "insert.run('rdc:v1:wq', JSON.stringify([{ hash: 'ccccccc', score: 5, enqueuedAt: now }]), now + 900000);",
-  // Semeadura do rdt: prova da aposentadoria (F2) — órfão, o boot poda.
-  "insert.run('rdc:v2:ddddddd', JSON.stringify({ s: 'hit', n: 0, at: now }), now + 900000);",
-  "insert.run('rdt:v1:trt:movie:ttnovo', JSON.stringify([['eeeeeee', true]]), now + 900000);",
-  "insert.run('rdq:v1:wq', JSON.stringify([{ hash: 'fffffff', score: 7, enqueuedAt: now }]), now + 900000);",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  `const kv = await import(${JSON.stringify(NATIVE_KV_URL)});`,
-  '',
-  // Só os formatos novos sobem; o ledger `rdc` é Rust-owned (lê pela ponte).
-  "assert.strictEqual(cache.get('rdc:v2:ddddddd'), null, 'rdc:v2 não sobe ao L1 (é do KV nativo)');",
-  "assert.deepStrictEqual(kv.kvPeek('rdc:v2:ddddddd'), { s: 'hit', n: 0, at: now }, 'rdc:v2 segue legível pela ponte');",
-  "assert.strictEqual(cache.get('rdt:v1:trt:movie:ttnovo'), null, 'rdt aposentado (F2): órfão não sobe no L1');",
-  "assert.strictEqual(cache.get('rdc:v1:aaaa'), null, 'miss legado do ledger não entra no L1');",
-  "assert.strictEqual(cache.get('rdc:v1:wq'), null, 'fila legada embutida no v1 não entra no L1');",
-  '',
-  // O DELETE tem que ter corrido no SQLite, não só no Map.
-  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const rdcV1 = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdc:v1:%'\").all();",
-  "assert.strictEqual(rdcV1.length, 0, 'todo rdc:v1 apagado do disco (ledger + trt/wq legados)');",
-  "const rdcV2 = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdc:v2:%'\").all();",
-  "assert.strictEqual(rdcV2.length, 1, 'rdc:v2 preservado no disco');",
-  "const rdtRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdt:v1:%'\").all();",
-  "assert.strictEqual(rdtRows.length, 0, 'rdt:v1 órfão é podado do disco no boot (LEGACY_PREFIXES, F2)');",
-  "const rdqRows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'rdq:v1:%'\").all();",
-  "assert.strictEqual(rdqRows.length, 1, 'rdq:v1 (fila do warmer viva) preservado no disco');",
-  'dbVerify.close();',
-].join('\n');
-
-test(
-  'migração RD (G1): rdc v2 limpa o v1 inteiro (ledger+trt+wq) numa passada; rdq sobrevive e rdt aposentado é podado',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => runIsolatedCacheTest(RD_VERSION_DISCARD_SCRIPT),
-);
-
-// `raw1:` e `dinv1:` eram a versão colada no nome; hoje vivem como `raw:v1:` e
-// `dinv:v1:`. Elas NÃO caem no loop de namespace versionado (`raw1:...` não
-// casa `LIKE 'raw:%'`), então a limpeza precisa do loop de LEGACY_PREFIXES —
-// sem ele o lixo órfão ficaria no banco até expirar, ocupando cota. A linha
-// `raw:v1` fica como prova extra: dono no gateway (RUST_OWNED), ela não sobe no
-// L1 e a poda do boot não a toca.
-const LEGACY_PREFIX_DISCARD_SCRIPT = [
-  "import assert from 'node:assert';",
-  'delete process.env.CACHE_PERSIST;',
-  "const { DatabaseSync } = await import('node:sqlite');",
-  'const seed = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "seed.exec('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);');",
-  "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
-  'const now = Date.now();',
-  "insert.run('raw1:jackett:yts:movie:tt-x', JSON.stringify({ items: ['legado'] }), now + 900000);",
-  "insert.run('dinv1:alldebrid:acc', JSON.stringify({ ready: true }), now + 900000);",
-  "insert.run('raw:v1:jackett:yts:movie:tt-y', JSON.stringify({ items: ['gateway'] }), now + 900000);",
-  'seed.close();',
-  '',
-  `const cache = await import(${JSON.stringify(CACHE_URL)});`,
-  '',
-  // Os legados são lixo a ser varrido; o raw:v1 é do gateway e não entra no L1.
-  "assert.strictEqual(cache.get('raw:v1:jackett:yts:movie:tt-y'), null, 'raw:v1 (dono no gateway) nao sobe no L1');",
-  "assert.strictEqual(cache.get('raw1:jackett:yts:movie:tt-x'), null, 'raw1 nao entra no L1');",
-  "assert.strictEqual(cache.get('dinv1:alldebrid:acc'), null, 'dinv1 nao entra no L1');",
-  '',
-  'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
-  "const raw1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'raw1:%'\").all();",
-  "assert.strictEqual(raw1Rows.length, 0, 'prefixo legado raw1 apagado do disco');",
-  "const dinv1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'dinv1:%'\").all();",
-  "assert.strictEqual(dinv1Rows.length, 0, 'prefixo legado dinv1 apagado do disco');",
-  "const rawV1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'raw:v1:%'\").all();",
-  "assert.strictEqual(rawV1Rows.length, 1, 'raw:v1 continua no disco (a poda do Node nao toca dono estrangeiro)');",
-  'dbVerify.close();',
-].join('\n');
-
-test(
-  'prefixos aposentados no disco: raw1:/dinv1: somem do SQLite no boot, raw:v1 permanece intacto',
-  { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
-  () => runIsolatedCacheTest(LEGACY_PREFIX_DISCARD_SCRIPT),
+  () => runIsolatedCacheTest(NODE_NEVER_PRUNES_SCRIPT),
 );
 
 // A cota de 800 do `raw` agora é aplicada pelo RawCacheStore no gateway

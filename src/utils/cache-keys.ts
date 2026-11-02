@@ -3,7 +3,7 @@
 // `cache.js` (que abre SQLite e agenda timer no require).
 //
 // Namespaces cuja chave é `<ns>:<versão>:<resto>`. Bumpar AQUI é o que invalida
-// o formato antigo: o loadFromDisk apaga do disco tudo que não bate, em vez de
+// o formato antigo: a faxina do gateway apaga do disco a versão menor, em vez de
 // deixar a versão morta ocupando cota até expirar. Antes a versão vivia em dois
 // lugares e a do descarte ficou parada na v3 enquanto a chave já ia na v5.
 // streams v6: a guarda de ano pelo dn= do magnet (remake ≠ clássico) muda o
@@ -174,7 +174,7 @@ const NAMESPACE_VERSIONS = Object.freeze({
 // `raw:v1:` / `dinv:v1:` os antigos virariam namespaces órfãos ocupando a cota
 // padrão para sempre. `muri:` é a aposentadoria da URI por hash no cache: o
 // dono do dado passou a ser o banco permanente (acervo do gateway Rust, lido
-// pela ponte), e o prefixo legado é descartado no boot por aqui — sair de
+// pela ponte), e o prefixo legado é descartado pela faxina do gateway — sair de
 // `NAMESPACE_VERSIONS`
 // sozinho NÃO limpa o que já está no disco. `tsj:` é o julgamento do Jev
 // (runtime TypeSafe removido): sem o descarte, as entradas órfãs ocupariam o
@@ -344,7 +344,7 @@ const RUST_OWNED_PREFIXES = Object.freeze([
   prefix('rdq'),
   // Ledger do Real-Debrid: o prefixo (não o namespace) é o que bloqueia o
   // `get`/`peek` no L1 e o `set` do Node. `rdc:v1` legado não casa aqui de
-  // propósito — o boot já o apaga do disco (migração G1).
+  // propósito — a faxina do gateway o apaga do disco (migração G1).
   prefix('rdc'),
   // Lista de arquivos e total do torrent: o prefixo fecha o `get`/`peek` do L1
   // e o `set` do Node; quem grava e lê é a ponte (`file-sizes.ts`).

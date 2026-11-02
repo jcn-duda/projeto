@@ -6,6 +6,67 @@ use serde_json::json;
 use super::NativeKv;
 
 #[test]
+fn faxina_do_boot_apaga_velho_legado_e_vencido_sem_dono() {
+    let kv = NativeKv::open_memory().unwrap();
+    let now = 10_000_000;
+    let live = now + 1_000_000;
+    for (key, expires) in [
+        // Versão velha some mesmo sem ter vencido; versão atual e futura ficam.
+        ("rdc:v1:velho", live),
+        ("rdc:v2:atual", live),
+        ("rdc:v9:do-futuro", live),
+        ("idx:v1:dono-proprio", live),
+        // Legado do núcleo e aposentado na F2.
+        ("raw1:velho", live),
+        ("rdt:v1:orfao", live),
+        ("dinv:v1:orfao", live),
+        // Vencido: sem dono sai; com dono e permanente ficam.
+        ("tmdb:v1:vencido", now - 1),
+        ("tmdb:v1:vivo", live),
+        ("cfg:v1:permanente", 0),
+        ("adsub:v1:vencido-do-dono", now - 1),
+        ("metam:v1:counts", 0),
+    ] {
+        kv.lock()
+            .execute(
+                "INSERT INTO cache (key, value, expires_at) VALUES (?1, '1', ?2)",
+                rusqlite::params![key, expires],
+            )
+            .unwrap();
+    }
+
+    let done = kv.boot_housekeeping(now).unwrap();
+
+    assert_eq!(
+        done,
+        super::BootHousekeeping {
+            stale: 1,
+            legacy: 3,
+            expired: 1
+        }
+    );
+    let conn = kv.lock();
+    let mut stmt = conn.prepare("SELECT key FROM cache ORDER BY key").unwrap();
+    let left: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        left,
+        [
+            "adsub:v1:vencido-do-dono",
+            "cfg:v1:permanente",
+            "idx:v1:dono-proprio",
+            "metam:v1:counts",
+            "rdc:v2:atual",
+            "rdc:v9:do-futuro",
+            "tmdb:v1:vivo",
+        ]
+    );
+}
+
+#[test]
 fn ttl_zero_persiste_e_expirado_some_na_leitura() {
     let kv = NativeKv::open_memory().unwrap();
     kv.put_json("autofetch:q", &json!([1]), 0, 1_000).unwrap();

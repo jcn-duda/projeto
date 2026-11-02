@@ -57,8 +57,6 @@ function usage() {
   return { namespaces, _origem: 'amostra' as const };
 }
 
-let pruneTimer: ReturnType<typeof setInterval> | null = null;
-
 function evict(keys: string[]) {
   for (const key of keys) {
     // A cota cheia é o estado normal de um namespace quente. `cache.evicted`
@@ -76,7 +74,6 @@ function prune() {
   // ainda o serve enquanto o refresh de fundo revalida. O corte duro vale só
   // para o que passou da graça.
   const graceMs = maxGraceMs();
-  // Acumula e apaga uma vez só: o disco é o caro, a memória não.
   const dropped: any[] = [];
   for (const [key, hit] of store) {
     if (hit.expiresAt && now > hit.expiresAt + graceMs) {
@@ -377,18 +374,10 @@ function clearWhere(matches: (key: string) => boolean) {
 
 /** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */
 function close() {
-  if (pruneTimer) {
-    clearInterval(pruneTimer);
-    pruneTimer = null;
-  }
   persistence.close();
 }
 
 persistence.open();
-persistence.pruneOnBoot();
-// Expirado ocupa linha no banco mesmo sem ninguém ler a chave.
-pruneTimer = setInterval(prune, 10 * 60 * 1000);
-pruneTimer.unref();
 
 function l2Stats() { return persistence.l2Stats(); }
 
