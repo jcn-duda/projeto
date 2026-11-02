@@ -17,7 +17,6 @@ import type { CleanCore } from './rust-debrid-clean.js';
 import type { ReleaseIndexCore } from './rust-release-index.js';
 import type { AutofetchCore } from './rust-autofetch.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
-import type { RelevanceCore } from './rust-relevance.js';
 import type { IdxStoreNapi } from './release-index-store.js';
 import type { RawStoreNapi } from './raw-store-native.js';
 import type { NativeKvNapi } from './native-kv.js';
@@ -76,7 +75,7 @@ export type RawStoreCtor = new (dbPath: string) => RawStoreNapi;
 
 export type NativeKvCtor = new (dbPath: string) => NativeKvNapi;
 
-export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor; RawStore?: RawStoreCtor; NativeKv?: NativeKvCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore> & Partial<BankReadCore>;
+export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor; RawStore?: RawStoreCtor; NativeKv?: NativeKvCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<EpisodeSizeCore> & Partial<BankReadCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {

@@ -85,7 +85,11 @@ trabalho de código é em `src/`.
   casca TS deles (com `dedupeByHash`/`sortAndLimit`, `limitBy*`/
   `limitReservingBr` e o `toStremioStream`) saiu de `src/` na fase 1 e vive só
   no oráculo de teste (`test/helpers/pipeline-oracle/format.ts`), que chama o
-  núcleo pelo napi.
+  núcleo pelo napi. O barrel `src/utils/format.ts` e os wrappers de título,
+  áudio e nomes (`audio-quality`, `release-matching`, `matching-*`,
+  `search-names`…) foram para o mesmo oráculo: em `src/` ficam só
+  `title-normalization.ts` e `trackers.ts`. A imagem não leva `test/`, então
+  `src/` e `scripts/` não podem importar do oráculo; script chama `nativeCore`.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.
@@ -744,7 +748,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
 | Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
-| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank-native.ts`/`-transfer.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
+| Utils | `src/utils/` (`title-normalization.ts`, `trackers.ts`; `cache*.ts`, `magnetdb*.ts`, `magnet-bank-native.ts`/`-transfer.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |

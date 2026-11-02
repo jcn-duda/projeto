@@ -3,7 +3,7 @@
 // "Resident Evil" de 2002 — cobertura 2/3 e ano dentro do ±2.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterRelevantRaw } from '../src/utils/format.js';
+import { filterRelevantRaw } from './helpers/pipeline-oracle/format.js';
 
 const APOCALYPSE = { names: ['Resident Evil: Apocalypse', 'Resident Evil 2: Apocalipse'], year: 2004, isSeries: false };
 

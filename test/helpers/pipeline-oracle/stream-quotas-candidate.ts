@@ -1,6 +1,6 @@
-import type { StreamCandidate } from '../../types/domain.js';
+import type { StreamCandidate } from '../../../types/domain.js';
 import { UNKNOWN_QUALITY, qualityFromTitle } from './audio-quality.js';
-import { nativeCore } from './native-core.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 import { coreJson } from './native-json.js';
 
 const QUALITY_KEYS = ['2160p', '1080p', '720p', '480p', 'SD', UNKNOWN_QUALITY];

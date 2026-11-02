@@ -6,7 +6,7 @@ import assert from 'node:assert';
 // buscar "Fallout" trazia "Missão: Impossível – Efeito Fallout", "Fallout 4
 // (PC)" e "Cesium Fallout", que tomavam as vagas reservadas da fonte real.
 // Tudo aqui é puro — sem rede, sem servidor.
-import { matchesBrTitle } from '../src/utils/format.js';
+import { matchesBrTitle } from './helpers/pipeline-oracle/format.js';
 
 test('aceita o post BR real (prefixo + ano batendo)', () => {
   assert.equal(matchesBrTitle('Fallout 1ª Temporada (2024) WEB-DL [1080p DUBLADO]', 'Fallout', 2024), true);

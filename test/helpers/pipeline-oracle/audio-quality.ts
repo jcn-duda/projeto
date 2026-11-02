@@ -21,8 +21,8 @@
  * laço da conta): o custo é o regex em Rust, não a travessia, e a montagem do
  * array de objetos no lado JS ainda cobra a diferença. Chamada direta, SEM lote.
  */
-import config from '../config.js';
-import { nativeCore } from './native-core.js';
+import config from '../../../src/config.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de áudio/rótulo no `.node` (camelCase do napi-rs). */
 type AudioCore = {

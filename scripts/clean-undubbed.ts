@@ -38,8 +38,10 @@
  * A chave sai de DEBRID_API_KEY (.env) ou de --key. Nada é impresso dela.
  */
 import 'dotenv/config';
-import { audioBucket } from '../src/utils/audio-quality.js';
-import type { AudioBucket } from '../src/utils/audio-quality.js';
+import { nativeCore } from '../src/utils/native-core.js';
+
+type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
+const audioBucket = (title: string) => nativeCore<{ audioBucket(title: string): AudioBucket }>().audioBucket(title);
 
 const API = 'https://api.alldebrid.com/v4.1';
 const AGENT = 'stremio-adom';

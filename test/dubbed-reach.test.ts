@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../src/config.js';
-import { audioFromTitle } from '../src/utils/audio-quality.js';
+import { audioFromTitle } from './helpers/pipeline-oracle/audio-quality.js';
 import { record, lookup, clearIdxStore } from '../src/utils/release-index.js';
 import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';

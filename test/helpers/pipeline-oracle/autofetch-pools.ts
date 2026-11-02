@@ -5,9 +5,9 @@ import {
   hasExplicitForeignAudio,
   looksPtBr,
   hasPtSigns,
-} from '../../../src/utils/audio-quality.js';
-import { isSeasonPackRelease } from '../../../src/utils/episode-matching.js';
-import { streamQuality } from '../../../src/utils/stream-quotas-candidate.js';
+} from './audio-quality.js';
+import { isSeasonPackRelease } from './episode-matching.js';
+import { streamQuality } from './stream-quotas-candidate.js';
 
 interface PoolsOptions {
   season?: number | null;

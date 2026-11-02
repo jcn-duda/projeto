@@ -4,7 +4,7 @@
 // pela catraca de 400 linhas; a fábrica (`toStremioStream`) segue lá.
 import config from '../../../src/config.js';
 import { opts } from '../../../src/runtime.js';
-import { UNKNOWN_QUALITY, compactAudio, compactTracker, looksPtBr } from '../../../src/utils/audio-quality.js';
+import { UNKNOWN_QUALITY, compactAudio, compactTracker, looksPtBr } from './audio-quality.js';
 
 interface StreamDisplayOptions {
   title?: string;

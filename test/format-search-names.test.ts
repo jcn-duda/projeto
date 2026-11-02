@@ -14,7 +14,7 @@ import {
   resolveOriginalStepName,
   numeralSearchVariant,
   filterRelevantRaw,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 
 test('filmografia é palavra forte de pack; saga e "temporada completa" continuam fracas', () => {
   // Medido nos 1203 títulos prontos de uma conta real: "filmografia" aparece

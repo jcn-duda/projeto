@@ -5,7 +5,7 @@
 // a reserva.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { selectQualityCandidates } from '../src/utils/format.js';
+import { selectQualityCandidates } from './helpers/pipeline-oracle/format.js';
 import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 import type { Stream } from '../types/domain.js';
 

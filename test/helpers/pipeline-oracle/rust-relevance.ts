@@ -7,8 +7,8 @@
  * A lógica real vive em `adom_core` (com golden contra o TS do `esm`); aqui só
  * se monta a entrada e se traduz o código do motivo de volta para o rótulo.
  */
-import config from '../config.js';
-import { requireCore } from './rust-core.js';
+import config from '../../../src/config.js';
+import { requireCore } from '../../../src/utils/rust-core.js';
 
 // O napi-rs desta build expõe os campos em camelCase (índice.d.ts gerado), e
 // ausência é `undefined` — `null` não satisfaz `Option`.

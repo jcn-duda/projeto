@@ -9,7 +9,7 @@ import { inventory as oracleInventory } from './helpers/pipeline-oracle/inventor
 import debridCheck from './helpers/pipeline-oracle/debrid-check.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
-import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../src/utils/format.js';
+import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from './helpers/pipeline-oracle/format.js';
 // O pipeline TS de busca saiu (F4.4); a decisão de debrid que sobrevive aos
 // testes mora no oráculo congelado (`applyDebrid` do Node × núcleo nativo).
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';

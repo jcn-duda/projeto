@@ -10,7 +10,7 @@
  * mostra o laço por item de `jackett-query-indexer`/`stream-builder-pipeline`
  * abaixo do piso de 0,5 ms.
  */
-import { nativeCore } from './native-core.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de cobertura/franquia no `.node` (camelCase do napi-rs). */
 type NameMatchingCore = {

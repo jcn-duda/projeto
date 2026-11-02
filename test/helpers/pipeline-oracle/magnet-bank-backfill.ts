@@ -15,7 +15,7 @@
 // lotes de uma transação e a vez devolvida ao event loop entre eles — medido
 // no import: no volume do Windows um lote grande travava o processo.
 import { createRequire } from 'node:module';
-import { qualityFromTitle } from '../../../src/utils/audio-quality.js';
+import { qualityFromTitle } from './audio-quality.js';
 import { classifiedDubbed } from './magnet-bank-merge.js';
 import { assertSafeTestDb } from '../db-guard.js';
 

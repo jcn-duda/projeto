@@ -5,7 +5,7 @@
 // Movie, numeral e grafias de versão estendida.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
+import { filterRelevantRaw as relevantRaw } from './helpers/pipeline-oracle/format.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);

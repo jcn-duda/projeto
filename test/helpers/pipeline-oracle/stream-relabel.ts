@@ -2,7 +2,7 @@
 // /stream (F4.4); vive só para o oráculo congelado e os testes dele.
 // Remontagem do nome do vencedor do dedupe (herança BR/áudio/fonte).
 // Extraído de `stream-ranking.ts` pelo orçamento de 400 linhas.
-import { audioFromTitle, sourceFromTitle, editionFromTitle } from '../../../src/utils/audio-quality.js';
+import { audioFromTitle, sourceFromTitle, editionFromTitle } from './audio-quality.js';
 import { streamDisplayName } from './stream-display.js';
 
 /**

@@ -8,10 +8,10 @@ import {
   streamQuality,
   quotaStreamInput,
   selectQualityCandidates,
-} from '../../../src/utils/stream-quotas-candidate.js';
-import type { QualityLimits } from '../../../src/utils/stream-quotas-candidate.js';
+} from './stream-quotas-candidate.js';
+import type { QualityLimits } from './stream-quotas-candidate.js';
 import { nativeCore } from '../../../src/utils/native-core.js';
-import { coreJson } from '../../../src/utils/native-json.js';
+import { coreJson } from './native-json.js';
 
 /**
  * Funções do CORTE FINAL no `.node` (camelCase do napi-rs). A decisão inteira

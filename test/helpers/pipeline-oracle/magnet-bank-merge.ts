@@ -20,7 +20,7 @@
 import type { RawItem } from '../../../types/domain.js';
 import { extractInfoHash, magnetDisplayName } from '../../../src/utils/title-normalization.js';
 import { sanitizeMagnet, defaultMagnet } from '../../../src/utils/magnet-uri.js';
-import { sourceFromTitle, qualityFromTitle, audioFromTitle, explicitPtAudio, UNKNOWN_QUALITY } from '../../../src/utils/audio-quality.js';
+import { sourceFromTitle, qualityFromTitle, audioFromTitle, explicitPtAudio, UNKNOWN_QUALITY } from './audio-quality.js';
 
 export type MagnetInput = {
   hash: string; uri: string; title: string; size: number; isBr: boolean; dubbed: boolean;

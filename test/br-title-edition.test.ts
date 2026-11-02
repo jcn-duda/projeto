@@ -3,8 +3,8 @@ import assert from 'node:assert';
 
 // Edição do MESMO filme no post BR ("V.Exten", "Extended") não é outra obra.
 // Extraído de br-title.test.ts (teto de 400 linhas).
-import { matchesBrTitle } from '../src/utils/format.js';
-import { titleTokens } from '../src/utils/matching-vocabulary.js';
+import { matchesBrTitle } from './helpers/pipeline-oracle/format.js';
+import { titleTokens } from './helpers/pipeline-oracle/matching-vocabulary.js';
 
 test('edição estendida abreviada (V.Exten / Extended) não conta como outra obra', () => {
   // Apocalypse Now (2026-09-24): o post "V.Exten" caía a 0,67 de precisão.

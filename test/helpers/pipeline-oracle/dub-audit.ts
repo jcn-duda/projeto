@@ -9,7 +9,7 @@
 // (`adom-server::dub_audit`); este arquivo só preserva o passado.
 import config from '../../../src/config.js';
 import type { DebridAdapter, Stream, WorkHint } from '../../../types/domain.js';
-import { parseTitleSeasonEpisode } from '../../../src/utils/format.js';
+import { parseTitleSeasonEpisode } from './format.js';
 import { resolveLink } from './play/actions.js';
 import { rawAdapter } from './raw-adapter.js';
 import { magnetState } from '../../../src/utils/debrid-state-native.js';

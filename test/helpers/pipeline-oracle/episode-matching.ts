@@ -10,8 +10,8 @@
  * (corpus real do `magnets.db`), o laço por item dos chamadores
  * (episode-size, stream-quotas, autofetch-pools) custa <0,5 ms por ciclo.
  */
-import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js';
-import { nativeCore } from './native-core.js';
+import type { ParsedSeasonEpisode, StreamCandidate } from '../../../types/domain.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de matching de episódio no `.node` (camelCase do napi-rs). */
 type EpisodeMatchingCore = {

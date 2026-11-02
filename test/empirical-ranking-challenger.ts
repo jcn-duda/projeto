@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { sortAndLimit, dedupeByHash } from './helpers/pipeline-oracle/format.js';
-import { selectQualityCandidates } from '../src/utils/stream-quotas-candidate.js';
-import { UNKNOWN_QUALITY } from '../src/utils/audio-quality.js';
+import { selectQualityCandidates } from './helpers/pipeline-oracle/stream-quotas-candidate.js';
+import { UNKNOWN_QUALITY } from './helpers/pipeline-oracle/audio-quality.js';
 import type { StreamCandidate } from '../types/domain.js';
 
 console.log('===============================================================');

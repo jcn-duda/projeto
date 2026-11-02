@@ -87,7 +87,7 @@ const mutations = [
     // PONTE: o mutante inverte o retorno da chamada ao núcleo. O alvo segue o
     // arquivo que herda a lógica — atualização de alvo, não enfraquecimento.
     name: 'MUT-01: Invert matchesBrTitle (release-title-rules.js)',
-    file: 'dist/src/utils/release-title-rules.js',
+    file: 'dist/test/helpers/pipeline-oracle/release-title-rules.js',
     target: 'return core().matchesBrTitle(',
     replacement: 'return !core().matchesBrTitle(',
     // Capturado pelo tier1-title-cache (5.1/5.3): o alvo é a única saída positiva de matchesBrTitle.

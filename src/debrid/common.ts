@@ -1,5 +1,5 @@
 import config from '../config.js';
-import { TRACKERS } from '../utils/format.js';
+import { TRACKERS } from '../utils/trackers.js';
 import * as log from '../utils/logger.js';
 import { bankLookupUriNative } from '../utils/magnet-bank-native.js';
 export {

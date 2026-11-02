@@ -4,7 +4,7 @@
 // de 2026 e o play abria o filme de 2007.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterInventoryRelevant } from '../src/utils/format.js';
+import { filterInventoryRelevant } from './helpers/pipeline-oracle/format.js';
 
 const pack = (title: string, i: number) => ({ title, infoHash: String(i).padStart(40, 'a'), seeders: 1 });
 const SAGA = pack('Resident Evil Saga Completa (2002-2017) 1080p.H265 AC3 5.1 ITA.ENG sub ita.eng Sp33dy94-MIRCrew', 1);

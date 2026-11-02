@@ -1,4 +1,4 @@
-import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle, UNKNOWN_QUALITY } from '../../../src/utils/format.js';
+import { dubbedLieVerdict, audioFromTitle, strongEnSceneMark, qualityFromTitle, UNKNOWN_QUALITY } from './format.js';
 import { DubLieError, VIDEO_EXT, SAMPLE, isSiteAd, baseName } from '../../../src/debrid/common.js';
 import { looksMultiWorkFiles } from '../../../src/debrid/file-selector.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';

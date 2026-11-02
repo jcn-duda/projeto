@@ -5,8 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { filterRelevantRaw } from '../src/utils/release-filters.js';
-import { catalogYearOf, catalogAltYearOf } from '../src/utils/catalog-year.js';
+import { filterRelevantRaw } from './helpers/pipeline-oracle/release-filters.js';
+import { catalogYearOf, catalogAltYearOf } from './helpers/pipeline-oracle/catalog-year.js';
 import type { RawItem } from '../types/domain.js';
 
 const keep = (titles: Array<[string, boolean?]>, ctx: Record<string, unknown>) => {

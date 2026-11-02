@@ -26,7 +26,7 @@ import {
 
 import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
-import * as format from '../../src/utils/format.js';
+import * as format from '../helpers/pipeline-oracle/format.js';
 import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';

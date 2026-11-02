@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { titlePrecision } from '../src/utils/matching-tokens.js';
-import { titleTokens } from '../src/utils/matching-vocabulary.js';
-import { matchesBrTitle, TITLE_PRECISION_MIN, SERIES_TITLE_PRECISION_MIN } from '../src/utils/release-title-rules.js';
+import { titlePrecision } from './helpers/pipeline-oracle/matching-tokens.js';
+import { titleTokens } from './helpers/pipeline-oracle/matching-vocabulary.js';
+import { matchesBrTitle, TITLE_PRECISION_MIN, SERIES_TITLE_PRECISION_MIN } from './helpers/pipeline-oracle/release-title-rules.js';
 
 interface CorpusItem {
   title: string;
@@ -131,7 +131,7 @@ test('kill-switch: TITLE_PRECISION_TAIL_CUT=false reproduz pontuação de títul
   const { execSync } = await import('node:child_process');
   const code = `
     import config from './dist/src/config.js';
-    import { TITLE_PRECISION_MIN, matchesBrTitle } from './dist/src/utils/release-title-rules.js';
+    import { TITLE_PRECISION_MIN, matchesBrTitle } from './dist/test/helpers/pipeline-oracle/release-title-rules.js';
     import assert from 'node:assert/strict';
 
     assert.equal(config.search?.titlePrecisionTailCut, false);

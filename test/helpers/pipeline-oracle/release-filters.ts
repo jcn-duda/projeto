@@ -1,4 +1,4 @@
-import type { RawItem, MultiWorkCollection } from '../../types/domain.js';
+import type { RawItem, MultiWorkCollection } from '../../../types/domain.js';
 import {
   buildRelevanceQuery,
   rustFilterInventoryRelevant,

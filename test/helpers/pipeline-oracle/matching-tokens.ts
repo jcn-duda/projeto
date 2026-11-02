@@ -11,7 +11,7 @@
  * (corpus real do `magnets.db`), o laço por item dos chamadores custa <0,5 ms
  * por ciclo — o mesmo piso que decidiu G1/G2.
  */
-import { nativeCore } from './native-core.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de tokens/decisões no `.node` (camelCase do napi-rs). */
 type TokensCore = {

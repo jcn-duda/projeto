@@ -26,7 +26,7 @@ import {
   matchesShortNameIdentity,
   shortNameIdentity,
   nameCoverageTokens,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 
 const BOYS = { names: ['The Boys'], year: 2019, isSeries: true };

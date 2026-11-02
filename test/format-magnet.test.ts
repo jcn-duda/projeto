@@ -10,7 +10,7 @@ import {
   bytesToSize,
   magnetYearContradicts,
   filterRelevantRaw as relevantRaw,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);

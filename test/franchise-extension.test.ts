@@ -4,7 +4,7 @@
 // corta só as 4 do Vendetta.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterRelevantRaw } from '../src/utils/format.js';
+import { filterRelevantRaw } from './helpers/pipeline-oracle/format.js';
 
 const keep = (title: string, names: string[], year: number) =>
   filterRelevantRaw([{ title, infoHash: 'a'.repeat(40), seeders: 5, indexer: 'nyaasi', isBr: false }], { names, year, isSeries: false }).length === 1;

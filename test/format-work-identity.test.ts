@@ -5,7 +5,7 @@
 // inverso/duplo e universos multilíngues.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { matchesEpisodeWorkIdentity } from '../src/utils/format.js';
+import { matchesEpisodeWorkIdentity } from './helpers/pipeline-oracle/format.js';
 
 // -----------------------------------------------------------------------------
 // T2 (Tarefa 3.2): Identidade de Obra em Episódio (matchesEpisodeWorkIdentity)

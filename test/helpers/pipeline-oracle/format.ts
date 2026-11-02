@@ -12,3 +12,66 @@ export type { LimitBrOptions } from './stream-quotas.js';
 export { toStremioStream } from './to-stremio-stream.js';
 export { buildRankingInput, rustSortAndLimit, rustDedupeByHash } from './rust-stream-ranking.js';
 export type { RankingCore, RankingInputNapi, RankingOutputNapi, SortOptionsLike } from './rust-stream-ranking.js';
+
+// Vocabulário de títulos/áudio/nomes: o antigo barrel de `src/utils/format.ts`.
+// A régua decide no núcleo; estes wrappers só servem à suíte.
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics } from '../../../src/utils/title-normalization.js';
+
+export {
+  matchesEpisode,
+  parseTitleSeasonEpisode,
+  seasonCoverageExcludes,
+  isSeasonPackRelease,
+  isSeasonPackFillEligible,
+} from './episode-matching.js';
+
+export {
+  matchesName,
+  nameCoverageTokens,
+  matchesShortNameIdentity,
+  shortNameIdentity,
+  matchesBrTitle,
+  matchesEpisodeWorkIdentity,
+  matchesGlobalSeriesNoMarker,
+  isMultiWorkCollection,
+  franchiseRoot,
+  endsWithSequenceMarker,
+  containsTokenRun,
+  filterInventoryRelevant,
+  filterRelevantRaw,
+  magnetYearContradicts,
+  magnetSeasonContradicts,
+} from './release-matching.js';
+
+export {
+  UNKNOWN_QUALITY,
+  stripQualityTagBlob,
+  qualityFromTitle,
+  sourceFromTitle,
+  editionFromTitle,
+  explicitPtAudio,
+  hasPtAudioMark,
+  strongEnSceneMark,
+  dubbedLieVerdict,
+  audioFromTitle,
+  hasExplicitForeignAudio,
+  looksPtBr,
+} from './audio-quality.js';
+
+export {
+  QUALITY_KEYS,
+  streamQuality,
+  selectQualityCandidates,
+} from './stream-quotas-candidate.js';
+
+export {
+  TRACKERS,
+  markDebridName,
+  matchesQualityFilter,
+  passesQualityFilter,
+  resolveSearchNames,
+  resolveOriginalStepName,
+  parseStremioId,
+  buildSearchQuery,
+  numeralSearchVariant,
+} from './search-names.js';

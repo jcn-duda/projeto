@@ -23,8 +23,8 @@
  * `matchesBrTitle`/`cut_tail`. Medição do laço em `tmp/g3-measure.mjs`: chamada
  * direta, SEM lote (o lote de sondas perde — ver audio-quality.ts).
  */
-import config from '../config.js';
-import { nativeCore } from './native-core.js';
+import config from '../../../src/config.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de auditoria no `.node` (camelCase do napi-rs). */
 type AudioCleanupCore = {

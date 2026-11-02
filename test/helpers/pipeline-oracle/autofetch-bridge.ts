@@ -50,7 +50,7 @@ import type { DebridAdapter, Stream } from '../../../types/domain.js';
 import { opts } from '../../../src/runtime.js';
 import { accountScope } from '../../../src/utils/request-key.js';
 import autofetchLive from '../../../src/utils/autofetch-live.js';
-import { isSeasonPackFillEligible, streamQuality } from '../../../src/utils/format.js';
+import { isSeasonPackFillEligible, streamQuality } from './format.js';
 import {
   canAutoFetchBr,
   cachedBrDubbedTargetQualities,

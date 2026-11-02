@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import {
   audioBucket, audioFromTitle, looksPtBr, foreignVerdict, hasExplicitForeignAudio,
   hasPtAudioMark, dubbedLieVerdict,
-} from '../src/utils/audio-quality.js';
+} from './helpers/pipeline-oracle/audio-quality.js';
 import { classifyByTitle } from './helpers/pipeline-oracle/catalog-classify.js';
 
 const SERENITY = 'Serenity.2023.1080p.WEBRip.x264 [Dual Audio] [Hindi DD 5.1] [HDRip-1337x][TorrentCounter].mkv';

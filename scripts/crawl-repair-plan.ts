@@ -42,9 +42,17 @@
 //
 // Idempotência: linha já na locação certa não gera ação; título já saneado
 // não muda; linha excluída não existe na segunda passada.
-import { parseTitleSeasonEpisode } from '../src/utils/episode-matching.js';
-import { liveActionYearContradicts } from '../src/utils/matching-tokens.js';
+import type { ParsedSeasonEpisode } from '../types/domain.js';
+import { nativeCore } from '../src/utils/native-core.js';
 import { decodeEntities } from '../src/utils/title-normalization.js';
+
+type RepairCore = {
+  parseTitleSeasonEpisode(title: string): ParsedSeasonEpisode;
+  liveActionYearContradictsNapi(text: string, premiereYear: string): boolean;
+};
+const parseTitleSeasonEpisode = (title: string) => nativeCore<RepairCore>().parseTitleSeasonEpisode(title);
+const liveActionYearContradicts = (text: string, premiere: number | string) => (
+  nativeCore<RepairCore>().liveActionYearContradictsNapi(text, String(premiere)));
 
 /**
  * Ordinal com entidade DESTRUÍDA ("4ordf", "4#170") de volta a "4ª"/"4º". A

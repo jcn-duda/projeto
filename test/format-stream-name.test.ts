@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
-import { markDebridName } from '../src/utils/format.js';
+import { markDebridName } from './helpers/pipeline-oracle/format.js';
 import { streamDisplayName, toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 

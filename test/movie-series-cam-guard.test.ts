@@ -10,11 +10,11 @@
 //   (notCam só olhava s.title).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
-import { sourceFromTitle } from '../src/utils/audio-quality.js';
-import { yearContradicts } from '../src/utils/matching-tokens.js';
-import { magnetYearContradicts } from '../src/utils/episode-matching.js';
-import { titleTokens } from '../src/utils/matching-vocabulary.js';
+import { filterRelevantRaw as relevantRaw } from './helpers/pipeline-oracle/format.js';
+import { sourceFromTitle } from './helpers/pipeline-oracle/audio-quality.js';
+import { yearContradicts } from './helpers/pipeline-oracle/matching-tokens.js';
+import { magnetYearContradicts } from './helpers/pipeline-oracle/episode-matching.js';
+import { titleTokens } from './helpers/pipeline-oracle/matching-vocabulary.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);

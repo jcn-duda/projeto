@@ -1,5 +1,5 @@
 import type { Stream } from '../../../types/domain.js';
-import { isSeasonPackRelease, parseTitleSeasonEpisode, UNKNOWN_QUALITY } from '../../../src/utils/format.js';
+import { isSeasonPackRelease, parseTitleSeasonEpisode, UNKNOWN_QUALITY } from './format.js';
 import { hasFileSizes } from '../../../src/debrid/file-sizes.js';
 import { rustAnnotateEpisodeSizes } from '../../../src/utils/rust-episode-size.js';
 import type { StreamTraceState } from '../../../src/utils/stream-trace.js';

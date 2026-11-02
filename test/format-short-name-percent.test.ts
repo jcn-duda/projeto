@@ -14,7 +14,7 @@ import assert from 'node:assert';
 import {
   matchesShortNameIdentity,
   shortNameIdentity,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 
 const LEGITIMOS = [
   '3.Percent.S01E01.1080p.WEB-DL',

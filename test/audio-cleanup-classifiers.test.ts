@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   audioBucket, dubbedLieVerdict, hasPtSigns, audioFromTitle, looksPtBr, foreignVerdict,
-} from '../src/utils/audio-quality.js';
+} from './helpers/pipeline-oracle/audio-quality.js';
 
 // Regressão dos consertos de classificador da Fase 0 (catálogo + limpador BR).
 // Os casos vêm de medição real: 19 de 20 títulos BR sem acento caíam no balde

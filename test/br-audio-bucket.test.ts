@@ -5,7 +5,7 @@ import assert from 'node:assert';
 // test/br-title.test.ts na divisão temática (teto 400 linhas): aquele arquivo
 // é do filtro estrito de TÍTULO (matchesBrTitle), este é da classificação de
 // ÁUDIO, que decide vaga reservada e o que a limpeza pode tocar.
-import { audioBucket, hasPtSigns } from '../src/utils/audio-quality.js';
+import { audioBucket, hasPtSigns } from './helpers/pipeline-oracle/audio-quality.js';
 
 test('audioBucket: dublado explícito cai no balde dub', () => {
   assert.equal(audioBucket('Coringa (2019) BluRay [1080p DUBLADO]'), 'dub');

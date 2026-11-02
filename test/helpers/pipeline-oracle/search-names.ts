@@ -1,5 +1,6 @@
-import type { StreamCandidate } from '../../types/domain.js';
-import { normalizeTitle, dedupeNames } from './title-normalization.js';
+import type { StreamCandidate } from '../../../types/domain.js';
+import { normalizeTitle, dedupeNames } from '../../../src/utils/title-normalization.js';
+import { TRACKERS } from '../../../src/utils/trackers.js';
 import { LEADING_ARTICLES } from './release-matching.js';
 import { catalogYearOf, catalogAltYearOf } from './catalog-year.js';
 import {
@@ -17,15 +18,6 @@ interface SeasonEpisodeOptions {
   season?: number | null;
   episode?: number | null;
 }
-
-const TRACKERS = [
-  'udp://tracker.opentrackr.org:1337/announce',
-  'udp://open.stealth.si:80/announce',
-  'udp://tracker.torrent.eu.org:451/announce',
-  'udp://exodus.desync.com:6969/announce',
-  'udp://open.demonii.com:1337/announce',
-  'udp://tracker.openbittorrent.com:6969/announce',
-];
 
 /**
  * Prefixo no formato do Torrentio, com ⚡ no lugar do "+": a sigla é do DEBRID,

@@ -19,8 +19,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { looksPtBr, audioFromTitle, hasExplicitForeignAudio } from '../src/utils/audio-quality.js';
-import { brOriginMark } from '../src/utils/br-origin.js';
+import { looksPtBr, audioFromTitle, hasExplicitForeignAudio } from './helpers/pipeline-oracle/audio-quality.js';
+import { brOriginMark } from './helpers/pipeline-oracle/br-origin.js';
 
 interface Entrada {
   t: string;

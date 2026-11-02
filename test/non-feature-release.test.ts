@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
-import { filterRelevantRaw } from '../src/utils/release-filters.js';
+import { filterRelevantRaw } from './helpers/pipeline-oracle/release-filters.js';
 import type { RawItem } from '../types/domain.js';
 
 const NOW = Date.parse('2026-10-05T12:00:00Z');

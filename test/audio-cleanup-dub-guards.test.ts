@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   audioBucket, audioFromTitle, looksPtBr, foreignVerdict,
   hasExplicitForeignAudio, hasPtAudioMark,
-} from '../src/utils/audio-quality.js';
+} from './helpers/pipeline-oracle/audio-quality.js';
 import config from '../src/config.js';
 import { patch } from './helpers/stub.js';
 

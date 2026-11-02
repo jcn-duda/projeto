@@ -1,4 +1,4 @@
-import { nativeCore } from './native-core.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 // Vocabulário fechado de tokens e marcas usados pelo matching de releases — e
 // só ele. A DECISÃO mora no núcleo (`adom-core::matching_vocabulary`, com

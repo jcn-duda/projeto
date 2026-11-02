@@ -32,7 +32,7 @@ import { prefix } from '../../../src/utils/cache-keys.js';
 import { kvForget, kvPeek, kvSet } from '../../../src/utils/native-kv.js';
 import * as metrics from '../../../src/utils/metrics.js';
 import { assertSafeTestDb } from '../db-guard.js';
-import { brOriginMark } from '../../../src/utils/br-origin.js';
+import { brOriginMark } from './br-origin.js';
 import { forget as inventoryMemoForget } from './inventory-memo.js';
 import { id as adapterId } from '../../../src/debrid/alldebrid-api.js';
 

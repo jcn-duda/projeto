@@ -1,5 +1,5 @@
 import type { Stream, DebridAdapter } from '../../../types/domain.js';
-import { sourceFromTitle } from '../../../src/utils/audio-quality.js';
+import { sourceFromTitle } from './audio-quality.js';
 import { dropTrace } from '../../../src/utils/stream-trace.js';
 import type { StreamTraceState, TraceReason } from '../../../src/utils/stream-trace.js';
 import {
@@ -11,9 +11,9 @@ import {
   fallbackBlocked,
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
-import { streamQuality } from '../../../src/utils/stream-quotas-candidate.js';
+import { streamQuality } from './stream-quotas-candidate.js';
 import { nativeCore } from '../../../src/utils/native-core.js';
-import { coreJson } from '../../../src/utils/native-json.js';
+import { coreJson } from './native-json.js';
 
 interface AutofetchOptions {
   autoFetchBr?: boolean;

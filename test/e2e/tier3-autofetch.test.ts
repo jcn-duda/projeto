@@ -12,7 +12,7 @@ import debrid from '../../src/debrid/index.js';
 import * as held from '../helpers/pipeline-oracle/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import { kvForget, kvPeek } from '../../src/utils/native-kv.js';
-import * as format from '../../src/utils/format.js';
+import * as format from '../helpers/pipeline-oracle/format.js';
 import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';

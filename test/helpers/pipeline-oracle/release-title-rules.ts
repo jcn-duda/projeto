@@ -11,8 +11,8 @@
  *
  * Regra de ouro: chamada direta SEM lote (medido em `tmp/g5-measure.mjs`).
  */
-import config from '../config.js';
-import { nativeCore } from './native-core.js';
+import config from '../../../src/config.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 // Calibrado nos casos reais deste repo com o corte de cauda na medição da obra
 // (titlePrecision com cutTail=true): releases legítimas sobem para ~1.00 e o

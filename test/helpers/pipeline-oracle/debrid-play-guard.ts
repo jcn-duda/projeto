@@ -37,7 +37,7 @@
  */
 import type { Stream } from '../../../types/domain.js';
 import { nativeCore } from '../../../src/utils/native-core.js';
-import { coreJson } from '../../../src/utils/native-json.js';
+import { coreJson } from './native-json.js';
 
 export type PlayDisposition = 'resolve' | 'p2p' | 'drop';
 

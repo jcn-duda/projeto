@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coreJson } from '../src/utils/native-json.js';
+import { coreJson } from './helpers/pipeline-oracle/native-json.js';
 
 /**
  * A fronteira napi usa `serde_json`, que RECUSA `\ud800` de surrogate órfão.

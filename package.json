@@ -348,7 +348,6 @@
     "test/release-index-miss-season.test.js",
     "test/release-index-tracker.test.js",
     "test/release-index.test.js",
-    "test/release-work-ep4.test.js",
     "test/request-key.test.js",
     "test/runtime.test.js",
     "test/rust-on-decisions.test.js",

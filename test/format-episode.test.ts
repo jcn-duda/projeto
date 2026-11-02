@@ -10,7 +10,7 @@ import {
   seasonCoverageExcludes,
   dubbedLieVerdict,
   decodeEntities,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 
 test('auditoria conservadora dos cinco packs reais de True Detective', () => {
   const promised = true;

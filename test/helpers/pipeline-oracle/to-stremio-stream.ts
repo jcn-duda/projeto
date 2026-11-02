@@ -2,11 +2,11 @@
 // /stream (F4.4); vive só para o oráculo congelado e os testes dele.
 import type { RawItem, Stream } from '../../../types/domain.js';
 import { extractInfoHash, decodeEntities, bytesToSize, magnetDisplayName } from '../../../src/utils/title-normalization.js';
-import { isMultiWorkCollection } from '../../../src/utils/release-matching.js';
-import { UNKNOWN_QUALITY, qualityFromTitle, sourceFromTitle, audioFromTitle, editionFromTitle, explicitPtAudio, looksPtBr, stripQualityTagBlob } from '../../../src/utils/audio-quality.js';
-import { dnContradictsDubClaim, enSceneMirrorTitle, foreignLangNamedForBucket } from '../../../src/utils/audio-cleanup.js';
+import { isMultiWorkCollection } from './release-matching.js';
+import { UNKNOWN_QUALITY, qualityFromTitle, sourceFromTitle, audioFromTitle, editionFromTitle, explicitPtAudio, looksPtBr, stripQualityTagBlob } from './audio-quality.js';
+import { dnContradictsDubClaim, enSceneMirrorTitle, foreignLangNamedForBucket } from './audio-cleanup.js';
 import { streamDisplayName } from './stream-display.js';
-import { TRACKERS } from '../../../src/utils/search-names.js';
+import { TRACKERS } from './search-names.js';
 
 const UNKNOWN_SIZE_MAX = 1024;
 

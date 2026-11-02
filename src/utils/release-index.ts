@@ -18,7 +18,7 @@
 // 4. `seeders` é foto datada (`seenAt`), não verdade corrente.
 import config from '../config.js';
 import * as metrics from './metrics.js';
-import { extractInfoHash } from './format.js';
+import { extractInfoHash } from './title-normalization.js';
 import { quotaFor } from './cache-quotas.js';
 import { bankRowsForMediaSource } from './release-index-media.js';
 import { bankRowsNapi } from './rust-release-index.js';

@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeTitle, stripDiacritics, filterRelevantRaw } from '../src/utils/format.js';
+import { normalizeTitle, stripDiacritics, filterRelevantRaw } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 
 test('normalizeTitle dobra letras latinas sem decomposição para ASCII', () => {

@@ -14,7 +14,7 @@
  * Módulo-folha via `nativeCore`: quem nos alimenta (`audio-quality`,
  * `audio-cleanup`) não pode fechar ciclo com `rust-core`.
  */
-import { nativeCore } from './native-core.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
 
 /** Funções de origem no `.node` (camelCase do napi-rs). */
 type OriginCore = {

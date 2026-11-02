@@ -12,7 +12,7 @@ import {
   matchesGlobalSeriesNoMarker,
   filterRelevantRaw as relevantRaw,
   magnetSeasonContradicts,
-} from '../src/utils/format.js';
+} from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 
 const HASH = 'a'.repeat(40);

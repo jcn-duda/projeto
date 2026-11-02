@@ -1,4 +1,4 @@
-import { normalizeTitle } from '../utils/format.js';
+import { normalizeTitle } from '../utils/title-normalization.js';
 import { requireCore } from '../utils/rust-core.js';
 import * as metrics from '../utils/metrics.js';
 import type { MaybeError } from './common.js';

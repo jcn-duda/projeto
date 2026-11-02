@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { normalizeTitle, collapseAcronyms } from '../src/utils/title-normalization.js';
-import { buildSearchQuery } from '../src/utils/search-names.js';
+import { buildSearchQuery } from './helpers/pipeline-oracle/search-names.js';
 
 test('sigla com ponto vira uma palavra nos dois lados', () => {
   assert.equal(normalizeTitle('G.O.R.A.'), 'gora');

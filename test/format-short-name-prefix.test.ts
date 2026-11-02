@@ -5,7 +5,7 @@
 // teto de 400 linhas.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
+import { filterRelevantRaw as relevantRaw } from './helpers/pipeline-oracle/format.js';
 
 const withDn = (title: string, dn: string) => ({
   title,

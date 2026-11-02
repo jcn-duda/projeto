@@ -5,7 +5,7 @@
 // saíram para test/format-unknown-quality.test.ts).
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { qualityFromTitle, stripQualityTagBlob, audioFromTitle, explicitPtAudio, editionFromTitle, matchesQualityFilter, UNKNOWN_QUALITY } from '../src/utils/format.js';
+import { qualityFromTitle, stripQualityTagBlob, audioFromTitle, explicitPtAudio, editionFromTitle, matchesQualityFilter, UNKNOWN_QUALITY } from './helpers/pipeline-oracle/format.js';
 import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 

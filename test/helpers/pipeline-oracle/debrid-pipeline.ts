@@ -14,7 +14,7 @@
 // validado no núcleo Rust; este arquivo preserva o oráculo dos testes.
 import config from '../../../src/config.js';
 import type { Stream } from '../../../types/domain.js';
-import { markDebridName } from '../../../src/utils/format.js';
+import { markDebridName } from './format.js';
 import {
   filterKnownCache,
 } from './autofetch-ranking.js';
