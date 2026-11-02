@@ -7,13 +7,13 @@
 //!
 //! O valor é sempre **evidência medida**, nunca inferência: `1` = o debrid
 //! confirmou que o hash está pronto, `0` = o serviço (ou o play) acabou de
-//! provar que não está. Positivo e negativo têm TTLs próprios (`availPosTtl` /
-//! `availNegTtl` no TS) e `ttl <= 0` **desliga** a janela: nada é gravado — o
-//! mesmo contrato do `cache.setMany` do Node (`DEBRID_AVAIL_NEG_TTL=0` é a
-//! forma documentada de o negativo sempre voltar à rede). `expires_at = 0`
-//! também não sobrevive ao boot do Node, que o apaga junto com os vencidos
-//! (`DELETE FROM cache WHERE expires_at <= now`), então "permanente" nem
-//! existiria de fato.
+//! provar que não está. O ÚNICO escritor de produção é o play nativo
+//! (`note_unavailable`, `play_effects_native_writes.rs`): grava SÓ o negativo,
+//! com o TTL lido direto do env `DEBRID_AVAIL_NEG_TTL` (default 120 s), e o
+//! gate `ttl <= 0` **desliga** a janela: nada é gravado. O positivo medido de
+//! produção vai para `mag:alive` — davail=1 só nasce no oráculo de teste. A
+//! poda do Node não toca no namespace (`RUST_OWNED` nos guardas de dono do
+//! `cache-db.ts`).
 //!
 //! Hash vazio não é chave: `put`/`put_many` recusam e `get`/`get_many`
 //! respondem ausência, como o `!infoHash` do `noteAvailable`/`noteUnavailable`

@@ -22,7 +22,8 @@
 //! DESCONHECIDO devolve `Err` para o chamador cair na reserva Node.
 //!
 //! Sem log de chave, título ou corpo. Nada é gravado: memo, davail e banco de
-//! magnets continuam no chamador (o Node segue dono desses efeitos).
+//! magnets são efeitos do chamador (o `davail` só é escrito pelo play nativo,
+//! negativo, via `DavailStore`; o `mag`, pelo mesmo aplicador).
 
 use std::time::Duration;
 

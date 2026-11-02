@@ -6,7 +6,7 @@ use adom_core::{play_disposition, PlayDisposition, PlayFacts, RankingStream};
 /// `resolve_uncached` já chega depurado por disponibilidade/`Unusable` — o
 /// núcleo continua sendo a única régua de P2P × `/resolve` × drop. Em
 /// `Unusable` o ⚡ também é descartado: o Node devolve a lista inteira como
-/// P2P (a conta não responde, nem para o que o memo/`davail` confirmou).
+/// P2P (a conta não responde, nem para o que o memo do check confirmou).
 pub(super) fn disposition_of(
     stream: &RankingStream,
     degraded: bool,

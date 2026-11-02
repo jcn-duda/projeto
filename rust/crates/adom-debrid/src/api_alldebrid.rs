@@ -1,9 +1,9 @@
 //! Play da AllDebrid na rota interna `/debrid/link`.
 //!
 //! Checagem, conta e `/debrid/files` continuam 501. Sem log de chave ou magnet.
-//! A resposta leva os efeitos que o TS grava no próprio processo e que o Node
-//! aplica: `unavailable` (davail=0 do frio) e `files` (prova de áudio,
-//! resolução e tamanho).
+//! A resposta leva os efeitos que o aplicador nativo (`play_effects_native`)
+//! grava: `unavailable` (negativo do `davail`, TTL `DEBRID_AVAIL_NEG_TTL`) e
+//! `files` (prova de áudio, resolução e tamanho).
 
 use std::time::Duration;
 

@@ -339,8 +339,16 @@ const clearAutofetchNative = () => kvClearPrefix(prefix('autofetch'));
 // o MESMO cache.db (`adsub`/`adprot`/`adhold`/`adrm`/`rdc`/`fsz`/`tsz`).
 // `harvest`/`rdq` ficam de fora de propósito: dono vivo é o gateway (worker com
 // fila e journal próprios) — quem zera é a admin dele, não esta ponte.
+// `davailState()`/`magnetState()` lançam se o napi não expõe a classe (ponte
+// ausente): a ação do painel degrada (log + 0) em vez de derrubar o processo —
+// o L1 já foi limpo acima; o disco fica para o próximo clear.
+const stateClear = (label: string, clear: () => number) => (): number => {
+  try { return clear(); } catch (err) { console.error(`[cache] clear ${label} sem ponte nativa:`, err); return 0; }
+};
+
 const nativeClears: Record<string, () => number> = {
-  idx: clearIdxStore, raw: clearRawStore, davail: () => davailState().clear(), mag: () => magnetState().clear(), autofetch: clearAutofetchNative,
+  idx: clearIdxStore, raw: clearRawStore, autofetch: clearAutofetchNative,
+  davail: stateClear('davail', () => davailState().clear()), mag: stateClear('mag', () => magnetState().clear()),
   adsub: () => kvClearPrefix(prefix('adsub')), adprot: () => kvClearPrefix(prefix('adprot')), adhold: () => kvClearPrefix(prefix('adhold')),
   adrm: () => kvClearPrefix(prefix('adrm')), rdc: () => kvClearPrefix(prefix('rdc')),
   fsz: () => kvClearPrefix(prefix('fsz')), tsz: () => kvClearPrefix(prefix('tsz')),

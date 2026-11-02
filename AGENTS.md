@@ -570,6 +570,18 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `RUST_OWNED` na Fase 1 do warmer: `rdq:v1:wq`/`rdq:v1:hour` e o intent
   `rdq:v1:uncertain|owned` são do Rust, e o Node não grava `rdq` no L1/SQLite.
 - **`idx:v14` tem um dono só (o Rust).** O Node acessa por `IdxStore` (napi síncrono, `src/utils/release-index-store.ts`) e não grava o `idx:` no L1 nem no SQLite. O boot não carrega nem apaga linhas `idx`; `cache.clear()` e `clearNamespace('idx')` chamam o Rust. Não há `INDEX_OWNER=node`: rollback = commit/imagem anterior. Diagnóstico de chave exata: `idxHasKey` (no TS) e `hasKey` (napi).
+- **`davail:v1` tem um dono só (o Rust).** O store é o `DavailStore`
+  (`adom-index`, mesma tabela `cache` do `data/cache.db`); o ÚNICO escritor de
+  produção é o play nativo (`note_unavailable` em `play_effects_native_writes.rs`:
+  grava SÓ o negativo, TTL de `DEBRID_AVAIL_NEG_TTL`, gate `ttl<=0`). O positivo
+  medido de produção é `mag:alive` (fechamento do mag: `2701124a`/`b51679d2`/
+  `24174741`) — davail=1 de produção não existe (só nasce no oráculo de teste).
+  O Node não grava nem lê davail: pela ponte napi (`debrid-state-native.ts`) só
+  mantém o relógio do sweep (`mag-davail-sweep.ts`) e o clear do dashboard
+  (`dashboard-actions-cache.ts` → `cache.ts`); a cobertura BR, que lia, foi para
+  o gateway (`adom-server::br_coverage`). Contra o arquivo
+  compartilhado o `Store` genérico do debrid é somente leitura (teste
+  `davail_no_arquivo_do_node_e_somente_leitura`).
 - **KV de estado Rust-owned: `NativeKv`** (tabela `cache` do mesmo
   `data/cache.db`): store em `rust/crates/adom-index/src/kv.rs`, binding napi na
   classe `NativeKv` (`adom-napi/src/kv.rs`), reexportado pelo `adom-store`. O

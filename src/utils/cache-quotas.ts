@@ -62,8 +62,10 @@ export const QUOTAS: Readonly<Record<string, number>> = Object.freeze({
   // individual (o streams, segundo maior, soma ~54 MB no teto teórico com o
   // trace do /stream-trace.json; ~13 MB observado).
   raw: 800,
-  // Disponibilidade por hash é só 0/1; a cota alta evita reconsultar a mesma
-  // conta em buscas diferentes sem ocupar a memória dos resultados brutos.
+  // Disponibilidade por hash (`davail:v1`) é RUST_OWNED (dono único, ver
+  // AGENTS.md): o L1 do Node não o evicta — a cota só serve de teto ao sweep
+  // nativo (`QUOTAS.davail` no mag-davail-sweep.ts). 0/1 por entrada; valor e
+  // soma global do universo não mudam.
   davail: 1000,
   // Banco de magnets: histórico durável por hash (vivo/ruim/mentiroso), entrada
   // minúscula como o davail (valor `1`, chave ~70 B) — ~400 B por entrada com o

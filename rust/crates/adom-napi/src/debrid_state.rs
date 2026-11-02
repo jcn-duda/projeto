@@ -63,7 +63,8 @@ fn state_label(state: CoreState) -> &'static str {
     }
 }
 
-/// ⚡ por hash, escopado por adapter + conta (o mesmo `davail:v1` do Node).
+/// ⚡ por hash, escopado por adapter + conta (o `davail:v1` que o Node lê pela
+/// ponte).
 #[napi]
 pub struct DavailState {
     inner: DavailStore,

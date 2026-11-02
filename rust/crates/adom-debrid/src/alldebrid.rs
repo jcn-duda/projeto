@@ -108,13 +108,15 @@ pub struct PlayFile {
     pub size: f64,
 }
 
-/// Play do AllDebrid com os efeitos que o TS grava e o Node aplica: o L1
-/// (`davail`, prova de áudio/resolução/tamanho) mora no processo do Node.
+/// Play do AllDebrid. A resposta carrega os efeitos para o aplicador nativo
+/// (`play_effects_native`) gravar: o negativo do `davail` e a prova de
+/// áudio/resolução/tamanho.
 #[derive(Debug, Default, PartialEq)]
 pub struct PlayResult {
     pub url: Option<String>,
-    /// Frio e removível pela mesma guarda do delete: o Node grava `davail=0`.
-    /// Magnet protegido continua baixando e não vira negativo.
+    /// Frio e removível pela mesma guarda do delete: o play nativo grava o
+    /// negativo do `davail` (`DEBRID_AVAIL_NEG_TTL`). Magnet protegido
+    /// continua baixando e não vira negativo.
     pub unavailable: bool,
     /// Lista do torrent pronto (`recordFileEvidence`), quando o TS a gravaria.
     pub files: Option<Vec<PlayFile>>,

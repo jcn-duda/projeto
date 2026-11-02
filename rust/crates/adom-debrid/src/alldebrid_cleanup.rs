@@ -33,7 +33,9 @@
 //! não é executado.
 //!
 //! Fora desta fatia (seguem Node): varredura de mortos/não-dublados, evicção
-//! por busca, reconcile, revalidate suprimida, `davail` e o `fsz`.
+//! por busca, reconcile, revalidate suprimida. `davail` e `fsz` também ficam
+//! fora, mas por outro dono: o negativo do `davail` é do play nativo
+//! (`DavailStore`) e o `fsz` da checagem nativa (KV `RUST_OWNED`).
 
 #[path = "cleanup_flags.rs"]
 mod flags;

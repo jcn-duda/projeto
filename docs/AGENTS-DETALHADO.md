@@ -1535,7 +1535,7 @@ Configuração em nível de **operador** para o colhedor em segundo plano e seme
 - `clearQueue()` esvazia a fila de obras pendentes de colheita.
 Ações protegidas atrás de `JACKETT_TEST_TOKEN` (`POST /dashboard-action.json`): `harvest-config-get`, `harvest-config-set`, `harvest-config-reset`, `harvester-pause`, `harvester-drain`, `harvester-clear-queue`.
 
-**Fase 3 — cobertura BR ⚡ (module `src/utils/br-coverage.ts`, knobs `harvestBrFirst`/`harvestBrMaxWaitMs`).**
+**Fase 3 — cobertura BR ⚡ (hoje no gateway, `adom-server::br_coverage`; o módulo TS `br-coverage.ts` ficou só no oráculo de teste; knobs `harvestBrFirst`/`harvestBrMaxWaitMs`).**
 
 A **3.1** torna a cadeia mensurável: o sampler `f3.br` (`start`) varre periodicamente a **coorte popular
 persistida** — as mesmas listas IMDb que alimentam o colhedor (`src/providers/imdb-seed.ts`, chave
@@ -2023,29 +2023,35 @@ Despejo por cota apaga do L1 **e do L2** (`forgetMany` roda `DELETE`), e o
 `loadFromDisk` descarta o que passa da cota no boot — não existe reservatório
 maior no SQLite esperando.
 
-Fase 3 (cache de disponibilidade por hash) **está** no código, em
-`src/debrid/index.ts`: o namespace `davail` guarda `1`/`0` por
-`adapter:conta:hash`, com TTLs separados (`DEBRID_AVAIL_POS_TTL` /
-`DEBRID_AVAIL_NEG_TTL`) — o positivo pode durar mais, o negativo é curto porque
-"não estava em cache" envelhece rápido. Detalhes que não são óbvios lendo só a
-chamada:
+Fase 3 (cache de disponibilidade por hash) **está** no código, com o dono
+invertido pelo corte Rust: o namespace `davail:v1` é **RUST_OWNED** e o store é
+o `DavailStore` (`rust/crates/adom-index/src/davail_state.rs`), na mesma tabela
+`cache` do `data/cache.db` — chave `davail:v1:<adapter>:<conta>:<hash>`,
+veredito `1`/`0`. Quem grava em produção é **só o play nativo**:
+`note_unavailable` (`play_effects_native_writes.rs`) grava o NEGATIVO com o TTL
+lido do env `DEBRID_AVAIL_NEG_TTL` (default 120 s), e o gate `ttl<=0` desliga a
+janela. O positivo medido de produção é o `mag:alive` (`mark_alive`, mesmo
+aplicador do play) — não existe `put(true)` de produção: o davail=1 só nasce no
+oráculo de teste (`test/helpers/pipeline-oracle/play/davail.ts`). Detalhes que
+não são óbvios lendo só a chamada:
 
-- os **guards de prazo voltam antes** da camada `davail`, de propósito: a
-  resposta é do prazo, não do cache;
-- `forceFresh` pula a leitura (o passe tardio e o `/resolve` precisam da
-  verdade do momento);
+- os **guards de prazo voltam antes** de qualquer evidência guardada, de
+  propósito: a resposta é do prazo, não do cache;
 - serviço `unusable` **não grava nada** — a culpa é da conta, não do hash, e
   gravar `0` congelaria o erro por todo o TTL negativo;
-- a escrita é em lote único, para não disparar uma evicção por hash com a cota
-  do namespace saturada;
-- `davail.servedHashes` conta o que a camada respondeu sem ir à rede;
-- com `DEBRID_ALIVE_AS_CACHE` (implementado em `debrid-pipeline-steps.ts`), o
-  `mag:alive` pode pintar ⚡ **só** quando a checagem degradou ou omitiu o hash
-  — e um `0` fresco do `davail` continua vetando o atalho (detalhes em **Banco
-  de magnets**). Observadores da primeira resposta (`searchFirst.brCached`,
-  log de confirmados, candidatos do áudio-audit) veem o conjunto JÁ inflado —
-  é de propósito: o ⚡ de memória é apresentado na lista; a medição de checagem
-  real (`debrid.check.cached/hashes`, sampler F3) fica limpa.
+- o **leitor** de produção é o gateway, fora do build de busca: ele resolve o
+  `releaseStatus` do catálogo com ledger RD → davail → `mag` Alive (positivo
+  vence negativo, `account_catalog_facts.rs`). O Node não lê davail: pela ponte
+  napi (`debrid-state-native.ts`) só faz sweep e clear. O veredito do check da busca vive em memo RAM
+  (`debrid_seam.rs`) — **o build de busca NÃO lê davail do disco**;
+- o `alive-as-cache` da fase (o `mag:alive` pintar ⚡ quando a checagem
+  degradou ou omitiu o hash) sobreviveu SÓ no oráculo de teste
+  (`test/helpers/pipeline-oracle/debrid-instant-steps.ts`, atrás de
+  `DEBRID_ALIVE_AS_CACHE`, default off) — não há caminho de produção;
+- manutenção: o sweep é nativo (vencidas + teto por ordem de escrita),
+  disparado pelo relógio de 10 min do Node (`mag-davail-sweep.ts`), e o clear
+  do dashboard passa pela ponte (`dashboard-actions-cache.ts` → `cache.ts`).
+  Não há rota de clear na admin 8711 para davail (e não vale criar — ver mag).
 
 O gate de 30% (`debrid.check.repeated / debrid.check.hashes` em 15 min) era o
 critério para *implementar*. Já está implementado; hoje esse par de métricas
@@ -3377,7 +3383,7 @@ fire-and-forget) continua.
 | ~~`src/utils/magnet-bank-search.ts`~~ | **Removido na Fase 1 (`57afd760`).** Busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) — leitura pela admin (`GET /magnet-bank/search`). O `magnet-bank-query.ts` (lote por obra da sonda TS do autofetch) saiu em 2026-10-28, sem consumidor desde a B4 |
 | ~~`src/utils/magnet-bank-lie.ts`~~ | **Removido no corte.** Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promovia `lied` no merge do banco — promoção agora em `magnet_bank_capture` |
 | `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
-| ~~`src/utils/release-work.ts`~~ | **Removido no corte.** `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice. SEM chamador de produção desde a obra nativa: a obra é gravada pelo commit nativo (`enqueue_obra.rs`) |
+| ~~`src/utils/release-work.ts`~~ | **Removido no corte.** `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice. SEM chamador de produção desde a obra nativa: a obra é gravada pelo commit nativo (`enqueue_obra.rs`). Golden `release-work` CONGELADO em 2026-11-02: registry e gerador saíram (não há mais TS para regenerar), mas corpus/jsonl/manifest e `release_work_golden.rs` ficam, porque o `cargo test --workspace` do CI os roda e o porte `adom-core::release_work` segue em produção (banco, crawl, fallback) sem testes próprios |
 | `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
 | ~~`src/providers/magnet-bank-hook.ts`~~ | **Removido.** Era a ponte stream-builder → banco (hashes não-conta/não-fallback e `targetsFor` escrevendo o `passed_filter` da obra); a obra é gravada pelo commit nativo (`enqueue_obra.rs`) |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |

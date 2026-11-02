@@ -1,8 +1,9 @@
 //! Inventário NATIVO da conta do debrid como fonte (F3) e o fast-path da conta.
 //!
-//! O Node segue dono de `account.ts`, do memo `dinv`, do `davail`, do hold e do
-//! autofetch. Esta fatia porta o mínimo para a busca não depender de nenhuma
-//! tarefa Node do inventário:
+//! O Node segue dono de `account.ts`, do memo `dinv`, do hold e do autofetch;
+//! o `davail` é do Rust (`DavailStore`, escrito só pelo play nativo). Esta
+//! fatia porta o mínimo para a busca não depender de nenhuma tarefa Node do
+//! inventário:
 //!
 //! - **leitura** (`adom_debrid::account`) com veredito `known`/`unusable`;
 //! - **filtro** de relevância da conta (`filter_inventory_relevant` do núcleo,

@@ -18,10 +18,27 @@ import {
   type SweepRemoval,
 } from './debrid-state-native.js';
 
+// `davailState()`/`magnetState()` lançam se o napi não expõe a classe
+// (debrid-state-native.ts) e exceção em callback de `setInterval` é uncaught —
+// derrubaria o processo. Falha de ponte devolve zeros (não poda neste ciclo; o
+// próximo tenta de novo); o teste de semeadura segue provando a ponte viva.
+const NADA_MAG: SweepRemoval = { expired: 0, evicted: 0, counts: [] };
+const NADA_DAVAIL: DavailSweep = { expired: 0, evicted: 0 };
+
 export function sweepNativeNamespaces(): { mag: SweepRemoval; davail: DavailSweep } {
   const now = Date.now();
-  const mag = magnetState().sweep(QUOTAS.mag, now);
-  const davail = davailState().sweep(QUOTAS.davail, now);
+  let mag = NADA_MAG;
+  let davail = NADA_DAVAIL;
+  try {
+    mag = magnetState().sweep(QUOTAS.mag, now);
+  } catch (err) {
+    console.error('[sweep] mag sem ponte nativa:', err);
+  }
+  try {
+    davail = davailState().sweep(QUOTAS.davail, now);
+  } catch (err) {
+    console.error('[sweep] davail sem ponte nativa:', err);
+  }
   return { mag, davail };
 }
 

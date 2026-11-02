@@ -49,10 +49,11 @@ fn leitor_do_cache_db_nao_escreve_nem_apaga_expirado() {
     assert!(store.put("rdc:v2:hit", "x", 10, 0).is_err());
 }
 
-/// O dono do `davail` é o NODE (Fase 4.0.1): contra o arquivo compartilhado o
-/// `put` é recusado — `WRITABLE_PREFIXES` só governa a instância em MEMÓRIA dos
-/// testes. Sem este teste, um `put` novo passaria despercebido e o Rust viraria
-/// segundo escritor do namespace.
+/// O `davail` é do Rust (`DavailStore`, adom-index) e o ÚNICO escritor de
+/// produção é o play nativo (`note_unavailable`, negativo). Contra o arquivo
+/// compartilhado o `put` deste Store genérico é recusado — `WRITABLE_PREFIXES`
+/// só governa a instância em MEMÓRIA dos testes. Sem este teste, um `put` novo
+/// passaria despercebido e o Store viraria SEGUNDO escritor do namespace.
 #[test]
 fn davail_no_arquivo_do_node_e_somente_leitura() {
     let dir = tempfile::tempdir().unwrap();

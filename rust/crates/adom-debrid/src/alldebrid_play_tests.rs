@@ -91,7 +91,7 @@ async fn resolve_que_nao_fica_ready_devolve_none_e_apaga_uma_vez() {
     .expect("poll")
     .unwrap();
     assert!(link.url.is_none());
-    assert!(link.unavailable, "frio apagado vira davail=0 no Node");
+    assert!(link.unavailable, "frio apagado vira o negativo do davail");
     assert!(link.files.is_none());
     let seen = hits(&scene);
     assert_eq!(
@@ -184,7 +184,7 @@ async fn dubbed_prometido_com_grupo_en_vira_dub_lie_sem_unlock() {
 
 #[tokio::test]
 async fn resolve_frio_com_delete_que_falha_ainda_e_negativo_e_nao_derruba() {
-    // O delete falha: o TS só avisa e ainda grava davail=0.
+    // O delete falha: só avisa — o frio ainda vira o negativo do davail.
     let scene = mock_delete_fails(
         &envelope(json!({"magnets": [{"id": 9}]})),
         &envelope(json!({"magnets": [{"id": 9, "status": "Downloading"}]})),

@@ -43,8 +43,8 @@ impl DebridCheck for FrozenDebridCheck {
         }
         // Cache HERMÉTICO: o veredito por hash do check consolidado que gerou o
         // expected vence a régua global (`calls`). O `cached` do Node pode
-        // coexistir com `known:false`/`unusable` (o ⚡ veio do memo `davail` da
-        // conta) — é justamente o caso que o replay perdia.
+        // coexistir com `known:false`/`unusable` (o ⚡ veio do memo do check
+        // da conta) — é justamente o caso que o replay perdia.
         if let Some(result) = self.call.results.get(&hash) {
             if result.cached {
                 return DebridAnswer::Cached { url: None };
