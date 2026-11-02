@@ -312,7 +312,6 @@
     "test/magnet-db.test.js",
     "test/magnet-for-play.test.js",
     "test/magnet-uri.test.js",
-    "test/magnetdb-persist-basis.test.js",
     "test/memory-fallback-suppress.test.js",
     "test/movie-series-cam-guard.test.js",
     "test/named-sequel.test.js",

@@ -96,7 +96,7 @@ test(
   },
 );
 test(
-  'reinício do processo: status() durável restaurado com byAdapter e sem scans no SQLite',
+  'reinício do processo: status() recontado do núcleo com byAdapter e sem scans no SQLite',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
@@ -126,17 +126,13 @@ test(
       "const t0 = performance.now();",
       "const st = magnetdb.status();",
       "const durationMs = performance.now() - t0;",
-      "assert.ok(durationMs < 50, 'status() executou em O(1) em ' + durationMs + 'ms');",
-      "assert.strictEqual(st.sizeAlive, 3, 'sizeAlive restaurado');",
-      "assert.strictEqual(st.sizeBad, 1, 'sizeBad restaurado');",
-      "assert.strictEqual(st.sizeLie, 1, 'sizeLie restaurado');",
+      "assert.ok(durationMs < 50, 'status() reconta o namespace de teste rápido em ' + durationMs + 'ms');",
+      "assert.strictEqual(st.sizeAlive, 3, 'sizeAlive recontado');",
+      "assert.strictEqual(st.sizeBad, 1, 'sizeBad recontado');",
+      "assert.strictEqual(st.sizeLie, 1, 'sizeLie recontado');",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeAlive, 3);",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeLie, 1);",
       "assert.strictEqual(st.byAdapter.realdebrid?.sizeBad, 1);",
-      "assert.strictEqual(st._origem.sizeAlive, 'duravel');",
-      "assert.strictEqual(st._origem.sizeBad, 'duravel');",
-      "assert.strictEqual(st._origem.sizeLie, 'duravel');",
-      "assert.strictEqual(st._origem.byAdapter, 'duravel');",
       "cache.close();",
     ].join('\n');
 
@@ -218,7 +214,7 @@ test(
 );
 
 test(
-  'reconciliação: banco vazio inicia limpo com _origem durável sem erros',
+  'banco vazio inicia limpo sem erros e sem amostra',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const script = [
@@ -231,8 +227,6 @@ test(
       "assert.strictEqual(st.sizeBad, 0);",
       "assert.strictEqual(st.sizeLie, 0);",
       "assert.deepStrictEqual(Object.keys(st.byAdapter), []);",
-      "assert.strictEqual(st._origem.sizeAlive, 'duravel');",
-      "assert.strictEqual(st._origem.byAdapter, 'duravel');",
       "cache.close();",
     ].join('\n');
 
@@ -270,8 +264,8 @@ test(
       "  Date.now = origNow;",
       "}",
       "",
-      "// O sweep NÃO é escritor: não decrementa nada. A leitura reconcilia —",
-      "// agregado diz 4, físico ficou 3, sentinela reconta e o bad some do painel.",
+      "// O sweep NÃO é escritor de agregado: poda o físico e a leitura reconta —",
+      "// o bad expirado some da foto na mesma leitura.",
       "st = magnetdb.status();",
       "assert.strictEqual(st.sizeBad, 0, 'bad expirado saiu na reconciliação da leitura');",
       "assert.strictEqual(st.sizeAlive, 2, 'alive continua ativo antes de 7 dias');",
@@ -296,7 +290,7 @@ test(
       "assert.strictEqual(st.byAdapter.premiumize?.sizeLie ?? 0, 0);",
       "assert.deepStrictEqual(Object.keys(st.byAdapter), []);",
       "",
-      "// NÃO regrava aqui: o dono é quem grava — o stage2 prova o boot curando.",
+      "// A leitura reconta o físico: o stage2 prova o boot servindo o que sobreviveu.",
       "cache.close();",
     ].join('\n');
 
@@ -353,7 +347,7 @@ test(
 );
 
 test(
-  'agregado ausente no boot: contadores reconstruídos do L1 em vez de zerar sob rótulo durável',
+  'agregado ausente no boot: contadores recontados do físico em vez de zerar',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => {
     const stage1 = [
@@ -385,9 +379,7 @@ test(
       "assert.strictEqual(st.sizeBad, 1, 'bad reconstruído do L1, não zerado');",
       "assert.strictEqual(st.byAdapter.premiumize?.sizeAlive, 3);",
       "assert.strictEqual(st.byAdapter.realdebrid?.sizeBad, 1);",
-      "assert.strictEqual(st._origem.sizeAlive, 'duravel', 'rótulo só é honesto porque houve recontagem');",
-      "assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do L1, não de soma nominal');",
-      "magnetdb.savePersistentCounts();", // no-op de régua: nem o shutdown regrava
+      "assert.ok((st.ttlRemainingSeconds.alive || 0) > 0, 'TTL restante veio do restante real do núcleo, não de soma nominal');",
       "cache.close();",
       "const post = new DatabaseSync(process.env.CACHE_DB_PATH);",
       "const row = post.prepare('SELECT value FROM cache WHERE key = ?').get(magMetaCountsKey());",

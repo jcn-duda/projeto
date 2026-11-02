@@ -5,8 +5,8 @@
  * núcleo com base ausente ou ilegível
  * (`rust/crates/adom-index/src/magnet_meta.rs`, `summary_recount`).
  *
- * O Node de produção NÃO grava este agregado (o `savePersistentCounts` de
- * `magnetdb-persist.ts` é no-op de régua): a simulação mora no oráculo para os
+ * O Node de produção NÃO lê nem grava este agregado (o status do painel
+ * reconta o físico pela ponte): a simulação mora no oráculo para os
  * testes multi-processo poderem plantar o estado persistido que, em produção,
  * só o gateway escreve.
  */

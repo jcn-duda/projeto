@@ -124,18 +124,12 @@ test('status observa por adaptador e TTL sem expor o escopo da conta', () => {
   assert.equal(typeof snapshot.evictedQuota, 'number');
   assert.ok(snapshot.l1Max >= snapshot.l1Entries);
   assert.equal(JSON.stringify(snapshot).includes(secretAccount), false, 'o diagnóstico não vaza chave nem digest de conta');
-  // Mecanismo A: contadores duráveis consolidados.
-  assert.equal(snapshot._origem.l1Entries, 'duravel');
-  assert.equal(snapshot._origem.sizeAlive, 'duravel');
-  assert.equal(snapshot._origem.byAdapter, 'duravel');
-  assert.equal(snapshot._origem.evictedQuota, 'duravel');
 });
 
-test('status: órfã escrita direto no núcleo é recolhida pela reconciliação da leitura', () => {
-  // Linha escrita direto no núcleo não passa por mark*/track: o namespace sobe
-  // e a sentinela (total restaurado × liveCount) acusa a diferença — a leitura
-  // seguinte reconta o físico e RECOLHE a órfã na amostra. Sem agregado
-  // gravado neste processo, o reconto é o caminho de toda leitura.
+test('status: órfã escrita direto no núcleo aparece na leitura seguinte', () => {
+  // Linha escrita direto no núcleo não passa por mark*/track: com o reconto
+  // direto, a leitura É o físico — a órfã entra na foto na hora, sem sentinela
+  // nem amostra a reconciliar.
   const before = magnetdb.status();
   const sampleBefore = before.sizeAlive + before.sizeBad + before.sizeLie;
   const l1Before = before.l1Entries;
@@ -146,10 +140,9 @@ test('status: órfã escrita direto no núcleo é recolhida pela reconciliação
     assert.equal(
       after.sizeAlive + after.sizeBad + after.sizeLie,
       sampleBefore + 1,
-      'a reconciliação da leitura recolhe a órfã',
+      'o reconto direto pega a órfã',
     );
-    assert.equal(after.l1Entries, after.sizeAlive + after.sizeBad + after.sizeLie, 'a leitura deixa amostra e namespace coerentes');
-    assert.equal(after.ttlRemainingBasis, 'l1-rebuild', 'sem agregado gravado, a soma nasce do reconto');
+    assert.equal(after.l1Entries, after.sizeAlive + after.sizeBad + after.sizeLie, 'a leitura deixa foto e namespace coerentes');
   } finally {
     // Relógio à frente do TTL da órfã: a varredura nativa apaga só ela.
     magnetState().sweep(0, Date.now() + 61_000);
@@ -208,7 +201,6 @@ test('atalho do davail renova o histórico alive sem rede', async () => {
     metrics.reset();
     magnetState().clear();
     davailState().clear();
-    magnetdb.loadPersistentCounts();
     debrid.BY_ID.set('premiumize', original as any);
   }
 });

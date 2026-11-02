@@ -6,8 +6,8 @@
  * (`mag_meta:v1:counts`, régua `bump_counts`) é o gateway
  * (`play_effects_native*`); aqui só os testes do contrato do magnetdb escrevem
  * a evidência física por essa régua de referência — sem tocar agregado nenhum:
- * a amostra do Node morreu e a leitura do painel reconcilia com o físico
- * (sentinela + reconto em `magnetdb-persist.ts`).
+ * a amostra do Node morreu e a leitura do painel é reconto direto do físico
+ * (`magnetdb.ts`, `summary`/`liveCount` da ponte).
  */
 import { assertSafeTestDb } from '../../db-guard.js';
 import config from '../../../../src/config.js';

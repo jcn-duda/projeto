@@ -109,7 +109,6 @@ function shutdown(signal: string) {
   force.unref();
   server.close(() => {
     brResolvers.close();
-    services.magnetdb.savePersistentCounts?.();
     crawlStore.close();
     cache.close();
     log.info('[shutdown] addon encerrado');

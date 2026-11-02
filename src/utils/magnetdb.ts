@@ -22,33 +22,23 @@
 // Node, que não é dono desse namespace. A ESCRITA saiu para o oráculo de teste
 // (`test/helpers/pipeline-oracle/play/magnetdb-writes.ts`): quem grava a
 // evidência e o AGREGADO (`mag_meta:v1:counts`, régua `bump_counts`) é o
-// gateway. Aqui ficam a leitura sem efeito, a limpeza do painel e o status;
-// a política de leitura do agregado vive em magnetdb-persist.ts e o TTL vem
-// da config.
+// gateway. Aqui ficam a limpeza do painel e o status — RECONTO DIRETO do
+// físico pela ponte (`summary`/`liveCount`): sem amostra, sem agregado lido
+// pelo Node, sem sentinela; a foto do painel é sempre o que está no núcleo
+// agora. O relógio da varredura nativa mora em magnetdb-persist.ts.
 import config from '../config.js';
 import * as metrics from './metrics.js';
-import { magnetState } from './debrid-state-native.js';
+import { magnetState, type MagnetSide } from './debrid-state-native.js';
 import { QUOTAS } from './cache-quotas.js';
-import type { AdapterTotals } from './magnetdb-counts.js';
-import {
-  adapterCounts, ensureCountsLoaded,
-  savePersistentCounts, loadPersistentCounts,
-  ttlRemainingBasis, sweepNativeNamespaces, type TtlRemainingBasis,
-} from './magnetdb-persist.js';
+import { sweepNativeNamespaces } from './magnetdb-persist.js';
 
-export type { AdapterTotals };
-export { savePersistentCounts, loadPersistentCounts, ttlRemainingBasis, sweepNativeNamespaces };
-export type { TtlRemainingBasis };
+export { sweepNativeNamespaces };
 
-type MagnetSizes = { alive: number; bad: number; lie: number };
 type TtlRemaining = { alive: number | null; bad: number | null; lie: number | null };
 
 export type MagnetDbAdapterStatus = {
   sizeAlive: number; sizeBad: number; sizeLie: number; ttlRemainingSeconds: TtlRemaining;
 };
-
-/** Procedência do campo no painel: L1/L2/config vs contadores do processo. */
-export type MagnetDbOrigem = 'duravel' | 'amostra' | 'naomedido';
 
 export type MagnetDbStatus = {
   enabled: boolean;
@@ -63,23 +53,7 @@ export type MagnetDbStatus = {
   l1Entries: number;
   l1Max: number;
   evictedQuota: number;
-  /**
-   * Procedência da soma de TTL restante: `l1-rebuild` = restante real de cada
-   * chave, preciso só no instante do rebuild; `aggregate-estimate` = estimativa
-   * incremental/restaurada (escrita/esquecimento somam/subtraem TTL nominal).
-   */
-  ttlRemainingBasis: TtlRemainingBasis;
-  counters: {
-    aliveSet: number; badSet: number; lieSet: number; dropped: number;
-    droppedBad: number; droppedDead: number; droppedLie: number; badClearedBlocked: number;
-  };
-  _origem: Record<string, MagnetDbOrigem>;
 };
-
-// A leitura do agregado persistido (`mag_meta:v1:counts`) e o relógio da
-// varredura nativa moram em magnetdb-persist.ts — este arquivo estava no teto
-// de 400 linhas. A API pública continua aqui (reexportação acima de save/load
-// e do sweep).
 
 /**
  * Apaga o `bad` de QUALQUER conta do adapter. É o caminho da limpeza do painel,
@@ -89,62 +63,60 @@ export type MagnetDbStatus = {
  *
  * Só a remoção FÍSICA no núcleo: o núcleo apaga o par (adapter, hash) em TODAS
  * as contas e devolve quantas linhas saíram. O agregado NÃO é tocado daqui —
- * quem o mantém é o gateway (régua `bump_counts`), e o painel reconcilia por
- * leitura (sentinela de total × físico em `ensureCountsLoaded`). O antigo
- * decremento da amostra regravava `mag_meta:v1:counts` por cima dos bumps do
- * gateway — segunda escrita que este corte apagou.
+ * quem o mantém é o gateway (régua `bump_counts`), e o status abaixo reconta
+ * o físico a cada leitura, então a remoção aparece nela na hora.
  */
 function forgetBadOf(adapterId: string, hash: string): boolean {
   return magnetState().forgetBadOf(adapterId, hash) > 0;
 }
 
+// Mapeamento do lado físico para o campo do payload do painel.
+const SIDE_SIZE: Record<MagnetSide, 'sizeAlive' | 'sizeBad' | 'sizeLie'> = {
+  alive: 'sizeAlive', bad: 'sizeBad', lie: 'sizeLie',
+};
+
+/** Média de segundos restantes do lado; `null` sem linha alguma (sem 0 falso). */
+const mediaTtl = (soma: number, count: number): number | null =>
+  count > 0 ? Math.ceil(soma / count) : null;
 
 /**
- * Estado de diagnóstico do painel.
- * - sizeAlive/Bad/Lie + byAdapter: contagens duráveis agregadas por adapter,
- *   restauradas do agregado que o GATEWAY mantém (régua `bump_counts`) ou
- *   recontadas do físico quando a sentinela acusa divergência.
+ * Estado de diagnóstico do painel — RECONTO DIRETO do físico (`summary` +
+ * `liveCount` da ponte), custo O(namespace mag) só quando o painel lê, nunca
+ * no caminho de busca.
+ * - sizeAlive/Bad/Lie + byAdapter: a foto exata do que está no núcleo agora.
+ *   A antiga amostra restaurada do agregado morreu: a deriva medida no
+ *   cache.db local (agregado dizia 77 alive com 190 chaves vivas, adapter
+ *   inteiro sumido do painel) é impossível por construção — não há restauração
+ *   nem sentinela de divergência, a leitura É o reconto.
+ * - ttlRemainingSeconds: somado do restante REAL de cada linha (`summary`),
+ *   não estimativa envelhecida pelo `updatedAt` de um escritor externo.
  * - l1Entries: linhas vivas do namespace mag, contadas pelo NÚCLEO (o Node não
- *   tem mais o namespace no L1, então `snapshot()` não as enxerga).
+ *   tem o namespace no L1, então `snapshot()` não as enxerga).
  * - l1Max: cota do namespace, de `QUOTAS` (mesmo motivo).
- * - evictedQuota: métrica do cache do Node; a poda agora é da varredura nativa,
- *   que não alimenta esse contador — fica 0 até o painel ler `sweep()`.
- * - `_origem` durável: contagens refletem estado durável.
+ * - evictedQuota: métrica do cache do Node; a poda é da varredura nativa, que
+ *   não alimenta esse contador — fica 0 até o painel ler `sweep()`.
  */
 function status(): MagnetDbStatus {
-  const l1Entries = magnetState().liveCount(Date.now());
-
-  ensureCountsLoaded(l1Entries);
-
+  const now = Date.now();
+  const l1Entries = magnetState().liveCount(now);
   let sizeAlive = 0;
   let sizeBad = 0;
   let sizeLie = 0;
   const totalTtlSums = { alive: 0, bad: 0, lie: 0 };
   const byAdapter: Record<string, MagnetDbAdapterStatus> = Object.create(null);
 
-  for (const [adapterId, totals] of adapterCounts) {
-    sizeAlive += totals.alive;
-    sizeBad += totals.bad;
-    sizeLie += totals.lie;
-    totalTtlSums.alive += totals.ttlRemainingSums.alive;
-    totalTtlSums.bad += totals.ttlRemainingSums.bad;
-    totalTtlSums.lie += totals.ttlRemainingSums.lie;
-
-    byAdapter[adapterId] = {
-      sizeAlive: totals.alive, sizeBad: totals.bad, sizeLie: totals.lie,
-      ttlRemainingSeconds: {
-        alive: totals.alive ? Math.ceil(totals.ttlRemainingSums.alive / totals.alive) : null,
-        bad: totals.bad ? Math.ceil(totals.ttlRemainingSums.bad / totals.bad) : null,
-        lie: totals.lie ? Math.ceil(totals.ttlRemainingSums.lie / totals.lie) : null,
-      },
-    };
+  for (const row of magnetState().summary(now)) {
+    const bucket = byAdapter[row.adapter] ?? (byAdapter[row.adapter] = {
+      sizeAlive: 0, sizeBad: 0, sizeLie: 0,
+      ttlRemainingSeconds: { alive: null, bad: null, lie: null },
+    });
+    const sizeKey = SIDE_SIZE[row.side];
+    bucket[sizeKey] = row.count;
+    bucket.ttlRemainingSeconds[row.side] = mediaTtl(row.ttlRemainingSum, row.count);
+    if (row.side === 'alive') { sizeAlive += row.count; totalTtlSums.alive += row.ttlRemainingSum; }
+    else if (row.side === 'bad') { sizeBad += row.count; totalTtlSums.bad += row.ttlRemainingSum; }
+    else { sizeLie += row.count; totalTtlSums.lie += row.ttlRemainingSum; }
   }
-
-  const ttlRemainingSeconds: TtlRemaining = {
-    alive: sizeAlive ? Math.ceil(totalTtlSums.alive / sizeAlive) : null,
-    bad: sizeBad ? Math.ceil(totalTtlSums.bad / sizeBad) : null,
-    lie: sizeLie ? Math.ceil(totalTtlSums.lie / sizeLie) : null,
-  };
 
   const counters = metrics.snapshot().counters;
 
@@ -156,24 +128,15 @@ function status(): MagnetDbStatus {
     sizeAlive,
     sizeBad,
     sizeLie,
-    ttlRemainingSeconds,
+    ttlRemainingSeconds: {
+      alive: mediaTtl(totalTtlSums.alive, sizeAlive),
+      bad: mediaTtl(totalTtlSums.bad, sizeBad),
+      lie: mediaTtl(totalTtlSums.lie, sizeLie),
+    },
     byAdapter,
     l1Entries,
     l1Max: QUOTAS.mag,
     evictedQuota: counters['cache.evicted.quota.mag'] || 0,
-    ttlRemainingBasis: ttlRemainingBasis(),
-    counters: {
-      aliveSet: counters['magnetdb.alive.set'] || 0, badSet: counters['magnetdb.bad.set'] || 0,
-      lieSet: counters['magnetdb.lie.set'] || 0, dropped: counters['magnetdb.dropped'] || 0,
-      droppedBad: counters['magnetdb.dropped.bad'] || 0, droppedDead: counters['magnetdb.dropped.dead'] || 0,
-      droppedLie: counters['magnetdb.dropped.lie'] || 0, badClearedBlocked: counters['magnetdb.bad.clearedBlocked'] || 0,
-    },
-    _origem: {
-      enabled: 'duravel', aliveTtlSeconds: 'duravel', badTtlSeconds: 'duravel', lieTtlSeconds: 'duravel',
-      sizeAlive: 'duravel', sizeBad: 'duravel', sizeLie: 'duravel', ttlRemainingSeconds: 'duravel',
-      ttlRemainingBasis: 'duravel',
-      byAdapter: 'duravel', l1Entries: 'duravel', l1Max: 'duravel', evictedQuota: 'duravel',
-    },
   };
 }
 
