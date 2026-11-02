@@ -130,7 +130,7 @@ function defaults() {
     brOnly: false,
     dubbedOnly: config.bludv.dubbedOnly,
     preferDubbed: config.preferDubbed,
-    excludeCam: false,
+    excludeCam: config.excludeCam,
     maxSizeGb: 0,
     max2160p: config.qualityLimits['2160p'],
     max1080p: config.qualityLimits['1080p'],

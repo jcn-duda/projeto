@@ -19,7 +19,7 @@ const DEFAULT_FALLBACK = {
   providers: ['jackett'], qualities: ['2160p', '1080p', '720p'], maxResults: 40, minSeeders: 1,
   max2160p: 2, max1080p: 2, max720p: 2, max480p: 2, maxSd: 2, maxUnknown: 2, maxPerIndexer: 0,
   brReservedSlots: 6, brOnly: false, dubbedOnly: true,
-  preferDubbed: true, excludeCam: false, maxSizeGb: 0,
+  preferDubbed: true, excludeCam: true, maxSizeGb: 0,
   brFirst: true, jackettIndexers: [], jackettIndexersSelected: [],
   indexerPriority: [], indexerLimits: {},
   debridService: '', debridApiKey: '', debridCachedOnly: true, showUncachedBr: false,

@@ -257,6 +257,11 @@ pub fn operator_search_build_from_env() -> BuildOptions {
     if let Ok(raw) = std::env::var("PREFER_DUBBED") {
         b.prefer_dubbed = env_flag(&raw);
     }
+    // O MESMO default do `config.excludeCam` do Node: ligado sem a env. Quem
+    // decide por instalação é o `c` da URL, que vence este valor.
+    b.exclude_cam = std::env::var("EXCLUDE_CAM")
+        .map(|raw| env_flag(&raw))
+        .unwrap_or(true);
     // `dubbedOnly` do `runtime.ts` nasce de `BLUDV_DUBBED_ONLY` (default true).
     // É a mesma opção que o coletor BLUDV recebe para filtrar `legendado`.
     b.dubbed_only = std::env::var("BLUDV_DUBBED_ONLY")

@@ -45,14 +45,15 @@ test('SCHEMA declara exceção BR ao cachedOnly com chave curta', () => {
   assert.equal((decode(encode({ bu: 0 })) as DecodedOptions).showUncachedBr, false);
 });
 
-test('defaults() segue o operador em preferDubbed e não filtra CAM/tamanho', () => {
+test('defaults() segue o operador em preferDubbed e CAM, e não filtra tamanho', () => {
   const d = defaults();
   // Dublado antes de legendado é o padrão do operador (PREFER_DUBBED, ligado):
   // sem isso as cotas por qualidade, que não distinguem áudio, enchiam com
   // legendadas do mesmo post e empurravam a dublada para fora.
   assert.equal(d.preferDubbed, config.preferDubbed);
   assert.equal(d.preferDubbed, true);
-  assert.equal(d.excludeCam, false);
+  assert.equal(d.excludeCam, config.excludeCam);
+  assert.equal(d.excludeCam, true);
   assert.equal(d.maxSizeGb, 0);
 });
 
