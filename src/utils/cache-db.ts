@@ -65,9 +65,9 @@ export function createPersistence() {
       deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
       // Expirado: o Node poda só o próprio L2 (`ownedGuards`).
       deleteExpiredStmt = database.prepare(`DELETE FROM cache WHERE expires_at <= ?${guardSql}`);
-      // Descarte de versão obsoleta: `<ns>:%` + NOT LIKE da versão viva cobre
-      // `<ns>:<versão>:` e prefixos colados no nome, sem materializar a linha.
-      deleteStaleStmt = database.prepare('DELETE FROM cache WHERE key LIKE ? AND key NOT LIKE ?');
+      // Descarte de versão obsoleta: o CAST lê o número de `<ns>:v<N>:...` (para
+      // no `:`), sem materializar a linha no JS.
+      deleteStaleStmt = database.prepare('DELETE FROM cache WHERE key LIKE ? AND CAST(substr(key, ?) AS INTEGER) < ?');
       deleteLegacyStmt = database.prepare('DELETE FROM cache WHERE key LIKE ?');
       // Índice leve: decide QUEM sobe sem trazer os valores gordos junto. Um LIMIT
       // global trocaria o problema de memória por um de correção (dlmag de TTL
@@ -111,10 +111,10 @@ export function createPersistence() {
       // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
       // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
       deleteExpiredStmt.run(now - maxGraceMs(), ...ownedGuards);
-      // Namespace versionado é fonte única (cache-keys.js). `idx` é do Rust ponta
-      // a ponta; `streams` é Rust-owned na execução — linha morta é lixo puro.
+      // Só versão MENOR que a conhecida: o gateway pode subir a de um namespace
+      // dele antes do TS, e a linha nova não é lixo. `idx` é do Rust ponta a ponta.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
-        if (ns !== 'idx') deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
+        if (ns !== 'idx') deleteStaleStmt.run(`${ns}:v%`, ns.length + 3, Number(version.slice(1)));
       }
       for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
       // TTL longo não pode monopolizar o L1 depois do restart: cada namespace

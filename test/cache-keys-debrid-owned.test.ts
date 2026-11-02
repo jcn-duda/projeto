@@ -99,10 +99,13 @@ test('L2: boot, forget e set do Node não tocam linha de nenhum namespace de RUS
     const { DatabaseSync } = await import('node:sqlite');
     const expiresAt = Date.now() + 3_600_000;
     const keys = RUST_OWNED.map(liveKey);
+    // Versão que o TS não conhece: o gateway pode subir a dele antes do Node, e
+    // a poda de versão obsoleta do boot não pode tomar a linha como lixo.
+    const newerKeys = RUST_OWNED.map((ns) => `${ns}:v999:dono-rust`);
     const db = new DatabaseSync(dbPath);
     try {
       const insert = db.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
-      for (const key of keys) insert.run(key, JSON.stringify({ dono: 'rust' }), expiresAt);
+      for (const key of [...keys, ...newerKeys]) insert.run(key, JSON.stringify({ dono: 'rust' }), expiresAt);
     } finally {
       db.close();
     }
@@ -129,7 +132,7 @@ test('L2: boot, forget e set do Node não tocam linha de nenhum namespace de RUS
       .prepare("SELECT key, value FROM cache WHERE key LIKE '%:dono-rust' ORDER BY key")
       .all() as { key: string; value: string }[];
     db2.close();
-    assert.deepEqual(rows.map((row) => row.key), [...keys].sort(), 'nem forget nem set do Node tocam o L2 do núcleo');
+    assert.deepEqual(rows.map((row) => row.key), [...keys, ...newerKeys].sort(), 'nem poda, forget ou set do Node tocam o L2 do núcleo');
     assert.ok(rows.every((row) => JSON.parse(row.value).dono === 'rust'), 'o valor gravado pelo núcleo está intacto');
   } finally {
     if (savedDb === undefined) delete process.env.CACHE_DB_PATH;
