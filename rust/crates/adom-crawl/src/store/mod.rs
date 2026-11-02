@@ -16,11 +16,15 @@ mod gate_ops;
 /// Enfileiramento/consulta da lane do Mico (descoberta própria).
 pub mod mico_ops;
 pub mod ops;
+/// Leituras do painel (`/crawl/site-snapshot`): só SELECT, em `impl CrawlStore`.
+pub mod read_ops;
 pub mod schema;
 pub mod types;
 /// Identidade de página (`url_key` = caminho da URL) — porta de `crawl-url-key.ts`.
 pub mod url_key;
 
+#[cfg(test)]
+mod read_ops_tests;
 #[cfg(test)]
 mod tests;
 // Segunda metade dos testes da camada store: separada para a fonte .rs ficar

@@ -11,11 +11,15 @@ pub mod activity;
 pub mod admin;
 pub mod http_client;
 pub mod server;
+/// Foto do `crawl.db` para o painel (`GET /crawl/site-snapshot`).
+pub mod snapshot;
 /// Composição de produção das costuras (ingestão nativa do T3-L3).
 pub mod wiring;
 
 #[cfg(test)]
 mod admin_tests;
+#[cfg(test)]
+mod snapshot_tests;
 
 pub use activity::recent_user_traffic;
 pub use http_client::{SidecarHttpClient, SidecarHttpError};

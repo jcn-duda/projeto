@@ -233,7 +233,7 @@ fn save_cursor(
 /// Cursor por kind como o painel lê (`cursorsView` do TS): `cursor:movie` vence
 /// e, vazio, cai no cursor LEGADO da Fase 6. Leitura quieta — não migra nem
 /// escreve (a migração é da carga do motor).
-fn cursor_view(store: &CrawlStore, site: &str) -> Result<(String, String), StoreError> {
+pub(super) fn cursor_view(store: &CrawlStore, site: &str) -> Result<(String, String), StoreError> {
     let movie = non_empty(store.get_state(site, CURSOR_MOVIE_KEY)?)
         .or(non_empty(store.get_state(site, LEGACY_CURSOR_KEY)?))
         .unwrap_or_default();
@@ -254,7 +254,7 @@ fn non_empty(value: Option<String>) -> Option<String> {
 /// aceitar um id a mais é inofensivo (0 linhas); recusar um site de verdade por
 /// lista desatualizada é que seria erro.
 #[allow(clippy::result_large_err)] // Response contém Body; é o contrato do axum handler
-fn site_from_request(raw: &str, action: Option<&str>) -> Result<String, Response> {
+pub(super) fn site_from_request(raw: &str, action: Option<&str>) -> Result<String, Response> {
     let site = raw.trim();
     if site.is_empty() {
         return Err(bad_request(action, "", "site obrigatório"));
@@ -283,7 +283,7 @@ fn cursor_ok(site: String, movie: String, tv_show: String) -> Response {
         .into_response()
 }
 
-fn bad_request(action: Option<&str>, site: &str, message: &str) -> Response {
+pub(super) fn bad_request(action: Option<&str>, site: &str, message: &str) -> Response {
     (
         StatusCode::BAD_REQUEST,
         Json(error_body(action, site, message)),
@@ -291,7 +291,7 @@ fn bad_request(action: Option<&str>, site: &str, message: &str) -> Response {
         .into_response()
 }
 
-fn server_error(action: Option<&str>, site: &str, message: &str) -> Response {
+pub(super) fn server_error(action: Option<&str>, site: &str, message: &str) -> Response {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(error_body(action, site, message)),
