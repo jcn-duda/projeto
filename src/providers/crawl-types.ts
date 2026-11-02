@@ -3,7 +3,7 @@
 // transformar uma página em releases é o ADAPTADOR de cada site. Nada aqui
 // executa: são só os tipos compartilhados entre o motor (fase 3), os
 // adaptadores (`crawl-sites/*`, fase 1), as regras puras e o armazenamento
-// (`utils/crawl-store*.ts`) — todos importam daqui por `import type`, que é
+// (`crawl-read-engine.ts`) — todos importam daqui por `import type`, que é
 // apagado na compilação, então não existe aresta de runtime entre as camadas.
 //
 // O `id` do site é o id do CARD do Jackett (`vacatorrent`, `nerdfilmes`,

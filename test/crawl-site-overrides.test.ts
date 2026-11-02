@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 const config = (await import('../src/config.js')).default;
-const store = await import('../src/utils/crawl-store.js');
+const store = await import('./helpers/pipeline-oracle/crawl/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
 const { siteConfigOf, cadenceDelayMs, withCadence } = await import('../src/utils/crawler-live-site.js');

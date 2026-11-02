@@ -22,10 +22,11 @@
 // qualquer faz ROLLBACK e o erro sobe — o store cai na engine de memória em
 // vez de abrir um banco pela metade. Idempotente: banco já no formato corrente
 // não é tocado (uma leitura de `PRAGMA` + `sqlite_master`).
-import * as log from './logger.js';
-import { crawlUrlKey, mergeCrawlUrlRows } from './crawl-url-key.js';
-import { parseUrlRow, renderUrl } from './crawl-store-rules.js';
-import type { CrawlUrlRow } from '../providers/crawl-types.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+import * as log from '../../../../src/utils/logger.js';
+import { crawlUrlKey, mergeCrawlUrlRows } from '../../../../src/utils/crawl-url-key.js';
+import { parseUrlRow, renderUrl } from '../../../../src/utils/crawl-store-rules.js';
+import type { CrawlUrlRow } from '../../../../src/providers/crawl-types.js';
 
 /** Superfície mínima do `node:sqlite` usada aqui (o store passa o db real). */
 export interface CrawlSchemaDb {
@@ -205,3 +206,5 @@ function ensureProgressColumn(db: CrawlSchemaDb): void {
   db.exec("ALTER TABLE crawl_url ADD COLUMN progress TEXT NOT NULL DEFAULT ''");
   log.warn('[crawl] coluna progress adicionada a crawl_url (linhas preservadas)');
 }
+
+assertSafeTestDb('crawl-store-migrate');

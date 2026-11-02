@@ -9,8 +9,8 @@
 // `catalog-rows.ts`; classificação: `catalog-classify.ts`.
 import * as metrics from '../../../../src/utils/metrics.js';
 import { fileEvidence, snapshotAllWorks } from '../../../../src/utils/release-index.js';
-import { releaseStatus } from '../../../../src/utils/br-coverage.js';
-import type { OperatorCtx } from '../../../../src/utils/br-coverage.js';
+import { releaseStatus } from '../coverage/br-coverage.js';
+import type { OperatorCtx } from '../coverage/br-coverage.js';
 import type { AllDebridMagnetRow } from '../../../../src/debrid/alldebrid.js';
 import { engine, configOperatorAdapter, upsertRow } from './catalog-rows.js';
 import { classifyByTitle, classifyWithEvidence } from '../catalog-classify.js';

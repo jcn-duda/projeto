@@ -1,22 +1,13 @@
-// Ações LOCAIS do painel do crawler (Fase 4 do plano "Raspagem total"; Fase 8
-// multi-site). Extraído do `crawler.ts` pela catraca de 400 linhas; as
-// dependências entram por fábrica (closures) para o módulo não importar
-// `crawler.ts` — sem ciclo e testável com uma fachada dublê.
-//
-// "Reprocessar erros" e "Zerar site" vão ao sidecar Rust, dono do `crawl.db`
-// dos nove sites (`dashboard-actions-crawl.ts`). Aqui ficam:
-//  - `simulate`: era a prévia em dry-run por um adaptador TS; sem adaptador TS
-//    responde `sem-adaptador` (a mesma resposta que já dava) sem tocar fila;
-//  - `reprocessNoWork`: devolve à fila o `no-work` do site — não é destrutiva.
-// As duas são POR SITE e validadas contra os sites do motor; sem `site` no
-// pedido, vale o primeiro configurado.
-import * as store from '../utils/crawl-store.js';
+// Ação LOCAL do painel do crawler. As dependências entram por fábrica para o
+// módulo não importar `crawler.ts`. "Reprocessar" e "Zerar site" vão ao sidecar
+// (`dashboard-actions-crawl.ts`); `simulate` era a prévia por adaptador TS e, sem
+// ele, responde `sem-adaptador` sem tocar fila. Sem `site`, vale o primeiro
+// configurado.
 import { knownSites, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 
 export interface CrawlActionsDeps {
   effective(): CrawlerEffectiveConfig;
   isPaused(): boolean;
-  count(name: string, value?: number): void;
 }
 
 export interface SimulateResult {
@@ -26,14 +17,6 @@ export interface SimulateResult {
   label?: string;
   pages: number;
   results: Array<{ url: string; kind: string; releases: number; addedNew?: number; detail: string | null }>;
-}
-
-/** Reprocessar: `ok:false` + `reason` quando o site foi recusado (nunca "0" mudo). */
-export interface ReprocessResult {
-  ok: boolean;
-  site: string | null;
-  requeued: number;
-  reason?: string;
 }
 
 export function createCrawlActions(deps: CrawlActionsDeps) {
@@ -63,21 +46,5 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
     return { ok: false, reason: 'sem-adaptador', site: target.site, pages: 0, results: [] };
   }
 
-  /**
-   * "Reprocessar sem obra": devolve à fila as páginas `no-work` do site. O
-   * `no-work` é TERMINAL (resposta negativa da identificação), então sem esta
-   * ação uma régua de identificação melhor só valia para página nova — as 28
-   * páginas do NerdFilmes marcadas antes do título original (2026-09-28)
-   * ficariam sem obra para sempre. A página é raspada de novo pelo motor
-   * (ritmo, tetos e freio de tráfego valem), não identificada em lote aqui.
-   */
-  function reprocessNoWork(siteId?: string): ReprocessResult {
-    const target = targetSite(siteId);
-    if (!target.ok) return { ok: false, site: target.site || null, requeued: 0, reason: target.reason };
-    const requeued = store.engine().requeueErrors(target.site, 'no-work');
-    if (requeued) deps.count('crawl.reprocess.noWork', requeued);
-    return { ok: true, site: target.site, requeued };
-  }
-
-  return { simulate, reprocessNoWork };
+  return { simulate };
 }

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-const store = await import('../src/utils/crawl-store.js');
+const store = await import('./helpers/pipeline-oracle/crawl/crawl-store.js');
 import { parseProgress, progressAdvanced, renderProgress, withDryFlag } from '../src/utils/crawl-store-rules.js';
 import type { CrawlUrlRow, SeriesWorkProgress } from '../src/providers/crawl-types.js';
 

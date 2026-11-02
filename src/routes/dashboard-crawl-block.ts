@@ -31,6 +31,7 @@ export async function crawlBlock(
   services: AppServices,
   configSnapshot: unknown,
 ): Promise<Record<string, unknown>> {
+  await services.crawler.refreshStatus?.();
   const base = { ...services.crawler.status(), config: configSnapshot };
   const sidecar = await sidecarStatus(services);
   return {

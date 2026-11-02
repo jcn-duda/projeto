@@ -1,7 +1,6 @@
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
 import { dispatchDashboardAction } from './dashboard-actions.js';
-import * as brCoverage from '../utils/br-coverage.js';
 import { unavailable, makeStreamTraceHandler } from './stream-trace.js';
 import { computeStatusPayload, accountTimeout } from './dashboard-status-blocks.js';
 import { pullMetrics, RustWriteError } from '../debrid/rust-remote.js';

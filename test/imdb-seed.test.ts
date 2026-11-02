@@ -12,7 +12,7 @@ import { prefix } from '../src/utils/cache-keys.js';
 import { kvForget } from '../src/utils/native-kv.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
-import { nextSeeds, popularCohort } from '../src/providers/imdb-seed.js';
+import { nextSeeds, popularCohort } from './helpers/pipeline-oracle/coverage/imdb-seed.js';
 
 const HOJE = new Date().toISOString().slice(0, 10);
 const ANO = Number(HOJE.slice(0, 4));

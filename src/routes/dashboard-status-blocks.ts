@@ -1,5 +1,5 @@
 import type { AppServices } from './types.js';
-import * as brCoverage from '../utils/br-coverage.js';
+import { brCoverageStatus } from '../utils/br-coverage-native.js';
 import { releaseIndexStatus, jackettServiceFlag, panelMetrics, searchFirstBlock, type MetricSnapshot } from './dashboard-status-helpers.js';
 import { pullNativeMetrics, type NativeMetrics } from '../utils/native-metrics.js';
 import { crawlBlock } from './dashboard-crawl-block.js';
@@ -289,7 +289,7 @@ export async function computeStatusPayload(
 
   // Bloco: f3
   if (isReq('f3')) {
-    out.f3 = brCoverage.status();
+    out.f3 = await brCoverageStatus();
   }
 
   // Bloco: magnetdb

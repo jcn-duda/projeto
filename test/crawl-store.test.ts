@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import * as store from '../src/utils/crawl-store.js';
+import * as store from './helpers/pipeline-oracle/crawl/crawl-store.js';
 import { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress } from '../src/utils/crawl-store-rules.js';
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 

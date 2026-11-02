@@ -12,7 +12,7 @@ process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as crawler from '../src/providers/crawler.js';
-import * as store from '../src/utils/crawl-store.js';
+import * as store from './helpers/pipeline-oracle/crawl/crawl-store.js';
 import * as live from '../src/utils/crawler-live.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 

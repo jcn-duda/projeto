@@ -12,6 +12,7 @@
 // próximo ciclo de descoberta (o sitemap é re-lido), então a engine evicta a
 // entrada mais antiga sem cerimônia e CONTA a evicção, para o status admitir
 // a perda em vez de fingir persistência.
+import { assertSafeTestDb } from '../../db-guard.js';
 import type {
   CrawlErrorGroup,
   CrawlResultStatus,
@@ -23,10 +24,10 @@ import type {
   MarkResultInput,
   SiteCounters,
   UpsertReport,
-} from '../providers/crawl-types.js';
+} from '../../../../src/providers/crawl-types.js';
 import type { CrawlEngine } from './crawl-store.js';
-import { applyResult, decideUpsert, emptyCounters, parseStatus } from './crawl-store-rules.js';
-import { crawlUrlKey } from './crawl-url-key.js';
+import { applyResult, decideUpsert, emptyCounters, parseStatus } from '../../../../src/utils/crawl-store-rules.js';
+import { crawlUrlKey } from '../../../../src/utils/crawl-url-key.js';
 
 /** Teto de URLs na engine de memória (entradas de ~200 B: ~20 MB no pior caso). */
 const MEMORY_MAX_URLS = 100_000;
@@ -284,3 +285,5 @@ export function memoryCrawlEngine(): CrawlEngine {
     closeEngine() { urls.clear(); urlKeys.clear(); runs.clear(); state.clear(); },
   };
 }
+
+assertSafeTestDb('crawl-store-memory');

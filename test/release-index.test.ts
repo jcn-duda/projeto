@@ -11,7 +11,7 @@ import { resetIdxStoreForTest } from '../src/utils/release-index-store.js';
 import { idxHasKey, record, lookup, lookupQuiet, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
 import { idxPoolCovered } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from './helpers/pipeline-oracle/br-gap.js';
-import { isBrRelease } from '../src/utils/br-coverage.js';
+import { isBrRelease } from './helpers/pipeline-oracle/coverage/br-coverage.js';
 
 const release = (hash: string, extra: any = {}) => ({
   title: `Filme Teste 1080p DUAL ${hash.slice(0, 4)}`,

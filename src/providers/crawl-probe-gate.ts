@@ -19,7 +19,7 @@ import {
   type ProbeRates,
   type ParsedProbeVerdict,
 } from './crawl-site-probe.js';
-import type { CrawlEngine } from '../utils/crawl-store.js';
+import type { CrawlReadEngine } from './crawl-read-engine.js';
 
 export { PROBE_STATE_KEY };
 
@@ -91,7 +91,7 @@ export function verdictFor(siteId: string, raw: string | null | undefined): Site
 }
 
 /** Lê e valida o veredito do site. `null` engine = crawl.db fechado = sem GO. */
-export function readVerdict(engine: CrawlEngine | null, siteId: string): SiteVerdict | null {
+export function readVerdict(engine: CrawlReadEngine | null, siteId: string): SiteVerdict | null {
   if (!engine) return null;
   try {
     return verdictFor(siteId, engine.getState(siteId, PROBE_STATE_KEY));

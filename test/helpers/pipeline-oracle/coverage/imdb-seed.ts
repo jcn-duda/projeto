@@ -33,13 +33,14 @@
 //    inteiro, não só do que ainda falta indexar.
 // 6. Se uma lista falha, a coorte anterior DAQUELE tipo é preservada — a
 //    baseline nunca regride por uma tremedeira de rede.
-import config from '../config.js';
-import { prefix } from '../utils/cache-keys.js';
-import { kvPeek, kvSet } from '../utils/native-kv.js';
-import * as releaseIndex from '../utils/release-index.js';
-import * as metrics from '../utils/metrics.js';
-import * as log from '../utils/logger.js';
-import * as harvesterLive from '../utils/harvester-live.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+import config from '../../../../src/config.js';
+import { prefix } from '../../../../src/utils/cache-keys.js';
+import { kvPeek, kvSet } from '../../../../src/utils/native-kv.js';
+import * as releaseIndex from '../../../../src/utils/release-index.js';
+import * as metrics from '../../../../src/utils/metrics.js';
+import * as log from '../../../../src/utils/logger.js';
+import * as harvesterLive from '../../../../src/utils/harvester-live.js';
 
 type SeedEntry = { imdbId: string; type: 'movie' | 'series'; reason: string };
 
@@ -238,3 +239,5 @@ async function nextSeeds(): Promise<SeedEntry[]> {
 
 export { nextSeeds, popularCohort };
 export default { nextSeeds, popularCohort };
+
+assertSafeTestDb('imdb-seed');

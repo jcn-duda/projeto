@@ -1,28 +1,13 @@
-// Estado da raspagem dos sites BR (plano "Raspagem total", Fase 0 — sem rede).
-//
-// Por que um SQLite PRÓPRIO (`data/crawl.db`) e não o cache (`cache.ts`)? A
-// fila de URLs é ESTADO VIVO de retomada — o container reinicia no meio da
-// carga inicial e o motor segue do próximo pendente — com 10 mil+ linhas por
-// site. O cache tem cota por namespace, TTL e bump de versão; qualquer um dos
-// três destruiria a fila. Mesmo padrão defensivo dos irmãos (catálogo):
-// `node:sqlite` carregado lazy com `createRequire` e, se o runtime
-// não tiver o módulo (Node 20) ou a abertura falhar, segue SÓ EM MEMÓRIA
-// (`crawl-store-memory.ts`, mesmos verbos, teto LRU, eviction contada) — nunca derruba o addon.
-//
-// Tabelas:
-//   crawl_url — uma linha por (site, url_key): lastmod, tipo, status, obra,
-//               tentativas, próxima tentativa e contagem de releases. A chave é
-//               o CAMINHO da URL (`crawl-url-key.ts`) e a `url` é o valor com o
-//               host vigente, para a fila sobreviver à troca de domínio do site;
-//   crawl_run — uma rodada do motor (carga inicial ou incremental), com fase,
-//               cursor e contadores, para o painel mostrar progresso.
-// Abertura LAZY: quem nunca chama `engine()` não paga arquivo (o status usa `currentEngine()`).
+// Store TS do `crawl.db`, congelado como oráculo de teste: o dono em produção é o
+// sidecar (`adom-crawl::store`), e o painel lê pela foto dele.
+import { setCrawlReadEngineForTest } from '../../../../src/providers/crawl-read-engine.js';
+import { assertSafeTestDb } from '../../db-guard.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import config from '../config.js';
-import { DEFAULT_CRAWL_DB_PATH } from '../config/helpers.js';
-import * as log from './logger.js';
+import config from '../../../../src/config.js';
+import { DEFAULT_CRAWL_DB_PATH } from '../../../../src/config/helpers.js';
+import * as log from '../../../../src/utils/logger.js';
 import type {
   CrawlErrorGroup,
   CrawlResultStatus,
@@ -35,11 +20,11 @@ import type {
   MarkResultInput,
   SiteCounters,
   UpsertReport,
-} from '../providers/crawl-types.js';
+} from '../../../../src/providers/crawl-types.js';
 import {
   URL_COLUMNS, applyResult, decideUpsert, emptyCounters, parseStatus, parseUrlRow, renderUrl,
-} from './crawl-store-rules.js';
-import { crawlUrlKey } from './crawl-url-key.js';
+} from '../../../../src/utils/crawl-store-rules.js';
+import { crawlUrlKey } from '../../../../src/utils/crawl-url-key.js';
 import { memoryCrawlEngine } from './crawl-store-memory.js';
 import { openCrawlDatabase } from './crawl-store-migrate.js';
 
@@ -47,8 +32,8 @@ export type {
   CrawlErrorGroup, CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow,
   CrawlUrlStatus, ClearSiteReport, DiscoveredEntry, MarkOpts, MarkResultInput, SeriesWorkProgress,
   SiteCounters, UpsertReport,
-} from '../providers/crawl-types.js';
-export { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress, renderProgress, progressAdvanced, withDryFlag } from './crawl-store-rules.js';
+} from '../../../../src/providers/crawl-types.js';
+export { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress, renderProgress, progressAdvanced, withDryFlag } from '../../../../src/utils/crawl-store-rules.js';
 
 /** Contrato das duas engines (SQL e memória); status terminais do requeue (`RequeueStatus`). */
 export type RequeueStatus = 'error' | 'no-work';
@@ -398,3 +383,8 @@ export function resetForTests(): void {
   }
   store = null;
 }
+
+assertSafeTestDb('crawl-store');
+
+// O card do painel lê pela foto do sidecar em produção; nos testes, por este store.
+setCrawlReadEngineForTest(() => currentEngine() ?? engine());

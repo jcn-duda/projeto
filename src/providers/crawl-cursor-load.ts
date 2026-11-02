@@ -8,7 +8,7 @@
 // da ponte, a leitura local do `crawl_state` continua valendo (é o MESMO banco
 // que o sidecar lê, então o fallback não inventa estado).
 import config from '../config.js';
-import type { CrawlEngine } from '../utils/crawl-store.js';
+import type { CrawlReadEngine } from './crawl-read-engine.js';
 
 export type CrawlKind = 'movie' | 'tv_show';
 export type CursorMap = Record<CrawlKind, string>;
@@ -64,7 +64,7 @@ export function refreshCursorsView(site: string): Promise<void> {
  * não chega (ou se nunca responder), a leitura quieta do `crawl_state`. Só
  * LÊ: não migra o cursor legado (quem grava é o sidecar).
  */
-export function cursorsView(site: string, engine: CrawlEngine): CursorMap {
+export function cursorsView(site: string, engine: CrawlReadEngine): CursorMap {
   void refreshCursorsView(site);
   const fromBridge = bridge.get(site);
   if (fromBridge) return { ...fromBridge };

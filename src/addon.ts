@@ -9,13 +9,11 @@ import { startHarvestPolling, stopHarvestPolling } from './utils/harvest-native.
 import { startIndexerStatusPolling, stopIndexerStatusPolling } from './providers/indexer-status-native.js';
 import { startSweepsPolling, stopSweepsPolling } from './utils/sweeps-native.js';
 import { startRdWarmPolling, stopRdWarmPolling } from './utils/rd-warm-native.js';
-import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
 // Relógio de poda de `mag`/`davail` registrado no boot, explicitamente: a
 // fachada magnetdb só reexporta o sweep para os testes — o dono do setInterval
 // é `mag-davail-sweep.ts`.
 import './utils/mag-davail-sweep.js';
-import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 import * as rustCore from './utils/rust-core.js';
 import * as autofetch from './providers/autofetch.js';
@@ -86,7 +84,6 @@ const server = app.listen(config.port, config.host, () => {
   // Warmer NATIVO do RD: o dono da fila é o gateway (`/rd-warm` na admin 8711)
   // e o Node só espelha o status para o painel — não há mais timer local.
   startRdWarmPolling();
-  brCoverage.start();
   // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
   // — o motor decide pelo overlay vivo (`crawler-live`) e o painel liga/desliga
   // sem restart. Desligado, o tick não roda e o `crawl.db` nem é aberto. O
@@ -113,7 +110,6 @@ function shutdown(signal: string) {
   force.unref();
   server.close(() => {
     brResolvers.close();
-    crawlStore.close();
     cache.close();
     log.info('[shutdown] addon encerrado');
     process.exit(0);

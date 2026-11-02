@@ -14,8 +14,8 @@ import * as rdLedger from './helpers/pipeline-oracle/rd-ledger.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as magnetdbWrites from './helpers/pipeline-oracle/play/magnetdb-writes.js';
 import { davailState } from '../src/utils/debrid-state-native.js';
-import * as brCoverage from '../src/utils/br-coverage.js';
-import { nextSeeds, popularCohort } from '../src/providers/imdb-seed.js';
+import * as brCoverage from './helpers/pipeline-oracle/coverage/br-coverage.js';
+import { nextSeeds, popularCohort } from './helpers/pipeline-oracle/coverage/imdb-seed.js';
 import { stubFetch } from './helpers/stub.js';
 
 const SEED_LAST = `${prefix('seed')}last`;

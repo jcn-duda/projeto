@@ -3,8 +3,8 @@
 // ritmava e processava página saiu depois da Fase 6, quando nenhum site
 // sobrou com adaptador TS. Aqui ficam só as peças que o painel consome:
 //
-// - `status()`: cards, catálogo e contadores lidos do `crawl.db` (o mesmo banco
-//   que o sidecar escreve) — o bloco `crawl` junta a foto do sidecar por cima;
+// - `status()`: cards, catálogo e contadores da foto do sidecar, dono do
+//   `crawl.db` (`crawl-read-engine.ts`) — o bloco `crawl` junta a foto do sidecar por cima;
 // - `setPaused()`: pausa manual global/por site, guardada no runtime do card;
 // - as ações locais (`crawl-actions.ts`): a simulação, que sem adaptador TS
 //   responde `sem-adaptador`. "Reprocessar sem obra", "Reprocessar erros" e
@@ -16,8 +16,7 @@
 // sidecar no boot dele. O Node não escreve mais no `crawl.db`.
 import config from '../config.js';
 import * as crawlerLive from '../utils/crawler-live.js';
-import * as store from '../utils/crawl-store.js';
-import type { CrawlEngine } from '../utils/crawl-store.js';
+import { crawlReadEngine, refreshCrawlSnapshots, type CrawlReadEngine } from './crawl-read-engine.js';
 import { buildCrawlerStatus, type CrawlSiteRuntimeView, type CrawlerStatusInput } from './crawl-status.js';
 import { createCrawlActions } from './crawl-actions.js';
 import * as registry from './crawl-sites/registry.js';
@@ -128,28 +127,20 @@ function setPaused(value: boolean, siteId?: string): {
   return { ok: true, paused, globalPaused: paused, site: null, autoPause: null };
 }
 
-// As ações locais (simular/reprocessar sem obra) moram em `crawl-actions.ts`; a fachada
+// A ação local (simular) mora em `crawl-actions.ts`; a fachada
 // injeta as closures — o módulo não importa `crawler.ts`, sem ciclo.
-const { simulate, reprocessNoWork } = createCrawlActions({
+const { simulate } = createCrawlActions({
   effective: () => crawlerLive.effective(),
   isPaused: () => paused,
-  count: (name, value) => metrics.count(name, value),
 });
 
-/**
- * Engine do STATUS: o painel precisa do `crawl.db` mesmo com o raspador
- * DESLIGADO (o card de site novo mostra "sonda não rodada"). Abre só se não
- * houver nenhuma — abertura idempotente, e o status só LÊ. Sem site
- * configurado não abre: criar o arquivo seria efeito colateral do painel.
- */
-function statusEngine(configured: number): CrawlEngine | null {
-  const open = store.currentEngine();
-  if (open) return open;
-  return configured > 0 ? store.engine() : null;
+/** Sem site configurado não há card a montar. */
+function statusEngine(configured: number): CrawlReadEngine | null {
+  return configured > 0 ? crawlReadEngine() : null;
 }
 
 /** Vista do runtime de um site para o card. */
-function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine): CrawlSiteRuntimeView {
+function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlReadEngine): CrawlSiteRuntimeView {
   const rt = runtimeFor(id);
   const cfg = siteConfigOf(live, id);
   return {
@@ -198,6 +189,11 @@ function status() {
   return buildCrawlerStatus(engine, live, configured, input);
 }
 
+/** Renova a foto do sidecar antes de montar o bloco do painel. */
+function refreshStatus(): Promise<void> {
+  return refreshCrawlSnapshots(siteIds());
+}
+
 /** Estado limpo entre casos (o processo sobe `start()` uma vez só). */
 export function _resetForTest(): void {
   started = false;
@@ -206,5 +202,5 @@ export function _resetForTest(): void {
   resetCursorsView();
 }
 
-export { start, status, setPaused, simulate, reprocessNoWork };
-export default { start, status, setPaused, simulate, reprocessNoWork };
+export { start, status, refreshStatus, setPaused, simulate };
+export default { start, status, refreshStatus, setPaused, simulate };

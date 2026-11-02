@@ -189,6 +189,8 @@
     "test/crawl-site-overrides.test.js",
     "test/crawl-site-probe.test.js",
     "test/crawl-status.test.js",
+    "test/br-coverage-native.test.js",
+    "test/crawl-read-engine.test.js",
     "test/crawl-store.test.js",
     "test/crawl-url-key.test.js",
     "test/crawler-live.test.js",

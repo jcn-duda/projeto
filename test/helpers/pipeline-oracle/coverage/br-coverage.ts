@@ -25,15 +25,16 @@
 //
 // Exclui deliberadamente releases com `lied`: o post prometeu PT mas os
 // arquivos provaram release EN — não é candidato BR, é ruído da medição.
-import config from '../config.js';
-import * as log from './logger.js';
-import * as metrics from './metrics.js';
-import { davailState, magnetState } from './debrid-state-native.js';
-import * as rdLedger from '../debrid/rd-ledger.js';
-import * as releaseIndex from './release-index.js';
-import { popularCohort } from '../providers/imdb-seed.js';
-import type { PopularCohort } from '../providers/imdb-seed.js';
-import type { IndexedRelease } from './release-index.js';
+import { assertSafeTestDb } from '../../db-guard.js';
+import config from '../../../../src/config.js';
+import * as log from '../../../../src/utils/logger.js';
+import * as metrics from '../../../../src/utils/metrics.js';
+import { davailState, magnetState } from '../../../../src/utils/debrid-state-native.js';
+import * as rdLedger from '../../../../src/debrid/rd-ledger.js';
+import * as releaseIndex from '../../../../src/utils/release-index.js';
+import { popularCohort } from './imdb-seed.js';
+import type { PopularCohort } from './imdb-seed.js';
+import type { IndexedRelease } from '../../../../src/utils/release-index.js';
 
 type TypeCounts = {
   target: number;
@@ -321,3 +322,5 @@ export function reset(): void {
 export { operatorCtx };
 
 export default { sample, status, start, reset, releaseStatus, isBrRelease, operatorCtx };
+
+assertSafeTestDb('br-coverage');

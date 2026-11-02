@@ -10,7 +10,7 @@
 // site (pausa, ciclo, cursor, custo, teto, gate da sonda). Entrada legada
 // (motor de site único, sem `sites`) continua aceito: as chamadas antigas
 // montam uma vista única e o topo sai igual.
-import type { CrawlEngine } from '../utils/crawl-store.js';
+import type { CrawlReadEngine } from './crawl-read-engine.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
 import { siteConfigOf, type CrawlerEffectiveConfig, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import type { ProbeGate } from './crawl-probe-gate.js';
@@ -152,7 +152,7 @@ export function avgCostFor(view: CrawlSiteRuntimeView | undefined, state: CrawlM
 /** Card de UM site. `null` quando o store ainda não abriu (nada a mostrar). */
 export function buildSiteStatus(
   siteId: string,
-  engine: CrawlEngine,
+  engine: CrawlReadEngine,
   live: CrawlerEffectiveConfig,
   state: CrawlMotorState,
   view?: CrawlSiteRuntimeView,
@@ -252,7 +252,7 @@ export function buildSiteStatus(
 
 /** Foto completa do motor: topo (visão do site ativo) + um card por site. */
 export function buildCrawlerStatus(
-  engine: CrawlEngine | null,
+  engine: CrawlReadEngine | null,
   live: CrawlerEffectiveConfig,
   configuredSites: string[],
   input: CrawlerStatusInput,

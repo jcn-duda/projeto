@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 const config = (await import('../src/config.js')).default;
-const store = await import('../src/utils/crawl-store.js');
+const store = await import('./helpers/pipeline-oracle/crawl/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
 const { siteConfigOf, knownSites, cadenceDelayMs } = await import('../src/utils/crawler-live-site.js');
@@ -189,23 +189,6 @@ describe('crawl catálogo: status e motor', () => {
     assert.deepEqual(crawler.status().sites.map((s) => s.id), ['nerdfilmes']);
     // Os nove sites são do sidecar Rust: o Node só mostra o card.
     assert.equal(store.engine().counters('nerdfilmes').total, 0, 'o Node não raspa site do sidecar');
-  });
-
-  test('ações por site aceitam o site ligado pelo painel (fora do CRAWL_SITES)', () => {
-    // O bug: o NerdFilmes ligado no painel devolvia "0 URL(s)" com HTTP 200 em
-    // Reprocessar/Zerar, porque a validação olhava só o `.env`. "Reprocessar
-    // erros" e "Zerar" agora vão ao sidecar; a ação local que sobra é esta.
-    live.setSiteOverride('nerdfilmes', { enabled: true });
-    store.engine().upsertUrls('nerdfilmes', [{ url: 'https://x.test/a', lastmod: '', kind: 'movie' }], 1);
-    store.engine().markResult('nerdfilmes', 'https://x.test/a', { status: 'no-work', imdb: null, releases: 0 }, 1);
-    const noWork = crawler.reprocessNoWork('nerdfilmes');
-    assert.deepEqual({ ok: noWork.ok, requeued: noWork.requeued }, { ok: true, requeued: 1 });
-  });
-
-  test('site fora do motor é recusado com motivo, nunca "0" mudo', () => {
-    const r = crawler.reprocessNoWork('comandotorrents');
-    assert.equal(r.ok, false, 'tem adaptador, mas não foi ligado');
-    assert.equal(r.reason, 'site-desconhecido');
   });
 
   test('pausa por site aceita o site ligado pelo painel', () => {

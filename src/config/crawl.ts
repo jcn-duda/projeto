@@ -7,7 +7,7 @@ const seriesMaxButtonsEnv = (): number =>
   Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_BUTTONS, 40)));
 
 // Raspagem total dos sites BR (plano "Raspagem total", piloto: Vaca). Estado
-// da fila em SQLite próprio (`data/crawl.db`, ver `utils/crawl-store.ts`).
+// da fila em SQLite próprio (`data/crawl.db`, do sidecar).
 // DESLIGADA por padrão: ligar é decisão do operador, site a site, depois das
 // fases de validação (adaptador → identificação → motor em simulação → painel
 // → gravação de verdade). O painel pode sobrepor `enabled` ao vivo

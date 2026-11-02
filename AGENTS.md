@@ -689,6 +689,15 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   `record` queimaria `tries` de toda página). A invalidação do `streams.db` do
   gateway sai pela API admin (`POST /streams/invalidate`), fail-open.
 - Config por site no painel (`siteOverrides`); sites do painel nascem desligados.
+- **O Node não abre o `crawl.db`.** O card lê a foto de `GET /crawl/site-snapshot`
+  do sidecar (`src/providers/crawl-read-engine.ts`); o store TS ficou no oráculo
+  (`test/helpers/pipeline-oracle/crawl/`). `crawl-store-rules.ts` segue em `src/`
+  para o golden e os scripts de recuperação.
+- **Semente e cobertura BR são do gateway.** `adom-server::harvest::seed` lê os
+  populares da RapidAPI, grava `seed:v1:cohort`/`last` e enfileira no colhedor;
+  `adom-server::br_coverage` mede a coorte e expõe `GET /br-coverage` na admin
+  8711, lida por `src/utils/br-coverage-native.ts`. Sem `RAPIDAPI_KEY` a semente
+  é inerte. O TS ficou no oráculo (`pipeline-oracle/coverage/`).
 
 ---
 
@@ -746,7 +755,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou só a rota de efeitos (`/internal/search/effects`, em `src/routes/internal-search-effects.ts` — a de metadados saiu no passo 3 do corte; o feed de holds saiu: o gateway calcula os fatos; `applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`; o `dub_audit` é nativo desde a T3-L7a) |
 | Fontes | Jackett, Prowlarr, Torrentio, BLUDV e Mico nativos em `adom-sources`; conta em `adom-search` (`orchestrator/account.rs`) |
 | Autofetch / colhedor | Worker nativo do Chupim em `rust/crates/adom-server/src/autofetch/` (fila, recheck, sonda, temporada, represa `sup:` e evicção F6) — o corpo TS saiu na B4. No Node ficam `adsub`/`adprot`, as pontes e o painel — `autofetch.ts` encolhido, `autofetch-obra*`, `autofetch-marker.ts`, `utils/autofetch-native.ts`. Fila e worker do colhedor são do gateway (`adom-harvest`) e o Node só tem a ponte `src/utils/harvest-native.ts` |
-| Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o estado/painel (`crawl-*.ts`, `crawl-store*`, `crawler-live*`) e as ações (`dashboard-actions-crawl.ts`) |
+| Raspador | Motor, identificação e ingestão no sidecar (`rust/crates/adom-crawl`); no Node ficam os cards (`crawl-sites/registry.ts`), o painel (`crawl-*.ts`, `crawler-live*`, leitura pela foto `crawl-read-engine.ts`) e as ações (`dashboard-actions-crawl.ts`) |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
 | Utils | `src/utils/` (`title-normalization.ts`, `trackers.ts`; `cache*.ts`, `magnetdb*.ts`, `magnet-bank-native.ts`/`-transfer.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |

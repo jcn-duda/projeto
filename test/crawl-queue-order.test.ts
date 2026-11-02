@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 process.env.CACHE_PERSIST = 'false';
-import * as store from '../src/utils/crawl-store.js';
-import { memoryCrawlEngine } from '../src/utils/crawl-store-memory.js';
+import * as store from './helpers/pipeline-oracle/crawl/crawl-store.js';
+import { memoryCrawlEngine } from './helpers/pipeline-oracle/crawl/crawl-store-memory.js';
 
 const movie = (url: string, lastmod = '2026-09-25') => ({ url, lastmod, kind: 'movie' as const });
 

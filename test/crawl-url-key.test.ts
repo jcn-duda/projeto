@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import * as store from '../src/utils/crawl-store.js';
+import * as store from './helpers/pipeline-oracle/crawl/crawl-store.js';
 import { crawlUrlKey, mergeCrawlUrlRows } from '../src/utils/crawl-url-key.js';
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 
