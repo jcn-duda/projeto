@@ -97,6 +97,9 @@ fn engine(api: Arc<FakeApi>, max_buttons: u32) -> MicoPageEngine {
 fn work(outcome: PageOutcome) -> Box<crate::motor::types::CrawlWorkResult> {
     match outcome {
         PageOutcome::Work(w) => w,
+        // Fase 0: o Mico não produz adiamento (a lane tem o throttle dela) —
+        // se um dia vier, é bug de roteamento e o teste tem de gritar.
+        PageOutcome::Deferred { label, .. } => panic!("esperava Work, veio adiamento: {label}"),
         PageOutcome::Failed(msg) => panic!("esperava Work, veio Failed: {msg}"),
         PageOutcome::TimedOut => panic!("esperava Work, veio TimedOut"),
     }

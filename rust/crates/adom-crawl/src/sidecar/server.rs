@@ -28,6 +28,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
+use crate::motor::site_clock::SiteHold;
 use crate::motor::{CrawlMotor, SiteStatus};
 use crate::store::CrawlStore;
 
@@ -122,6 +123,9 @@ async fn status_handler(
         sites: Vec<SiteStatus>,
         pages_this_hour: u32,
         global_paused: bool,
+        /// Fase 0: sites de molho e quantos 429/503 o processo viu.
+        holds: Vec<SiteHold>,
+        deferred_count: u32,
         engine: String,
     }
 
@@ -130,6 +134,8 @@ async fn status_handler(
         sites: motor_status.sites,
         pages_this_hour: motor_status.pages_this_hour,
         global_paused: motor_status.global_paused,
+        holds: motor_status.holds,
+        deferred_count: motor_status.deferred_count,
         engine: "rust".to_string(),
     };
 

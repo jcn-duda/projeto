@@ -17,6 +17,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde_json::json;
+
 use super::{CrawlPageEngine, ACCEPT_PAGE};
 use crate::br_core::magnet::{self, is_valid_magnet_uri};
 use crate::br_core::vaca_protector::next_protected_url;
@@ -94,6 +96,36 @@ fn clearance_of(cookies: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Corte dos botões com o total visto: capturar ANTES do `take` é a única
+/// evidência de quanto a página passou do teto (Fase 1.3).
+fn take_buttons(links: Vec<ResolverLink>) -> (Vec<ResolverLink>, usize) {
+    let total = links.len();
+    (links.into_iter().take(MAX_BUTTONS).collect(), total)
+}
+
+/// Marcador do corte no formato do `progress` do `CrawlWorkResult` (Fase 1.3).
+/// Chaves auto-descritivas de propósito: o `SeriesWorkProgress` do Mico
+/// (`doneCards`/`totalCards`) é outro shape e nada aqui deve fingir ser ele.
+/// SEM uso em produção ainda: a ponte de `to_work` (page_engine.rs) não
+/// propaga `progress` — quando propagar, este é o corpo gravado no `crawl.db`.
+#[allow(dead_code)]
+fn clipped_progress(total: usize, seen: usize) -> String {
+    json!({"buttonsClipped": total, "buttonsSeen": seen}).to_string()
+}
+
+/// Telemetria do corte (Fase 1.3): a medição real acontece no Docker; o log é
+/// o registro.
+fn clip_message(total: usize) -> String {
+    format!("{total} botões, cortado em {MAX_BUTTONS}")
+}
+
+/// Telemetria da página que fecha `done` magro (Fase 1.2): com séries cortadas
+/// pelo teto de botões no acervo, `releases=1` pode ser característica do site
+/// ou perda — o dado do log é o que separa os casos.
+fn scarce_message(buttons: usize, releases: usize) -> String {
+    format!("done com {releases} release(s), {buttons} botão(ões)")
+}
+
 impl CrawlPageEngine {
     /// Página do Vaca inteira: post → página(s) de botões → magnet de cada botão.
     pub(super) async fn vaca_page(
@@ -110,7 +142,15 @@ impl CrawlPageEngine {
             self.vaca_movie_links(row, profile, post, cost).await?
         };
         let mut ends = Vec::new();
-        let links: Vec<ResolverLink> = links.into_iter().take(MAX_BUTTONS).collect();
+        // Total ANTES do corte: séries longas passam dos 120 botões e o `done`
+        // parcial não pode ficar invisível (Fase 1.3). O desfecho `Partial`
+        // da página clipped depende da ponte de `to_work` (page_engine.rs),
+        // que ainda não propaga progresso — hoje o corte sobe como telemetria
+        // e segue preservando os botões vistos.
+        let (links, total) = take_buttons(links);
+        if total > MAX_BUTTONS {
+            eprintln!("[vaca] {}: {}", row.url_key, clip_message(total));
+        }
         for link in &links {
             if is_valid_magnet_uri(&link.url) {
                 ends.push(ButtonEnd::Magnet(link.url.clone()));
@@ -121,9 +161,25 @@ impl CrawlPageEngine {
             ends.push(self.vaca_follow(&link.url, &row.url, profile, cost).await?);
         }
         let found = settle_buttons(links, ends)?;
-        Ok(page_parser::parse_vaca_followed(
-            &row.kind, &row.url, post, &found,
-        ))
+        let parsed = page_parser::parse_vaca_followed(&row.kind, &row.url, post, &found);
+        // Fase 1.2: `done` magro é o sintoma que separa característica do site
+        // de perda de botões. Não muda o desfecho — só deixa o dado no log. O
+        // critério de contagem é o mesmo do `counted_releases` do motor (o
+        // número que o painel exibe).
+        let releases = parsed.releases.len()
+            + parsed
+                .groups
+                .iter()
+                .map(|g| g.releases.len())
+                .sum::<usize>();
+        if parsed.status == "done" && releases <= 1 {
+            eprintln!(
+                "[vaca] {}: {}",
+                row.url_key,
+                scarce_message(total, releases)
+            );
+        }
+        Ok(parsed)
     }
 
     async fn vaca_movie_links(

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::net::allowlist::Allowlist;
 use crate::net::cookie_jar::CookieJar;
 use crate::net::redirect::{fetch_follow_redirects, FetchRedirectsOptions};
-use crate::net::types::CrawlFetchError;
+use crate::net::types::{retry_after_ms_from_headers, CrawlFetchError};
 
 /// Opções do `fetch_text_direct`.
 pub struct FetchDirectOptions {
@@ -51,6 +51,9 @@ pub async fn fetch_text_direct(
     if !response.is_ok() {
         return Err(CrawlFetchError::HttpError {
             status: response.status,
+            // Fase 0: o prazo que o site mandou viaja no erro — quem decide
+            // entre falhar e adiar é o motor, não a camada de rede.
+            retry_after_ms: retry_after_ms_from_headers(&response.headers),
         });
     }
 

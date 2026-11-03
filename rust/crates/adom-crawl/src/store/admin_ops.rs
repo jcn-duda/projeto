@@ -12,11 +12,13 @@
 //!   `simulated`: crash/falha preserva o progresso seco e o resume pularia
 //!   cards nunca gravados.
 //!
-//! Fica fora do `ops.rs` pela catraca de 400 linhas.
+//! `clear_site` (o "Zerar site", com o veredito da sonda preservado) e os
+//! reparos únicos de boot (Vaca no-torrent; tries de adiamento 429) completam
+//! as ações do painel. Fica fora do `ops.rs` pela catraca de 400 linhas.
 
 use rusqlite::params;
 
-use super::ops::CrawlStore;
+use super::ops::{CrawlStore, PROBE_VERDICT_KEY};
 use super::types::StoreError;
 
 /// Teto de `url_key` devolvidos no relatório: a resposta é diagnóstico do
@@ -74,6 +76,28 @@ impl CrawlStore {
         )
     }
 
+    /// Crash recovery: URLs inflight voltam para pending.
+    /// Retorna a quantidade de URLs reenfileiradas.
+    pub fn requeue_inflight(&self, site: &str) -> Result<u32, StoreError> {
+        let affected = self.conn().execute(
+            "UPDATE crawl_url SET status = 'pending', next_at = 0 \
+             WHERE site = ?1 AND status = 'inflight'",
+            params![site],
+        )?;
+        Ok(affected as u32)
+    }
+
+    /// Reprocessar erros: URLs com status 'error' ou 'no-work' voltam para
+    /// pending com next_at = 0. Retorna a quantidade reenfileirada.
+    pub fn requeue_errors(&self, site: &str) -> Result<u32, StoreError> {
+        let affected = self.conn().execute(
+            "UPDATE crawl_url SET status = 'pending', next_at = 0, error = '' \
+             WHERE site = ?1 AND status IN ('error', 'no-work')",
+            params![site],
+        )?;
+        Ok(affected as u32)
+    }
+
     /// Reparo ÚNICO do Vaca: o motor Rust lia só o post, que não publica botão,
     /// e fechou o acervo como `no-torrent` (terminal, nunca relido). Devolve essas
     /// linhas à fila uma vez; o marcador em `crawl_state` impede que obra sem
@@ -92,6 +116,48 @@ impl CrawlStore {
         )?;
         self.set_state(SITE, MARK, &report.requeued.to_string())?;
         Ok(report.requeued)
+    }
+
+    /// Zera site (destrutivo): apaga todas as URLs, estado, rodadas e pendências
+    /// de portão do site — EXCETO o veredito da sonda. O TS preservava (leitura
+    /// antes do clear e regravação depois, `crawl-actions.ts` `resetSite`) e o
+    /// gate sem veredito barra um site já autorizado: zerar a fila não pode
+    /// desautorizar o que foi medido.
+    pub fn clear_site(&self, site: &str) -> Result<(), StoreError> {
+        let probe = self.get_state(site, PROBE_VERDICT_KEY)?;
+        let tx = self.conn().unchecked_transaction()?;
+        tx.execute("DELETE FROM crawl_url WHERE site = ?1", params![site])?;
+        tx.execute("DELETE FROM crawl_state WHERE site = ?1", params![site])?;
+        tx.execute("DELETE FROM crawl_run WHERE site = ?1", params![site])?;
+        tx.execute("DELETE FROM crawl_gate WHERE site = ?1", params![site])?;
+        tx.commit()?;
+        // Mesma janela do TS (leitura → clear → regrava): a sonda não grava
+        // veredito concorrente com o botão de zerar na prática.
+        if let Some(verdict) = probe {
+            self.set_state(site, PROBE_VERDICT_KEY, &verdict)?;
+        }
+        Ok(())
+    }
+
+    /// Reparo ÚNICO das tries de adiamento: o motor antigo debitava `tries` em
+    /// 429 (Retry-After) e ~471 páginas do Vaca ficaram com tries=1 + error
+    /// `http_429*` — a próxima re-429 viraria `error` terminal. Zera `tries`
+    /// dessas linhas UMA vez; o marcador é global (`__global__`, o 429 é do
+    /// Cloudflare na frente, não de um site) e a 2ª rodada é no-op. Só toca
+    /// `tries`: status, erro e next_at ficam como o motor os gravou.
+    pub fn repair_http429_once(&self) -> Result<u32, StoreError> {
+        const MARK_SITE: &str = "__global__";
+        const MARK: &str = "repair:http429-tries-v1";
+        if self.get_state(MARK_SITE, MARK)?.is_some() {
+            return Ok(0);
+        }
+        let affected = self.conn().execute(
+            "UPDATE crawl_url SET tries = 0 \
+             WHERE tries = 1 AND error LIKE 'http_429%'",
+            [],
+        )?;
+        self.set_state(MARK_SITE, MARK, &affected.to_string())?;
+        Ok(affected as u32)
     }
 
     /// Amostra as chaves e aplica o UPDATE com o MESMO predicado — SELECT e

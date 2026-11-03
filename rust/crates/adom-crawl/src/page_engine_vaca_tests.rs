@@ -129,3 +129,79 @@ fn data_link_de_serie_sai_com_entidade_decodificada() {
         Some("magnet:?xt=urn:btih:b617dd7783d0d69eb2c86cccff662e4cb5c9f3d6&dn=Coven")
     );
 }
+
+// ─── Fase 1.3: corte de botões e Fase 1.2: telemetria de done magro ────────
+
+/// Magnet válido por índice: 40 hex únicos, para volume sem dedupe de hash.
+fn magnet_n(i: usize) -> String {
+    format!("magnet:?xt=urn:btih:{:040x}&dn=Botao{i}", i)
+}
+
+fn botoes(n: usize) -> Vec<ResolverLink> {
+    (0..n)
+        .map(|i| link(&format!("https://vaqueirofilmes.com/enc/go.php?id=b{i}")))
+        .collect()
+}
+
+/// Página com mais botões que o teto: o total é capturado ANTES do corte e o
+/// marcador do `progress` traz a contagem exata (Fase 1.3).
+#[test]
+fn corte_captura_o_total_e_monta_o_marcador_de_progresso() {
+    let (cortados, total) = take_buttons(botoes(MAX_BUTTONS + 57));
+    assert_eq!(total, MAX_BUTTONS + 57, "total visto antes do corte");
+    assert_eq!(cortados.len(), MAX_BUTTONS);
+    assert_eq!(
+        clipped_progress(total, cortados.len()),
+        format!(
+            r#"{{"buttonsClipped":{},"buttonsSeen":{}}}"#,
+            MAX_BUTTONS + 57,
+            MAX_BUTTONS
+        )
+    );
+}
+
+/// Página dentro do teto: nada é cortado (Fase 1.3).
+#[test]
+fn dentro_do_teto_nao_ha_corte() {
+    let (links, total) = take_buttons(botoes(MAX_BUTTONS));
+    assert_eq!((links.len(), total), (MAX_BUTTONS, MAX_BUTTONS));
+}
+
+/// Volume no teto, por si só, não muda o desfecho do parser: `done` sai como
+/// sempre — o corte é só de quantidade seguida (Fase 1.3).
+#[test]
+fn parser_com_volume_no_teto_mantem_done() {
+    let links: Vec<ResolverLink> = (0..MAX_BUTTONS).map(|i| link(&magnet_n(i))).collect();
+    let parsed = page_parser::parse_vaca_followed(
+        "movie",
+        "https://vaqueirofilmes.com/pt/movie/resident-evil/",
+        POST,
+        &links,
+    );
+    assert_eq!(parsed.status, "done");
+    assert_eq!(parsed.releases.len(), MAX_BUTTONS);
+}
+
+/// `done` com 1 release: a telemetria (Fase 1.2) é só log — status e releases
+/// seguem inalterados.
+#[test]
+fn done_com_um_release_mantem_o_status_e_sobe_telemetria() {
+    let parsed = page_parser::parse_vaca_followed(
+        "movie",
+        "https://vaqueirofilmes.com/pt/movie/resident-evil/",
+        POST,
+        &[link(MAGNET)],
+    );
+    assert_eq!(parsed.status, "done");
+    assert_eq!(parsed.releases.len(), 1);
+    assert_eq!(scarce_message(1, 1), "done com 1 release(s), 1 botão(ões)");
+}
+
+/// Formato do log do corte: é o que a medição no Docker vai buscar.
+#[test]
+fn mensagem_do_corte_tem_o_formato_do_log() {
+    assert_eq!(
+        clip_message(MAX_BUTTONS + 57),
+        format!("{} botões, cortado em {MAX_BUTTONS}", MAX_BUTTONS + 57)
+    );
+}

@@ -143,7 +143,7 @@ fn take_next_batch_multiplos_sites() {
         .upsert_urls("site-c", &[sample_url("/3")])
         .expect("upsert c");
 
-    let batch = store.take_next_batch(2).expect("batch");
+    let batch = store.take_next_batch(2, &[]).expect("batch");
     assert_eq!(batch.len(), 2, "deve retornar 2 sites (limite)");
 
     // Todos devem estar inflight.
@@ -165,7 +165,7 @@ fn take_next_batch_serve_quem_esperou_mais() {
     }
     let mut served = Vec::new();
     for _ in 0..3 {
-        let batch = store.take_next_batch(1).expect("batch");
+        let batch = store.take_next_batch(1, &[]).expect("batch");
         let row = &batch[0];
         served.push(row.site.clone());
         let done = MarkResult {
@@ -235,7 +235,7 @@ fn take_next_batch_exclui_own_pace_sem_gastar_vaga() {
         .upsert_urls("site-b", &[sample_url("/b")])
         .expect("upsert b");
 
-    let batch = store.take_next_batch(2).expect("batch");
+    let batch = store.take_next_batch(2, &[]).expect("batch");
     let sites: Vec<&str> = batch.iter().map(|r| r.site.as_str()).collect();
     assert!(
         !sites.contains(&OWN_PACE),

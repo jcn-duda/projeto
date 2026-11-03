@@ -4,8 +4,9 @@
 //! passo de raspagem: nunca no caminho da resposta, nunca dentro do prazo do
 //! passo (o pagamento usa ~30s de FlareSolverr e não cabe em `step_deadline_ms`).
 //! Freios, nesta ordem (barato → caro): 1) faixa Flare ocupada pula a rodada
-//! (o solver é UM por vez e é o mesmo da busca ao vivo); 2) teto por hora
-//! (`CRAWL_GATE_HOURLY`) — estourado, os pendentes ficam para a rodada
+//! (o solver é UM por vez e é o mesmo da busca ao vivo — sonda LOCAL do motor
+//! E sinal EXTERNO da admin do gateway, `gate/flare_signal.rs`); 2) teto por
+//! hora (`CRAWL_GATE_HOURLY`) — estourado, os pendentes ficam para a rodada
 //! seguinte; 3) ociosidade pelo MESMO critério do freio de tráfego do raspador
 //! (`recent_user_traffic`, mecanismo reusado, não duplicado).
 //!
@@ -26,6 +27,7 @@
 
 mod config;
 mod defer;
+mod flare_signal;
 mod resolver;
 mod work;
 
@@ -93,6 +95,9 @@ pub struct GateExecutor {
     ingest: Option<Arc<dyn PageIngest>>,
     resolver: Arc<dyn GateResolver>,
     flare: Arc<dyn FlareProbe>,
+    /// Metade EXTERNA do freio de flare (`gate/flare_signal.rs`); `None` sem
+    /// credencial da admin do gateway.
+    flare_signal: Option<Arc<flare_signal::ExternalFlareSignal>>,
     store: Arc<StdMutex<CrawlStore>>,
     state: AsyncMutex<GateRuntime>,
 }
@@ -126,6 +131,8 @@ impl GateExecutor {
         resolver: Arc<dyn GateResolver>,
         flare: Arc<dyn FlareProbe>,
     ) -> Self {
+        // Ponte do sinal externo de flare: `None` sem credencial da admin.
+        let flare_signal = flare_signal::ExternalFlareSignal::from_config(&cfg);
         Self {
             cfg,
             tuning,
@@ -133,6 +140,7 @@ impl GateExecutor {
             ingest: None,
             resolver,
             flare,
+            flare_signal,
             store,
             state: AsyncMutex::new(GateRuntime {
                 spent_this_hour: 0,
@@ -189,8 +197,12 @@ impl GateExecutor {
                 skipped: Some("ingest-pendente"),
             });
         }
-        // 1. Faixa Flare ocupada: nem consulta o Node. O solver é um por vez.
-        if self.flare.flare_busy() {
+        // 1. Faixa Flare ocupada: nem consulta o Node. O solver é um por vez e
+        //    é o MESMO da busca ao vivo: ocupado = raspagem Flare LOCAL do
+        //    motor OU sinal EXTERNO da admin do gateway (`external_flare_busy`,
+        //    fail-open — ver gate/flare_signal.rs). Ceder aqui NÃO debita o
+        //    teto horário: a rodada morre antes de tomar linha.
+        if self.flare.flare_busy() || self.external_flare_busy().await {
             return Ok(GateRoundReport {
                 claimed: 0,
                 paid: 0,
@@ -376,3 +388,7 @@ mod tests;
 #[cfg(test)]
 #[path = "gate_backoff_tests.rs"]
 mod backoff_tests;
+
+#[cfg(test)]
+#[path = "gate_flare_signal_tests.rs"]
+mod flare_signal_tests;

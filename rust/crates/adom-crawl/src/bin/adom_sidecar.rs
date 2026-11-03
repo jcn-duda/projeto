@@ -130,6 +130,15 @@ async fn main() {
         Err(e) => eprintln!("[adom-sidecar] vacatorrent: reparo falhou: {e}"),
     }
 
+    // Reparo único das tries de adiamento: o motor antigo debitou `tries` em
+    // 429 (Retry-After) e ~471 páginas ficaram a uma re-429 de virar `error`
+    // terminal. Mesma régua do reparo acima: falha não impede o boot.
+    match store.repair_http429_once() {
+        Ok(0) => {}
+        Ok(n) => eprintln!("[adom-sidecar] http429: {n} página(s) com tries de adiamento zeradas"),
+        Err(e) => eprintln!("[adom-sidecar] http429: reparo falhou: {e}"),
+    }
+
     // ── 4. Cria o cliente HTTP ───────────────────────────────────────
     // O cliente será integrado ao motor quando o Agente 1 conectar a camada HTTP.
     let _http_client = SidecarHttpClient::new(node_url.clone(), auth_token.clone());

@@ -226,6 +226,10 @@ async fn clear_limpa_tudo_ou_so_o_sufixo() {
 #[path = "store_admin_tests_clear.rs"]
 mod clear;
 
+/// `GET /flare/busy` — sinal externo para o portão do sidecar (stub).
+#[path = "store_admin_tests_flare.rs"]
+mod flare_busy;
+
 #[tokio::test]
 async fn trace_devolve_ledger_e_hashes_sem_vazar_url() {
     let store = Arc::new(StreamsStore::open_memory_with_quota(10).unwrap());

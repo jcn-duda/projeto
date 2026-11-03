@@ -5,18 +5,18 @@
 //! parser nenhum, conhece a trait.
 //!
 //! Um tick: pausa global → auto-pausa → teto por hora (custo REAL) → freio do
-//! usuário → parser ligado? → INGESTÃO ligada? → `take_next_batch(max_parallel)`
-//! → uma `spawn` por linha com `timeout(step_deadline_ms)` → ingestão nativa
-//! (T3-L3) → `mark_result`.
+//! usuário → parser ligado? → INGESTÃO ligada? → `take_next_batch(max_parallel,
+//! sites-em-espera)` → uma `spawn` por linha com `timeout(step_deadline_ms)` →
+//! ingestão nativa (T3-L3) → `mark_result`.
 //!
 //! A página NÃO é mais postada em `/internal/crawl-result`: quem grava é o
 //! [`Ingest`](crate::ingest::Ingest) injetado (banco vivo → índice → invalidação),
 //! pelo adaptador [`PageIngest`](super::ingest::PageIngest).
 //!
 //! As regras puras de decisão (backoff, status, esgotamento de `tries`) estão em
-//! [`MarkResult::from_work`](crate::store::ops::MarkResult), ao lado do
-//! `applyResult` do TS. Erro de rede nunca derruba o motor: é logado e o
-//! próximo ciclo segue.
+//! [`MarkResult::from_work`](crate::store::ops::MarkResult); 429/503 têm desfecho
+//! PRÓPRIO (`site_clock::deferred_step`): não entregam, não queimam `tries` e
+//! põem o site de molho. Erro de rede nunca derruba o motor.
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -26,14 +26,14 @@ use tokio::time::{interval, Duration, Instant};
 
 use super::ingest::PageIngest;
 use super::mico_lane::MicoLane;
+use super::site_clock::{deferred_step, delay_efetivo};
 use super::types::{
     error_work, now_ms, CrawlResultStatus, MotorConfig, MotorStatus, PageEngine, PageOutcome,
-    SiteStatus, UnwiredPageEngine,
+    UnwiredPageEngine,
 };
 use crate::discovery::SiteDiscovery;
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;
-use crate::site_profiles::all_site_ids;
 use crate::store::ops::{CrawlStore, MarkResult, UrlRow};
 
 /// Erro fatal do motor — só persistência. Rede/entrega são log, não erro.
@@ -95,6 +95,14 @@ pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
     };
     let mut work = match outcome {
         PageOutcome::Work(w) => *w,
+        // 429/503 (Fase 0): desfecho ADIÁVEL — não entrega, não loga erro,
+        // não queima `tries`; o site inteiro descansa o prazo pedido.
+        PageOutcome::Deferred {
+            retry_after_ms,
+            label,
+        } => {
+            return deferred_step(&ctx, &row, retry_after_ms, &label).await;
+        }
         PageOutcome::Failed(msg) => {
             eprintln!("[motor] {} {}: {}", row.site, row.url_key, msg);
             error_work(&row, &msg)
@@ -104,6 +112,14 @@ pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
             error_work(&row, "step-timeout")
         }
     };
+
+    // Ritmo por site (Fase 0): a página saiu (feita, falha ou prazo) e o
+    // site descansa o delay efetivo antes da próxima. Antes do branch do
+    // portão para valer para TODO desfecho — o gate-pending também leu o site.
+    ctx.cfg.site_clock.wait(
+        &row.site,
+        now_ms().saturating_add(delay_efetivo(&row.site, ctx.cfg.delay_ms) as i64),
+    );
 
     // Post pendente de portão (BLUDV): NADA a entregar ao Node ainda — a
     // gravação no acervo acontece quando o executor de fundo pagar o portão
@@ -270,7 +286,12 @@ impl CrawlMotor {
         // fila vazia continua sendo alimentada: o tick seguinte já vê o que entrou.
         self.spawn_discovery();
         let limit = self.config.max_parallel.max(1);
-        let batch = with_store(self.store.clone(), move |db| db.take_next_batch(limit)).await?;
+        // Sites de molho não entram no claim (Fase 0): a store pula-os.
+        let skip = self.config.site_clock.waiting_sites(now);
+        let batch = with_store(self.store.clone(), move |db| {
+            db.take_next_batch(limit, &skip)
+        })
+        .await?;
         if batch.is_empty() {
             return Ok(TickOutcome::Skipped("sem-fila"));
         }
@@ -313,6 +334,9 @@ impl CrawlMotor {
             sites: self.snapshot_sites().await,
             pages_this_hour: *self.pages_this_hour.lock().await,
             global_paused: *self.global_paused.lock().await,
+            // Fase 0: quem está de molho e quantos 429/503 o processo viu.
+            holds: self.config.site_clock.holds(now_ms()),
+            deferred_count: self.config.site_clock.deferred_count(),
         }
     }
 
@@ -332,48 +356,7 @@ impl CrawlMotor {
         *guard = Some(db);
         Ok(())
     }
-
-    /// Crash recovery: URLs presas em `inflight` voltam para a fila.
-    async fn requeue_inflight_on_boot(&self) {
-        let handle = self.store.clone();
-        let sites = all_site_ids();
-        let total = with_store(handle, move |db| {
-            sites
-                .iter()
-                .try_fold(0u32, |acc, id| db.requeue_inflight(id).map(|n| acc + n))
-        })
-        .await
-        .unwrap_or(0);
-        if total > 0 {
-            eprintln!("[motor] recovery: {total} URLs inflight voltaram para a fila");
-        }
-    }
-
-    /// Contadores por site para o painel — uma única ida ao thread blocking.
-    async fn snapshot_sites(&self) -> Vec<SiteStatus> {
-        if self.ensure_store().is_err() {
-            return Vec::new();
-        }
-        let ids = all_site_ids();
-        with_store(self.store.clone(), move |db| {
-            Ok(ids
-                .iter()
-                .filter_map(|id| {
-                    let c = db.counters(id).ok()?;
-                    Some(SiteStatus {
-                        site_id: (*id).to_string(),
-                        pending: c.pending,
-                        done: c.done,
-                        no_torrent: c.no_torrent,
-                        error: c.error,
-                        inflight: c.inflight,
-                        releases: db.sum_releases(id).unwrap_or(0),
-                        gate_pending: c.gate_pending,
-                    })
-                })
-                .collect())
-        })
-        .await
-        .unwrap_or_default()
-    }
 }
+
+// Crash recovery e a foto por site do painel vivem em `site_snapshot.rs`
+// — catraca de 400 linhas.

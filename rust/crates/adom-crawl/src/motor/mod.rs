@@ -10,9 +10,11 @@
 //!
 //! # Arquitetura
 //!
-//! - [`types`] — types compartilhados (espelho do `crawl-types.ts`), a costura
-//!   [`PageEngine`] e as regras puras de decisão do tick
-//!   ([`MarkResult::from_work`](crate::store::ops::MarkResult)).
+//! - [`types`] — types compartilhados (espelho do `crawl-types.ts`) e a costura
+//!   [`PageEngine`].
+//! - [`site_clock`] — relógio e réguas de espera por site (Fase 0 do 429):
+//!   `SiteClock`, delay efetivo, o desfecho adiável e as regras puras de
+//!   retorno da linha ([`MarkResult::from_work`](crate::store::ops::MarkResult)).
 //! - [`loop`] — loop principal: freios, seleção, despacho, prazo duro, entrega.
 //! - [`ingest`] — a costura [`PageIngest`] da ingestão nativa (T3-L3).
 //! - [`discovery_tick`] — a descoberta de sitemap: um site por tick, cursor por
@@ -45,12 +47,19 @@ pub mod r#loop;
 pub mod mico_lane;
 /// Disparo da lane own_pace dentro do `CrawlMotor` (freios e gancho de teste).
 mod own_pace;
+/// Relógio e réguas de espera POR SITE (Fase 0 do 429): `SiteClock`, delay
+/// efetivo, desfecho adiável e recuo longo das linhas persistentes.
+pub mod site_clock;
+/// Boot recovery e foto por site do painel (impl de `CrawlMotor`, catraca).
+mod site_snapshot;
 /// Handle do `crawl.db` e acesso bloqueante compartilhado (catraca).
 mod store_handle;
 pub mod types;
 
 #[cfg(test)]
 mod loop_tests;
+#[cfg(test)]
+mod site_clock_tests;
 #[cfg(test)]
 mod tests;
 
@@ -59,6 +68,7 @@ pub use discovery_tick::DiscoveryTick;
 pub use ingest::{IngestFuture, PageIngest};
 pub use mico_lane::{MicoLane, OwnPaceReport};
 pub use r#loop::{CrawlMotor, MotorError, TickOutcome};
+pub use site_clock::SiteHold;
 pub use types::{
     error_backoff_ms, error_work, now_ms, CrawlRawItem, CrawlReleaseGroup, CrawlResultStatus,
     CrawlWorkResult, MotorConfig, MotorStatus, PageEngine, PageFuture, PageOutcome, SiteStatus,

@@ -1,6 +1,7 @@
 //! Config do executor de portões, lida do ambiente pelo binário. Nada
 //! hardcoded: os knobs vivem aqui e no `.env.example`.
 
+use super::flare_signal::{admin_token_from_env, admin_url_from_env, DEFAULT_ADMIN_URL};
 use crate::motor::types::MotorConfig;
 
 /// Prazo de UM pagamento (`wait=1` espera a cadeia: FlareSolverr ~30s + margem
@@ -30,6 +31,11 @@ pub struct GateExecutorConfig {
     pub node_url: String,
     /// Token de administração para os endpoints internos do Node.
     pub admin_token: String,
+    /// Admin do gateway para o sinal EXTERNO de flare (`GET /flare/busy`,
+    /// `gate/flare_signal.rs`): base no loopback da 8711 e credencial da
+    /// MESMA cadeia do `store_admin`. Token vazio = ponte inativa (fail-open).
+    pub flare_admin_url: String,
+    pub flare_admin_token: String,
 }
 
 impl Default for GateExecutorConfig {
@@ -45,6 +51,11 @@ impl Default for GateExecutorConfig {
             interval_ms: 1_000,
             node_url: "http://127.0.0.1:3000".to_string(),
             admin_token: String::new(),
+            // Ponte do sinal externo SEM credencial por default: quem monta
+            // cfg com `..Default::default()` (testes) fica sem rede; o
+            // `from_motor` é quem preenche do ambiente em produção.
+            flare_admin_url: DEFAULT_ADMIN_URL.to_string(),
+            flare_admin_token: String::new(),
         }
     }
 }
@@ -61,6 +72,11 @@ impl GateExecutorConfig {
             interval_ms: motor.delay_ms,
             node_url: motor.node_url.clone(),
             admin_token: motor.admin_token.clone(),
+            // Sinal externo de flare (Fase 2.2): MESMA env da ponte de
+            // invalidação e MESMA cadeia de token do `store_admin`, com
+            // fallback para o token unificado do sidecar.
+            flare_admin_url: admin_url_from_env(),
+            flare_admin_token: admin_token_from_env(&motor.admin_token),
             ..Default::default()
         }
     }

@@ -16,7 +16,7 @@ use adom_search::RawItem;
 use adom_store::{IndexedRelease, RecordOptions as IndexRecordOptions, WorkCtx};
 use serde_json::Value;
 
-use super::catalog::{ObraCatalog, StreamInvalidator, WorkNames};
+use super::catalog::{IdentifyRequest, ObraCatalog, PageVerdict, StreamInvalidator, WorkNames};
 use super::locate::raw_items;
 use super::store::IngestStore;
 use super::{check_abort, CrawlObra, IngestConfig, IngestError, IngestOptions, RecordReport};
@@ -105,14 +105,46 @@ where
     }
 
     /// Nomes do catálogo — a ÚNICA fonte de contexto do filtro.
+    ///
+    /// `None`/vazio tem DUAS causas com efeitos opostos: obra sem nome de
+    /// verdade (miss autoritativo) e TMDB fora (rede/5xx/limite) — o
+    /// `get_titles` funde as duas em `None` (as ~540 `catalogo-sem-nomes`
+    /// definitivas vieram daí). A sonda [`Ingest::catalog_health`] separa:
+    /// indisponível volta [`IngestError::CatalogUnavailable`] (retentável,
+    /// sem veredito); de pé, permanece [`IngestError::CatalogNoNames`].
     pub(super) async fn names_for(&self, obra: &CrawlObra) -> Result<WorkNames, IngestError> {
-        let Some(names) = self.catalog.names(obra).await else {
-            return Err(IngestError::CatalogNoNames);
-        };
-        if names.names.is_empty() {
-            return Err(IngestError::CatalogNoNames);
+        if let Some(names) = self.catalog.names(obra).await {
+            if !names.names.is_empty() {
+                return Ok(names);
+            }
         }
-        Ok(names)
+        match self.catalog_health(obra).await {
+            CatalogHealth::Indisponivel => Err(IngestError::CatalogUnavailable),
+            CatalogHealth::DePe => Err(IngestError::CatalogNoNames),
+        }
+    }
+
+    /// Sonda de saúde: `identify` com o que a página declarou. Só roda no
+    /// caminho de falha (nomes ausentes/vazios) — o caminho feliz não paga a
+    /// chamada. Sem ano (ou título) a sonda é cega e devolve "de pé": sem
+    /// evidência de transitório, não muda o veredito de hoje.
+    async fn catalog_health(&self, obra: &CrawlObra) -> CatalogHealth {
+        if obra.title.is_empty() || obra.year.is_none() {
+            return CatalogHealth::DePe;
+        }
+        let request = IdentifyRequest {
+            kind: obra.kind,
+            title: obra.title.clone(),
+            year: obra.year,
+            original_title: None,
+            season: None,
+        };
+        let verdict = self.catalog.identify(&request).await;
+        if verdict.outcome == PageVerdict::Unavailable {
+            CatalogHealth::Indisponivel
+        } else {
+            CatalogHealth::DePe
+        }
     }
 
     /// UMA locação: filtro → banco vivo → barreira → índice → transição BR.
@@ -190,6 +222,15 @@ where
     }
 }
 
+/// Veredito da sonda de saúde do catálogo (só no caminho de falha de nomes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CatalogHealth {
+    /// TMDB fora (rede/5xx/limite): transitório, retentável.
+    Indisponivel,
+    /// Catálogo de pé: a falta de nomes é resposta, não falha.
+    DePe,
+}
+
 /// Lê a transição BR das linhas do índice (o `BrGapRelease` é o recorte que a
 /// régua pura conhece).
 fn gap_releases(releases: &[IndexedRelease]) -> Vec<BrGapRelease<'_>> {
@@ -250,4 +291,106 @@ fn filter_kept(
         .into_iter()
         .filter_map(|index| entered.get(index).cloned())
         .collect()
+}
+
+#[cfg(test)]
+mod catalogo_tests {
+    use adom_core::WorkTarget;
+    use adom_store::{MagnetBankStore, ReleaseIndexStore};
+
+    use super::super::tests_harness::RecordingInvalidator;
+    use super::super::{
+        BoxFuture, CrawlObra, IdentifyRequest, IdentifyVerdict, Ingest, IngestError, NativeStore,
+        ObraCatalog, WorkKind, WorkNames,
+    };
+
+    type CatalogoDeTeste = Ingest<NativeStore, CatalogoSonda, RecordingInvalidator>;
+
+    /// Obra como `apply_page` monta de uma página com IMDb, título e ano.
+    fn obra() -> CrawlObra {
+        CrawlObra {
+            imdb: "tt777".to_string(),
+            title: "Filme Teste".to_string(),
+            year: Some(2024),
+            kind: WorkKind::Movie,
+        }
+    }
+
+    /// `names` falha sempre (como o `get_titles` fundindo miss e transitório);
+    /// o veredito do `identify` é configurável — é a distinção exigida.
+    struct CatalogoSonda {
+        verdict: IdentifyVerdict,
+    }
+
+    impl ObraCatalog for CatalogoSonda {
+        fn identify<'a>(&'a self, _request: &'a IdentifyRequest) -> BoxFuture<'a, IdentifyVerdict> {
+            let verdict = self.verdict.clone();
+            Box::pin(async move { verdict })
+        }
+
+        fn names<'a>(&'a self, _obra: &'a CrawlObra) -> BoxFuture<'a, Option<WorkNames>> {
+            Box::pin(async move { None })
+        }
+    }
+
+    /// `names_for` falha antes de qualquer escrita: o banco nem é tocado.
+    fn ingest_com(verdict: IdentifyVerdict) -> CatalogoDeTeste {
+        let store = NativeStore::new(
+            MagnetBankStore::open_memory().expect("magnets.db em memória"),
+            ReleaseIndexStore::open_memory().expect("idx em memória"),
+        );
+        Ingest::new(
+            store,
+            CatalogoSonda { verdict },
+            RecordingInvalidator::default(),
+        )
+    }
+
+    /// A falha de `record` (para na primeira cerca: nomes do catálogo).
+    async fn falha(ingest: &CatalogoDeTeste, obra: &CrawlObra) -> IngestError {
+        ingest
+            .record(
+                "hdr",
+                obra,
+                &[],
+                WorkTarget {
+                    season: None,
+                    episode: None,
+                },
+                Default::default(),
+                1_000,
+            )
+            .await
+            .unwrap_err()
+    }
+
+    /// TMDB fora na falta de nomes: erro DISTINTO e retentável, sem gravar
+    /// veredito — a causa raiz das ~540 definitivas.
+    #[tokio::test]
+    async fn tmdb_fora_na_falta_de_nomes_e_retentavel_distinto() {
+        let ingest = ingest_com(IdentifyVerdict::unavailable("tmdb-indisponivel"));
+        let err = falha(&ingest, &obra()).await;
+        assert_eq!(err, IngestError::CatalogUnavailable);
+        assert!(err.retryable(), "TMDB fora volta com backoff");
+        assert_eq!(err.as_str(), "catalogo-indisponivel");
+    }
+
+    /// Obra realmente sem nomes (catálogo de pé): continua como hoje.
+    #[tokio::test]
+    async fn obra_realmente_sem_nomes_continua_sem_nomes() {
+        let ingest = ingest_com(IdentifyVerdict::identified("tt777"));
+        let err = falha(&ingest, &obra()).await;
+        assert_eq!(err, IngestError::CatalogNoNames);
+        assert_eq!(err.as_str(), "catalogo-sem-nomes");
+    }
+
+    /// Sonda cega (sem ano): não consulta, mantém o veredito de hoje.
+    #[tokio::test]
+    async fn sonda_cega_sem_ano_nao_decide() {
+        let mut obra = obra();
+        obra.year = None;
+        let ingest = ingest_com(IdentifyVerdict::unavailable("nao-consultado"));
+        let err = falha(&ingest, &obra).await;
+        assert_eq!(err, IngestError::CatalogNoNames);
+    }
 }

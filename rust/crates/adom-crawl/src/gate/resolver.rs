@@ -74,6 +74,18 @@ impl GateResolver for HttpGateResolver {
 /// (`try_lock` no `flare_gate`): ocupado = há raspagem Flare do motor em
 /// curso, e o pagamento NÃO pode enfileirar atrás dela (o solver atende UM
 /// pedido por vez e é o mesmo da busca ao vivo).
+///
+/// Desde a Fase 2.2 o freio da rodada é ocupado_local **OU** sinal EXTERNO
+/// (`gate/flare_signal.rs`: `GET /flare/busy` na admin 8711 do gateway) — o
+/// gateway disputa o mesmo solver com a busca ao vivo e o colhedor.
+/// Interação com os tetos: ceder por esta sonda NÃO debita o teto de
+/// pagamentos (`gate_hourly`/`CRAWL_GATE_HOURLY` — a rodada morre antes de
+/// tomar linha, nada é pago); o teto por site do BLUDV (o "teto em 120" do
+/// plano) é o RITMO do motor, régua de outro agente — esta sonda não mexe
+/// nele, só garante que o portão não entre na fila do solver quando ele está
+/// ocupado de verdade: enfileirado, o callback chega fora do prazo
+/// (`gate_erro=too_fast`) ou com a sessão do navegador errada
+/// (`gate_erro=outro_navegador`), e a rodada se perde.
 pub trait FlareProbe: Send + Sync {
     fn flare_busy(&self) -> bool;
 }

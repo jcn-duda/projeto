@@ -6,8 +6,10 @@
 //! - **ops**: `CrawlStore` com todas as operações (upsert, take_next,
 //!   mark_result, counters, state, runs, etc.).
 //! - **gate_ops**: operações de portão (`crawl_gate` + status `gate-pending`).
-//! - **admin_ops**: ações administrativas do painel (devolver à fila o que o
-//!   dry-run contaminou e as `no-work`), com a mesma SQL do `crawl-store.ts`.
+//! - **admin_ops**: ações administrativas do painel — `clear_site` (com o
+//!   veredito da sonda preservado), reenfileiragens (`inflight`, `errors`,
+//!   `no-work`, `simulated`) e reparos únicos de boot, com a mesma SQL do
+//!   `crawl-store.ts`/`crawl-actions.ts`.
 //!
 //! Port Rust do TypeScript `utils/crawl-store-migrate.ts` + `utils/crawl-store.ts`.
 
@@ -31,6 +33,11 @@ mod tests;
 // abaixo da catraca de 400 linhas do CI Rust; reusa os helpers de `tests`.
 #[cfg(test)]
 mod tests_part2;
+// Terceira metade: regras novas da fila (skip_sites, prioridade por IMDb,
+// adiamento 429/503, reparo das tries) e a sonda no `clear_site` — mantém a
+// fonte de teste sob a catraca de 400 linhas do CI Rust.
+#[cfg(test)]
+mod tests_part3;
 
 // Re-exports para conveniência do consumidor.
 pub use admin_ops::{RequeueReport, CURSOR_MOVIE_KEY, CURSOR_TV_SHOW_KEY, LEGACY_CURSOR_KEY};

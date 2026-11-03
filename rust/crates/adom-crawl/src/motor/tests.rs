@@ -201,6 +201,8 @@ fn motor_status_serializa_json_valido() {
         ],
         pages_this_hour: 150,
         global_paused: false,
+        holds: Vec::new(),
+        deferred_count: 0,
     };
 
     let json = serde_json::to_string(&status).expect("serializa MotorStatus");
@@ -224,6 +226,8 @@ fn motor_status_roundtrip_completo() {
         sites: vec![],
         pages_this_hour: 0,
         global_paused: true,
+        holds: Vec::new(),
+        deferred_count: 0,
     };
 
     let json = serde_json::to_string(&original).unwrap();

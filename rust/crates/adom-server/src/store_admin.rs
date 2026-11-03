@@ -26,6 +26,7 @@
 //! | `POST /streams/clear` `{"suffix":":…"}` | limpa só um escopo (instalação) — DESTRUTIVA + `confirm` |
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) + recompute nativo quando `found` sem ledger |
 //! | `GET /streams/stats` | ocupação/cota + contadores do cache no usuário (`hit`, `staleServed`, `miss`, `writes`, `hitRate`) |
+//! | `GET /flare/busy` | sinal de FlareSolverr ocupado para o portão do sidecar — STUB `{"busy":false}` (o gateway não fala com o solver; ver handler) |
 //! | `GET /harvest` + `POST /harvest/{enqueue,pause,drain,clear}` | painel e controle do colhedor (`crate::harvest`) |
 //! | `GET /sweeps` | status do agendador de varreduras AllDebrid (só memória) |
 //! | `POST /sweeps/run` `{"kind":"sweepDead"}` | varredura manual de UM tipo (`crate::al_sweeps`) |
@@ -188,6 +189,7 @@ pub(crate) fn router_with_ownership(
         .route("/streams/trace", get(trace_handler::trace))
         .route("/streams/stats", get(stats))
         .route("/indexers/status", get(indexer_status))
+        .route("/flare/busy", get(flare_busy))
         .merge(crate::autofetch::admin_router())
         .merge(ownership)
         .merge(crate::harvest::admin_router())
@@ -332,6 +334,25 @@ async fn indexer_status() -> Response {
         "indexers": adom_sources::jackett::status_board::snapshot(now),
     }))
     .into_response()
+}
+
+/// `GET /flare/busy` — sinal EXTERNO de FlareSolverr ocupado, lido pelo
+/// executor de portão do sidecar (`adom-crawl::gate::flare_signal`) para não
+/// pagar o portão (~30s de solver) em cima de um pedido do usuário.
+///
+/// STUB DOCUMENTADO (Fase 2.2): o gateway NÃO fala com o FlareSolverr — grep
+/// por `flare`/`8191` em `adom-server` e `adom-harvest` não acha chamador: a
+/// fonte BLUDV da busca é cliente fino sem solver (`adom-sources/src/bludv/mod.rs`
+/// declara não reusar o `adom-resolvers`), o `/resolve` é só debrid
+/// (`resolve_native.rs`) e o colhedor fala Jackett/Mico/BLUDV. Os disputantes
+/// reais do solver moram em OUTROS processos — o binário `adom-resolvers`
+/// (`flare_fetch.rs`, com guard em voo no `flare_warm`) e o Jackett (índices
+/// Flare) — e nenhum expõe contador que o gateway leia sem mudança fora do
+/// escopo. A rota existe para a ponte do sidecar ter contrato estável
+/// `{"busy": bool}`: quando um contador em voo nascer num cliente
+/// compartilhado do gateway, troca-se só o corpo daqui — o portão não muda.
+async fn flare_busy() -> Response {
+    Json(json!({ "busy": false })).into_response()
 }
 
 #[cfg(test)]

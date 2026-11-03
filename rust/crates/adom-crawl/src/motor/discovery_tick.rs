@@ -23,6 +23,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::r#loop::{with_store, CrawlMotor};
+use super::site_clock::{delay_efetivo, DISCOVERY_HOLD_CAP_MS};
 use super::types::now_ms;
 use crate::discovery::{
     cursor_key, discoverable_sites, discovery_cuts, next_cursor, DiscoveryOptions, SiteDiscovery,
@@ -133,6 +134,21 @@ impl CrawlMotor {
                 self.charge_budget(report.request_cost).await;
                 let tick = self.enqueue_report(&site, &report, now).await;
                 self.schedule(&site, now, tick.partial).await;
+                // Fase 0: rodada COMPLETA gasta dezenas de requisições seguidas
+                // no site — as páginas da fila descansam proporcionalmente ao
+                // que a rodada gastou (teto de 15 min). PARCIAL não segura:
+                // repõe só o que faltou e volta no retry curto — as URLs novas
+                // precisam sair logo (é a costura que os testes de estado já
+                // provam: a fila recém-descoberta é reivindicada no tick
+                // seguinte).
+                if report.complete && report.request_cost > 0 {
+                    let hold = (report.request_cost as u64
+                        * delay_efetivo(&site, self.config.delay_ms))
+                    .min(DISCOVERY_HOLD_CAP_MS);
+                    self.config
+                        .site_clock
+                        .wait(&site, now.saturating_add(hold as i64));
+                }
                 Some(tick)
             }
             Err(e) => {
@@ -230,6 +246,11 @@ impl CrawlMotor {
         for offset in 0..sites.len() {
             let idx = (*cursor + offset) % sites.len();
             let site = sites[idx];
+            // Site de molho (Fase 0) não descobre: se as PÁGINAS estão em
+            // espera, a rodada também seria martelada nele.
+            if self.config.site_clock.until(site) > now {
+                continue;
+            }
             if clock.get(site).copied().unwrap_or(0) <= now {
                 *cursor = (idx + 1) % sites.len();
                 return Some(site.to_string());

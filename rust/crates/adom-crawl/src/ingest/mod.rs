@@ -202,6 +202,12 @@ pub enum IngestError {
     Aborted,
     /// O catálogo não devolveu nomes: filtro sem contexto é chute.
     CatalogNoNames,
+    /// O catálogo está FORA (rede/5xx/limite): a falta de nomes não é resposta
+    /// do catálogo, é falha dele — retentável com backoff curto, sem gravar
+    /// veredito. Distinção do [`IngestError::CatalogNoNames`]: o `get_titles`
+    /// funde miss autoritativo e falha transitória em `None`, então a sonda
+    /// `identify` de `names_for` decide qual dos dois é.
+    CatalogUnavailable,
     /// Fila do banco vivo cheia: nada entrou (sem half-write).
     QueueDropped,
     /// Barreira de persistência: o lote do banco vivo não efetivou.
@@ -216,6 +222,7 @@ impl IngestError {
         match self {
             Self::Aborted => "crawl-abortado: passo fora do prazo",
             Self::CatalogNoNames => "catalogo-sem-nomes",
+            Self::CatalogUnavailable => "catalogo-indisponivel",
             Self::QueueDropped => "magnetbank-queue-dropped",
             Self::FlushFailed => "magnetbank-flush-falhou",
             Self::Store(err) => err,

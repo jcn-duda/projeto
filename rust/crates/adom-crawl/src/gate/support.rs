@@ -202,7 +202,9 @@ pub(super) fn vencer_recuo(caminho: &str, key: &str) {
         .expect("vencer recuo");
 }
 
-async fn bind_node(app: Router) -> String {
+/// Bind de um Router de teste em porta efêmera (reusado pelos testes do
+/// sinal externo de flare — a admin falsa usa a mesma forma).
+pub(super) async fn bind_node(app: Router) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind do node falso");

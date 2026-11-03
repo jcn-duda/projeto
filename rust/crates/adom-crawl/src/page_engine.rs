@@ -1,6 +1,5 @@
 //! PageEngine real: fetch de rede + parser, costurado no loop do raspador (C5).
-//! Cobre os 8 sites de página HTML; o Mico, de ritmo próprio, fica para o
-//! adaptador dedicado do C6 (ver o passo `own_pace` em [`PageEngine::execute`]).
+//! Cobre os 8 sites de página HTML; o Mico fica para o adaptador do C6.
 //!
 //! Lê por `fetch_follow_redirects`, não `fetch_text_direct`: o gatilho da escalada
 //! precisa de status + headers (`vacatorrent.ts:221` só escala 200/403/503
@@ -20,6 +19,7 @@ use crate::motor::types::{
     now_ms, CrawlRawItem, CrawlReleaseGroup, CrawlResultStatus, CrawlWorkResult, PageEngine,
     PageFuture, PageOutcome,
 };
+use crate::net::types::retry_after_ms_from_headers;
 use crate::net::{fetch_follow_redirects, FetchRedirectsOptions, FetchResponse};
 use crate::page_parser::{self, CrawlPageParsed, CrawlParsedGroup, CrawlParsedRelease};
 use crate::protector_follow::ProtectorFollow;
@@ -27,9 +27,15 @@ use crate::site_profiles::{self, SiteNetworkConfig};
 use crate::store::ops::UrlRow;
 
 const ACCEPT_PAGE: &str = "text/html,application/xhtml+xml"; // mesmo par do profile TS
-/// Tempo que o solver fica riscado depois de um `SolverNotReachable`: fora do ar,
-/// ele não merece um browser lançado por página.
+/// Solver riscado depois de `SolverNotReachable`: fora do ar não merece browser.
 const SOLVER_COOLDOWN_MS: i64 = 120_000;
+
+/// Erro do fetch (falha comum × ADIÁVEL da Fase 0) vive em `page_engine_fetch.rs`
+/// — catraca de 400 linhas.
+#[path = "page_engine_fetch.rs"]
+mod fetch_error;
+
+pub(crate) use fetch_error::{fetch_error_of, FetchError};
 
 /// Fetch + parse de UMA página pela costura [`PageEngine`] do loop. Os campos de
 /// rede são públicos para o binário do sidecar preenchê-los do ambiente (lib
@@ -73,7 +79,7 @@ impl CrawlPageEngine {
         profile: &SiteNetworkConfig,
         accept: &str,
         cost: &Arc<AtomicU32>,
-    ) -> Result<String, String> {
+    ) -> Result<String, FetchError> {
         let headers = match self.sessions.lock() {
             Ok(sessions) if profile.uses_flare => build_flare_headers(&sessions, url),
             _ => HashMap::new(),
@@ -93,17 +99,25 @@ impl CrawlPageEngine {
         };
         let response = fetch_follow_redirects(url, opts)
             .await
-            .map_err(|e| format!("fetch direto: {e}"))?;
+            .map_err(|e| FetchError::Msg(format!("fetch direto: {e}")))?;
         if !response_is_challenge(&response) {
             if !response.is_ok() {
-                return Err(format!("http_{}", response.status));
+                // Fase 0: 429/503 ADIÁVEL com o Retry-After; demais = falha.
+                return Err(fetch_error_of(
+                    response.status,
+                    retry_after_ms_from_headers(&response.headers),
+                ));
             }
             return Ok(response.body);
         }
         if !profile.uses_flare {
-            return Err("desafio cloudflare no caminho direto (perfil sem flare)".to_string());
+            return Err(FetchError::Msg(
+                "desafio cloudflare no direto (perfil sem flare)".to_string(),
+            ));
         }
-        self.escalate_via_flare(url, cost).await
+        self.escalate_via_flare(url, cost)
+            .await
+            .map_err(FetchError::Msg)
     }
 
     /// Texto do crawl FORA do parser de página (sitemap da descoberta).
@@ -121,7 +135,10 @@ impl CrawlPageEngine {
         let profile = site_profiles::site_network_config(site_id)
             .ok_or_else(|| format!("site sem perfil de rede: {site_id}"))?;
         let cost = Arc::new(AtomicU32::new(0));
-        self.fetch_page(url, profile, accept, &cost).await
+        // Descoberta fala String: 429 cai no retry curto da rodada (não no adiamento).
+        self.fetch_page(url, profile, accept, &cost)
+            .await
+            .map_err(String::from)
     }
 
     /// UM pedido ao solver, serializado na faixa única, com a solução validada.
@@ -203,11 +220,12 @@ impl PageEngine for CrawlPageEngine {
                     row.site
                 ));
             }
-            // 3. Fetch com custo medido; o solver entra só com desafio real.
+            // 3. Fetch com custo medido. O PONTO do mapeamento CrawlFetchError
+            //    → PageOutcome: o adiável (429/503) atravessa tipado (Fase 0).
             let cost = Arc::new(AtomicU32::new(0));
             let html = match self.fetch_page(&row.url, profile, ACCEPT_PAGE, &cost).await {
                 Ok(h) => h,
-                Err(msg) => return PageOutcome::Failed(msg),
+                Err(falha) => return PageOutcome::from(falha),
             };
             // Vaca: os botões moram em outra página (`page_engine_vaca`).
             if row.site == "vacatorrent" {

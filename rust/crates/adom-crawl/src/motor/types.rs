@@ -5,10 +5,12 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::store::ops::{MarkResult, UrlRow};
+use super::site_clock::{SiteClock, SiteHold};
+use crate::store::ops::UrlRow;
 
 /// Status de uma URL trabalhada (espelha CrawlResultStatus do TS).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -143,6 +145,11 @@ pub struct MotorConfig {
     /// Teto de páginas por RODADA da descoberta por LISTAGEM (HDR/Apache).
     /// Porta de `CRAWL_LISTING_MAX_PAGES_PER_ROUND`; 0 desliga o teto.
     pub listing_max_pages_per_round: u32,
+    /// Relógio de espera POR SITE (Fase 0 do 429). Vive na config porque o
+    /// `BatchCtx` que chega às tasks É a config — quem marca espera (run_one,
+    /// descoberta) e quem consulta site de molho (claim do tick) parte daqui.
+    /// `Arc`: os clones da config compartilham o MESMO relógio.
+    pub site_clock: Arc<SiteClock>,
 }
 
 impl Default for MotorConfig {
@@ -167,6 +174,7 @@ impl Default for MotorConfig {
             discovery_interval_ms: 3_600_000,
             series_enabled: true,
             listing_max_pages_per_round: crate::listing::cursor::LISTING_ROUND_MAX_PAGES,
+            site_clock: Arc::new(SiteClock::new()),
         }
     }
 }
@@ -189,6 +197,12 @@ pub enum PageOutcome {
     Failed(String),
     /// O prazo duro do passo (`step_deadline_ms`) venceu: geração invalidada.
     TimedOut,
+    /// 429/503 com o prazo que o site pediu (`Retry-After` já com piso e
+    /// teto — `site_clock::retry_after_capped`). NÃO é falha: não entrega,
+    /// não queima `tries` e põe o site inteiro de molho. O `label` viaja
+    /// porque o store decide pelo PREFIXO exato `http_429`/`http_503`
+    /// (contrato textual da Fase 0) e o `from_work` não recebe status cru.
+    Deferred { retry_after_ms: u64, label: String },
 }
 
 /// Quem transforma uma `UrlRow` em resultado de página.
@@ -241,25 +255,6 @@ pub fn error_backoff_ms(base_ms: u64, cap_ms: u64, tries: u32) -> u64 {
         .min(cap_ms)
 }
 
-/// Rótulo persistido — tem que bater com os status que `counters()` entende.
-fn status_label(status: &CrawlResultStatus) -> &'static str {
-    use CrawlResultStatus as S;
-    match status {
-        S::Done => "done",
-        S::NoTorrent => "no-torrent",
-        S::GatePending => "gate-pending",
-        S::NoWork => "no-work",
-        S::Error => "error",
-        S::Simulated => "simulated",
-        S::Partial => "partial",
-    }
-}
-
-/// Releases indexáveis da página: planas + agrupadas por temporada/episódio.
-fn counted_releases(work: &CrawlWorkResult) -> u32 {
-    (work.releases.len() + work.groups.iter().map(|g| g.releases.len()).sum::<usize>()) as u32
-}
-
 /// Resultado de erro para uma linha (forma do placeholder, mensagem própria).
 ///
 /// Cobra o PISO de uma requisição: `error_work` é construído quando a engine
@@ -274,71 +269,9 @@ pub fn error_work(row: &UrlRow, msg: &str) -> CrawlWorkResult {
     work
 }
 
-impl MarkResult {
-    /// Traduz o resultado da página na escrita do `crawl_url`.
-    ///
-    /// Espelha `applyResult` de `crawl-store-rules.ts` com uma adaptação ao
-    /// CONTRATO do store Rust: `mark_result` volta a linha para `pending` sempre
-    /// que `next_at > 0`. Logo, o retry vive em `next_at` (a linha fica
-    /// `pending`) e o esgotamento de `tries` é o único caso terminal `error` —
-    /// recuperável pelo "Reprocessar erros" do painel (`requeue_errors`).
-    pub fn from_work(
-        row: &UrlRow,
-        work: &CrawlWorkResult,
-        delivered: bool,
-        cfg: &MotorConfig,
-        now: i64,
-    ) -> Self {
-        let base = Self {
-            status: status_label(&work.status).to_string(),
-            imdb: work.imdb.clone(),
-            title: work.title.clone(),
-            year: work.year,
-            releases: counted_releases(work),
-            error: String::new(),
-            progress: work.progress.clone().unwrap_or_default(),
-            next_at: 0,
-            request_cost: work.request_cost,
-        };
-        // Sucesso entregue: terminal. `partial` é avanço, então acorda na base.
-        if delivered && !matches!(work.status, CrawlResultStatus::Error) {
-            let avancando = matches!(work.status, CrawlResultStatus::Partial);
-            return Self {
-                error: work.error.clone(),
-                next_at: if avancando {
-                    now + cfg.retry_base_ms as i64
-                } else {
-                    0
-                },
-                ..base
-            };
-        }
-        // Falha de parse/rede/entrega: backoff crescente até esgotar tentativas.
-        let tentativas = row.tries.saturating_add(1);
-        let esgotado = tentativas >= cfg.max_tries.max(1);
-        let mut error = work.error.clone();
-        if !delivered && error.is_empty() {
-            error = "entrega ao node falhou".to_string();
-        }
-        Self {
-            status: "error".to_string(),
-            releases: 0,
-            progress: String::new(),
-            error: if error.is_empty() {
-                "erro".to_string()
-            } else {
-                error
-            },
-            next_at: if esgotado {
-                0
-            } else {
-                now + error_backoff_ms(cfg.retry_base_ms, cfg.error_backoff_cap_ms, tentativas)
-                    as i64
-            },
-            ..base
-        }
-    }
-}
+// O `impl MarkResult` (from_work/from_deferred) mora em `site_clock.rs` —
+// relógio e réguas de espera são a mesma decisão, e a catraca de 400 linhas
+// não comportava os dois arquivos cheios.
 
 /// Snapshot do status do motor (para o painel).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -347,6 +280,14 @@ pub struct MotorStatus {
     pub sites: Vec<SiteStatus>,
     pub pages_this_hour: u32,
     pub global_paused: bool,
+    /// Sites de molho agora (Fase 0): site e instante de volta. `default`
+    /// mantém o JSON antigo consumível (painel defasado não quebra).
+    #[serde(default)]
+    pub holds: Vec<SiteHold>,
+    /// 429/503 vistos desde o boot — o termômetro do problema que a Fase 0
+    /// fecha (Vaca: 154 em 40 min antes do relógio por site).
+    #[serde(default)]
+    pub deferred_count: u32,
 }
 
 /// Status de um site individual.

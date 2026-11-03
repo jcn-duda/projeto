@@ -218,7 +218,11 @@ mod tests {
             "blocked_host:evil.com"
         );
         assert_eq!(
-            CrawlFetchError::HttpError { status: 404 }.to_string(),
+            CrawlFetchError::HttpError {
+                status: 404,
+                retry_after_ms: None
+            }
+            .to_string(),
             "http_404"
         );
         assert_eq!(CrawlFetchError::Timeout.to_string(), "timeout");

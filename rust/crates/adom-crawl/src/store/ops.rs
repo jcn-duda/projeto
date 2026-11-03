@@ -113,7 +113,14 @@ impl CrawlStore {
     /// Reivindica lote de URLs due (até `limit` sites diferentes).
     ///
     /// Para cada site com URLs due, reclama uma URL. Transação única.
-    pub fn take_next_batch(&self, limit: usize) -> Result<Vec<UrlRow>, StoreError> {
+    /// `skip_sites` são os sites em espera passados pelo chamador (o loop
+    /// conhece quem não pode trabalhar agora): um site em espera sai do
+    /// recorte SEM gastar vaga — a vaga é preenchida por quem pode trabalhar.
+    pub fn take_next_batch(
+        &self,
+        limit: usize,
+        skip_sites: &[String],
+    ) -> Result<Vec<UrlRow>, StoreError> {
         let now = now_ms();
         let tx = self.conn.unchecked_transaction()?;
 
@@ -139,20 +146,28 @@ impl CrawlStore {
         };
         // Roteamento single-owner: site own_pace (Mico) é da lane dedicada
         // (`motor::mico_lane`), que não divide vaga nem teto com os sites HTML.
+        // O mesmo vale para quem está em espera: o filtro vem ANTES do
+        // `take(limit)` — site parado não consome vaga do lote.
         let sites: Vec<String> = sites
             .into_iter()
-            .filter(|site| !crate::site_profiles::is_own_pace(site))
+            .filter(|site| !crate::site_profiles::is_own_pace(site) && !skip_sites.contains(site))
             .take(limit)
             .collect();
 
         let mut result = Vec::with_capacity(sites.len());
         {
+            // Ordem priorizada (Fase 1.1): novidade com IMDb da semente
+            // primeiro — a página já identificada rende busca na hora. A
+            // coorte `seed:v1:cohort` mora no gateway e não é acessível do
+            // sidecar sem rede; a prioridade local por imdb é o porte
+            // possível. O ORDER BY de SITES (fome por checked_at) fica como
+            // está: quem ganha vaga não muda, só o QUE sai da fila do site.
             let mut sel = tx.prepare(
                 "SELECT site, url, url_key, lastmod, kind, status, imdb, tries, \
                         next_at, checked_at, releases, error, progress, added_at \
                  FROM crawl_url \
                  WHERE site = ?1 AND status = 'pending' AND next_at <= ?2 \
-                 ORDER BY next_at, url_key \
+                 ORDER BY (imdb IS NOT NULL) DESC, next_at, url_key \
                  LIMIT 1",
             )?;
             let mut upd = tx.prepare(
@@ -198,6 +213,11 @@ impl CrawlStore {
     /// Atualiza status, releases, error, progress, next_at, imdb, tries,
     /// checked_at. Se `result.next_at > 0`, o status volta para 'pending'
     /// (retry); caso contrário, fica no status terminal informado.
+    ///
+    /// ADIAMENTO (convenção do contrato motor↔store): `next_at > 0` com
+    /// `error` começando em `http_429`/`http_503` é Retry-After — a página
+    /// não foi trabalhada, então `tries` NÃO avança; todo o resto incrementa
+    /// 1 (o esgotamento por adiamento não pode acontecer só de 429/503).
     pub fn mark_result(
         &self,
         site: &str,
@@ -213,7 +233,7 @@ impl CrawlStore {
         self.conn.execute(
             "UPDATE crawl_url SET status=?1, imdb=COALESCE(?2,imdb), \
              releases=?3, error=?4, progress=?5, next_at=?6, \
-             tries=tries+1, checked_at=?7 WHERE site=?8 AND url_key=?9",
+             tries=tries+?7, checked_at=?8 WHERE site=?9 AND url_key=?10",
             params![
                 final_status,
                 result.imdb,
@@ -221,6 +241,7 @@ impl CrawlStore {
                 result.error,
                 result.progress,
                 result.next_at,
+                deferral_increment(result),
                 now,
                 site,
                 url_key,
@@ -230,29 +251,9 @@ impl CrawlStore {
     }
 
     // Operações de portão (`mark_gate_pending`, `take_gate_batch`, `clear_gate`)
-    // vivem em `gate_ops.rs` — catraca de 400 linhas.
-
-    /// Crash recovery: URLs inflight voltam para pending.
-    /// Retorna a quantidade de URLs reenfileiradas.
-    pub fn requeue_inflight(&self, site: &str) -> Result<u32, StoreError> {
-        let affected = self.conn.execute(
-            "UPDATE crawl_url SET status = 'pending', next_at = 0 \
-             WHERE site = ?1 AND status = 'inflight'",
-            params![site],
-        )?;
-        Ok(affected as u32)
-    }
-
-    /// Reprocessar erros: URLs com status 'error' ou 'no-work' voltam para
-    /// pending com next_at = 0. Retorna a quantidade reenfileirada.
-    pub fn requeue_errors(&self, site: &str) -> Result<u32, StoreError> {
-        let affected = self.conn.execute(
-            "UPDATE crawl_url SET status = 'pending', next_at = 0, error = '' \
-             WHERE site = ?1 AND status IN ('error', 'no-work')",
-            params![site],
-        )?;
-        Ok(affected as u32)
-    }
+    // vivem em `gate_ops.rs` — catraca de 400 linhas. As ações do painel
+    // (`clear_site`, reenfileiragens administrativas, reparos únicos de boot)
+    // vivem em `admin_ops.rs` — mesma catraca.
 
     /// Contadores por status (para o painel).
     pub fn counters(&self, site: &str) -> Result<StatusCounters, StoreError> {
@@ -289,18 +290,6 @@ impl CrawlStore {
             |row| row.get(0),
         )?;
         Ok(total as u32)
-    }
-
-    /// Zera site (destrutivo): apaga todas as URLs, estado, rodadas e pendências
-    /// de portão do site.
-    pub fn clear_site(&self, site: &str) -> Result<(), StoreError> {
-        let tx = self.conn.unchecked_transaction()?;
-        tx.execute("DELETE FROM crawl_url WHERE site = ?1", params![site])?;
-        tx.execute("DELETE FROM crawl_state WHERE site = ?1", params![site])?;
-        tx.execute("DELETE FROM crawl_run WHERE site = ?1", params![site])?;
-        tx.execute("DELETE FROM crawl_gate WHERE site = ?1", params![site])?;
-        tx.commit()?;
-        Ok(())
     }
 
     /// Lê estado durável por site.
@@ -354,6 +343,23 @@ impl CrawlStore {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/// Chave do veredito da sonda em `crawl_state` (o `PROBE_STATE_KEY` do TS,
+/// `crawl-site-probe.ts:59`; o gate só lê o que está gravado).
+pub(super) const PROBE_VERDICT_KEY: &str = "probe:verdict";
+
+/// Incremento de `tries` para um resultado: adiamento (Retry-After 429/503,
+/// convenção do contrato motor↔store) é 0 — a página não foi trabalhada e não
+/// pode esgotar a fila sozinha; erro real e terminal continuam debitando 1.
+fn deferral_increment(result: &MarkResult) -> i32 {
+    let adiamento = result.next_at > 0
+        && (result.error.starts_with("http_429") || result.error.starts_with("http_503"));
+    if adiamento {
+        0
+    } else {
+        1
+    }
+}
 
 /// Epoch ms atual.
 pub(super) fn now_ms() -> i64 {
