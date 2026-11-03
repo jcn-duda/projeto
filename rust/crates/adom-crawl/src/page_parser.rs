@@ -15,6 +15,7 @@
 mod build;
 mod sites;
 mod types;
+mod vaca;
 
 pub use types::{CrawlPageParsed, CrawlParsedGroup, CrawlParsedRelease};
 
@@ -25,9 +26,8 @@ use crate::profile_parsers::{
     is_valid_magnet_uri, parse_content_magnets, parse_download_links, parse_post_links,
     parse_post_magnets, ResolverLink,
 };
-use crate::season_page::{page_season_of, series_row_groups, unlocated_releases, SeriesRow};
+use crate::season_page::{series_row_groups, unlocated_releases, SeriesRow};
 use crate::sitemap::{parse_bludv_imdb_id, parse_imdb_id, parse_vaca_imdb_id};
-use crate::vaca_series::{group_series_releases, GroupSeriesOptions, SeriesReleaseEntry};
 use crate::work_name::read_work_title;
 
 use build::{build_parsed_outcome, build_release_from_link, parse_mico_content};
@@ -37,6 +37,24 @@ use sites::{bludv_gate_buttons, parse_bludv_links, parse_nerdfilmes_links, parse
 /// continua único em `page_parser::build` — nenhuma segunda régua.
 pub(crate) fn parse_mico_json(url: &str, is_series: bool, json_text: &str) -> CrawlPageParsed {
     parse_mico_content(url, is_series, json_text)
+}
+
+/// Vaca com os botões já seguidos pelo motor: a obra sai do post e os magnets
+/// vêm de `links` (o post em si não publica nenhum).
+pub fn parse_vaca_followed(
+    kind: &str,
+    url: &str,
+    post: &str,
+    links: &[ResolverLink],
+) -> CrawlPageParsed {
+    let work = read_work_title(post);
+    if work.title.trim().is_empty() {
+        return CrawlPageParsed::error(url, "layout: página sem <h1> de título");
+    }
+    let is_series = kind == "tv_show" || kind == "series";
+    let year = work.year.map(|y| y as i64);
+    let imdb = parse_vaca_imdb_id(post);
+    vaca::vaca_outcome(url, work.title, year, imdb, is_series, links)
 }
 
 /// Normaliza o identificador do site para a chave padrão.
@@ -232,70 +250,7 @@ pub fn parse_crawl_page_with(
         }
         "vacatorrent" => {
             let links = parse_download_links(content, Some(url), None, None);
-            if links.is_empty() {
-                return CrawlPageParsed::no_torrent(
-                    url,
-                    Some(title),
-                    year,
-                    imdb,
-                    Some(work_type.to_string()),
-                );
-            }
-
-            if is_series {
-                let season_decl = page_season_of(&title, url);
-                let entries: Vec<SeriesReleaseEntry<CrawlParsedRelease>> = links
-                    .iter()
-                    .map(|l| {
-                        let rel = build_release_from_link(&title, year, indexer, tracker, l);
-                        SeriesReleaseEntry {
-                            release: rel,
-                            request: crate::vaca_series::SeriesLocation {
-                                season: l.season.map(|s| s as i64).or(season_decl),
-                                episode: l.episode.map(|e| e as i64),
-                            },
-                        }
-                    })
-                    .collect();
-
-                let year_str = year.map(|y| y.to_string());
-                let grp_out = group_series_releases(
-                    &entries,
-                    &GroupSeriesOptions {
-                        year: year_str.as_deref(),
-                        by_declared_location: true,
-                    },
-                );
-
-                let parsed_groups = grp_out
-                    .into_iter()
-                    .map(|g| CrawlParsedGroup {
-                        season: g.season,
-                        episode: g.episode,
-                        releases: g.releases,
-                    })
-                    .collect();
-
-                CrawlPageParsed {
-                    url: url.to_string(),
-                    status: "done".to_string(),
-                    imdb,
-                    title: Some(title),
-                    year,
-                    original_title: None,
-                    season: season_decl,
-                    work_type: Some(work_type.to_string()),
-                    releases: Vec::new(),
-                    groups: parsed_groups,
-                    unlocated: Vec::new(),
-                    error: None,
-                    gate: None,
-                }
-            } else {
-                build_parsed_outcome(
-                    url, title, year, imdb, work_type, indexer, tracker, &links, false,
-                )
-            }
+            vaca::vaca_outcome(url, title, year, imdb, is_series, &links)
         }
         _ => {
             // Bludv, ComandoTorrents, NerdFilmes, TDF. Cada site resolve o href

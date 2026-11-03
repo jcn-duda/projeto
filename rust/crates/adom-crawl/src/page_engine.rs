@@ -209,6 +209,17 @@ impl PageEngine for CrawlPageEngine {
                 Ok(h) => h,
                 Err(msg) => return PageOutcome::Failed(msg),
             };
+            // Vaca: os botões moram em outra página (`page_engine_vaca`).
+            if row.site == "vacatorrent" {
+                return match self.vaca_page(row, profile, &html, &cost).await {
+                    Ok(parsed) => PageOutcome::Work(Box::new(to_work(
+                        row,
+                        parsed,
+                        cost.load(Ordering::SeqCst),
+                    ))),
+                    Err(msg) => PageOutcome::Failed(msg),
+                };
+            }
             // 4. Botões de protetor seguidos pelo resolver local ANTES do
             //    veredito: sem isto a página só-protetor sairia `no-torrent`.
             let mut resolved = HashMap::new();
@@ -331,6 +342,9 @@ impl crate::gate::FlareProbe for CrawlPageEngine {
         }
     }
 }
+
+#[path = "page_engine_vaca.rs"]
+mod vaca;
 
 #[cfg(test)]
 #[path = "page_engine_tests.rs"]

@@ -74,6 +74,26 @@ impl CrawlStore {
         )
     }
 
+    /// Reparo ÚNICO do Vaca: o motor Rust lia só o post, que não publica botão,
+    /// e fechou o acervo como `no-torrent` (terminal, nunca relido). Devolve essas
+    /// linhas à fila uma vez; o marcador em `crawl_state` impede que obra sem
+    /// torrent de verdade volte a cada boot. `done` e `error` não mudam.
+    pub fn repair_vaca_no_torrent_once(&self) -> Result<u32, StoreError> {
+        const SITE: &str = "vacatorrent";
+        const MARK: &str = "repair:no-torrent-botoes-v1";
+        if self.get_state(SITE, MARK)?.is_some() {
+            return Ok(0);
+        }
+        let report = self.requeue_matching(
+            SITE,
+            "status = 'no-torrent'",
+            "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, \
+             error = '', progress = '' WHERE site = ?1 AND status = 'no-torrent'",
+        )?;
+        self.set_state(SITE, MARK, &report.requeued.to_string())?;
+        Ok(report.requeued)
+    }
+
     /// Amostra as chaves e aplica o UPDATE com o MESMO predicado — SELECT e
     /// UPDATE não podem divergir, senão o relatório mente.
     fn requeue_matching(

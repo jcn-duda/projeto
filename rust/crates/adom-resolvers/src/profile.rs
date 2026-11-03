@@ -239,6 +239,7 @@ impl ResolverProfile {
             "nerdfilmes" | "torrentdosfilmes" => Some(magnet::BASIC),
             _ => None,
         };
+        let (clearance, user_agent) = self.chain_session(url);
         let extract = move |html: &str| variant.and_then(|v| v.extract(html));
         let mut hooks = FollowHooks {
             assert_allowed: Some(&allow),
@@ -252,6 +253,8 @@ impl ResolverProfile {
             hooks.next_url = Some(&crate::sites::vacatorrent::protector::next_protected_url);
             hooks.non_magnet = Some(&adom_crawl::profile_parsers::b64_data_link_is_http);
             hooks.cookie_jar = true;
+            // A cadeia roda no host do site, atrás do desafio.
+            hooks.seed_cookies = clearance;
         }
         protector::follow_protected_url(FollowOptions {
             url,
@@ -260,7 +263,7 @@ impl ResolverProfile {
             suffixes: &suffixes,
             max_hops: self.network.max_hops,
             timeout: Duration::from_millis(self.network.timeout_ms),
-            user_agent: &self.network.user_agent,
+            user_agent: &user_agent,
             client: &client,
             hooks,
         })

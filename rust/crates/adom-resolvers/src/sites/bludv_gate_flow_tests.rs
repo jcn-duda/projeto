@@ -14,6 +14,11 @@ enum Scenario {
     BadCallback,
     MultiRef,
     NoMagnet,
+    DirectVoucher,
+    OtherHostCallback,
+    ExpiredOnce,
+    ExpiredAlways,
+    EvilExit,
 }
 
 struct MockTransport {
@@ -21,6 +26,7 @@ struct MockTransport {
     gate_host: String,
     chain_runs: Arc<AtomicUsize>,
     destroyed: Arc<AtomicBool>,
+    opens: AtomicUsize,
 }
 
 impl MockTransport {
@@ -32,6 +38,7 @@ impl MockTransport {
             gate_host: GATE_HOST.to_string(),
             chain_runs: Arc::clone(&runs),
             destroyed: Arc::clone(&destroyed),
+            opens: AtomicUsize::new(0),
         });
         (t, runs, destroyed)
     }
@@ -60,6 +67,12 @@ impl GateTransport for MockTransport {
     async fn flare_get(&self, value: &str, guard: &UrlGuard) -> GateResult<FlareGetResult> {
         let out_url = if value.contains("/gate/callback") {
             Url::parse(value).map_err(|_| GateError::refused("callback invalido"))?
+        } else if self.scenario == Scenario::ExpiredAlways
+            || (self.scenario == Scenario::ExpiredOnce
+                && self.opens.fetch_add(1, Ordering::SeqCst) == 0)
+        {
+            // "Link expirado" medido: o botão de bludvfilmes1 cai em bludvfilmes2.
+            Url::parse("https://bludvfilmes2.xyz/gate/go/0646028353024d92?p=1").unwrap()
         } else if self.scenario == Scenario::BadJump {
             Url::parse("https://evil.example.com/jump/x").unwrap()
         } else {
@@ -91,6 +104,9 @@ impl GateTransport for MockTransport {
             }
         } else {
             match self.scenario {
+                Scenario::OtherHostCallback => Some(
+                    Url::parse("https://bludvfilmes2.xyz/gate/callback?token=TOK&ref=REF").unwrap(),
+                ),
                 Scenario::BadCallback => Some(
                     Url::parse("https://other.example.com/gate/callback?token=T&ref=R").unwrap(),
                 ),
@@ -122,7 +138,14 @@ impl GateTransport for MockTransport {
             return Err(GateError::refused("destino nao permitido"));
         }
         if value.contains("/jump/") {
-            Ok(r#"<a href="https://x.gd/AbC123">ir</a>"#.to_string())
+            Ok(match self.scenario {
+                Scenario::DirectVoucher | Scenario::OtherHostCallback => {
+                    r#"<a href="https://valedesconto.shop/r/b5c4?utm_content=CODE123">ir</a>"#
+                }
+                Scenario::EvilExit => r#"<a href="https://evil.example.com/r/b5c4">ir</a>"#,
+                _ => r#"<a href="https://x.gd/AbC123">ir</a>"#,
+            }
+            .to_string())
         } else if value.contains("/api/end") {
             Ok(match self.scenario {
                 Scenario::BadApi => r#"{"url":"https://promobr.online/nope"}"#.to_string(),
@@ -184,6 +207,8 @@ async fn rejeita_cada_destino_inseguro() {
         (Scenario::BadCallback, "60006"),
         (Scenario::MultiRef, "60007"),
         (Scenario::NoMagnet, "60008"),
+        (Scenario::EvilExit, "60009"),
+        (Scenario::ExpiredAlways, "60010"),
     ] {
         let (t, _, destroyed) = MockTransport::build(scenario);
         let err = run_chain(t.as_ref(), &gate(p), &cfg(0)).await.unwrap_err();
@@ -233,4 +258,27 @@ async fn falha_nao_entra_em_cache() {
 // Ponte para o validador privado do site (evita duplicar regra no teste).
 fn is_valid_magnet_uri_pub(m: &str) -> bool {
     adom_crawl::br_core::magnet::is_valid_magnet_uri(m)
+}
+
+/// Formas medidas em 2026-11-02: voucher direto na promo, sem `x.gd`, e callback
+/// em outro host do site. As duas derrubavam toda a cadeia.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn voucher_direto_e_callback_em_outro_host_pagam() {
+    for scenario in [Scenario::DirectVoucher, Scenario::OtherHostCallback] {
+        let (t, _, _) = MockTransport::build(scenario);
+        let magnet = run_chain(t.as_ref(), &gate("60011"), &cfg(0)).await;
+        assert!(magnet.is_ok(), "{scenario:?}: {magnet:?}");
+    }
+}
+
+/// "Link expirado" é intermitente: repete uma vez e segue; duas seguidas é falha.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn link_expirado_repete_uma_vez() {
+    let (t, _, _) = MockTransport::build(Scenario::ExpiredOnce);
+    assert!(run_chain(t.as_ref(), &gate("60012"), &cfg(0)).await.is_ok());
+    let (t, _, _) = MockTransport::build(Scenario::ExpiredAlways);
+    let err = run_chain(t.as_ref(), &gate("60013"), &cfg(0))
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("link expirado"), "{err}");
 }

@@ -122,6 +122,14 @@ async fn main() {
         process::exit(1);
     }
 
+    // Reparo único do Vaca: falha não impede o boot, e o marcador só grava no
+    // sucesso, então a próxima subida tenta de novo.
+    match store.repair_vaca_no_torrent_once() {
+        Ok(0) => {}
+        Ok(n) => eprintln!("[adom-sidecar] vacatorrent: {n} página(s) no-torrent de volta à fila"),
+        Err(e) => eprintln!("[adom-sidecar] vacatorrent: reparo falhou: {e}"),
+    }
+
     // ── 4. Cria o cliente HTTP ───────────────────────────────────────
     // O cliente será integrado ao motor quando o Agente 1 conectar a camada HTTP.
     let _http_client = SidecarHttpClient::new(node_url.clone(), auth_token.clone());

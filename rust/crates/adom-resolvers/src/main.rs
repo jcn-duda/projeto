@@ -126,7 +126,7 @@ const DEFAULT_URLS: &[(&str, &str)] = &[
     ("comandotorrents", "https://comandotorrents.to"),
     ("nerdfilmes", "https://www.xfilmeshd.net"),
     ("torrentdosfilmes", "https://torrentdosfilmes-v2.xyz"),
-    ("vacatorrent", "https://vaqueirofilmes1.com"),
+    ("vacatorrent", "https://vaqueirofilmes.com"),
     ("redetorrent", "https://www.redetorrent.xyz"),
     ("apachetorrent", "https://apachetorrents.com"),
     ("hdrtorrents", "https://hdrtorrents.net"),

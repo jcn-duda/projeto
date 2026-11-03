@@ -98,6 +98,19 @@ impl VacaHooks<'_> {
     }
 }
 
+/// Botão servido pelo próprio site (`<host>/enc/go.php`, medido em 2026-11-02).
+/// Só o `go.php` é botão: o resto de `/enc*/` é salto da cadeia.
+fn own_host_button(attrs: &str, base_url: Option<&str>) -> Option<String> {
+    let raw = crate::br_core::rules::attribute(attrs, "href")?;
+    let url = match base_url {
+        Some(base) => url::Url::parse(base).and_then(|b| b.join(raw.trim())),
+        None => url::Url::parse(raw.trim()),
+    }
+    .ok()?;
+    let own = crate::shared::protector_suffixes::is_vaca_own_chain(url.host_str()?, url.path());
+    (own && url.path() == "/enc/go.php").then(|| url.to_string())
+}
+
 impl CollectorHooks for VacaHooks<'_> {
     fn anchor_re(&self) -> &FancyRegex {
         &ANCHOR
@@ -115,6 +128,9 @@ impl CollectorHooks for VacaHooks<'_> {
         // segmento do botão de download seguinte.
         if is_watch_anchor(attrs, &anchor_text) {
             return Resolved::Skip { advance: false };
+        }
+        if let Some(button) = own_host_button(attrs, base_url) {
+            return Resolved::Url(button);
         }
         resolve_protector_href(attrs, base_url, self.protector_checker())
     }

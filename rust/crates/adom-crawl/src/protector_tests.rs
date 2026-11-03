@@ -155,3 +155,61 @@ async fn follow_url_vazia() {
         Err(ProtectorError::InvalidUrl)
     ));
 }
+
+/// A cadeia com desafio só passa com o `cf_clearance` semeado, e ele não vaza
+/// para outro host: é o caminho do botão `<site>/enc/go.php` do Vaca.
+#[tokio::test]
+async fn semente_de_cookie_vai_so_ao_host_dela() {
+    use axum::{http::HeaderMap, routing::get, Router};
+    let app = Router::new().route(
+        "/enc/go.php",
+        get(|headers: HeaderMap| async move {
+            let cookie = headers
+                .get("cookie")
+                .and_then(|c| c.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            if cookie == "cf_clearance=abc" {
+                (
+                    axum::http::StatusCode::OK,
+                    "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=x",
+                )
+            } else {
+                (axum::http::StatusCode::FORBIDDEN, "desafio")
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let url = format!("http://{addr}/enc/go.php");
+    let client = build_protector_client().unwrap();
+    let seguir = |host: &str| {
+        let seed =
+            std::collections::HashMap::from([(host.to_string(), "cf_clearance=abc".to_string())]);
+        FollowOptions {
+            url: &url,
+            referer: None,
+            protector_hosts: &[],
+            suffixes: &[],
+            max_hops: 2,
+            timeout: Duration::from_secs(5),
+            user_agent: "teste",
+            client: &client,
+            hooks: FollowHooks {
+                cookie_jar: true,
+                seed_cookies: Some(seed),
+                ..Default::default()
+            },
+        }
+    };
+    let ok = follow_protected_url(seguir("127.0.0.1"))
+        .await
+        .expect("magnet");
+    assert!(ok.starts_with("magnet:"));
+    assert!(matches!(
+        follow_protected_url(seguir("outro.example")).await,
+        Err(ProtectorError::HttpError(403))
+    ));
+}

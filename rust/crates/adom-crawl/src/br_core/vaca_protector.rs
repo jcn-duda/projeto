@@ -10,10 +10,9 @@ use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 use url::Url;
 
-use crate::common::release::FB;
-use crate::common::text::decode_entities;
-use crate::common::vaca::is_vaca_protector_host;
-use crate::sites::host_matches;
+use crate::br_core::release::FB;
+use crate::br_core::text::decode_entities;
+use crate::shared::protector_suffixes::{is_vaca_own_chain, is_vaca_protector_host};
 
 /// Sufixos de protetor do vaca: a FONTE ÚNICA do crate
 /// (`adom-crawl/src/shared/protector_suffixes.rs`: a base do TS
@@ -21,9 +20,9 @@ use crate::sites::host_matches;
 /// havia aqui era uma segunda cópia da mesma régua e ficava para trás quando a
 /// base mudasse.
 fn vaca_protector_suffixes() -> impl Iterator<Item = &'static str> {
-    adom_crawl::shared::protector_suffixes::PROTECTOR_SUFFIXES
+    crate::shared::protector_suffixes::PROTECTOR_SUFFIXES
         .iter()
-        .chain(adom_crawl::shared::protector_suffixes::VACA_EXTRA_PROTECTOR_SUFFIXES)
+        .chain(crate::shared::protector_suffixes::VACA_EXTRA_PROTECTOR_SUFFIXES)
         .copied()
 }
 /// `ASSERT_ONLY_SUFFIXES` (`vacatorrent-parsers.ts:51`): vale como salto, nunca
@@ -34,8 +33,16 @@ fn is_protector(host: &str) -> bool {
     is_vaca_protector_host(host)
 }
 
-fn is_hop_host(host: &str) -> bool {
-    is_protector(host) || host_matches(host, VACA_ASSERT_ONLY)
+/// O destino vale como salto? Protetor, passagem (`t.co`) ou, desde a cadeia
+/// medida em 2026-11-02, o próprio site em `/enc*/` (`relay.php`, `receber.php`).
+/// O host do site sozinho não basta: o artigo de fachada linka o site inteiro.
+fn is_hop(url: &Url) -> bool {
+    let host = url.host_str().unwrap_or("");
+    is_protector(host)
+        || VACA_ASSERT_ONLY
+            .iter()
+            .any(|s| host == *s || host.ends_with(&format!(".{s}")))
+        || is_vaca_own_chain(host, url.path())
 }
 
 /// `new URL(value, base).href`.
@@ -159,16 +166,14 @@ fn next_target(raw: &str, base: &str) -> Option<String> {
         }
         let mut target = decode_entities(q.trim());
         if ENCODED_HTTP.is_match(&target) {
-            if let Some(decoded) = adom_crawl::shared::decode_uri_component(&target) {
+            if let Some(decoded) = crate::shared::decode_uri_component(&target) {
                 target = decoded;
             }
         }
         let dest = resolve(&target, base)?;
-        return (is_hop_host(dest.host_str().unwrap_or("")) && is_different(dest.as_str(), base))
-            .then(|| dest.to_string());
+        return (is_hop(&dest) && is_different(dest.as_str(), base)).then(|| dest.to_string());
     }
-    (is_hop_host(u.host_str().unwrap_or("")) && is_different(u.as_str(), base))
-        .then(|| u.to_string())
+    (is_hop(&u) && is_different(u.as_str(), base)).then(|| u.to_string())
 }
 
 /// `nextProtectedUrl(html, baseUrl)` do vaca.
@@ -183,17 +188,59 @@ pub fn next_protected_url(html: &str, base: &str) -> Option<String> {
     }
     for caps in ETAPA2.captures_iter(html) {
         if let Some(u) = resolve(&decode_entities(&json_unescape(&caps[1])), base) {
-            if is_hop_host(u.host_str().unwrap_or("")) && is_different(u.as_str(), base) {
+            if is_hop(&u) && is_different(u.as_str(), base) {
                 return Some(u.to_string());
             }
         }
     }
     if let Some(refresh) = extract_meta_refresh(html) {
         if let Some(u) = resolve(&decode_entities(&refresh), base) {
-            if is_hop_host(u.host_str().unwrap_or("")) && is_different(u.as_str(), base) {
+            if is_hop(&u) && is_different(u.as_str(), base) {
                 return Some(u.to_string());
             }
         }
     }
     discover_next_url(html, base).filter(|d| is_different(d, base))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Cadeia real de 2026-11-02 (`vaqueirofilmes.com`), salto a salto.
+    #[test]
+    fn segue_a_cadeia_no_proprio_site() {
+        let base = "https://vaqueirofilmes.com/enc/processar.php?enc=a";
+        let html = r#"<script>const next = "https:\/\/t.co\/8xFARiEeW4";</script>"#;
+        assert_eq!(
+            next_protected_url(html, base).as_deref(),
+            Some("https://t.co/8xFARiEeW4")
+        );
+        let html = r#"<meta http-equiv="refresh" content="0;URL=https://vaqueirofilmes.com/enc/relay.php?x=1">"#;
+        assert_eq!(
+            next_protected_url(html, "https://t.co/8xFARiEeW4").as_deref(),
+            Some("https://vaqueirofilmes.com/enc/relay.php?x=1")
+        );
+        let html = r#"<script>var URL_ETAPA2 = "https:\/\/vaqueirofilmes.com\/enc2\/receber.php?enc=b";
+            location.href = 'https://ov.cabretpardao.com/iVd6pO5';</script>"#;
+        assert_eq!(
+            next_protected_url(html, "https://vaqueirofilmes.com/artigo-de-fachada/").as_deref(),
+            Some("https://vaqueirofilmes.com/enc2/receber.php?enc=b")
+        );
+    }
+
+    /// O artigo de fachada linka o site inteiro: só `/enc*/` é salto.
+    #[test]
+    fn pagina_comum_do_site_nao_e_salto() {
+        let html = r#"<script>const next = "https://vaqueirofilmes.com/pt/movie/outro/";</script>"#;
+        assert_eq!(
+            next_protected_url(html, "https://vaqueirofilmes.com/enc/processar.php"),
+            None
+        );
+        let html = r#"<script>const next = "https://malicioso.example/enc/relay.php";</script>"#;
+        assert_eq!(
+            next_protected_url(html, "https://vaqueirofilmes.com/enc/processar.php"),
+            None
+        );
+    }
 }

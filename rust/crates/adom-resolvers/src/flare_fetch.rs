@@ -3,7 +3,10 @@
 //! do `fetchText` de `bludv.ts`/`redetorrent.ts`. Separado de `profile.rs` pela
 //! catraca de 400 linhas.
 
+use std::collections::HashMap;
+
 use adom_crawl::flare::{fetch_text_crawl_accept, CrawlFetchDeps};
+use url::Url;
 
 use crate::profile::ResolverProfile;
 
@@ -16,6 +19,29 @@ pub(crate) const HTML_ACCEPT: &str = "text/html,application/xhtml+xml";
 const JSON_ACCEPT: &str = "application/json, text/html, */*";
 
 impl ResolverProfile {
+    /// `cf_clearance` e User-Agent da sessão do solver para o host da cadeia. O
+    /// clearance só vale com o UA que o resolveu; sem sessão, a cadeia sai crua.
+    pub(crate) fn chain_session(&self, url: &str) -> (Option<HashMap<String, String>>, String) {
+        let host = Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_lowercase))
+            .unwrap_or_default();
+        let session = self.flare_sessions.lock().ok().and_then(|sessions| {
+            sessions
+                .get(&host)
+                .map(|s| (s.cookies.clone(), s.user_agent.clone()))
+        });
+        let Some((cookies, user_agent)) = session else {
+            return (None, self.network.user_agent.clone());
+        };
+        let clearance = cookies
+            .split(';')
+            .map(str::trim)
+            .find(|c| c.starts_with("cf_clearance="))
+            .map(|c| HashMap::from([(host, c.to_string())]));
+        (clearance, user_agent)
+    }
+
     pub(crate) async fn fetch_with_flare(&self, url: &str) -> Result<String, String> {
         // Porte do warm (flare_warm.rs): um fetch de usuário em andamento faz
         // o laço de fundo pular o ciclo — o FlareSolverr atende um por vez. O

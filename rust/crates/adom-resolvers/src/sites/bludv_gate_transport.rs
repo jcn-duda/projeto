@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 
 use url::Url;
 
-use super::gate_links::safe_gate_url;
+use super::gate_links::{in_gate_hosts, safe_gate_url};
 
 // --- Erro ---
 
@@ -99,7 +99,9 @@ pub fn check_allowed(gate_hostname: &str, value: &str, base: Option<&str>) -> Ga
     let url =
         safe_gate_url(value, base).ok_or_else(|| GateError::refused("destino nao permitido"))?;
     let host = url.host_str().unwrap_or("");
-    if host != gate_hostname && !is_ad_host(host) {
+    // Hosts do site entre si: o botão em bludvfilmes1 redireciona para
+    // bludvfilmes2 desde a migração, e a lista de hosts é fechada.
+    if host != gate_hostname && !is_ad_host(host) && !in_gate_hosts(host) {
         return Err(GateError::refused("destino nao permitido"));
     }
     Ok(url)
@@ -138,6 +140,16 @@ mod tests {
     fn check_allowed_rejeita_outro() {
         let r = check_allowed("bludvfilmes1.xyz", "https://evil.com/path", None);
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn check_allowed_aceita_outro_host_do_site() {
+        let r = check_allowed(
+            "bludvfilmes1.xyz",
+            "https://bludvfilmes2.xyz/gate/callback?token=T&ref=R",
+            None,
+        );
+        assert!(r.is_ok());
     }
 
     #[test]

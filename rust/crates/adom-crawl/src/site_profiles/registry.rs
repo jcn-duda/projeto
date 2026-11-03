@@ -103,8 +103,8 @@ fn build_vacatorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "vacatorrent".into(),
         candidate_hosts: strings(&[
-            "vaqueirofilmes1.com",
             "vaqueirofilmes.com",
+            "vaqueirofilmes1.com",
             "vacatorrentmov.com",
         ]),
         // Fonte única dos hosts do protetor do Vaca (botão + saltos).

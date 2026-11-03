@@ -219,6 +219,9 @@ pub struct FollowHooks<'a> {
     /// Jar de cookies por host local à cadeia (o `relay.php` do vaca exige o
     /// cookie que o `processar.php` emite).
     pub cookie_jar: bool,
+    /// Cookies conhecidos antes do 1º salto (`host → "nome=valor"`): o
+    /// `cf_clearance` do solver quando a cadeia passa por host com desafio.
+    pub seed_cookies: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Opções do loop do protetor.
@@ -245,10 +248,13 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
 
     let mut cur = Url::parse(opts.url).map_err(|_| ProtectorError::InvalidUrl)?;
     let mut prev_ref = opts.referer.map(|s| s.to_string());
-    let mut jar = opts
-        .hooks
-        .cookie_jar
-        .then(crate::net::cookie_jar::CookieJar::new);
+    let mut jar = match opts.hooks.seed_cookies.clone() {
+        Some(seed) => Some(crate::net::cookie_jar::CookieJar::with_seed(seed)),
+        None => opts
+            .hooks
+            .cookie_jar
+            .then(crate::net::cookie_jar::CookieJar::new),
+    };
     let host_of = |u: &Url| u.host_str().unwrap_or("").to_string();
 
     for _ in 0..=opts.max_hops {
