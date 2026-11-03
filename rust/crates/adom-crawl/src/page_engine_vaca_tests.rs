@@ -106,6 +106,24 @@ fn rede_e_transitoria_e_terminais_nao_voltam_a_fila() {
 }
 
 #[test]
+fn ritmo_na_cadeia_adia_a_pagina_sem_gastar_tentativa() {
+    use crate::motor::types::PageOutcome;
+    use crate::page_engine::outcome_of_message;
+    for status in [429, 503] {
+        let msg = button_end(ProtectorError::HttpError(status)).unwrap_err();
+        assert_eq!(msg, format!("http_{status}"));
+        assert!(matches!(
+            outcome_of_message(msg),
+            PageOutcome::Deferred { ref label, .. } if *label == format!("http_{status}")
+        ));
+    }
+    assert!(matches!(
+        outcome_of_message("protetor: HTTP 404".to_string()),
+        PageOutcome::Failed(_)
+    ));
+}
+
+#[test]
 fn post_sem_caminho_so_passa_com_a_marca_do_tema() {
     assert!(no_hop("<div class=\"streaming-container\"></div>").is_ok());
     assert!(no_hop("<h1>Novo Endereço</h1>").is_err());

@@ -35,7 +35,7 @@ const SOLVER_COOLDOWN_MS: i64 = 120_000;
 #[path = "page_engine_fetch.rs"]
 mod fetch_error;
 
-pub(crate) use fetch_error::{fetch_error_of, FetchError};
+pub(crate) use fetch_error::{fetch_error_of, outcome_of_message, FetchError};
 
 /// Fetch + parse de UMA página pela costura [`PageEngine`] do loop. Os campos de
 /// rede são públicos para o binário do sidecar preenchê-los do ambiente (lib
@@ -235,7 +235,7 @@ impl PageEngine for CrawlPageEngine {
                         parsed,
                         cost.load(Ordering::SeqCst),
                     ))),
-                    Err(msg) => PageOutcome::Failed(msg),
+                    Err(msg) => outcome_of_message(msg),
                 };
             }
             // 4. Botões de protetor seguidos pelo resolver local ANTES do

@@ -62,6 +62,8 @@ fn button_end(error: ProtectorError) -> Result<ButtonEnd, String> {
     match error {
         ProtectorError::LinkExpired | ProtectorError::NonMagnet => Ok(ButtonEnd::Empty),
         ProtectorError::NoMagnet => Ok(ButtonEnd::Lost),
+        // Rótulo do adiamento: a página volta sem gastar `tries` e o site espera.
+        ProtectorError::HttpError(status @ (429 | 503)) => Err(format!("http_{status}")),
         other => Err(format!("protetor: {other}")),
     }
 }

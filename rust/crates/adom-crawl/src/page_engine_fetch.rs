@@ -39,6 +39,17 @@ impl From<FetchError> for PageOutcome {
     }
 }
 
+/// Falha que chegou como `String` (cadeia do Vaca, saltos internos com `?`)
+/// volta a ser adiável pelo rótulo exato: sem isto o 429 no meio da cadeia
+/// virava falha comum, gastava `tries` e não segurava o site.
+pub(crate) fn outcome_of_message(msg: String) -> PageOutcome {
+    match msg.as_str() {
+        "http_429" => fetch_error_of(429, None).into(),
+        "http_503" => fetch_error_of(503, None).into(),
+        _ => PageOutcome::Failed(msg),
+    }
+}
+
 /// Não-2xx → erro tipado: 429/503 ADIÁVEIS; demais ficam `http_{status}`.
 pub(crate) fn fetch_error_of(status: u16, raw_retry_after: Option<u64>) -> FetchError {
     match status {
