@@ -118,3 +118,44 @@ fn error_groups_mapeia_erro_vazio_para_erro() {
     assert!(groups.contains(&("erro".to_string(), 1)));
     assert_eq!(store.error_groups(SITE, 0).expect("limite 0").len(), 0);
 }
+
+/// Vitals contam o site inteiro: `no-torrent` entra no ritmo, a página adiada
+/// (`pending` com `http_429`) entra no 429 mas não no ritmo, e o que passou da
+/// hora só conta no total.
+#[test]
+fn site_vitals_contam_no_torrent_e_429_em_pending() {
+    let (_dir, store) = store_temp();
+    let now = 10_000_000;
+    let recent = now - 60_000;
+    let old = now - 7_200_000;
+    let rows = [
+        ("/nt", "no-torrent", recent, ""),
+        ("/d", "done", recent, ""),
+        ("/velha", "done", old, ""),
+        ("/adiada", "pending", recent, "http_429"),
+        ("/adiada-velha", "pending", old, "http_429 (retry)"),
+        ("/exp", "error", recent, "link Expirado no portão"),
+        ("/fila", "pending", 0, ""),
+    ];
+    store
+        .upsert_urls(SITE, &rows.map(|(k, s, _, _)| row(k, s)))
+        .expect("upsert");
+    for (key, _, checked_at, error) in rows {
+        store
+            .conn()
+            .execute(
+                "UPDATE crawl_url SET checked_at = ?1, error = ?2 WHERE url_key = ?3",
+                rusqlite::params![checked_at, error, key],
+            )
+            .expect("update");
+    }
+
+    let v = store.site_vitals(SITE, now).expect("vitals");
+    assert_eq!(v.pages_last_hour, 3, "no-torrent, done e error recentes");
+    assert_eq!((v.http429_total, v.http429_last_hour), (2, 1));
+    assert_eq!((v.expired_total, v.expired_last_hour), (1, 1));
+    assert_eq!(
+        store.site_vitals("outro", now).expect("vazio"),
+        Default::default()
+    );
+}

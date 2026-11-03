@@ -21,7 +21,17 @@ export interface CrawlReadEngine {
   errorGroups(site: string, limit: number): CrawlErrorGroup[];
   getState(site: string, key: string): string | null;
   snapshotAt?(site: string): number | null;
+  /** Vitals que o sidecar conta no site inteiro; `null` = foto sem o bloco
+   * (sidecar anterior a ele) — aí o vitals cai na conta sobre as listas. */
+  vitals?(site: string): SidecarVitals | null;
 }
+
+/** Bloco `vitals` da foto (`CrawlStore::site_vitals`). */
+export type SidecarVitals = {
+  pagesLastHour: number;
+  http429: { total: number; lastHour: number };
+  expired: { total: number; lastHour: number };
+};
 
 type SnapshotRow = {
   url: string; imdb: string | null; releases: number; checkedAt: number;
@@ -35,6 +45,7 @@ type SiteSnapshot = {
   lists: { done: SnapshotRow[]; noWork: SnapshotRow[]; partial: SnapshotRow[]; error: SnapshotRow[] };
   errorGroups: CrawlErrorGroup[];
   state: { probeVerdict: string | null; cursorMovie: string; cursorTvShow: string };
+  vitals?: SidecarVitals;
 };
 
 // 200 = teto do sidecar (`MAX_LIMIT` do snapshot): a foto é também a fonte dos
@@ -67,6 +78,7 @@ const nativeEngine: CrawlReadEngine = {
   latestRun: (site) => snapshots.get(site)?.latestRun ?? null,
   sumReleases: (site) => snapshots.get(site)?.magnetsFound ?? 0,
   snapshotAt: (site) => snapshotTakenAt.get(site) ?? null,
+  vitals: (site) => snapshots.get(site)?.vitals ?? null,
   listByStatus(site, status, limit) {
     const list = LIST_OF[status];
     if (!list) return [];

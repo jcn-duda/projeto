@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 
 use super::admin::{bad_request, cursor_view, server_error, site_from_request};
 use super::server::{validate_token, AppState};
-use crate::store::read_ops::{RunSnapshot, StatusTally};
+use crate::store::read_ops::{RunSnapshot, StatusTally, VitalsTally};
 use crate::store::{CrawlStore, StoreError, UrlRow};
 
 /// Chave do veredito da sonda em `crawl_state` (`PROBE_STATE_KEY` do TS).
@@ -59,6 +59,23 @@ pub(super) struct SnapshotResponse {
     pub lists: ListsOut,
     pub error_groups: Vec<GroupOut>,
     pub state: StateOut,
+    pub vitals: VitalsOut,
+}
+
+/// Vitals do card contados no site inteiro (`CrawlStore::site_vitals`).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct VitalsOut {
+    pub pages_last_hour: u32,
+    pub http429: StatOut,
+    pub expired: StatOut,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct StatOut {
+    pub total: u32,
+    pub last_hour: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -188,6 +205,7 @@ pub(super) fn build_snapshot(
     let raw_groups = store.error_groups(site, ERROR_GROUPS_LIMIT)?;
     let probe_verdict = store.get_state(site, PROBE_VERDICT_KEY)?;
     let (cursor_movie, cursor_tv_show) = cursor_view(store, site)?;
+    let vitals = store.site_vitals(site, crate::motor::types::now_ms())?;
     tx.commit()?;
 
     Ok(SnapshotResponse {
@@ -202,7 +220,22 @@ pub(super) fn build_snapshot(
             cursor_movie,
             cursor_tv_show,
         },
+        vitals: vitals_out(&vitals),
     })
+}
+
+fn vitals_out(v: &VitalsTally) -> VitalsOut {
+    VitalsOut {
+        pages_last_hour: v.pages_last_hour,
+        http429: StatOut {
+            total: v.http429_total,
+            last_hour: v.http429_last_hour,
+        },
+        expired: StatOut {
+            total: v.expired_total,
+            last_hour: v.expired_last_hour,
+        },
+    }
 }
 
 fn counters_out(t: &StatusTally) -> CountersOut {

@@ -8,6 +8,12 @@
 // SATURAR: quando a amostra inteira cabe na janela, o número é um piso ("≥")
 // e não uma medição fechada. O cliente mostra o sinal; aqui vai o booleano.
 //
+// Com o bloco `vitals` da foto, os números são do site INTEIRO, contados pelo
+// sidecar: as listas não trazem `no-torrent` nem `pending`, e era nelas que o
+// Vaca tinha 85% das páginas e todo 429 adiado (o card mostrava 30 pág/h com
+// 290 reais e 429 zerado — 2026-11-03). A conta sobre as listas abaixo só
+// sobra para foto de sidecar anterior ao bloco.
+//
 // 429: o motor grava o motivo no campo `error` (depois do conserto ele fica em
 // linhas `pending` com error gravado) — a contagem é pelo CAMPO error, nunca
 // pelo status da linha. "expirado" é substring (LIKE '%expirado%'): o texto do
@@ -108,6 +114,16 @@ export function buildSiteVitals(
         ...engine.listByStatus(siteId, 'partial', VITALS_LIST_LIMIT),
         ...engine.listByStatus(siteId, 'error', VITALS_LIST_LIMIT),
       ];
+  const counted = engine.vitals?.(siteId);
+  if (counted) {
+    return {
+      pagesLastHour: counted.pagesLastHour,
+      pagesSample: rows.length,
+      pagesSaturated: false,
+      http429: { ...counted.http429 },
+      expired: { ...counted.expired },
+    };
+  }
   const pagesLastHour = rows.filter((row) => withinLastHour(row.checkedAt, now)).length;
   return {
     pagesLastHour,

@@ -163,6 +163,10 @@ async fn snapshot_vazio_devolve_zeros_e_run_null() {
     assert!(body["state"]["probeVerdict"].is_null());
     assert_eq!(body["state"]["cursorMovie"], "");
     assert_eq!(body["state"]["cursorTvShow"], "");
+    assert_eq!(
+        body["vitals"],
+        json!({"pagesLastHour": 0, "http429": {"total": 0, "lastHour": 0}, "expired": {"total": 0, "lastHour": 0}})
+    );
 }
 
 // ─── Contagens, ordem e limite ──────────────────────────────────────────────

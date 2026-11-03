@@ -112,3 +112,21 @@ test('site sem foto volta zerado e o engine mínimo (sem snapshotAt) não quebra
     expired: { total: 0, lastHour: 0 },
   } satisfies SiteVitals);
 });
+
+test('bloco vitals do sidecar vence a conta sobre as listas (no-torrent e 429 em pending)', () => {
+  // As listas só têm 1 página na hora e nenhum 429; o sidecar contou o site
+  // inteiro (o Vaca de 2026-11-03: 290 pág/h, 2.478 linhas com 429 em pending).
+  const engine = {
+    ...fakeEngine({ done: [row({ url: 'a', checkedAt: NOW - 60_000 })] }),
+    vitals: () => ({ pagesLastHour: 290, http429: { total: 2478, lastHour: 12 }, expired: { total: 1, lastHour: 0 } }),
+  } as unknown as CrawlReadEngine;
+  const vitals = buildSiteVitals(engine, 'vacatorrent', NOW);
+  assert.equal(vitals.pagesLastHour, 290);
+  assert.equal(vitals.pagesSaturated, false, 'contagem do site inteiro não é piso');
+  assert.deepStrictEqual(vitals.http429, { total: 2478, lastHour: 12 });
+  assert.deepStrictEqual(vitals.expired, { total: 1, lastHour: 0 });
+  assert.equal(vitals.pagesSample, 1);
+
+  const semBloco = buildSiteVitals({ ...engine, vitals: () => null } as CrawlReadEngine, 'vacatorrent', NOW);
+  assert.equal(semBloco.pagesLastHour, 1, 'foto de sidecar antigo cai na conta das listas');
+});

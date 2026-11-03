@@ -81,7 +81,8 @@ export interface SiteStatus {
   /** Tabela de sites: rótulo canônico e se HÁ adaptador nesta rodada. */
   site: { id: string; label: string; known: boolean; adapter: boolean; note: string | null };
   // --- Vitals da foto (Fase 4.1 ritmo real / 429; Fase 2.1 expirado) ---
-  /** Páginas com `checkedAt` na última hora, na amostra que a foto traz. */
+  /** Páginas fechadas na última hora no site inteiro (bloco `vitals` da foto);
+   * sem o bloco, na amostra das listas. */
   pagesLastHour: number;
   /** Tamanho da amostra dos vitals (linhas que a foto trouxe). */
   pagesSample: number;

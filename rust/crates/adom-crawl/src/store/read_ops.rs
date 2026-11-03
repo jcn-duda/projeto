@@ -30,6 +30,22 @@ pub struct StatusTally {
     pub partial: u32,
 }
 
+/// Janela do ritmo e das taxas de erro do card.
+const HOUR_MS: i64 = 3_600_000;
+
+/// Vitals por site (ver [`CrawlStore::site_vitals`]). O ritmo conta página
+/// FECHADA na última hora (qualquer status final); a adiada volta a `pending` e
+/// não anda a fila, então não entra. 429 e "expirado" são pelo campo `error`,
+/// em qualquer status.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct VitalsTally {
+    pub pages_last_hour: u32,
+    pub http429_total: u32,
+    pub http429_last_hour: u32,
+    pub expired_total: u32,
+    pub expired_last_hour: u32,
+}
+
 /// Rodada do motor, já no formato do TS (`CrawlRunRow`).
 #[derive(Debug, Clone)]
 pub struct RunSnapshot {
@@ -72,6 +88,34 @@ impl CrawlStore {
                 _ => tally.pending += n,
             }
         }
+        Ok(tally)
+    }
+
+    /// Vitals do card contados no site INTEIRO. As listas da foto não servem:
+    /// não trazem `no-torrent` (85% das páginas do Vaca) nem `pending`, onde o
+    /// adiamento por 429 deixa o motivo — o painel mostrava 30 pág/h com 290
+    /// reais e 429 zerado com 2.478 linhas marcadas (medido em 2026-11-03).
+    pub fn site_vitals(&self, site: &str, now_ms: i64) -> Result<VitalsTally, StoreError> {
+        let since = now_ms - HOUR_MS;
+        let mut stmt = self.conn().prepare(
+            "SELECT \
+               COALESCE(SUM(status NOT IN ('pending', 'inflight') AND checked_at > ?2), 0), \
+               COALESCE(SUM(error LIKE 'http_429%'), 0), \
+               COALESCE(SUM(error LIKE 'http_429%' AND checked_at > ?2), 0), \
+               COALESCE(SUM(error LIKE '%expirado%'), 0), \
+               COALESCE(SUM(error LIKE '%expirado%' AND checked_at > ?2), 0) \
+             FROM crawl_url WHERE site = ?1",
+        )?;
+        let tally = stmt.query_row(params![site, since], |row| {
+            let n = |i: usize| row.get::<_, i64>(i).map(|v| v as u32);
+            Ok(VitalsTally {
+                pages_last_hour: n(0)?,
+                http429_total: n(1)?,
+                http429_last_hour: n(2)?,
+                expired_total: n(3)?,
+                expired_last_hour: n(4)?,
+            })
+        })?;
         Ok(tally)
     }
 
