@@ -10,6 +10,7 @@
 // nunca "GO"; taxa ausente é `null` e a tela omite, não mostra 0% como medição.
 
 import type { CrawlSummary, CrawlBadge } from './raspagens-model.js';
+import { skipLabel } from './raspagens-skip.js';
 
 /** Chaves que o operador pode divergir por site. `sites` NÃO entra: a lista de
  * sites vem do `.env` (`CRAWL_SITES`) e o card de config ao vivo do topo é
@@ -281,21 +282,11 @@ export function siteRotationLabel(
   return 'na rotação';
 }
 
-/** `skipReason` do motor → texto. Código novo cai no próprio id: rótulo
- * desconhecido é melhor que rótulo inventado. */
-const SKIP_LABELS: Record<string, string> = {
-  desabilitado: 'desligado',
-  pausado: 'pausado',
-  'auto-pausa': 'pausa automática',
-  'teto-horario': 'teto horário',
-  probe: 'sem GO da sonda',
-  'sem-adaptador': 'sem adaptador',
-  'sem-trabalho': 'sem trabalho pendente',
-};
-
+/** `skipReason` do motor → texto. O mapa ÚNICO mora em `raspagens-skip.ts`
+ * (vocabulário unificado dos "tick pulado", Fase 4.3): esta função sobrevive
+ * só como fachada para os consumidores e testes antigos. */
 export function skipText(skip: string | null): string {
-  if (!skip) return '';
-  return SKIP_LABELS[skip] || skip;
+  return skipLabel(skip);
 }
 
 /**

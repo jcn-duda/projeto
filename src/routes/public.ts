@@ -69,6 +69,8 @@ const CLIENT_ASSETS = [
   'client/painel/raspagens-model.js',
   'client/painel/raspagens-site.js',
   'client/painel/raspagens-catalog.js',
+  'client/painel/raspagens-vitals.js',
+  'client/painel/raspagens-skip.js',
   'client/painel/view-raspagens.js',
   'client/painel/view-raspagem-site-config.js',
   'client/painel/view-raspagem-site-history.js',

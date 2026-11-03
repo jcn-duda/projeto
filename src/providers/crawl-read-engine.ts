@@ -3,12 +3,15 @@
 // por site e entrega ao montador do status (síncrono) por esta interface.
 import config from '../config.js';
 import { emptyCounters } from '../utils/crawl-store-rules.js';
+import * as log from '../utils/logger.js';
 import { PROBE_STATE_KEY } from './crawl-site-probe.js';
 import type {
   CrawlErrorGroup, CrawlResultStatus, CrawlRunRow, CrawlUrlRow, SiteCounters,
 } from './crawl-types.js';
 
-/** O que o card lê do `crawl.db`. */
+/** O que o card lê do `crawl.db`. Os métodos são o contrato antigo; o
+ * `snapshotAt` é OPCIONAL (stub de teste antigo não precisa implementar) e
+ * devolve epoch ms da última foto gravada — `null` = nunca veio foto. */
 export interface CrawlReadEngine {
   readonly kind: 'sql' | 'memory';
   counters(site: string): SiteCounters;
@@ -17,6 +20,7 @@ export interface CrawlReadEngine {
   listByStatus(site: string, status: CrawlResultStatus, limit: number): CrawlUrlRow[];
   errorGroups(site: string, limit: number): CrawlErrorGroup[];
   getState(site: string, key: string): string | null;
+  snapshotAt?(site: string): number | null;
 }
 
 type SnapshotRow = {
@@ -33,12 +37,18 @@ type SiteSnapshot = {
   state: { probeVerdict: string | null; cursorMovie: string; cursorTvShow: string };
 };
 
-const SNAPSHOT_LIMIT = 50;
+// 200 = teto do sidecar (`MAX_LIMIT` do snapshot): a foto é também a fonte dos
+// vitals por hora (ritmo, 429, expirado — `crawl-vitals.ts`), e a janela de 50
+// saturava em sites no ritmo do teto padrão (1500/h enche 50 em 2 min).
+const SNAPSHOT_LIMIT = 200;
 const LIST_OF: Partial<Record<CrawlResultStatus, keyof SiteSnapshot['lists']>> = {
   done: 'done', 'no-work': 'noWork', partial: 'partial', error: 'error',
 };
 
 const snapshots = new Map<string, SiteSnapshot>();
+/** Epoch ms da última foto gravada por site: a idade da foto é o que separa
+ * "site zerado" de "sidecar não respondeu" no card. */
+const snapshotTakenAt = new Map<string, number>();
 let override: (() => CrawlReadEngine | null) | null = null;
 
 function toRow(site: string, status: CrawlResultStatus, row: SnapshotRow): CrawlUrlRow {
@@ -56,6 +66,7 @@ const nativeEngine: CrawlReadEngine = {
   },
   latestRun: (site) => snapshots.get(site)?.latestRun ?? null,
   sumReleases: (site) => snapshots.get(site)?.magnetsFound ?? 0,
+  snapshotAt: (site) => snapshotTakenAt.get(site) ?? null,
   listByStatus(site, status, limit) {
     const list = LIST_OF[status];
     if (!list) return [];
@@ -79,17 +90,33 @@ export function crawlReadEngine(): CrawlReadEngine | null {
 
 async function refreshSite(site: string): Promise<void> {
   const query = `site=${encodeURIComponent(site)}&limit=${SNAPSHOT_LIMIT}`;
+  // Falha de foto era engolida em silêncio e o card ficava "zerado" sem
+  // explicação (magnets 0, última rodada —) com o sidecar de pé — token
+  // ausente (401) e site desconhecido (400) eram indistinguíveis de site
+  // sem acervo. O log.debug deixa o operador ver o porquê; o card fica com
+  // a última foto (fail-open, mesma régua do streams-stats-native).
+  const fail = (reason: string): void => {
+    log.debug(`[crawl] foto de ${site} não gravou: ${reason}`);
+  };
   try {
     const resp = await fetch(`http://127.0.0.1:${config.crawl.sidecarPort}/crawl/site-snapshot?${query}`, {
       signal: AbortSignal.timeout(config.crawl.sidecarStatusTimeoutMs),
       headers: config.jackett.testToken ? { 'X-Indexer-Test-Token': config.jackett.testToken } : {},
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      fail(`sidecar respondeu HTTP ${resp.status}`);
+      return;
+    }
     const body = await resp.json() as Partial<SiteSnapshot> | null;
     // Corpo fora do contrato não pode derrubar o painel: fica a foto anterior.
-    if (body?.counters && body.lists && body.state) snapshots.set(site, body as SiteSnapshot);
-  } catch {
-    // Sidecar fora do ar: o card fica com a última foto; o bloco já avisa a queda.
+    if (body?.counters && body.lists && body.state) {
+      snapshots.set(site, body as SiteSnapshot);
+      snapshotTakenAt.set(site, Date.now());
+    } else {
+      fail('corpo fora do contrato do snapshot');
+    }
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -103,4 +130,5 @@ export async function refreshCrawlSnapshots(sites: readonly string[]): Promise<v
 export function setCrawlReadEngineForTest(provider: (() => CrawlReadEngine | null) | null): void {
   override = provider;
   snapshots.clear();
+  snapshotTakenAt.clear();
 }

@@ -12,12 +12,23 @@ import {
   phaseLabel,
   siteStateLabel,
   runDurationMs,
-  etaLabel,
   type CrawlSummary,
   type CrawlSiteCard,
 } from './raspagens-model.js';
-import { probeBadge, probeText, skipText, type SiteConfigForm } from './raspagens-site.js';
+import { probeBadge, probeText, type SiteConfigForm } from './raspagens-site.js';
 import { crawlCatalog, SitesCatalogCard, type CatalogEntry } from './raspagens-catalog.js';
+import {
+  cardEtaLabel,
+  holdForSite,
+  holdLine,
+  sidecarExtras,
+  siteVitalsOf,
+  snapshotAgeLabel,
+  vitalsLine,
+  type SidecarExtras,
+  type SiteVitalsView,
+} from './raspagens-vitals.js';
+import { siteWhyIdle, whyIdleText } from './raspagens-skip.js';
 
 export interface ViewRaspagensProps {
   crawl?: Record<string, any>;
@@ -41,6 +52,9 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
   const summary = crawlSummary(c);
   const sites = crawlSiteCards(c);
   const catalog = crawlCatalog(c);
+  // Extras do /status do sidecar (holds/adiadas/balde global): fail-open —
+  // sidecar fora ou campo novo ausente devolve vazio, nunca quebra o bloco.
+  const extras = sidecarExtras(c);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const { pending, run } = useAction();
 
@@ -123,7 +137,14 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
         </${Card}>
 
         <${Card} title="Vazão e Freios">
-          <${StatNumber} value=${summary.pagesThisHour} target=${summary.maxPerHour || undefined} label="req / h" />
+          {/* O balde horário REAL é do sidecar (dono do tick): quando ele
+           * responde, o número do runtime local (morto desde o corte do
+           * loop TS) sai de cena. 0 legítimo do sidecar vale como 0. */}
+          <${StatNumber}
+            value=${extras.pagesThisHour != null ? extras.pagesThisHour : summary.pagesThisHour}
+            target=${summary.maxPerHour || undefined}
+            label=${extras.pagesThisHour != null ? 'req / h (sidecar)' : 'req / h'}
+          />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
             Pausa entre páginas: ${summary.delayMs}ms · Janela de ociosidade: ${summary.idleWindowMs}ms
           </p>
@@ -164,6 +185,8 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
             key=${card.id}
             card=${card}
             summary=${summary}
+            extras=${extras}
+            vitals=${siteVitalsOf(c, card.id)}
             pending=${pending}
             onReprocess=${() => handle(
               REPROCESS_ACTION,
@@ -242,6 +265,11 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
 export interface SiteCardProps {
   card: CrawlSiteCard;
   summary: CrawlSummary;
+  /** Extras do /status do sidecar (holds/adiadas) — Fase 4.1 "em espera até".
+   * Opcional fail-open: ausente = card sem as linhas novas, nunca exceção. */
+  extras?: SidecarExtras;
+  /** Vitals da foto para ESTE site (ritmo/429/expirado/idade da foto). */
+  vitals?: SiteVitalsView;
   pending: boolean;
   onReprocess: () => void;
   /** Devolve as páginas `no-work` à fila (a identificação melhorada vale para elas). */
@@ -253,7 +281,7 @@ export interface SiteCardProps {
 
 /** Card presentacional de UM site — sem hooks e sem fetch; a casca passa as
  * ações já ligadas ao `useAction`. */
-export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWork, onReset, onTogglePause }: SiteCardProps) {
+export function SiteCard({ card, summary, extras, vitals, pending, onReprocess, onReprocessNoWork, onReset, onTogglePause }: SiteCardProps) {
   const badge = {
     text: `${siteStateLabel(card, summary)} · ${phaseLabel(card.phase)}`,
     variant: siteStateLabel(card, summary) === 'pausa automática'
@@ -265,6 +293,16 @@ export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWor
   const last = card.latestRun;
   const lastDuration = runDurationMs(last);
   const probe = probeBadge(card.probe);
+  // Fail-open: pais/testes antigos podem não passar os props novos — o card
+  // rende sem as linhas (vitals/hold vazios) em vez de lançar.
+  const safeExtras = extras ?? sidecarExtras(null);
+  const safeVitals = vitals ?? siteVitalsOf(null, card.id);
+  // "Por que não anda" (Fase 4.3): vocabulário único do hold/skip; computado
+  // uma vez por render — hold vigente é o mesmo para as duas linhas abaixo.
+  const holdUntil = holdForSite(safeExtras, card.id);
+  const whyIdle = whyIdleText(siteWhyIdle(card, summary, holdUntil));
+  const vitalsText = vitalsLine(safeVitals);
+  const hold = holdLine(safeExtras, card.id);
 
   return html`
     <${Card} title=${card.label} badge=${badge}>
@@ -285,8 +323,21 @@ export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWor
         <${StatNumber} value=${card.newReleases} label="novos no índice" />
         <${StatNumber} value=${card.torrentPercent} label="% torrent (nas processadas)" />
         <${StatNumber} value=${card.ratePerHour} label="teto req / h" />
-        <${StatNumber} value=${card.pendingRemaining === 0 && card.total > 0 ? 'concluído' : etaLabel(card.etaHours)} label="ETA" />
+        <${StatNumber} value=${cardEtaLabel(card, safeVitals)} label="ETA" />
       </div>
+
+      {/* Vitals da foto (Fase 4.1/2.1): só com o que existe de verdade — sem
+       * foto ou sem ocorrência, a linha inteira some em vez de afirmar 0. */}
+      ${vitalsText ? html`
+        <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
+          ${vitalsText}
+        </p>
+      ` : null}
+      ${hold ? html`
+        <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
+          ${hold}
+        </p>
+      ` : null}
 
       <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
         Total: ${card.total} · feitas: ${card.done} · pendentes: ${card.pending} · inflight: ${card.inflight}
@@ -302,9 +353,12 @@ export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWor
           ${card.partial} página(s) de série em andamento — retomam pelos cards já lidos${card.partialWork.length ? html` (${card.partialWork.map((p) => `${p.done}/${p.total}`).join(', ')})` : ''}.
         </p>
       ` : null}
-      ${card.probe.skip ? html`
+      {/* VOCABULÁRIO ÚNICO (Fase 4.3): o skipReason do motor entra no
+       * siteWhyIdle junto de pausa/hold/teto — uma linha só, em vez do
+       * 'Pulado nesta volta' duplicado, que contava só parte da história. */}
+      ${whyIdle ? html`
         <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
-          Pulado nesta volta: ${skipText(card.probe.skip)}.
+          Por que não anda: ${whyIdle}.
         </p>
       ` : null}
       <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
@@ -312,6 +366,9 @@ export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWor
         ${last
           ? html`${phaseLabel(last.phase)} · início ${last.startedAt ? new Date(last.startedAt).toLocaleString() : '—'}${last.finishedAt ? html` · durou ${lastDuration != null ? Math.round(lastDuration / 1000) + 's' : '—'}` : html` · em andamento`}`
           : '—'}
+        {/* A idade da foto separa "site zerado" de "foto não chega": card
+         * zerado com foto velha é problema de ponte, não de acervo. */}
+        ${card.magnetsFound === 0 && card.total === 0 ? html` · ${snapshotAgeLabel(safeVitals)}` : null}
       </p>
 
       <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">

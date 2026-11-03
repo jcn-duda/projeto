@@ -15,6 +15,7 @@ import { parseProgress } from '../utils/crawl-store-rules.js';
 import { siteConfigOf, type CrawlerEffectiveConfig, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import type { ProbeGate } from './crawl-probe-gate.js';
 import { siteCatalog } from './crawl-site-catalog.js';
+import { buildSiteVitals, VITALS_LIST_LIMIT, type ErrorStat } from './crawl-vitals.js';
 import {
   legacyView, NEUTRAL_PROBE,
   type CrawlMotorState, type CrawlSiteRuntimeView, type CrawlerStatusInput, type SiteAutoPauseInfo, type SiteTableInfo,
@@ -79,6 +80,20 @@ export interface SiteStatus {
   etaBasis: 'medido' | 'sem-pendencia' | 'sem-custo-medido' | 'sem-ociosidade-medida';
   /** Tabela de sites: rótulo canônico e se HÁ adaptador nesta rodada. */
   site: { id: string; label: string; known: boolean; adapter: boolean; note: string | null };
+  // --- Vitals da foto (Fase 4.1 ritmo real / 429; Fase 2.1 expirado) ---
+  /** Páginas com `checkedAt` na última hora, na amostra que a foto traz. */
+  pagesLastHour: number;
+  /** Tamanho da amostra dos vitals (linhas que a foto trouxe). */
+  pagesSample: number;
+  /** Amostra inteira dentro da janela: o ritmo é um piso ("≥"). */
+  pagesSaturated: boolean;
+  /** Erros `http_429…` e "expirado" — contados pelo campo `error`, não pelo
+   * status da linha (o 429 do conserto fica em linha pending com error). */
+  http429: ErrorStat;
+  expired: ErrorStat;
+  /** Epoch ms da última foto gravada; `null` = sidecar nunca respondeu — é o
+   * que distingue "site zerado" de "foto não chega" no card. */
+  snapshotAt: number | null;
 }
 
 /** Ritmo efetivo: o menor entre o teto por hora e o que o delay permite. */
@@ -187,6 +202,12 @@ export function buildSiteStatus(
     : avgCost == null ? 'sem-custo-medido'
       : idle == null ? 'sem-ociosidade-medida' : 'medido';
   const cursors = view?.cursors ?? state.cursors;
+  // UMA leitura por status alimenta card e vitals (contrato de custo do poll,
+  // `test/crawl-status.test.ts`): o pedido usa o teto da foto e o card fatia.
+  const doneRows = engine.listByStatus(siteId, 'done', VITALS_LIST_LIMIT);
+  const noWorkRows = engine.listByStatus(siteId, 'no-work', VITALS_LIST_LIMIT);
+  const partialRows = engine.listByStatus(siteId, 'partial', VITALS_LIST_LIMIT);
+  const errorRows = engine.listByStatus(siteId, 'error', VITALS_LIST_LIMIT);
   return {
     id: siteId,
     label: view?.label ?? (state.activeSiteId === siteId && state.activeLabel ? state.activeLabel : siteId),
@@ -204,14 +225,14 @@ export function buildSiteStatus(
     etaBasis,
     idleFraction: idle,
     latestRun: latest,
-    recentWorks: engine.listByStatus(siteId, 'done', STATUS_LIST_LIMIT).map((r) => ({
+    recentWorks: doneRows.slice(0, STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, imdb: r.imdb, releases: r.releases, checkedAt: r.checkedAt,
     })),
-    noWork: engine.listByStatus(siteId, 'no-work', STATUS_LIST_LIMIT).map((r) => ({ url: r.url, checkedAt: r.checkedAt })),
+    noWork: noWorkRows.slice(0, STATUS_LIST_LIMIT).map((r) => ({ url: r.url, checkedAt: r.checkedAt })),
     /** Páginas lidas em dry-run aguardando gravação (dry-run desligar reenfileira). */
     simulatedAwaiting: counters.byStatus.simulated,
     // Séries em andamento (Fase 7 v2): x/y cards lidos, do progresso gravado.
-    partialWork: engine.listByStatus(siteId, 'partial', STATUS_LIST_LIMIT).map((r) => {
+    partialWork: partialRows.slice(0, STATUS_LIST_LIMIT).map((r) => {
       const p = parseProgress(r.progress);
       return {
         url: r.url,
@@ -220,7 +241,7 @@ export function buildSiteStatus(
         checkedAt: r.checkedAt,
       };
     }),
-    errors: engine.listByStatus(siteId, 'error', STATUS_LIST_LIMIT).map((r) => ({
+    errors: errorRows.slice(0, STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, error: r.error, tries: r.tries, checkedAt: r.checkedAt,
     })),
     // Motivo estável no agrupamento (M2): `series_truncated: …(cards 2/4…)`
@@ -246,6 +267,11 @@ export function buildSiteStatus(
     maxPerHour: siteConfig.maxPerHour,
     delayMs: siteConfig.delayMs,
     site: view?.site ?? { id: siteId, label: siteId, known: false, adapter: true, note: null },
+    // Vitals vêm da MESMA leitura das listas do card — nunca lançam.
+    ...buildSiteVitals(engine, siteId, Date.now(), {
+      done: doneRows, no_work: noWorkRows, partial: partialRows, error: errorRows,
+    }),
+    snapshotAt: engine.snapshotAt?.(siteId) ?? null,
   };
 }
 

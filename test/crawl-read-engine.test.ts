@@ -39,7 +39,9 @@ test('a foto do sidecar alimenta os verbos de leitura do card', async () => {
   await refreshCrawlSnapshots(['nerdfilmes']);
   const engine = crawlReadEngine();
   assert.ok(engine);
-  assert.match(urls[0], /\/crawl\/site-snapshot\?site=nerdfilmes&limit=50$/);
+  // 200 = janela dos vitals (ritmo real por hora sobre a foto); é o teto do
+  // snapshot do sidecar — acima disso o corte é lá, não aqui.
+  assert.match(urls[0], /\/crawl\/site-snapshot\?site=nerdfilmes&limit=200$/);
   const counters = engine.counters('nerdfilmes');
   assert.equal(counters.total, 3);
   assert.equal(counters.byStatus.done, 2);
@@ -53,6 +55,9 @@ test('a foto do sidecar alimenta os verbos de leitura do card', async () => {
   assert.equal(engine.getState('nerdfilmes', PROBE_STATE_KEY), '{"go":true}');
   assert.equal(engine.getState('nerdfilmes', 'cursor:movie'), 'm1');
   assert.equal(engine.getState('nerdfilmes', 'cursor:tv_show'), null);
+  // Idade da foto (Fase 4.2): card zerado com foto velha é problema de ponte,
+  // não de acervo — o engine expõe quando a última foto chegou.
+  assert.ok(engine.snapshotAt?.('nerdfilmes') != null);
 });
 
 test('sidecar fora do ar mantém a última foto e não lança', async () => {
@@ -76,4 +81,5 @@ test('site sem foto responde vazio, sem inventar dado', () => {
   assert.equal(engine.latestRun('nunca'), null);
   assert.deepEqual(engine.listByStatus('nunca', 'done', 5), []);
   assert.equal(engine.getState('nunca', PROBE_STATE_KEY), null);
+  assert.equal(engine.snapshotAt?.('nunca') ?? null, null, 'site sem foto não inventa idade');
 });
