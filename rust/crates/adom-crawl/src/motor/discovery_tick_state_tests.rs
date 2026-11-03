@@ -4,15 +4,19 @@
 //! em `discovery_tick_test_support`. Aqui o que dói: a rodada cobra no MESMO
 //! teto por hora das páginas, o cursor de data só anda com a completude DAQUELE
 //! kind, o estado durável da LISTAGEM (`state_writes`) é lido antes e gravado
-//! depois de a fila aceitar, e a descoberta roda ANTES de reivindicar.
+//! depois de a fila aceitar, e a descoberta roda em task própria, sem segurar o
+//! lote de páginas.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use crate::discovery::listing::listing_series_key;
-use crate::discovery::{cursor_key, DiscoveryReport};
+use crate::discovery::{
+    cursor_key, DiscoveryFuture, DiscoveryOptions, DiscoveryReport, SiteDiscovery,
+};
 use crate::listing::cursor::listing_cursor_key;
 use crate::motor::ingest::test_support::FakeIngest;
-use crate::motor::r#loop::TickOutcome;
+use crate::motor::r#loop::{CrawlMotor, TickOutcome};
 use crate::motor::types::{PageEngine, PageFuture, PageOutcome};
 use crate::sitemap::CrawlPageKind;
 use crate::store::ops::{CrawlStore, UrlRow};
@@ -182,8 +186,19 @@ impl PageEngine for EngineFalha {
     }
 }
 
+/// Espera a condição, com prazo: a descoberta roda em task própria.
+async fn ate(condicao: impl Fn() -> bool, oque: &str) {
+    for _ in 0..500 {
+        if condicao() {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("prazo vencido esperando: {oque}");
+}
+
 #[tokio::test]
-async fn tick_descobre_antes_de_reivindicar() {
+async fn fila_vazia_e_alimentada_pela_descoberta_em_fundo() {
     let (_dir, db) = db_temp();
     let node = node(false).await;
     let fake = FakeDiscovery::new(vec![Ok(report_parcial())]);
@@ -191,11 +206,85 @@ async fn tick_descobre_antes_de_reivindicar() {
         .with_page_engine(Arc::new(EngineFalha))
         .with_ingest(Arc::new(FakeIngest::delivered()));
 
+    motor.tick_once().await.expect("tick");
+    ate(
+        || !motor.discovery_busy.load(Ordering::SeqCst),
+        "a rodada terminar",
+    )
+    .await;
+    assert_eq!(fake.calls().len(), 1, "a descoberta rodou em fundo");
     match motor.tick_once().await.expect("tick") {
         TickOutcome::Processed { claimed, .. } => {
             assert_eq!(claimed, 1, "a fila veio da descoberta, não estava vazia");
         }
         outro => panic!("esperava lote: {outro:?}"),
     }
-    assert_eq!(fake.calls().len(), 1, "a descoberta rodou dentro do tick");
+}
+
+/// A 1ª rodada enche a fila; as outras esperam a liberação do teste.
+struct DiscoveryPresa {
+    calls: AtomicUsize,
+    liberar: tokio::sync::Semaphore,
+}
+
+impl SiteDiscovery for DiscoveryPresa {
+    fn discover<'a>(&'a self, _site: &'a str, _opts: &'a DiscoveryOptions) -> DiscoveryFuture<'a> {
+        Box::pin(async move {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Ok(report_parcial());
+            }
+            self.liberar.acquire().await.expect("semáforo").forget();
+            Ok(DiscoveryReport::empty_complete())
+        })
+    }
+}
+
+/// O motivo da separação: rodada lenta não segura página, e nunca há duas juntas.
+#[tokio::test]
+async fn descoberta_presa_nao_segura_pagina_nem_duplica() {
+    let (_dir, db) = db_temp();
+    let node = node(false).await;
+    let presa = Arc::new(DiscoveryPresa {
+        calls: AtomicUsize::new(0),
+        liberar: tokio::sync::Semaphore::new(0),
+    });
+    let discovery: Arc<dyn SiteDiscovery> = presa.clone();
+    let motor = CrawlMotor::new(config(&db, &node))
+        .with_discovery(discovery)
+        .with_page_engine(Arc::new(EngineFalha))
+        .with_ingest(Arc::new(FakeIngest::delivered()));
+    motor.discover_once().await.expect("enche a fila");
+
+    let prazo = std::time::Duration::from_secs(5);
+    let lote = tokio::time::timeout(prazo, motor.tick_once())
+        .await
+        .expect("a página não espera a descoberta")
+        .expect("tick");
+    assert!(matches!(lote, TickOutcome::Processed { claimed: 1, .. }));
+    ate(
+        || presa.calls.load(Ordering::SeqCst) == 2,
+        "a rodada começar",
+    )
+    .await;
+
+    tokio::time::timeout(prazo, motor.tick_once())
+        .await
+        .expect("segue sem esperar")
+        .expect("tick");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(presa.calls.load(Ordering::SeqCst), 2, "nunca duas rodadas");
+
+    presa.liberar.add_permits(1);
+    ate(
+        || !motor.discovery_busy.load(Ordering::SeqCst),
+        "a vaga voltar",
+    )
+    .await;
+    motor.tick_once().await.expect("tick");
+    ate(
+        || presa.calls.load(Ordering::SeqCst) == 3,
+        "a próxima rodada",
+    )
+    .await;
+    presa.liberar.add_permits(1);
 }

@@ -671,6 +671,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   botão/episódio) e marker/cursor de descoberta só grava via `commit` diferido.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
+- **Descoberta roda em task própria** (`spawn_discovery`, uma de cada vez): dentro
+  do tick, cada rodada parava as páginas de todos os sites (~2 min por página
+  depois do boot, medido em 2026-11-02).
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por
   site; seleção pura no sidecar (`adom-crawl::policy::crawl_site_select`, com
   limite de fome para a descoberta). Fila serve novidade primeiro. O Node não

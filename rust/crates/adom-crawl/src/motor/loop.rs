@@ -19,6 +19,7 @@
 //! próximo ciclo segue.
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
 use tokio::time::{interval, Duration, Instant};
@@ -127,7 +128,9 @@ pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
     TaskReport { cost, delivered }
 }
 
-/// Motor do raspador — loop principal.
+/// Motor do raspador — loop principal. O `Clone` compartilha o estado (tudo em
+/// `Arc`): é como a descoberta vai para a task própria.
+#[derive(Clone)]
 pub struct CrawlMotor {
     pub(super) config: MotorConfig,
     pub(super) http: Arc<SidecarHttpClient>,
@@ -152,6 +155,8 @@ pub struct CrawlMotor {
     /// Rodízio entre os sites que descobrem (um site faminto não pode ser
     /// preterido por outro com fila grande).
     pub(super) discover_cursor: Arc<Mutex<usize>>,
+    /// Há rodada de descoberta em curso? Uma de cada vez, em task própria.
+    pub(super) discovery_busy: Arc<AtomicBool>,
 }
 
 impl CrawlMotor {
@@ -177,6 +182,7 @@ impl CrawlMotor {
             discovery: None,
             discover_next_at: Arc::new(Mutex::new(HashMap::new())),
             discover_cursor: Arc::new(Mutex::new(0)),
+            discovery_busy: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -259,15 +265,10 @@ impl CrawlMotor {
         }
 
         self.ensure_store()?;
-        // Descoberta ANTES do claim: fila vazia é o estado normal de um site
-        // recém-ligado (e o fim da carga inicial), e sem esta chamada o motor
-        // ficava para sempre em `sem-fila` — a fila é alimentada aqui.
-        if let Some(tick) = self.discover_once().await {
-            eprintln!(
-                "[motor] descoberta {}: {} URL(s), +{} nova(s), {} refeita(s), {} req, parcial={}",
-                tick.site, tick.urls, tick.added, tick.refreshed, tick.cost, tick.partial
-            );
-        }
+        // Em task própria: uma rodada leva minutos e, aqui dentro, parava as
+        // páginas de todos os sites (medido em 2026-11-02: ~2 min por página). A
+        // fila vazia continua sendo alimentada: o tick seguinte já vê o que entrou.
+        self.spawn_discovery();
         let limit = self.config.max_parallel.max(1);
         let batch = with_store(self.store.clone(), move |db| db.take_next_batch(limit)).await?;
         if batch.is_empty() {

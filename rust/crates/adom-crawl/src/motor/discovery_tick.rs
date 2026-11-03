@@ -6,7 +6,7 @@
 //!
 //! Contrato:
 //!
-//! - **um site por tick**, no máximo — a rodada de um site são dezenas de
+//! - **um site por vez**, em task própria — a rodada de um site são dezenas de
 //!   requisições e não pode segurar o lote paralelo;
 //! - cada site tem o SEU relógio (memória do processo): restart descobre uma
 //!   vez, que é o comportamento correto depois de um deploy;
@@ -17,6 +17,7 @@
 //! - cursor durável só avança com a completude DAQUELE kind (`next_cursor`).
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -45,6 +46,16 @@ pub struct DiscoveryTick {
     pub partial: bool,
 }
 
+/// Solta a vaga da descoberta também se a rodada entrar em pânico: sem isso o
+/// site nunca mais descobriria nada até o próximo boot.
+struct DiscoverySlot(Arc<AtomicBool>);
+
+impl Drop for DiscoverySlot {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 /// Relógio por site da próxima rodada. Memória de propósito: é agenda de
 /// processo, não estado do acervo.
 pub(super) type DiscoverClock = Arc<Mutex<HashMap<String, i64>>>;
@@ -66,6 +77,25 @@ impl CrawlMotor {
     /// do "reprocessar" do painel.
     pub async fn force_discovery(&self) {
         self.discover_next_at.lock().await.clear();
+    }
+
+    /// Dispara a rodada em task própria, se não houver outra em curso. Quem chama
+    /// já passou pelos freios do tick (pausa, teto, usuário ativo).
+    pub(super) fn spawn_discovery(&self) {
+        if self.discovery.is_none() || self.discovery_busy.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let slot = DiscoverySlot(self.discovery_busy.clone());
+        let motor = self.clone();
+        tokio::spawn(async move {
+            let _slot = slot;
+            if let Some(tick) = motor.discover_once().await {
+                eprintln!(
+                    "[motor] descoberta {}: {} URL(s), +{} nova(s), {} refeita(s), {} req, parcial={}",
+                    tick.site, tick.urls, tick.added, tick.refreshed, tick.cost, tick.partial
+                );
+            }
+        });
     }
 
     /// NO MÁXIMO uma rodada, e só do site vencido. `None` = nada a fazer
