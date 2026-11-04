@@ -11,6 +11,7 @@ import { markerKey, markerValue, markerTransferId, markerActive, setMarker, forg
 import { accountGateSnapshot } from './autofetch-gate.js';
 import { countAllSuppressed } from './autofetch-suppressed.js';
 import { deadKey } from './autofetch-keys.js';
+import { nativeBudgetAccounts } from './autofetch-budget-native.js';
 
 const pending = new Map(); const searchSlots = new Map();
 const LOCK_TTL_MS = 60_000;
@@ -344,6 +345,12 @@ function snapshot() {
     limit += itemLimit;
     budgets.push({ id: sha256(key).slice(0, 12), used: timestamps.length, limit: itemLimit });
   }
+  // Produção: a cota é do worker nativo. Sem reserva na última hora o teto
+  // ainda vale (uma conta do operador), em vez do "0 / 0" de antes.
+  for (const acc of nativeBudgetAccounts(live.autoFetchEnqueueMaxHour, now)) {
+    used += acc.used; limit += acc.limit; budgets.push(acc);
+  }
+  if (budgets.length === 0) limit = live.autoFetchEnqueueMaxHour;
 
   let queueItems = 0;
   for (const [key] of [...knownQueues]) {
@@ -355,7 +362,8 @@ function snapshot() {
     queueItems += count;
   }
   const deadLive = new Set(kvKeys(DEAD_PREFIX));
-  for (const key of [...knownDead]) if (!deadLive.has(key)) knownDead.delete(key);
+  // O worker nativo grava `dead:` direto no KV: o índice segue o disco nos dois sentidos.
+  knownDead.clear(); for (const key of deadLive) knownDead.add(key);
   let occupiedSlots = 0;
   for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
 
@@ -373,7 +381,7 @@ function snapshot() {
     accountGate: accountGateSnapshot(),
     config: autofetchLive.snapshot(),
     // queues/dead/suppressed=durável (varredura do disco, não Map de processo); resto=amostra.
-    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'naomedido', suppressed: 'duravel' },
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'duravel', accountGate: 'naomedido', suppressed: 'duravel' },
   };
 }
 
