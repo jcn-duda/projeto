@@ -3,9 +3,8 @@
 //! O lote chega do canal com os FATOS medidos pela busca (itens, `known`,
 //! `searchKey`) e o escopo da conta (`adapter:sha256`). Aqui ele vira:
 //!
-//! 1. **hold ANTES da checagem** (invariante 6): o hash é preso em memória antes
-//!    de `check`, então a checagem de cache e o `enqueue` não podem ser
-//!    atropelados por um evict/settle no meio;
+//! 1. **hold ANTES da checagem** (invariante 6): trava do processo + `adhold`
+//!    durável ([`retention`], o que a limpeza da checagem lê);
 //! 2. **fatos da cascata** — cache por hash, cobertura por qualidade-alvo,
 //!    dublado BR/global e o piso de seeders (o waiver vem marcado do pipeline);
 //! 3. [`cascade`] (`adom_autofetch::v3`) → `attempts` / `deferred` / `dropped`;
@@ -59,6 +58,9 @@ pub(super) mod obra;
 #[path = "enqueue_pick.rs"]
 mod pick;
 
+#[path = "enqueue_retention.rs"]
+pub(super) mod retention;
+use retention::release_all;
 #[path = "enqueue_report.rs"]
 mod report;
 pub(crate) use report::Report;
@@ -119,11 +121,13 @@ pub(crate) async fn run(
     if hashes.is_empty() {
         return Ok(Report::refused(&search_key, "in-flight"));
     }
+    let hold_ttl = policy.marker_ttl_seconds; // hold DURÁVEL: é o que a limpeza lê
+    retention::hold_all(holds, kv, account, &hashes, hold_ttl, now_ms)?;
 
     // O applyDebrid já mediu esse mesmo universo; known=false encerra sem uma
     // segunda pergunta ao serviço, como `autoFetchBrDubbed` no TS.
     if payload.get("known").and_then(Value::as_bool) == Some(false) {
-        release_all(holds, account, &hashes);
+        release_all(holds, kv, account, &hashes, &[]);
         return Ok(Report::refused(&search_key, "unknown-cache"));
     }
 
@@ -138,12 +142,12 @@ pub(crate) async fn run(
     let evidence = match debrid.check(&hashes).await {
         Ok(evidence) => evidence,
         Err(_) => {
-            release_all(holds, account, &hashes);
+            release_all(holds, kv, account, &hashes, &report.enqueued);
             return Err("checagem de cache falhou".to_string());
         }
     };
     if !evidence.known {
-        release_all(holds, account, &hashes);
+        release_all(holds, kv, account, &hashes, &report.enqueued);
         return Ok(Report::refused(&search_key, "unknown-cache"));
     }
     let eligible: HashSet<&str> = hashes.iter().map(String::as_str).collect();
@@ -180,7 +184,7 @@ pub(crate) async fn run(
     }) {
         Ok(measured) => measured,
         Err(err) => {
-            release_all(holds, account, &hashes);
+            release_all(holds, kv, account, &hashes, &report.enqueued);
             return Err(err);
         }
     };
@@ -203,7 +207,7 @@ pub(crate) async fn run(
     }) {
         Ok(picked) => picked,
         Err(err) => {
-            release_all(holds, account, &hashes);
+            release_all(holds, kv, account, &hashes, &report.enqueued);
             return Err(err);
         }
     };
@@ -235,7 +239,7 @@ pub(crate) async fn run(
         let marker_active = match queue.marker(adapter, account, &attempt.info_hash, now_ms) {
             Ok(marker) => marker.is_some(),
             Err(err) => {
-                release_all(holds, account, &hashes);
+                release_all(holds, kv, account, &hashes, &report.enqueued);
                 return Err(err);
             }
         };
@@ -252,7 +256,7 @@ pub(crate) async fn run(
             {
                 Ok(gate) => gate,
                 Err(err) => {
-                    release_all(holds, account, &hashes);
+                    release_all(holds, kv, account, &hashes, &report.enqueued);
                     return Err(err);
                 }
             }
@@ -280,7 +284,7 @@ pub(crate) async fn run(
             }
             None => match gates::reserve_budget(kv, adapter, account, live.hourly_limit, now_ms) {
                 Err(err) => {
-                    release_all(holds, account, &hashes);
+                    release_all(holds, kv, account, &hashes, &report.enqueued);
                     return Err(err);
                 }
                 Ok(false) => {
@@ -317,7 +321,8 @@ pub(crate) async fn run(
                             policy.marker_ttl_seconds,
                             now_ms,
                         ) {
-                            release_all(holds, account, &hashes);
+                            report.enqueued.push((attempt.info_hash.clone(), None)); // aceito: hold fica
+                            release_all(holds, kv, account, &hashes, &report.enqueued);
                             return Err(err);
                         }
                         // Aceite confirmado: o hash vira entrada DURÁVEL da obra
@@ -333,12 +338,14 @@ pub(crate) async fn run(
                             live.obra_ttl_seconds,
                             now_ms,
                         ) {
-                            release_all(holds, account, &hashes);
+                            report.enqueued.push((attempt.info_hash.clone(), None));
+                            release_all(holds, kv, account, &hashes, &report.enqueued);
                             return Err(err);
                         }
                         report
                             .enqueued
                             .push((attempt.info_hash.clone(), evidence.transfer_id));
+                        retention::protect_item(kv, adapter, account, attempt, item, now_ms);
                         // Ciclo fechado: o aceite vira registro `source:autofetch`
                         // no índice (visibilidade, nunca cobertura BR).
                         super::index_record::keep(attempt, item, payload, &mut report);
@@ -369,7 +376,7 @@ pub(crate) async fn run(
     };
     if !live.queue_enabled || live.queue_depth == 0 || queue_out.is_empty() {
         if let Err(err) = queue.drop_queue(&search_key) {
-            release_all(holds, account, &hashes);
+            release_all(holds, kv, account, &hashes, &report.enqueued);
             return Err(err);
         }
     } else if let Err(err) = queue.write_queue(
@@ -380,17 +387,11 @@ pub(crate) async fn run(
         Some((adapter, account)),
         now_ms,
     ) {
-        release_all(holds, account, &hashes);
+        release_all(holds, kv, account, &hashes, &report.enqueued);
         return Err(err);
     }
-    release_all(holds, account, &hashes);
+    release_all(holds, kv, account, &hashes, &report.enqueued);
     Ok(report)
-}
-
-fn release_all(holds: &Holds, account: &str, hashes: &[String]) {
-    for hash in hashes {
-        holds.release(account, hash);
-    }
 }
 
 #[cfg(test)]

@@ -19,7 +19,7 @@ use adom_autofetch::v3::{
 use adom_core::SkipReason;
 use adom_index::NativeKv;
 
-use super::enqueue::Holds;
+use super::enqueue::{retention, Holds};
 use super::Policy;
 
 /// Resultado de um dreno: o que começou, o que bloqueou e o tamanho da fila.
@@ -205,9 +205,22 @@ async fn start(
             ..DrainReport::default()
         });
     }
+    // Hold DURÁVEL antes do enqueue (`held.hold` do dreno no TS): é o que a
+    // limpeza da checagem lê; sem ele o download drenado era apagado da conta.
+    if let Err(err) = retention::hold(
+        kv,
+        account,
+        &candidate.info_hash,
+        policy.marker_ttl_seconds,
+        now_ms,
+    ) {
+        holds.release(account, &candidate.info_hash);
+        return Err(format!("hold durável: {err}"));
+    }
     match super::enqueue::gates::reserve_budget(kv, adapter, account, hourly_limit, now_ms) {
         Ok(true) => {}
         Ok(false) => {
+            retention::release(kv, account, &candidate.info_hash);
             holds.release(account, &candidate.info_hash);
             let mut next = Vec::with_capacity(remaining.len() + 1);
             next.push(candidate.clone());
@@ -220,6 +233,7 @@ async fn start(
             });
         }
         Err(err) => {
+            retention::release(kv, account, &candidate.info_hash);
             holds.release(account, &candidate.info_hash);
             return Err(err);
         }
@@ -242,6 +256,21 @@ async fn start(
             holds.release(account, &candidate.info_hash);
             return Err(err);
         }
+        retention::protect_br(
+            kv,
+            adapter,
+            account,
+            &candidate.info_hash,
+            &retention::BrFacts {
+                pool_br: candidate.pool.as_deref() == Some("br"),
+                br: candidate.br == Some(true),
+                dubbed: candidate.dubbed == Some(true) || candidate.bank_dub == Some(true),
+                lied: candidate.lied == Some(true),
+            },
+            now_ms,
+        );
+    } else {
+        retention::release(kv, account, &candidate.info_hash);
     }
     holds.release(account, &candidate.info_hash);
     let mut next = Vec::with_capacity(remaining.len() + 1);
