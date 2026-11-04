@@ -119,13 +119,18 @@ pub async fn collect_links(
         year: None,
         poster: None,
     };
-    let links = movie_links(profile, &work(true)).await.unwrap_or_default();
-    if !links.is_empty() {
-        return Ok(links);
+    // Falha de rede (HTTP 429 da borda, timeout) sobe como erro: engolida, ela
+    // virava `no_such_button` e parecia post sem botão.
+    let movie_err = match movie_links(profile, &work(true)).await {
+        Ok(links) if !links.is_empty() => return Ok(links),
+        Ok(_) => None,
+        Err(e) => Some(e),
+    };
+    match series_links(profile, &work(false), None).await {
+        Ok(links) if !links.is_empty() => Ok(links),
+        Ok(empty) => movie_err.map_or(Ok(empty), Err),
+        Err(e) => Err(e),
     }
-    Ok(series_links(profile, &work(false), None)
-        .await
-        .unwrap_or_default())
 }
 
 /// `searchPosts` do Vaca.

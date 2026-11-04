@@ -209,6 +209,13 @@ impl ResolverProfile {
     /// Segue a cadeia de protetores até o magnet (`followProtectedUrl` do TS). A
     /// URL entra na allowlist ANTES do laço — no TS era o callback `assertAllowedUrl`.
     pub async fn resolve(&self, url: &str) -> Result<String, String> {
+        if self.is_vaca() {
+            return crate::vaca_chain::throttled(|| self.resolve_direct(url)).await;
+        }
+        self.resolve_direct(url).await
+    }
+
+    async fn resolve_direct(&self, url: &str) -> Result<String, String> {
         let magnet_only = url.trim_start().to_ascii_lowercase().starts_with("magnet:");
         if !magnet_only {
             self.allowlist
