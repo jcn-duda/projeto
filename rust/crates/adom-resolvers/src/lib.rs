@@ -11,6 +11,7 @@ pub mod flows;
 mod gate_resolve;
 mod items;
 pub mod listing_parsers;
+mod magnet_memo;
 pub mod profile;
 pub mod search_select;
 pub mod server;

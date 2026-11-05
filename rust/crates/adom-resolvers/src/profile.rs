@@ -145,7 +145,7 @@ impl ResolverProfile {
         Ok(url.to_string())
     }
 
-    fn is_vaca(&self) -> bool {
+    pub(crate) fn is_vaca(&self) -> bool {
         self.site_name == "vacatorrent"
     }
 
@@ -209,13 +209,10 @@ impl ResolverProfile {
     /// Segue a cadeia de protetores até o magnet (`followProtectedUrl` do TS). A
     /// URL entra na allowlist ANTES do laço — no TS era o callback `assertAllowedUrl`.
     pub async fn resolve(&self, url: &str) -> Result<String, String> {
-        if self.is_vaca() {
-            return crate::vaca_chain::throttled(|| self.resolve_direct(url)).await;
-        }
-        self.resolve_direct(url).await
+        crate::magnet_memo::remembered(&self.site_name, url, || self.resolve_guarded(url)).await
     }
 
-    async fn resolve_direct(&self, url: &str) -> Result<String, String> {
+    pub(crate) async fn resolve_direct(&self, url: &str) -> Result<String, String> {
         let magnet_only = url.trim_start().to_ascii_lowercase().starts_with("magnet:");
         if !magnet_only {
             self.allowlist

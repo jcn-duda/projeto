@@ -41,6 +41,16 @@ fn is_rate_limited(err: &str) -> bool {
     err.trim() == "HTTP 429"
 }
 
+impl crate::profile::ResolverProfile {
+    /// Cadeia do protetor; a do Vaca passa pelo freio, as outras seguem direto.
+    pub(crate) async fn resolve_guarded(&self, url: &str) -> Result<String, String> {
+        if self.is_vaca() {
+            return throttled(|| self.resolve_direct(url)).await;
+        }
+        self.resolve_direct(url).await
+    }
+}
+
 /// Roda a cadeia sob o freio do processo.
 pub async fn throttled<F, Fut>(run: F) -> Result<String, String>
 where
