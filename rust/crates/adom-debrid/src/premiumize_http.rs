@@ -225,7 +225,17 @@ pub(super) fn as_debrid(files: &[ContentFile]) -> Vec<DebridFile> {
         .collect()
 }
 
+/// A API real devolve o `filesize` do `/cache/check` como STRING
+/// (`["647765771", 0]`); aceitar só número JSON zerava o `tsz` de produção.
 pub(super) fn positive_size(value: &Value) -> Option<u64> {
+    if let Value::String(text) = value {
+        let text = text.trim();
+        if let Ok(n) = text.parse::<u64>() {
+            return (n > 0).then_some(n);
+        }
+        let n: f64 = text.parse().ok()?;
+        return (n.is_finite() && n >= 1.0).then_some(n as u64);
+    }
     let number = value.as_number()?;
     if let Some(n) = number.as_u64() {
         return (n > 0).then_some(n);

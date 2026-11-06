@@ -238,6 +238,22 @@ async fn cache_separa_lote_e_repete_items() {
     assert!(!seen[0].query.contains(','));
 }
 
+/// Formato REAL do `/cache/check`: `filesize` em string. Sem isto o `tsz` de
+/// produção nunca era gravado e o 💾 de item BR sem tamanho não saía.
+#[tokio::test]
+async fn cache_le_filesize_em_string() {
+    let h1 = hash_at("c3");
+    let h2 = hash_at("d4");
+    let body = r#"{"status":"success","response":[true,false],"filesize":["647765771",0]}"#;
+    let (addr, _hits) = listen(200, body, None).await;
+    let pm = open(addr);
+    let report = pm
+        .check_cached(KEY, &[h1.clone(), h2], None)
+        .await
+        .unwrap();
+    assert_eq!(report.totals, vec![(h1, 647_765_771)]);
+}
+
 #[tokio::test]
 async fn status_200_classifica_auth_quota_e_rate() {
     let cases = [
