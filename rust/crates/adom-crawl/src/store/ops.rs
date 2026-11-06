@@ -218,6 +218,11 @@ impl CrawlStore {
     /// `error` começando em `http_429`/`http_503` é Retry-After — a página
     /// não foi trabalhada, então `tries` NÃO avança; todo o resto incrementa
     /// 1 (o esgotamento por adiamento não pode acontecer só de 429/503).
+    ///
+    /// CONTINUAÇÃO (série do Mico em passes): progresso novo E antigo não
+    /// vazios = este passe retoma o anterior, então `releases` SOMA — senão o
+    /// passe final, que costuma não achar nada novo, zerava a contagem da obra.
+    /// A releitura e o "reprocessar" limpam `progress`, e a soma recomeça.
     pub fn mark_result(
         &self,
         site: &str,
@@ -232,7 +237,9 @@ impl CrawlStore {
         };
         self.conn.execute(
             "UPDATE crawl_url SET status=?1, imdb=COALESCE(?2,imdb), \
-             releases=?3, error=?4, progress=?5, next_at=?6, \
+             releases=CASE WHEN ?5 <> '' AND progress <> '' \
+                      THEN releases + ?3 ELSE ?3 END, \
+             error=?4, progress=?5, next_at=?6, \
              tries=tries+?7, checked_at=?8 WHERE site=?9 AND url_key=?10",
             params![
                 final_status,

@@ -284,3 +284,40 @@ fn counters_reflete_estados() {
     assert_eq!(c.pending, 1);
     assert_eq!(c.inflight, 0);
 }
+
+/// Série em passes: a continuação SOMA `releases`; sem progresso, sobrescreve.
+#[test]
+fn releases_somam_na_continuacao_da_serie() {
+    let (store, _dir) = temp_store();
+    store
+        .upsert_urls("test-site", &[sample_url("/s")])
+        .expect("upsert");
+    let mark = |status: &str, releases: u32, progress: &str, next_at: i64| MarkResult {
+        status: status.to_string(),
+        imdb: None,
+        title: None,
+        year: None,
+        releases,
+        error: String::new(),
+        progress: progress.to_string(),
+        next_at,
+        request_cost: 1,
+    };
+    let row = store.take_next("test-site").expect("take").expect("row");
+    store
+        .mark_result(
+            "test-site",
+            &row.url_key,
+            &mark("partial", 7, r#"{"v":1}"#, 1),
+        )
+        .expect("passe 1");
+    store
+        .mark_result("test-site", &row.url_key, &mark("done", 0, r#"{"v":1}"#, 0))
+        .expect("passe final");
+    assert_eq!(store.sum_releases("test-site").expect("sum"), 7);
+    // Sem progresso (filme, erro): o valor do passe vale sozinho.
+    store
+        .mark_result("test-site", &row.url_key, &mark("done", 3, "", 0))
+        .expect("sem progresso");
+    assert_eq!(store.sum_releases("test-site").expect("sum"), 3);
+}
