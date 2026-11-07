@@ -6,6 +6,8 @@ mod al_cleanup_facts;
 mod al_sweeps;
 /// Worker do Chupim em modo preparado (sem dreno até a fase B).
 mod autofetch;
+/// Chave AllDebrid do operador para as rotinas de fundo (varreduras/inventário).
+mod operator_account;
 /// Catálogo de indexers do Jackett no gateway (F4.2): cache/refresh + rota.
 mod br_coverage;
 /// Parte de I/O da cobertura BR (leitores do cache.db, laço e rota admin).

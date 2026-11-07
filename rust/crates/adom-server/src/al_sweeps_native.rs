@@ -40,15 +40,12 @@ impl Account {
     }
 }
 
-/// `DEBRID_SERVICE`/`DEBRID_API_KEY` do operador (o mesmo `debrid_config` do
-/// `/resolve`). Serviço diferente de AllDebrid ou chave vazia ⇒ `None`.
+/// Conta AllDebrid do operador (`operator_account`): vale com
+/// `DEBRID_ALLOW_ENV_KEY` OU `DEBRID_OPERATOR_ENV_ACCOUNT`, não só com a
+/// herança de chave do `/resolve`. Sem conta ⇒ `None`.
 pub(crate) fn account_from_env() -> Option<Account> {
-    let defaults = crate::resolve_native::defaults_from_env();
-    let config = crate::resolve_native::debrid_config(None, "", &defaults).ok()?;
-    if config.service != "alldebrid" || config.api_key.trim().is_empty() {
-        return None;
-    }
-    Some(Account::new(config.api_key.trim()))
+    let key = crate::operator_account::alldebrid_key_from_env()?;
+    Some(Account::new(&key))
 }
 
 // ---------------------------------------------------------------------------

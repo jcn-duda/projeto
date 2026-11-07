@@ -36,22 +36,17 @@ pub(crate) fn router() -> Router<Arc<AdminState>> {
     Router::new().route("/debrid/inventory", get(status))
 }
 
-/// Conta do operador: MESMA regra de `al_sweeps_native::account_from_env`
-/// (env `DEBRID_SERVICE`/`DEBRID_API_KEY`, serviço AllDebrid, chave não
-/// vazia). Reescrita aqui por catraca: o `Account` de lá esconde a chave de
-/// propósito (sem `Debug`, sem log) e o arquivo não é desta mudança — o
-/// critério dos dois lados tem de continuar idêntico.
-fn operator_account() -> Option<crate::resolve_native::DebridConfig> {
-    let defaults = crate::resolve_native::defaults_from_env();
-    let config = crate::resolve_native::debrid_config(None, "", &defaults).ok()?;
-    let usable = config.service == "alldebrid" && !config.api_key.trim().is_empty();
-    usable.then_some(config)
+/// Conta do operador: a MESMA régua das varreduras
+/// (`operator_account::alldebrid_key_from_env`), para a foto e o agendador não
+/// divergirem sobre qual conta existe.
+fn operator_account() -> Option<String> {
+    crate::operator_account::alldebrid_key_from_env()
 }
 
 /// `GET /debrid/inventory` — foto do `knownBefore` da conta do operador.
 async fn status(State(_state): State<Arc<AdminState>>) -> Response {
     let now = adom_sources::now_ms();
-    let Some(config) = operator_account() else {
+    let Some(api_key) = operator_account() else {
         return Json(json!({
             "ok": true,
             "enabled": false,
@@ -63,7 +58,7 @@ async fn status(State(_state): State<Arc<AdminState>>) -> Response {
     };
     // O escopo (sha256 da chave) casa com `adprot`/`adsub`/`adrm` e com o
     // inventário do Node; ele NÃO sai na resposta.
-    let scope = account_scope(config.api_key.trim());
+    let scope = account_scope(&api_key);
     let count = known_before(&scope).map(|set| set.len());
     Json(json!({
         "ok": true,
