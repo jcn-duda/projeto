@@ -29,6 +29,8 @@ fn registry_tem_dominio_vivo_dos_profiles_ts() {
         // → bludvfilmes2.xyz pelo desafio do Cloudflare. Sem o destino na
         // allowlist o redirect vira `blocked_host` e a fonte some.
         ("nerdfilmes", "xfilmeshd.net"),
+        // 2026-11-06: xfilmeshd.net → 301 → galaxytorrents.org.
+        ("nerdfilmes", "galaxytorrents.org"),
         ("bludv-cardigann", "bludvfilmes1.xyz"),
         ("bludv-cardigann", "bludvfilmes2.xyz"),
         ("torrentdosfilmesv2", "torrentdosfilmes-v2.xyz"),

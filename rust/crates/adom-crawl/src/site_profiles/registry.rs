@@ -179,6 +179,9 @@ fn build_nerdfilmes() -> SiteNetworkConfig {
             "filmesviatorrenthd.net",
             "xfilmeshd.org",
             "xfilmeshd.net",
+            // 2026-11-06: xfilmeshd.net → 301 → www.galaxytorrents.org (mesmo
+            // WordPress, tema "GalaxyTorrents", marcação de busca igual).
+            "galaxytorrents.org",
         ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),

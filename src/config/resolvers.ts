@@ -40,7 +40,8 @@ export const resolvers = () => ({
   // domínio novo precisa estar também na allowlist do resolver, senão o
   // redirect vira blocked_host e a fonte morre em silêncio.
   // 2026-10-24: xfilmeshd.org responde 301 para xfilmeshd.net.
-  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.xfilmeshd.net').replace(/\/$/, ''),
+  // 2026-11-06: xfilmeshd.net responde 301 para www.galaxytorrents.org.
+  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.galaxytorrents.org').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
   // Vaca Torrent voltou ao domínio antigo: medido em 2026-11-02,
   // vaqueirofilmes1.com redireciona para vaqueirofilmes.com, que serve o site.
