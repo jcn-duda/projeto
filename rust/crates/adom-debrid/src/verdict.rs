@@ -55,7 +55,7 @@ use verdict_ledger::{now_ms, rd_ledger_known, rd_renew_hits};
 pub use verdict_ledger::{rd_gate_enabled, rd_ledger_enabled, rd_oracle_enabled};
 
 #[path = "verdict_files.rs"]
-mod verdict_files;
+pub(crate) mod verdict_files;
 use verdict_files::{pack_files_max_from_env, spawn_reads_then_cleanup, wanted_hashes};
 
 #[path = "verdict_opts.rs"]
@@ -169,6 +169,8 @@ pub async fn check_service_report_with(
 /// - AllDebrid: só magnets PRONTOS pedidos são lidos, até
 ///   `DEBRID_PACK_FILES_PER_CHECK`, em fundo e ANTES da limpeza (ver
 ///   `verdict_files`). A leitura não depende de `DEBRID_AL_CLEANUP`.
+/// - Premiumize: os pedidos em cache são lidos por `/transfer/directdl` em
+///   fundo, até 2 por checagem (`premiumize_files`).
 /// - Demais serviços ignoram `file_hashes` (não expõem árvore aqui).
 ///
 /// A resposta nunca espera a leitura: o veredito sai como antes.
@@ -194,11 +196,19 @@ pub async fn check_service_report_files(
         }
     };
     let (verdict, attempted) = match service {
-        "premiumize" => match Premiumize::new(client)
+        "premiumize" => match Premiumize::new(client.clone())
             .check_cached(api_key, hashes, timeout)
             .await
         {
             Ok(report) => {
+                // Lista de arquivos dos pedidos em cache, em fundo (`fsz`).
+                crate::premiumize_files::spawn_reads(
+                    client,
+                    api_key,
+                    &report.cached,
+                    file_hashes,
+                    timeout,
+                );
                 // Total do torrent (`tsz`), antes do veredito: só grava, nunca espera.
                 let totals = report
                     .totals

@@ -72,6 +72,8 @@ pub mod play;
 /// Prova de áudio no play (`assertDubbedFiles`) compartilhada pelos adaptadores.
 pub mod play_audit;
 pub mod premiumize;
+/// Lista de arquivos (`fsz`) dos itens em cache pedidos pelo build.
+pub(crate) mod premiumize_files;
 /// Varredura de transferências mortas ou paradas do Premiumize (porte de
 /// `sweepDead`): decisão pura; a rota e a memória de paradas moram em `api`.
 pub mod premiumize_sweep;
