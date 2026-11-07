@@ -337,7 +337,8 @@ O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
   imdbId, searchKey }`.
   - `items` = o lote **pós-checagem e PRÉ-corte `cachedOnly`** (o BR frio que o
     corte esconde é justamente o alvo do download), sem pack multiobra admitido
-    e sem reserva não elegível (`_fromFallback && !_fallbackFetchable`); ordem
+    (salvo o BR dublado quando nenhum release BR dublado de obra única está no
+    lote — a coleção como único caminho para o dublado) e sem reserva não elegível (`_fromFallback && !_fallbackFetchable`); ordem
     preservada. Cada item leva `infoHash`, `title`, `name` e os fatos internos
     `_br`, `_dubbed`, `_dubClaim`, `_seeders`, `_quality`, `_size`,
     `_packBytes`, `_fromFallback`, `_fallbackFetchable`, `_seedFloorWaived`,

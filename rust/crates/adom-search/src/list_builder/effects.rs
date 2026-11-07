@@ -300,14 +300,34 @@ pub(crate) fn autofetch_item_of(stream: &RankingStream) -> Option<AutofetchItem>
 /// corte esconde. Por isso a lista vem do lote completo antes do desvio
 /// `kept`/`missing`.
 pub fn autofetch_items(streams: &[RankingStream]) -> Vec<AutofetchItem> {
+    let eligible = |stream: &&RankingStream| {
+        !from_fallback(stream) || opt_flag(stream, "_fallbackFetchable", "fallbackFetchable")
+    };
+    let is_multi = |stream: &RankingStream| stream.multi_work_admitted.unwrap_or(false);
+    // Pack de coleção só entra quando é o ÚNICO caminho para o dublado: sem
+    // ele, uma obra que só existe dublada em coleção ("Todos os filmes
+    // 1979-2016") nunca ganhava ⚡. Havendo release BR dublado de obra única,
+    // o Chupim baixa esse (menor, sem escolha de arquivo) e o pack fica fora.
+    let single_br = streams
+        .iter()
+        .filter(eligible)
+        .any(|stream| !is_multi(stream) && is_br_dub_proven(stream));
     streams
         .iter()
-        .filter(|stream| !stream.multi_work_admitted.unwrap_or(false))
-        .filter(|stream| {
-            !from_fallback(stream) || opt_flag(stream, "_fallbackFetchable", "fallbackFetchable")
-        })
+        .filter(eligible)
+        .filter(|stream| !is_multi(stream) || (!single_br && is_br_dub_proven(stream)))
         .filter_map(autofetch_item_of)
         .collect()
+}
+
+/// Origem BR com prova ou alegação de dublado e sem contradição — o mesmo
+/// `is_br_dubbed_proven` do recebimento do Chupim.
+fn is_br_dub_proven(stream: &RankingStream) -> bool {
+    stream.br.unwrap_or(false)
+        && (stream.dubbed.unwrap_or(false)
+            || stream.dub_claim.unwrap_or(false)
+            || opt_flag(stream, "bankDub", "_bankDub"))
+        && !stream.lied.unwrap_or(false)
 }
 
 /// Seleção dos efeitos do lote pós-debrid. `cached` é o conjunto da checagem

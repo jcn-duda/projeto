@@ -184,3 +184,25 @@ fn autofetch_exclui_multiobra_e_reserva_nao_elegivel() {
     assert!(items[1].from_fallback && items[1].fallback_fetchable);
     assert!(!items[0].from_fallback);
 }
+
+#[test]
+fn autofetch_leva_colecao_dublada_so_quando_e_o_unico_br() {
+    let mut global = stream("aaa", "Movie 1984 1080p");
+    global.seeders = Some(40.0);
+    let mut colecao = stream("col", "Franquia (Todos os filmes 1979-2016) Dublado");
+    colecao.br = Some(true);
+    colecao.dub_claim = Some(true);
+    colecao.multi_work_admitted = Some(true);
+
+    let items = autofetch_items(&[global.clone(), colecao.clone()]);
+    let hashes: Vec<&str> = items.iter().map(|item| item.hash.as_str()).collect();
+    assert_eq!(hashes, vec!["aaa", "col"]);
+    assert!(items[1].multi_work_admitted);
+
+    let mut br = stream("bbb", "Filme 1984 1080p DUBLADO");
+    br.br = Some(true);
+    br.dubbed = Some(true);
+    let items = autofetch_items(&[global, br, colecao]);
+    let hashes: Vec<&str> = items.iter().map(|item| item.hash.as_str()).collect();
+    assert_eq!(hashes, vec!["aaa", "bbb"]);
+}

@@ -152,13 +152,22 @@ pub(super) fn parse_items(payload: &Map<String, Value>) -> Vec<Item> {
         .get("items")
         .and_then(Value::as_array)
         .map(|items| {
-            items
+            let parsed: Vec<Item> = items
                 .iter()
                 .filter_map(Item::parse)
-                // Mesmo filtro do `autofetch_items`: packs multiobra nunca
-                // entram no Chupim e fallback só entra quando é fetchable.
-                .filter(|item| !item.multi_work_admitted)
                 .filter(|item| !item.from_fallback || item.fallback_fetchable)
+                .collect();
+            // Mesmo filtro do `autofetch_items`: pack multiobra só entra
+            // quando é BR dublado e nenhum release de obra única BR dublado
+            // está no lote (coleção como único caminho para o dublado).
+            let single_br = parsed
+                .iter()
+                .any(|item| !item.multi_work_admitted && item.is_br_dubbed_proven());
+            parsed
+                .into_iter()
+                .filter(|item| {
+                    !item.multi_work_admitted || (!single_br && item.is_br_dubbed_proven())
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -341,3 +350,7 @@ fn stream_of(item: &Item) -> PoolStream {
         fallback_fetchable: item.fallback_fetchable,
     }
 }
+
+#[cfg(test)]
+#[path = "enqueue_items_multiwork_tests.rs"]
+mod multiwork_tests;

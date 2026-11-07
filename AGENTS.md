@@ -330,7 +330,8 @@ Pontos que mordem:
   (`tmdb-br-aliases.ts`). Cache longo só se as consultas deram `ok:true`.
 - **Packs BR multiobra** (`BR_MULTIWORK_PACKS`, default true): admitidos só
   filme + debrid + ano de catálogo + evidência de coleção cobrindo o ano; nunca
-  P2P inteiro, nunca no índice público, nunca no autofetch; HMAC leva `p:1` e a
+  P2P inteiro, nunca no índice público; no autofetch só quando é BR dublado e não há release BR
+  dublado de obra única no lote (`autofetch_items`/`parse_items`); HMAC leva `p:1` e a
   dica de obra `w`; `pickWorkFile` escolhe o filme.
 - **Torrentio** (pool público): fail-open, breaker local, `fileIdx` preservado
   mas não consumido; fora dos defaults (`TORRENTIO_DEFAULT=false`).
