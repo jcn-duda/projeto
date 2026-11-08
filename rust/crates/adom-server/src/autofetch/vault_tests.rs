@@ -113,3 +113,17 @@ fn debug_e_status_nao_vazam_a_chave() {
     assert!(!json.contains("chave-secreta"), "{json}");
     assert!(!format!("{status:?}").contains(KEY));
 }
+
+/// A chave tem de sobreviver ao horizonte do lote: o passo `Expired` roda na
+/// primeira passagem de settle DEPOIS do horizonte e precisa da credencial.
+#[test]
+fn chave_do_cofre_sobrevive_ao_horizonte_do_lote() {
+    let policy = Policy::fixture();
+    let ttl = super::vault_ttl_ms(&policy);
+    assert!(
+        ttl >= policy.settle_horizon_ms + policy.settle_interval_ms,
+        "cofre {ttl} ms x horizonte {} + settle {}",
+        policy.settle_horizon_ms,
+        policy.settle_interval_ms
+    );
+}

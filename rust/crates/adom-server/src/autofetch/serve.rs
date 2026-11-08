@@ -212,6 +212,17 @@ impl<'a> Engine<'a> {
                     .into_iter()
                     .map(|err| format!("season-fill: {err}")),
             );
+            if !report.ready.is_empty() {
+                match super::season_fill::invalidate_lot(&lot.search_key) {
+                    // `invalidated` é a métrica do pack de temporada; aqui só o log.
+                    Ok(true) => eprintln!(
+                        "[autofetch] {} pronto(s); lista da busca invalidada",
+                        report.ready.len()
+                    ),
+                    Ok(false) => {}
+                    Err(err) => pass.errors.push(format!("invalidação do lote: {err}")),
+                }
+            }
             // Lado da EVICÇÃO: o fallback da mesma obra cai depois do ready BR.
             // Mesma credencial do lote, e fora do caminho da resposta.
             if !report.ready.is_empty() {

@@ -98,7 +98,7 @@ impl Vault {
     /// abrir o selo do `dk`).
     pub(crate) fn from_env(policy: &Policy) -> Self {
         Self::new(
-            policy.key_ttl_ms,
+            vault_ttl_ms(policy),
             policy.vault_cap,
             std::env::var("RESOLVE_SECRET").unwrap_or_default(),
         )
@@ -244,3 +244,16 @@ pub(crate) fn shared() -> Option<std::sync::Arc<Vault>> {
 #[cfg(test)]
 #[path = "vault_tests.rs"]
 mod tests;
+
+/// TTL da chave no cofre: o horizonte do lote MAIS duas passagens de settle.
+/// Com o mesmo TTL do lote, a chave (gravada na busca, um instante antes do
+/// lote nascer) vencia exatamente quando o lote ficava velho o bastante para
+/// expirar: o passo `Expired` caía em `no-credential`, o lote morria no TTL do
+/// KV sem limpar o download parado e era pulado a cada passagem até lá (5.959
+/// pulos na VPS em 2026-11-07).
+pub(crate) fn vault_ttl_ms(policy: &Policy) -> i64 {
+    policy
+        .key_ttl_ms
+        .max(policy.settle_horizon_ms)
+        .saturating_add(policy.settle_interval_ms.max(0).saturating_mul(2))
+}

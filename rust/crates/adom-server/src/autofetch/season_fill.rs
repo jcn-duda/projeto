@@ -251,6 +251,22 @@ pub(crate) fn register(sink: SeasonFillSink) {
     *lock(&shared().sink) = Some(sink);
 }
 
+/// Release do Chupim ficou pronto: a lista da busca que o pediu sai do
+/// `streams.db`, e a próxima resposta já traz o ⚡ dublado. Sem isto a lista
+/// velha (só globais) valia até o `CACHE_TTL` (15 min). Pack de temporada tem
+/// o caminho próprio acima; aqui é a chave do lote (filme e episódio).
+/// `Ok(false)` = ciclo sem `streams.db`.
+pub(crate) fn invalidate_lot(search_key: &str) -> Result<bool, String> {
+    if search_key.is_empty() {
+        return Ok(false);
+    }
+    let Some(sink) = sink() else {
+        return Ok(false);
+    };
+    sink(&[search_key.to_string()])?;
+    Ok(true)
+}
+
 /// Sink registrado, se o ciclo já subiu com o `streams.db` disponível.
 pub(crate) fn sink() -> Option<SeasonFillSink> {
     lock(&shared().sink).clone()
