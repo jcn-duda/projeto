@@ -186,7 +186,21 @@ async fn pack_pronto_no_timer_invalida_as_buscas_da_temporada() {
         Ok(())
     }));
 
-    let debrid = Arc::new(FakeDebrid::accepting().state(&hash, "ready"));
+    // Lote de FILME (sem dica de pack) na mesma passagem: o pronto dele tem de
+    // apagar a lista da própria busca. O sink é global e registrado acima,
+    // por isso o caso mora neste teste (dois registros em paralelo se cruzam).
+    let movie_hash = hash_of(2);
+    let movie_key = "streams:v21:movie:tt7654321:dublado".to_string();
+    recheck::write(&kv, &due_lot(&movie_key, &movie_hash, now), policy, now).unwrap();
+    store
+        .set(&movie_key, &StreamsEntry::default(), 600, now as u64)
+        .unwrap();
+
+    let debrid = Arc::new(
+        FakeDebrid::accepting()
+            .state(&hash, "ready")
+            .state(&movie_hash, "ready"),
+    );
     let factory = factory_for(SCOPE, debrid);
     let control = Control::new(false, 60_000);
     let (_tx, mut rx) = mpsc::channel(4);
@@ -194,7 +208,11 @@ async fn pack_pronto_no_timer_invalida_as_buscas_da_temporada() {
 
     let pass = engine.run_once(&mut rx, now).await;
 
-    assert_eq!(pass.rechecked, 1);
+    assert_eq!(pass.rechecked, 2);
+    assert!(
+        store.get(&movie_key, now as u64).unwrap().is_none(),
+        "filme pronto: a lista da busca tinha de sair do cache"
+    );
     assert_eq!(
         pass.filled, 1,
         "o pack pronto tinha de preencher: {:?}",

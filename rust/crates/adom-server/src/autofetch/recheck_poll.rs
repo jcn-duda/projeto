@@ -107,6 +107,7 @@ pub(super) async fn poll(
         match action {
             RecheckAction::Ready => {
                 report.resolved += 1;
+                report.ready_count += 1;
                 // Fato do PACK: o release pronto leva título e obra declarada
                 // para fora da passagem — quem invalida é o laço.
                 if let Some(hint) = lot.season_hints.get(hash) {

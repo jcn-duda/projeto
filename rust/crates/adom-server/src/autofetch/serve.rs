@@ -212,12 +212,12 @@ impl<'a> Engine<'a> {
                     .into_iter()
                     .map(|err| format!("season-fill: {err}")),
             );
-            if !report.ready.is_empty() {
+            if report.ready_count > 0 {
                 match super::season_fill::invalidate_lot(&lot.search_key) {
                     // `invalidated` é a métrica do pack de temporada; aqui só o log.
                     Ok(true) => eprintln!(
                         "[autofetch] {} pronto(s); lista da busca invalidada",
-                        report.ready.len()
+                        report.ready_count
                     ),
                     Ok(false) => {}
                     Err(err) => pass.errors.push(format!("invalidação do lote: {err}")),

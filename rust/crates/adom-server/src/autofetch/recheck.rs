@@ -94,6 +94,10 @@ pub(crate) struct StepReport {
     /// preenchimento roda no laço (`serve::timers`), não aqui: este módulo não
     /// conhece o cache de streams.
     pub(crate) ready: Vec<SeasonHint>,
+    /// TODO release que ficou `ready` nesta passagem (filme incluso — o
+    /// `ready` acima só leva quem tem dica de pack). Alimenta a invalidação
+    /// da lista da busca no laço.
+    pub(crate) ready_count: usize,
 }
 
 impl StepReport {
