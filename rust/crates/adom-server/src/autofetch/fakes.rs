@@ -45,6 +45,8 @@ pub(crate) struct FakeDebrid {
     pub(crate) account_used: Option<u64>,
     /// `account()` responde erro (o memo NUNCA pode cachear isso).
     pub(crate) fail_account: bool,
+    /// Hashes que o lote devolveu à limpeza (`release_check`).
+    pub(crate) released: Mutex<Vec<String>>,
 }
 
 impl FakeDebrid {
@@ -159,6 +161,13 @@ impl AutofetchDebrid for FakeDebrid {
 
     fn evict<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
         Box::pin(async move { Ok(EvictOutcome::default()) })
+    }
+
+    fn release_check<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, usize, String> {
+        Box::pin(async move {
+            self.released.lock().unwrap().extend(hashes.iter().cloned());
+            Ok(hashes.len())
+        })
     }
 
     fn account(&self) -> DebridFuture<'_, AccountEvidence, String> {

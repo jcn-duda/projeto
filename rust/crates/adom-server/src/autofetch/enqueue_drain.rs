@@ -19,7 +19,11 @@ use adom_autofetch::v3::{
 use adom_core::SkipReason;
 use adom_index::NativeKv;
 
+use std::collections::BTreeMap;
+
+use super::enqueue::user_policy::{record, QualityGate};
 use super::enqueue::{retention, Holds};
+use super::recheck;
 use super::Policy;
 
 /// Resultado de um dreno: o que começou, o que bloqueou e o tamanho da fila.
@@ -28,6 +32,8 @@ use super::Policy;
 #[derive(Debug, Default)]
 pub(crate) struct DrainReport {
     pub(crate) started: Option<String>,
+    /// Id da transferência do iniciado (vai para o lote do recheck).
+    pub(crate) transfer: Option<String>,
     pub(crate) blocked: Option<&'static str>,
     pub(crate) remaining: usize,
 }
@@ -63,6 +69,8 @@ pub(crate) async fn drain_one(
     policy.queue_depth = live_policy.queue_depth;
     let queue = QueueV3::new(kv);
     let queue_items = queue.read_queue(search_key, now_ms)?;
+    // Teto por qualidade e `dubbedOnly` do lote (a política do último aceite).
+    let mut quality = QualityGate::load(kv, None, (adapter, account), search_key, now_ms)?;
     let account_blocked = if live_policy.pause_at > 0 {
         debrid.account().await.ok().is_some_and(|evidence| {
             super::enqueue::gates::account_is_blocked(evidence.used, live_policy.pause_at)
@@ -87,22 +95,21 @@ pub(crate) async fn drain_one(
         &gates,
         queue_items,
         |candidate| {
-            Ok(
-                queue.is_dead(adapter, account, &candidate.info_hash, now_ms)?
-                    || queue
-                        .marker(adapter, account, &candidate.info_hash, now_ms)?
-                        .is_some(),
-            )
+            Ok(quality.obsolete(candidate)
+                || queue.is_dead(adapter, account, &candidate.info_hash, now_ms)?
+                || queue
+                    .marker(adapter, account, &candidate.info_hash, now_ms)?
+                    .is_some())
         },
-        |_| Ok(false),
+        |candidate| Ok(quality.defers(candidate)),
         |_| Ok(Some(())),
     )?;
     let selection = match selected {
         DrainNext::Blocked { reason, queue } => {
             return Ok(DrainReport {
-                started: None,
                 blocked: Some(block_label(reason)),
                 remaining: queue.len(),
+                ..DrainReport::default()
             })
         }
         DrainNext::Selected(selection) => selection,
@@ -127,6 +134,15 @@ pub(crate) async fn drain_one(
                 now_ms,
             )
             .await?;
+            if let Some(hash) = started.started.clone() {
+                // Como o `drainNext` do TS (`lot.hashes.add`): o iniciado entra
+                // no recheck — sem isso a morte dele nunca era vista.
+                let enqueued = [(hash, started.transfer.clone())];
+                recheck::schedule(kv, policy, search_key, (adapter, account), &enqueued, &BTreeMap::new(), now_ms)?;
+                let mut accepted = BTreeMap::new();
+                quality.accept_queued(&candidate, &mut accepted);
+                record(kv, policy, search_key, quality.user(), &accepted, now_ms)?;
+            }
             Ok(started)
         }
         DrainDecision::Empty { remaining } => {
@@ -281,6 +297,7 @@ async fn start(
     persist(queue, policy, scope, search_key, &next, now_ms)?;
     Ok(DrainReport {
         started: started.then(|| candidate.info_hash.clone()),
+        transfer: transfer.filter(|_| started),
         blocked: (!started).then_some("enqueue-error"),
         remaining: next.len(),
     })

@@ -24,6 +24,7 @@ fn ctx<'a>(work: &'a WorkHint, adapter: &'a str, key: &'a str) -> EffectContext<
         search_key: "streams:v21:movie:tt0133093:x:account:y",
         known: true,
         work: Some(work),
+        policy: &Value::Null,
     }
 }
 
@@ -284,4 +285,30 @@ fn lote_vazio_nao_produz_efeito() {
     let work = work();
     let effects = build_effects(&EffectSeeds::default(), &ctx(&work, "alldebrid", "chave"));
     assert!(effects.is_empty());
+}
+
+/// O Chupim precisa da config do usuário: `dubbedOnly` e o teto por qualidade
+/// viajam no lote (antes ele baixava `seeds` em inglês com `dubbedOnly` ligado).
+#[test]
+fn autofetch_batch_leva_a_politica_do_usuario() {
+    let opts = BuildOptions {
+        dubbed_only: true,
+        quality_limits: [("1080p".to_string(), 2.0), ("480p".to_string(), 0.0)]
+            .into_iter()
+            .collect(),
+        ..BuildOptions::default()
+    };
+    let policy = autofetch_policy(&opts);
+    assert_eq!(policy["dubbedOnly"], json!(true));
+    assert_eq!(policy["qualityLimits"], json!({ "1080p": 2 }), "teto 0 não entra");
+
+    let work = work();
+    let mut ctx = ctx(&work, "alldebrid", "chave");
+    ctx.policy = &policy;
+    let seeds = EffectSeeds {
+        autofetch: vec![autofetch_item()],
+        ..EffectSeeds::default()
+    };
+    let effect = autofetch_batch(&seeds, &ctx).expect("lote");
+    assert_eq!(effect.payload["policy"], policy);
 }

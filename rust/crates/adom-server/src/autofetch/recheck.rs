@@ -77,6 +77,14 @@ pub(crate) struct Lot {
     /// `DEBRID_REMOVE_BY_ID` (`recheck_expire.rs`) depende desta memória.
     #[serde(default)]
     pub(crate) via_id: BTreeSet<String>,
+    /// Teto por qualidade do usuário (`enqueue_policy`): política do último
+    /// aceite, qualidade de cada BR aceito e as faixas que já ficaram prontas.
+    #[serde(default)]
+    pub(crate) policy: super::enqueue::user_policy::UserPolicy,
+    #[serde(default)]
+    pub(crate) qualities: BTreeMap<String, String>,
+    #[serde(default)]
+    pub(crate) ready_qualities: BTreeSet<String>,
 }
 
 /// Resultado de uma passagem. `terminal` avisa o laço que vale a pena drenar.

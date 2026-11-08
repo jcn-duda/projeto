@@ -181,8 +181,12 @@ impl<'a> Engine<'a> {
             &report.enqueued,
             &report.season_hints,
             now_ms,
-        ) {
-            Ok(_) => pass.scheduled += 1,
+        )
+        .and_then(|_| {
+            let (kv, key) = (self.kv, &report.search_key);
+            enqueue::user_policy::record(kv, self.policy, key, &report.user, &report.qualities, now_ms)
+        }) {
+            Ok(()) => pass.scheduled += 1,
             Err(err) => pass.errors.push(err),
         }
     }

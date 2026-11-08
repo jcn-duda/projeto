@@ -31,7 +31,7 @@
 use serde_json::{json, Map, Value};
 
 use crate::internal_types::EffectEntry;
-use crate::list_builder::{AutofetchItem, EffectSeeds, WorkHint};
+use crate::list_builder::{AutofetchItem, BuildOptions, EffectSeeds, WorkHint};
 
 /// Fatos da requisição que os payloads carregam (nunca segredo em log).
 #[derive(Debug, Clone)]
@@ -51,6 +51,21 @@ pub struct EffectContext<'a> {
     pub known: bool,
     /// Dica de obra do build (`n`/`y` do `/resolve`).
     pub work: Option<&'a WorkHint>,
+    /// [`autofetch_policy`] da busca (`Null` = sem preferência medida).
+    pub policy: &'a Value,
+}
+
+/// O que o Chupim precisa da config do usuário: `dubbedOnly` (o pool `seeds`
+/// é release sem dublagem — com ele ligado nunca aparece na lista) e o teto
+/// por qualidade (`max2160p`…), que limita quantos dublados correm por faixa.
+pub fn autofetch_policy(opts: &BuildOptions) -> Value {
+    let limits: Map<String, Value> = opts
+        .quality_limits
+        .iter()
+        .filter(|(_, cap)| cap.is_finite() && **cap > 0.0)
+        .map(|(quality, cap)| (quality.clone(), json!(cap.floor() as i64)))
+        .collect();
+    json!({ "dubbedOnly": opts.dubbed_only, "qualityLimits": limits })
 }
 
 pub(super) fn entry(kind: &str, payload: Value) -> EffectEntry {
@@ -210,6 +225,7 @@ pub fn autofetch_batch(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Option<E
         "episode": ctx.episode,
         "imdbId": if ctx.imdb_id.is_empty() { Value::Null } else { json!(ctx.imdb_id) },
         "searchKey": ctx.search_key,
+        "policy": ctx.policy,
     });
     Some(entry("autofetch_batch", payload))
 }

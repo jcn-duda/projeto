@@ -147,6 +147,7 @@ pub(super) fn finish_value(
             search_key,
             known: debrid_known,
             work: built.work_hint.as_ref(),
+            policy: &debrid.autofetch_policy,
         };
         super::effects::build_effects(&built.effect_seeds, &effect_ctx)
     } else {

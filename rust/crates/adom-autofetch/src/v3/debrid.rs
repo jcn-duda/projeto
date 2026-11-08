@@ -100,6 +100,14 @@ pub trait AutofetchDebrid: Send + Sync {
     fn cache_known(&self) -> bool {
         false
     }
+
+    /// Fim do lote: devolve à limpeza normal o que a [`Self::check`] deste lote
+    /// pôs na conta e NÃO foi aceito (na AllDebrid checar cache é um upload
+    /// real). Devolve quantos ids o plano mandou apagar. Default: nada — só o
+    /// serviço cuja checagem escreve na conta precisa disto.
+    fn release_check<'a>(&'a self, _hashes: &'a [String]) -> DebridFuture<'a, usize, Self::Error> {
+        Box::pin(async { Ok(0) })
+    }
 }
 
 #[cfg(test)]

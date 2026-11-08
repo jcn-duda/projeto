@@ -27,6 +27,7 @@ use adom_debrid::alldebrid::{AllDebrid, Provenance};
 use adom_debrid::alldebrid_cleanup::known_before;
 use adom_debrid::autofetch_ports::{AlldebridFacts, AutofetchPorts, RdPorts};
 use adom_debrid::debridlink::DebridLink;
+use adom_debrid::holds_feed::holds_feed_enabled;
 use adom_debrid::premiumize::Premiumize;
 use adom_debrid::rd_gate_executor::RdGateExecutor;
 use adom_debrid::rd_scheduler::RdSchedulerConfig;
@@ -34,6 +35,9 @@ use adom_debrid::realdebrid::RealDebrid;
 use adom_debrid::torbox::TorBox;
 use adom_debrid::HttpClient;
 use adom_index::NativeKv;
+use adom_search::HoldsFeed;
+
+use crate::al_cleanup_facts::NativeHoldsFeed;
 
 use super::ports::{self, AdapterBuilder, DebridFactory, DebridIo, PortedDebrid};
 use super::rd_store::{self, RdKvStore};
@@ -120,11 +124,23 @@ impl Build {
     fn ports_for(&self, service: &str, api_key: &str, scope: &str) -> Option<Arc<AutofetchPorts>> {
         let http = self.http.clone();
         let ports = match service {
-            "alldebrid" => AutofetchPorts::alldebrid(
-                Arc::new(AllDebrid::new(http)),
-                api_key,
-                self.alldebrid_facts(scope),
-            ),
+            "alldebrid" => {
+                let ports = AutofetchPorts::alldebrid(
+                    Arc::new(AllDebrid::new(http.clone())),
+                    api_key,
+                    self.alldebrid_facts(scope),
+                );
+                // A sobra da checagem do lote volta à limpeza da busca, com os
+                // fatos do MESMO feed (sem `DEBRID_AL_HOLDS` fica na conta).
+                if holds_feed_enabled() {
+                    let feed = NativeHoldsFeed::new(http.clone());
+                    ports.with_cleanup_facts(Arc::new(move |key: &str, hashes: &[String]| {
+                        feed.facts(key, "alldebrid", hashes)
+                    }))
+                } else {
+                    ports
+                }
+            }
             "torbox" => AutofetchPorts::torbox(Arc::new(TorBox::new(http)), api_key),
             "premiumize" => AutofetchPorts::premiumize(Arc::new(Premiumize::new(http)), api_key),
             "realdebrid" => {

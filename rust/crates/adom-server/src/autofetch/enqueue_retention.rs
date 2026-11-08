@@ -51,7 +51,7 @@ pub(in crate::autofetch) fn hold(
     }
     kv.put_json(
         &hold_key(account, hash),
-        &json!({ "at": now_ms }),
+        &json!({ "at": now_ms, "by": HOLD_OWNER }),
         ttl_seconds.max(1),
         now_ms,
     )
@@ -74,6 +74,33 @@ pub(in crate::autofetch) fn hold_all(
         }
     }
     Ok(())
+}
+
+/// Marca do hold do Chupim: só ele é solto no boot ([`release_orphans`]); o
+/// `adhold` escrito pela API administrativa não leva a marca e fica intocado.
+const HOLD_OWNER: &str = "chupim";
+
+/// Boot: hold do Chupim SEM marker é de um lote morto no meio (restart entre
+/// o `hold_all` e o `release_all`). O aceito tem marker; o recusado já teria
+/// sido solto. Sem isto o órfão segurava a sobra da checagem na conta por
+/// `marker_ttl` (6 h) — medido em 2026-11-08: 24 magnets do Big Lebowski
+/// poupados por toda limpeza depois de um restart às 19:39:57Z.
+pub(in crate::autofetch) fn release_orphans(kv: &NativeKv, now_ms: i64) -> Result<usize, String> {
+    let mut released = 0;
+    for key in kv.keys_matching("adhold:v1:", now_ms)? {
+        let Some((account, hash)) = key["adhold:v1:".len()..].split_once(':') else {
+            continue;
+        };
+        let owned = kv
+            .get_json(&key, now_ms)?
+            .is_some_and(|value| value.get("by").and_then(|by| by.as_str()) == Some(HOLD_OWNER));
+        let marker = adom_autofetch::v3::marker_key(HELD_ADAPTER, account, hash);
+        if owned && kv.get_json(&marker, now_ms)?.is_none() {
+            kv.forget(&key)?;
+            released += 1;
+        }
+    }
+    Ok(released)
 }
 
 /// `held.release`: o download não aconteceu, volta a valer a limpeza normal.

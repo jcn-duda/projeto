@@ -5,7 +5,7 @@
 //! montagem do [`CascadeFacts`] que a cascata consome.
 //!
 //! O que ainda NÃO é medido aqui entra no default do crate — `probe_pending`,
-//! `seeds_block`, `seeds_stop`, `rare_over_cached` e o `obra` (o teto por obra é
+//! `seeds_block`, `rare_over_cached` e o `obra` (o teto por obra é
 //! aplicado no portão do candidato, em [`super::obra`], como o `tryObraCap` do
 //! TS: `autofetch-gates.ts:57`). Teto do crate é 0 = "não medido, não barra".
 
@@ -72,6 +72,13 @@ pub(super) fn measure(input: Measure<'_>) -> Result<Measured, String> {
         .filter(|item| item.is_br_dubbed_proven() && is_cached(item))
         .filter_map(|item| item.quality.clone())
         .collect();
+    // Parada do pool `seeds` (`decideSeedsStop`): com dublado ou qualquer
+    // coisa do lote já em cache o pool de baixo não corre.
+    let cached_count = input.items.iter().filter(in_batch).filter(is_cached).count();
+    facts.seeds_stop = super::user_policy::seeds_stop(
+        facts.has_cached_br_dubbed || facts.has_cached_any_dubbed,
+        cached_count,
+    );
 
     // Invariante 6: hash que a evicção apagou DE PROPÓSITO (`adrm:v1`) sai dos
     // candidatos ANTES dos pools — só LEITURA aqui: quem marca é a evicção. A

@@ -494,6 +494,16 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,
   como o morto — senão o Chupim parava nele a cada busca (o `enqueue` recusa)
   e nunca tentava o próximo viável.
+  O lote leva a **política do usuário** (`policy`: `dubbedOnly` + teto por
+  qualidade `max2160p`…; `autofetch/enqueue_policy.rs`): com `dubbedOnly` o
+  pool `seeds` sai antes do hold; o `seeds` para com dublado/qualquer coisa em
+  cache (`seeds_stop`); no pool `br` corre no máximo N dublados por faixa
+  (em voo no lote do recheck, fora do `dead:`; faixa pronta = cheia) e o
+  excedente fica ADIADO na fila — dublado é raro, nunca descarte. O dreno lê o
+  mesmo teto do lote e o iniciado entra no recheck (`lot.hashes.add` do TS).
+  Fim do lote: a sobra da checagem (na AllDebrid checar é upload) passa pela
+  checagem + limpeza da busca (`release_check`, fatos do feed nativo); no boot
+  o `adhold` marcado `by:"chupim"` sem marker é órfão e é solto.
 - Instalação sem config herda a chave do `.env` — numa instância pública use
   `DEBRID_ALLOW_ENV_KEY=false` (+ `DEBRID_OPERATOR_ENV_ACCOUNT=true` para o painel).
 - Serviço novo: adaptador + entrada em `ADAPTERS`; o seletor da página se

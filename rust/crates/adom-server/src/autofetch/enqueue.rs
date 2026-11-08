@@ -41,19 +41,17 @@ mod account;
 #[path = "enqueue_holds.rs"]
 mod holds;
 pub(super) use holds::Holds;
-
 #[path = "enqueue_facts.rs"]
 pub(super) mod facts;
-
 #[path = "enqueue_gates.rs"]
 pub(super) mod gates;
-
 #[path = "enqueue_job.rs"]
 mod job;
 pub(crate) use job::Job;
-
 #[path = "enqueue_obra.rs"]
 pub(super) mod obra;
+#[path = "enqueue_policy.rs"]
+pub(crate) mod user_policy;
 
 #[path = "enqueue_pick.rs"]
 mod pick;
@@ -88,9 +86,14 @@ pub(crate) async fn run(
     let Some((adapter, account)) = job.parts() else {
         return Ok(Report::refused(&search_key, "no-scope"));
     };
-    let items = parse_items(payload);
+    let user = user_policy::UserPolicy::from_payload(payload);
+    let mut items = parse_items(payload);
+    let stripped = user.strip_seeds(&mut items);
     if items.is_empty() {
-        return Ok(Report::refused(&search_key, "empty-batch"));
+        if stripped {
+            QueueV3::new(kv).drop_queue(&search_key)?; // fila velha só de `seeds`
+        }
+        return Ok(Report::refused(&search_key, ["empty-batch", "dubbed-only"][usize::from(stripped)]));
     }
     // Fatos do PACK: o status do debrid nunca traz título, então eles precisam
     // sair daqui com o lote do recheck.
@@ -135,6 +138,7 @@ pub(crate) async fn run(
     let mut report = Report {
         search_key: search_key.clone(),
         season_hints: hints,
+        user: user.clone(),
         ..Report::default()
     };
 
@@ -230,6 +234,7 @@ pub(crate) async fn run(
     // enqueue de verdade. A config do teto sai uma vez por lote das mesmas
     // réguas do TS.
     let obra_cfg = obra::live_config(&live);
+    let mut quality = user_policy::QualityGate::load(kv, Some(&user), (adapter, account), &search_key, now_ms)?;
     let mut queue_out = Vec::with_capacity(items.len());
     for attempt in &decision.attempts {
         let Some(item) = by_hash.get(attempt.info_hash.as_str()) else {
@@ -243,6 +248,12 @@ pub(crate) async fn run(
                 return Err(err);
             }
         };
+        // Teto por qualidade do usuário: o excedente fica ADIADO na fila.
+        if !marker_active && quality.full(Some(attempt.pool.as_str()), attempt.quality.as_deref()) {
+            report.skip("quality-cap");
+            queue_out.push(candidate);
+            continue;
+        }
         // Ordem do TS (`autofetch-gates.ts:57`): `marker` vem ANTES do teto por
         // obra. Só quem passou dos portões anteriores pede a reserva — reserva
         // pedida e não usada ficaria presa pelo lease de 60 s.
@@ -346,6 +357,7 @@ pub(crate) async fn run(
                             .enqueued
                             .push((attempt.info_hash.clone(), evidence.transfer_id));
                         retention::protect_item(kv, adapter, account, attempt, item, now_ms);
+                        quality.accept(attempt, &mut report.qualities);
                         // Ciclo fechado: o aceite vira registro `source:autofetch`
                         // no índice (visibilidade, nunca cobertura BR).
                         super::index_record::keep(attempt, item, payload, &mut report);
@@ -367,30 +379,16 @@ pub(crate) async fn run(
         }
     }
 
-    // 5. Fila: `attempts ∪ deferred`, escritor único. O corte por profundidade
-    // é do `write_queue` (mesma régua do `writeQueue` do Node).
-    report.queue_len = if live.queue_enabled {
-        queue_out.len()
-    } else {
-        0
-    };
-    if !live.queue_enabled || live.queue_depth == 0 || queue_out.is_empty() {
-        if let Err(err) = queue.drop_queue(&search_key) {
-            release_all(holds, kv, account, &hashes, &report.enqueued);
-            return Err(err);
-        }
-    } else if let Err(err) = queue.write_queue(
-        &search_key,
-        &queue_out,
-        policy.queue_ttl_seconds,
-        live.queue_depth,
-        Some((adapter, account)),
-        now_ms,
-    ) {
+    // 5. Fila: `attempts ∪ deferred`, escritor único ([`report::write_queue`]).
+    let scope = (adapter, account);
+    let written = report::write_queue(&queue, &live, policy, &search_key, &queue_out, scope, now_ms);
+    report.queue_len = if live.queue_enabled { queue_out.len() } else { 0 };
+    if let Err(err) = written {
         release_all(holds, kv, account, &hashes, &report.enqueued);
         return Err(err);
     }
     release_all(holds, kv, account, &hashes, &report.enqueued);
+    report::release_leftovers(debrid, &hashes, &report.enqueued).await;
     Ok(report)
 }
 

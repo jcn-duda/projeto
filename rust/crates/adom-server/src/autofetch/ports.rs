@@ -132,6 +132,10 @@ impl AutofetchDebrid for PortedDebrid {
         Box::pin(async move { self.ports.remove(transfer_id).await.map_err(error_of) })
     }
 
+    fn release_check<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, usize, String> {
+        Box::pin(async move { self.ports.release_check(hashes).await.map_err(error_of) })
+    }
+
     fn evict<'a>(&'a self, hashes: &'a [String]) -> DebridFuture<'a, EvictOutcome, String> {
         Box::pin(async move {
             self.ports

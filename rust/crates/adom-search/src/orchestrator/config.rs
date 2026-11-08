@@ -178,6 +178,9 @@ pub struct DebridContext {
     pub encoded: Option<String>,
     /// Prazo absoluto da busca; `None` no passe tardio (orçamento completo).
     pub deadline_at: Option<i64>,
+    /// Preferências do usuário que o Chupim precisa (`dubbedOnly` e teto por
+    /// qualidade), já normalizadas — viajam no `autofetch_batch`.
+    pub autofetch_policy: Value,
 }
 
 impl DebridContext {

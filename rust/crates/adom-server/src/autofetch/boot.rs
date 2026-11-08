@@ -108,6 +108,13 @@ pub(crate) fn spawn_at(
             eprintln!("[autofetch] cofre: {restored} conta(s) restaurada(s) do selo");
         }
     }
+    // Antes do laço: nenhum lote está em voo, então hold do Chupim sem marker é
+    // órfão de um restart no meio do lote.
+    match super::enqueue::retention::release_orphans(&kv, adom_sources::now_ms()) {
+        Ok(0) => {}
+        Ok(n) => eprintln!("[autofetch] {n} hold(s) órfão(s) de lote interrompido solto(s)"),
+        Err(err) => eprintln!("[autofetch] holds órfãos não conferidos: {err}"),
+    }
     let debrid = match debrid {
         Some(factory) => Some(factory),
         None => production_factory(&kv, cache_db, vault.as_ref()),

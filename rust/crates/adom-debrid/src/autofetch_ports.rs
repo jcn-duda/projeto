@@ -69,6 +69,9 @@ pub use types::{scope_of, Capabilities, PortError, Service};
 mod evict;
 #[path = "autofetch_ports_inner.rs"]
 mod inner;
+#[path = "autofetch_ports_release.rs"]
+mod release;
+pub use release::CleanupFactsFn;
 #[path = "autofetch_ports_status.rs"]
 mod state;
 
@@ -152,6 +155,8 @@ pub struct AutofetchPorts {
     /// do hash para a prova de posse, então a porta aprende o par no `enqueue`
     /// e no `status` (que recebe `transfer_ids`).
     ids: Mutex<HashMap<String, String>>,
+    /// Fatos da limpeza para devolver a sobra da checagem ([`release`]).
+    cleanup_facts: Option<CleanupFactsFn>,
 }
 
 impl AutofetchPorts {
@@ -195,6 +200,7 @@ impl AutofetchPorts {
             api_key,
             backend,
             ids: Mutex::new(HashMap::new()),
+            cleanup_facts: None,
         }
     }
 

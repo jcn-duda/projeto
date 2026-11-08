@@ -297,6 +297,10 @@ impl Orchestrator {
             api_key: str_of(&input.options, "debridApiKey"),
             encoded: Some(encoded_for_internal(input.encoded.as_deref())),
             deadline_at,
+            autofetch_policy: super::effects::autofetch_policy(&build_options_from(
+                &input.options,
+                &self.config.build,
+            )),
         }
     }
 
