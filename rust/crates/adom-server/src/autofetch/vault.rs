@@ -9,22 +9,27 @@
 //!
 //! # O que este módulo NUNCA faz
 //!
-//! - não grava em KV, disco nem env: o `Vault` só tem `HashMap` em RAM;
+//! - não grava a chave ABERTA em KV, disco nem env: em RAM ela vive no
+//!   `HashMap`; no KV só entra a cópia SELADA com o `RESOLVE_SECRET`
+//!   (`vault_store`), para o laço sobreviver a restart;
 //! - não loga a chave (nem em erro de decodificação, que devolve `None`);
 //! - não expõe a chave em `Debug` (redigido) nem em `Serialize` (não implementa
 //!   `Serialize`; o status do painel não tem campo de chave);
-//! - não sobrevive a restart — igual ao `recheckLots` do Node.
+//! - não sobrevive a restart SEM `RESOLVE_SECRET`: sem selo não há cópia, e o
+//!   cofre volta vazio como antes (o laço pula `no-credential` até a busca).
 //!
 //! A `Entry` zera o próprio buffer no `Drop`: a chave não fica em memória livre
 //! depois de expirada, esquecida ou evictada pelo LRU.
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use adom_core::account_scope;
+use adom_index::NativeKv;
 use serde_json::Value;
 
+use super::vault_store;
 use super::{worker_enabled, Policy};
 use crate::resolve_native::{debrid_config, defaults_from_env};
 
@@ -67,6 +72,9 @@ struct Entry {
     /// Ordem de uso: maior = mais recente (o relógio do LRU, sem `Instant` para
     /// o resultado não depender do humor do agendador).
     seq: u64,
+    /// Vencimento gravado na cópia selada (0 = sem cópia). Regula a
+    /// regravação: no máximo a cada `vault_store::REFRESH_MS`.
+    persisted_exp: i64,
 }
 
 #[derive(Default)]
@@ -82,6 +90,8 @@ pub(crate) struct Vault {
     cap: usize,
     resolve_secret: String,
     inner: Mutex<Inner>,
+    /// KV da cópia selada; `None` até o boot ligar (`attach_store`).
+    store: Mutex<Option<Arc<NativeKv>>>,
 }
 
 impl Vault {
@@ -91,6 +101,7 @@ impl Vault {
             cap: cap.max(1),
             resolve_secret: resolve_secret.into(),
             inner: Mutex::new(Inner::default()),
+            store: Mutex::new(None),
         }
     }
 
@@ -124,16 +135,33 @@ impl Vault {
 
     /// Guarda a chave e devolve o escopo. Chave/serviço vazios não entram.
     pub(crate) fn put(&self, adapter: &str, api_key: &str, now_ms: i64) -> Option<String> {
+        let expires_at = now_ms.saturating_add(self.ttl_ms);
         let scope = Self::scope_of(adapter, api_key)?;
+        let persisted = self.insert(&scope, api_key, expires_at);
+        if expires_at.saturating_sub(persisted) >= vault_store::REFRESH_MS {
+            self.persist(&scope, api_key, expires_at, now_ms);
+        }
+        Some(scope)
+    }
+
+    /// Entrada em RAM. Devolve o vencimento já gravado na cópia selada.
+    fn insert(&self, scope: &str, api_key: &str, expires_at: i64) -> i64 {
         let mut inner = self.lock();
         inner.seq += 1;
         let seq = inner.seq;
+        // A cópia só vale para a MESMA chave: troca de chave regrava na hora.
+        let persisted_exp = inner
+            .entries
+            .get(scope)
+            .filter(|entry| entry.secret.expose() == api_key)
+            .map_or(0, |entry| entry.persisted_exp);
         inner.entries.insert(
-            scope.clone(),
+            scope.to_string(),
             Entry {
                 secret: Secret(api_key.to_string()),
-                expires_at: now_ms.saturating_add(self.ttl_ms),
+                expires_at,
                 seq,
+                persisted_exp,
             },
         );
         // LRU: só sai o mais antigo em uso, nunca o recém-inserido.
@@ -141,7 +169,7 @@ impl Vault {
             let Some(victim) = inner
                 .entries
                 .iter()
-                .filter(|(key, _)| key.as_str() != scope.as_str())
+                .filter(|(key, _)| key.as_str() != scope)
                 .min_by_key(|(_, entry)| entry.seq)
                 .map(|(key, _)| key.clone())
             else {
@@ -149,7 +177,53 @@ impl Vault {
             };
             inner.entries.remove(&victim);
         }
-        Some(scope)
+        persisted_exp
+    }
+
+    fn store(&self) -> Option<Arc<NativeKv>> {
+        self.store
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Grava a cópia selada FORA do lock do cofre (o selo deriva scrypt).
+    fn persist(&self, scope: &str, api_key: &str, expires_at: i64, now_ms: i64) {
+        let Some(kv) = self.store() else {
+            return;
+        };
+        if vault_store::persist(&kv, &self.resolve_secret, scope, api_key, expires_at, now_ms) {
+            if let Some(entry) = self.lock().entries.get_mut(scope) {
+                entry.persisted_exp = expires_at;
+            }
+        }
+    }
+
+    /// Liga o KV da cópia selada e restaura as contas vivas (boot). Devolve
+    /// quantas voltaram. Restaurar não estende prazo: cada conta volta com o
+    /// vencimento que tinha.
+    pub(crate) fn attach_store(&self, kv: Arc<NativeKv>, now_ms: i64) -> usize {
+        let restored = vault_store::load(&kv, &self.resolve_secret, now_ms);
+        *self.store.lock().unwrap_or_else(PoisonError::into_inner) = Some(kv);
+        let count = restored.len();
+        for item in restored {
+            let mut inner = self.lock();
+            if inner.entries.contains_key(&item.scope) {
+                continue; // a busca já trouxe a chave fresca
+            }
+            inner.seq += 1;
+            let seq = inner.seq;
+            inner.entries.insert(
+                item.scope,
+                Entry {
+                    secret: Secret(item.api_key),
+                    expires_at: item.expires_at,
+                    seq,
+                    persisted_exp: item.expires_at,
+                },
+            );
+        }
+        count
     }
 
     /// Decodifica o `encoded` da busca e guarda a chave da conta, se houver.
@@ -192,7 +266,11 @@ impl Vault {
     /// Descarta a conta (fim do lote, logout ou chave recusada pelo serviço).
     #[allow(dead_code)]
     pub(crate) fn forget(&self, scope: &str) -> bool {
-        self.lock().entries.remove(scope).is_some()
+        let removed = self.lock().entries.remove(scope).is_some();
+        if let Some(kv) = self.store() {
+            vault_store::forget(&kv, scope);
+        }
+        removed
     }
 
     /// Poda das expiradas. Devolve quantas saíram.
@@ -232,12 +310,10 @@ impl fmt::Debug for Vault {
 /// Só existe com `AUTOFETCH_WORKER=on`: sem consumidor, guardar chave de usuário
 /// em RAM seria exposição sem uso. O teste injeta o cofre explicitamente
 /// (`NativeTailEffects::with_vault`), então esta fábrica não interfere nele.
-pub(crate) fn shared() -> Option<std::sync::Arc<Vault>> {
-    static SHARED: OnceLock<Option<std::sync::Arc<Vault>>> = OnceLock::new();
+pub(crate) fn shared() -> Option<Arc<Vault>> {
+    static SHARED: OnceLock<Option<Arc<Vault>>> = OnceLock::new();
     SHARED
-        .get_or_init(|| {
-            worker_enabled().then(|| std::sync::Arc::new(Vault::from_env(&Policy::from_env())))
-        })
+        .get_or_init(|| worker_enabled().then(|| Arc::new(Vault::from_env(&Policy::from_env()))))
         .clone()
 }
 

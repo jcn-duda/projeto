@@ -100,6 +100,14 @@ pub(crate) fn spawn_at(
     debrid: Option<DebridFactory>,
 ) -> Option<AutofetchHandle> {
     let kv = open_kv(cache_db)?;
+    // Cofre: volta com as contas seladas do restart anterior, senão os lotes
+    // já aceitos pulariam `no-credential` até o dono buscar de novo.
+    if let Some(vault) = vault.as_ref() {
+        let restored = vault.attach_store(Arc::clone(&kv), adom_sources::now_ms());
+        if restored > 0 {
+            eprintln!("[autofetch] cofre: {restored} conta(s) restaurada(s) do selo");
+        }
+    }
     let debrid = match debrid {
         Some(factory) => Some(factory),
         None => production_factory(&kv, cache_db, vault.as_ref()),

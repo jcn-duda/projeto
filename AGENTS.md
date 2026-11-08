@@ -484,7 +484,11 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   B4, 2026-10-28): quem executa é o **worker nativo do gateway**, que liga com
   `AUTOFETCH_WORKER=on` (o compose liga); a fábrica dos cinco serviços nasce em
   `autofetch/build.rs` e o cofre de credencial é **RAM** (TTL 6 h, por
-  `adapter:conta`, nada em KV/log). Ver a seção seguinte.
+  `adapter:conta`, nada aberto em KV/log). Com `RESOLVE_SECRET`, cada conta
+  tem uma cópia **selada** (`enc.v1`, o selo do `dk`) em
+  `autofetch:v3:vault:<adapter>:<sha256>` com o mesmo vencimento, restaurada no
+  boot (`vault_store.rs`) — sem ela todo deploy deixava os lotes aceitos
+  pulando `no-credential`. Sem segredo nada vai ao KV. Ver a seção seguinte.
   `hold` **antes** da
   checagem, marker só após o aceite; nunca no caminho da resposta. Hash com
   marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,

@@ -127,3 +127,96 @@ fn chave_do_cofre_sobrevive_ao_horizonte_do_lote() {
         policy.settle_interval_ms
     );
 }
+
+// --- Cópia selada (sobrevive a restart) ---------------------------------
+
+const SECRET: &str = "segredo-do-operador";
+
+fn temp_kv() -> (tempfile::TempDir, Arc<NativeKv>) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let kv = Arc::new(NativeKv::open(&dir.path().join("cache.db")).expect("cache.db"));
+    (dir, kv)
+}
+
+#[test]
+fn restart_restaura_a_conta_com_o_mesmo_vencimento() {
+    let (_dir, kv) = temp_kv();
+    let now = now_ms();
+    let antes = Vault::new(60_000, 4, SECRET);
+    antes.attach_store(Arc::clone(&kv), now);
+    let scope = antes.put("alldebrid", KEY, now).unwrap();
+
+    // A linha do KV é o selo, nunca a chave aberta.
+    let linha = kv
+        .get_json(&super::vault_store::key_for(&scope), now)
+        .unwrap()
+        .expect("cópia selada gravada");
+    let texto = linha.to_string();
+    assert!(!texto.contains(KEY), "chave aberta no KV: {texto}");
+    assert!(texto.contains("enc.v1."));
+
+    let depois = Vault::new(60_000, 4, SECRET);
+    assert_eq!(depois.attach_store(Arc::clone(&kv), now + 1_000), 1);
+    assert_eq!(depois.key(&scope, now + 59_999).as_deref(), Some(KEY));
+    // Restaurar não estende o prazo original.
+    assert!(depois.key(&scope, now + 60_000).is_none());
+}
+
+#[test]
+fn sem_resolve_secret_nada_vai_ao_kv() {
+    let (_dir, kv) = temp_kv();
+    let now = now_ms();
+    let vault = Vault::new(60_000, 4, "");
+    vault.attach_store(Arc::clone(&kv), now);
+    let scope = vault.put("alldebrid", KEY, now).unwrap();
+    assert!(kv
+        .get_json(&super::vault_store::key_for(&scope), now)
+        .unwrap()
+        .is_none());
+    assert!(kv.keys_matching(super::vault_store::PREFIX, now).unwrap().is_empty());
+}
+
+#[test]
+fn segredo_trocado_apaga_a_copia_e_nao_restaura() {
+    let (_dir, kv) = temp_kv();
+    let now = now_ms();
+    let antes = Vault::new(60_000, 4, SECRET);
+    antes.attach_store(Arc::clone(&kv), now);
+    antes.put("alldebrid", KEY, now).unwrap();
+
+    let outro = Vault::new(60_000, 4, "outro-segredo");
+    assert_eq!(outro.attach_store(Arc::clone(&kv), now), 0);
+    assert_eq!(outro.len(), 0);
+    assert!(kv.keys_matching(super::vault_store::PREFIX, now).unwrap().is_empty());
+}
+
+#[test]
+fn forget_apaga_a_copia_selada() {
+    let (_dir, kv) = temp_kv();
+    let now = now_ms();
+    let vault = Vault::new(60_000, 4, SECRET);
+    vault.attach_store(Arc::clone(&kv), now);
+    let scope = vault.put("alldebrid", KEY, now).unwrap();
+    assert!(vault.forget(&scope));
+    let depois = Vault::new(60_000, 4, SECRET);
+    assert_eq!(depois.attach_store(Arc::clone(&kv), now), 0);
+}
+
+#[test]
+fn busca_repetida_nao_regrava_antes_do_intervalo() {
+    let (_dir, kv) = temp_kv();
+    let now = now_ms();
+    let ttl = 6 * 60 * 60 * 1000;
+    let vault = Vault::new(ttl, 4, SECRET);
+    vault.attach_store(Arc::clone(&kv), now);
+    let scope = vault.put("alldebrid", KEY, now).unwrap();
+    let key = super::vault_store::key_for(&scope);
+    let exp_de = |kv: &NativeKv| {
+        kv.get_json(&key, now).unwrap().unwrap()["exp"].as_i64().unwrap()
+    };
+    let primeiro = exp_de(&kv);
+    vault.put("alldebrid", KEY, now + 60_000).unwrap();
+    assert_eq!(exp_de(&kv), primeiro, "1 min depois não regrava");
+    vault.put("alldebrid", KEY, now + super::vault_store::REFRESH_MS).unwrap();
+    assert_eq!(exp_de(&kv), primeiro + super::vault_store::REFRESH_MS);
+}

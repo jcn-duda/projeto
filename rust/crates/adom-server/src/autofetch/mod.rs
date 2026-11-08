@@ -73,6 +73,7 @@ mod season_step;
 mod serve;
 mod suppressed_step;
 mod vault;
+mod vault_store;
 mod worker;
 
 pub(crate) use build::shared_gate;
