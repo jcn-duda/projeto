@@ -60,6 +60,9 @@ pub mod http;
 /// chave/régua do play, em fundo e fail-open; gates `MAGNET_DB` e
 /// `MAGNET_ALIVE_TTL`. O Real-Debrid fica fora (veredito vem do ledger).
 pub mod magnet_alive;
+/// URI rica (nome + trackers) dos uploads da AllDebrid, lida do banco de
+/// magnets que o gateway instala no boot.
+pub mod magnet_uri;
 /// Posse da checagem nativa (`adsub:v1`) gravada direto no KV nativo.
 /// Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
 pub mod marks_feed;

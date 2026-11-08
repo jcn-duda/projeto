@@ -30,8 +30,8 @@ fn alldebrid_key_from(
     let key = api_key.unwrap_or_default().trim();
     // `DEBRID_ALLOW_ENV_KEY` ausente ou vazia vale `true` (mesma leitura do
     // `/resolve` e do `account_catalog`); o `OPERATOR_ENV_ACCOUNT` só com `true`.
-    let operator_on = matches!(allow_env_key, None | Some("") | Some("true"))
-        || operator_env == Some("true");
+    let operator_on =
+        matches!(allow_env_key, None | Some("") | Some("true")) || operator_env == Some("true");
     (service == "alldebrid" && !key.is_empty() && operator_on).then(|| key.to_string())
 }
 

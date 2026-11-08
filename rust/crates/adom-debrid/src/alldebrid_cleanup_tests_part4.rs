@@ -227,3 +227,63 @@ async fn delete_poupa_o_que_ganhou_hold_depois_do_plano() {
     assert_eq!(run.removed.len(), 1, "o outro frio sai");
     assert_eq!(delete_hits(&scene), 1);
 }
+
+/// O hold pode nascer NO MEIO do lote de deletes (já com o gate da conta na
+/// mão). A conferência colada em cada delete poupa o id que ficou retido.
+#[tokio::test]
+async fn hold_no_meio_do_lote_e_poupado_na_hora_do_delete() {
+    use std::collections::HashMap;
+    let scene = scene("", &[], DeleteMode::Ok);
+    let ad = open_scene(scene.clone()).await;
+    let config = crate::alldebrid_delete::DeleteConfig {
+        delays: vec![Duration::ZERO],
+        concurrency: 1,
+        rounds: 1,
+        kill: Some(false),
+    };
+    // 1ª consulta de cada id (no gate) diz "livre"; a 2ª (no worker) muda só
+    // para o "102", como se o Chupim o tivesse adotado nesse meio.
+    let calls: Arc<Mutex<HashMap<String, usize>>> = Arc::new(Mutex::new(HashMap::new()));
+    let seen = Arc::clone(&calls);
+    let keep: crate::alldebrid_delete::KeepFn = Arc::new(move |id: &str| {
+        let mut guard = seen.lock().unwrap();
+        let count = guard.entry(id.to_string()).or_insert(0);
+        *count += 1;
+        id == "102" && *count > 1
+    });
+    let ids = ["101", "102", "103"].map(str::to_string);
+    let report =
+        crate::alldebrid_delete::delete_with_backoff_keeping(&ad, KEY, &ids, config, keep).await;
+    assert_eq!(report.spared, vec!["102".to_string()]);
+    assert_eq!(report.removed.len(), 2);
+    assert_eq!(delete_hits(&scene), 2, "o adotado não chega à API");
+}
+
+/// A checagem é o PRIMEIRO upload do hash na conta: com o banco instalado ela
+/// sobe o magnet rico (nome + trackers); hash fora do banco segue puro.
+#[tokio::test]
+async fn checagem_sobe_o_magnet_rico_do_banco() {
+    let rich_hash = hash_of('e');
+    let uri = format!("magnet:?xt=urn:btih:{rich_hash}&dn=Filme&tr=udp%3A%2F%2Ft.example%3A80");
+    let stored = uri.clone();
+    let wanted = rich_hash.clone();
+    crate::magnet_uri::install(Arc::new(move |hash: &str| {
+        (hash == wanted).then(|| stored.clone())
+    }));
+    let scene = scene("", &[], DeleteMode::Ok);
+    let ad = open_scene(scene.clone()).await;
+    ad.check_cached(
+        "ad-check-rich",
+        &[rich_hash.clone(), hash_of('f')],
+        &opts(false, false, Some(&[]), &[], true, None),
+    )
+    .await
+    .unwrap();
+    let sent: Vec<String> = hits(&scene)
+        .iter()
+        .filter(|hit| hit.path == "/magnet/upload")
+        .flat_map(|hit| values(&hit.query, "magnets[]"))
+        .collect();
+    assert!(sent.contains(&uri), "magnet rico: {sent:?}");
+    assert!(sent.contains(&hash_of('f')), "fora do banco: hash puro");
+}

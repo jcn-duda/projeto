@@ -23,8 +23,9 @@ mod check;
 #[path = "alldebrid_autofetch.rs"]
 mod autofetch;
 pub use autofetch::{
-    enqueue_decision, guard_evidence, read_adrm_block, should_mark_owned, AutofetchProgress,
-    AutofetchState, AutofetchStatus, EnqueueDecision, Provenance, ReuploadEvidence, UploadOutcome,
+    enqueue_decision, guard_evidence, read_adrm_block, rich_magnet, should_mark_owned,
+    AutofetchProgress, AutofetchState, AutofetchStatus, EnqueueDecision, Provenance,
+    ReuploadEvidence, UploadOutcome,
 };
 
 #[path = "alldebrid_owned.rs"]

@@ -92,9 +92,15 @@ async fn upload_batch(
     timeout: Duration,
     gate: &Gate,
 ) -> Result<Piece, DebridError> {
-    let params: Vec<(&str, &str)> = batch
+    // Magnet rico do banco quando houver: o 1º upload define o magnet na conta
+    // (nome + trackers), e o Chupim cai no mesmo id depois.
+    let magnets: Vec<String> = batch
         .iter()
-        .map(|hash| ("magnets[]", hash.as_str()))
+        .map(|hash| crate::magnet_uri::upload_value(hash, None))
+        .collect();
+    let params: Vec<(&str, &str)> = magnets
+        .iter()
+        .map(|magnet| ("magnets[]", magnet.as_str()))
         .collect();
     // abort_safe: largar a espera da busca não cancela o upload já enviado.
     let data = ad

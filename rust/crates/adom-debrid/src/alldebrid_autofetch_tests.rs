@@ -156,3 +156,54 @@ async fn hash_vazio_nao_gera_requisicao() {
     }
     assert!(hits(&scene).is_empty());
 }
+
+// ── Magnet rico (nome + trackers) ───────────────────────────────────────────
+
+/// Do banco sai o MESMO hash com `dn` e trackers (até o teto), com os valores
+/// codificados como vieram; parâmetros alheios ficam de fora.
+#[test]
+fn rich_magnet_mantem_hash_nome_e_trackers() {
+    let hash = hash_of('a');
+    let mut uri = format!(
+        "magnet:?xt=urn:btih:{}&dn=Al%C3%A9m%20da%20Escurid%C3%A3o&xl=123",
+        hash.to_uppercase()
+    );
+    for n in 0..20 {
+        uri.push_str(&format!("&tr=udp%3A%2F%2Ft{n}.example%3A80"));
+    }
+    let out = super::rich_magnet(&hash, &uri).expect("magnet rico");
+    assert!(out.starts_with(&format!("magnet:?xt=urn:btih:{hash}&dn=Al%C3%A9m")));
+    assert_eq!(out.matches("&tr=").count(), 12, "teto de trackers");
+    assert!(!out.contains("xl="), "só xt/dn/tr");
+}
+
+/// URI de OUTRO hash ou que não é magnet nunca sobe no lugar do pedido.
+#[test]
+fn rich_magnet_recusa_outro_hash_e_lixo() {
+    let hash = hash_of('a');
+    let other = format!("magnet:?xt=urn:btih:{}&dn=x", hash_of('b'));
+    assert!(super::rich_magnet(&hash, &other).is_none());
+    assert!(super::rich_magnet(&hash, "https://site/x.torrent").is_none());
+    assert!(super::rich_magnet(&hash, "magnet:?dn=sem-xt").is_none());
+}
+
+/// Com URI, o `magnets[]` enviado é o magnet rico; sem URI, o hash puro.
+#[tokio::test]
+async fn upload_com_uri_envia_o_magnet_rico() {
+    let upload = envelope(json!({"magnets": [
+        {"id": "9", "hash": hash_of('c'), "ready": false}
+    ]}));
+    let scene = mock(&upload, &empty_ok(), &empty_ok());
+    let addr = listen(scene.clone()).await;
+    let uri = format!(
+        "magnet:?xt=urn:btih:{}&dn=Filme&tr=udp%3A%2F%2Ftr.example%3A80",
+        hash_of('c')
+    );
+    let out = open(addr)
+        .upload_magnet_uri(API_KEY, &hash_of('c'), Some(&uri))
+        .await
+        .unwrap();
+    assert!(out.accepted);
+    let hit = hits(&scene);
+    assert_eq!(values(&hit[0].query, "magnets[]"), vec![uri]);
+}

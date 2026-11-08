@@ -175,24 +175,25 @@ impl CleanupPlan {
         if self.is_empty() {
             return None;
         }
-        let hash_of: std::collections::HashMap<&str, &str> = self
+        let hash_of: std::collections::HashMap<String, String> = self
             .ready
             .iter()
             .chain(self.uncached.iter())
-            .map(|target| (target.id.as_str(), target.hash.as_str()))
+            .map(|target| (target.id.clone(), target.hash.clone()))
             .collect();
-        let keep = |id: &str| -> bool {
-            let (Some(guard), Some(hash)) = (self.guard.as_ref(), hash_of.get(id)) else {
+        let guard = self.guard.clone();
+        let keep: crate::alldebrid_delete::KeepFn = std::sync::Arc::new(move |id: &str| {
+            let (Some(guard), Some(hash)) = (guard.as_ref(), hash_of.get(id)) else {
                 return false;
             };
             guard.durable.retains(&guard.account, hash, now_ms())
-        };
+        });
         let report = crate::alldebrid_delete::delete_with_backoff_keeping(
             ad,
             api_key,
             &self.ids(),
             config,
-            &keep,
+            keep,
         )
         .await;
         eprintln!(

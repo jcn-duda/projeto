@@ -226,7 +226,17 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
         match adom_store::MagnetBankStore::from_env() {
             Ok(store) => {
                 eprintln!("[gateway] banco de magnets nativo (magnets.db)");
-                orch = orch.with_bank_source(Arc::new(store));
+                let store = Arc::new(store);
+                // Uploads da AllDebrid (checagem e Chupim) sobem o magnet RICO
+                // do acervo: nome + trackers, não só o hash.
+                let read = Arc::clone(&store);
+                adom_debrid::magnet_uri::install(Arc::new(move |hash: &str| {
+                    read.bank_lookup_uri(hash, 0)
+                        .ok()
+                        .flatten()
+                        .filter(|uri| !uri.is_empty())
+                }));
+                orch = orch.with_bank_source(store);
             }
             Err(err) => {
                 eprintln!("[search] magnets.db indisponível ({err}); seguindo sem banco nativo")

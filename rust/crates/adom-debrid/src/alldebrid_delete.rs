@@ -170,19 +170,24 @@ pub async fn delete_with_backoff(
     ids: &[String],
     config: DeleteConfig,
 ) -> DeleteReport {
-    delete_with_backoff_keeping(ad, api_key, ids, config, &|_| false).await
+    delete_with_backoff_keeping(ad, api_key, ids, config, Arc::new(|_: &str| false)).await
 }
 
-/// Igual a [`delete_with_backoff`], mas `keep(id)` é reavaliado DEPOIS de
-/// pegar o gate da conta: a fila serial pode segurar o plano por dezenas de
-/// segundos, e nesse meio o Chupim adota o mesmo magnet (o upload da AllDebrid
-/// devolve o id existente). Quem passou a ser retido sai como `spared`.
+/// Retenção reavaliada na hora do delete (id → retido?).
+pub type KeepFn = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+
+/// Igual a [`delete_with_backoff`], mas `keep(id)` é reavaliado ao pegar o
+/// gate da conta E de novo imediatamente antes de CADA delete: a fila serial
+/// segura o plano por segundos, e nesse meio o Chupim adota o mesmo magnet (o
+/// upload da AllDebrid devolve o id existente). Conferir só no gate deixava o
+/// lote de 27 apagar o hold gravado no meio dele (medido no Docker local em
+/// 2026-11-08). Quem passou a ser retido sai como `spared`.
 pub async fn delete_with_backoff_keeping(
     ad: &AllDebrid,
     api_key: &str,
     ids: &[String],
     config: DeleteConfig,
-    keep: &(dyn Fn(&str) -> bool + Sync),
+    keep: KeepFn,
 ) -> DeleteReport {
     if ids.is_empty() {
         return DeleteReport::default();
@@ -216,8 +221,9 @@ pub async fn delete_with_backoff_keeping(
         if pending.is_empty() || report.stopped.is_some() {
             break;
         }
-        let outcome = run_round(ad, api_key, &pending, &config).await;
+        let outcome = run_round(ad, api_key, &pending, &config, &keep).await;
         report.removed.extend(outcome.removed);
+        report.spared.extend(outcome.spared);
         report.attempts += outcome.attempts;
         report.stopped = outcome.stopped;
         let last = round + 1 == rounds;
@@ -240,6 +246,7 @@ pub async fn delete_with_backoff_keeping(
 
 struct RoundOutcome {
     removed: Vec<String>,
+    spared: Vec<String>,
     failed: Vec<String>,
     stopped: Option<DeleteStop>,
     attempts: usize,
@@ -248,6 +255,7 @@ struct RoundOutcome {
 #[derive(Default)]
 struct WorkerReport {
     removed: Vec<String>,
+    spared: Vec<String>,
     failed: Vec<String>,
 }
 
@@ -256,6 +264,7 @@ async fn run_round(
     api_key: &str,
     ids: &[String],
     config: &DeleteConfig,
+    keep: &KeepFn,
 ) -> RoundOutcome {
     let queue = Arc::new(Mutex::new(VecDeque::from(ids.to_vec())));
     let stopped: Arc<Mutex<Option<DeleteStop>>> = Arc::new(Mutex::new(None));
@@ -270,14 +279,17 @@ async fn run_round(
             stopped.clone(),
             attempts.clone(),
             config.clone(),
+            keep.clone(),
         ));
     }
     let mut removed = Vec::new();
+    let mut spared = Vec::new();
     let mut failed = Vec::new();
     while let Some(joined) = set.join_next().await {
         match joined {
             Ok(report) => {
                 removed.extend(report.removed);
+                spared.extend(report.spared);
                 failed.extend(report.failed);
             }
             // Panic de worker não pode derrubar a execução; o id que estava na
@@ -296,6 +308,7 @@ async fn run_round(
     let stopped = *stopped.lock().unwrap_or_else(|err| err.into_inner());
     RoundOutcome {
         removed,
+        spared,
         failed,
         stopped,
         attempts: attempts.load(Ordering::Relaxed),
@@ -309,6 +322,7 @@ async fn worker(
     stopped: Arc<Mutex<Option<DeleteStop>>>,
     attempts: Arc<AtomicUsize>,
     config: DeleteConfig,
+    keep: KeepFn,
 ) -> WorkerReport {
     let mut report = WorkerReport::default();
     loop {
@@ -326,6 +340,11 @@ async fn worker(
         else {
             break;
         };
+        // Última conferência, colada no delete: o hold pode ter nascido agora.
+        if keep(&id) {
+            report.spared.push(id);
+            continue;
+        }
         let mut removed = false;
         for attempt in 0..config.attempts() {
             if config.killed() {

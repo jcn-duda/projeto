@@ -159,6 +159,19 @@ impl AllDebrid {
         key: &str,
         info_hash: &str,
     ) -> Result<UploadOutcome, DebridError> {
+        self.upload_magnet_uri(key, info_hash, None).await
+    }
+
+    /// Igual a [`Self::upload_magnet`], mas sobe o magnet RICO quando há URI
+    /// (nome + trackers, [`rich_magnet`]). Só o hash obriga a AllDebrid a achar
+    /// pares pela DHT: torrent BR sem tracker ficava em "Downloading 0%", sem
+    /// nome, para sempre (medido em 2026-11-07, Além da Escuridão).
+    pub async fn upload_magnet_uri(
+        &self,
+        key: &str,
+        info_hash: &str,
+        uri: Option<&str>,
+    ) -> Result<UploadOutcome, DebridError> {
         // O memo de posse e o status comparam em minúsculas; subir em caixa
         // alta criaria duas linhas para o mesmo torrent na conta.
         let hash = info_hash.trim().to_lowercase();
@@ -169,11 +182,12 @@ impl AllDebrid {
                 ready: false,
             });
         }
+        let magnet = crate::magnet_uri::upload_value(&hash, uri);
         let data = self
             .call(
                 key,
                 "/magnet/upload",
-                &[("magnets[]", hash.as_str())],
+                &[("magnets[]", magnet.as_str())],
                 CALL_TIMEOUT,
                 false,
             )
@@ -205,6 +219,50 @@ impl AllDebrid {
     pub async fn remove_torrent(&self, key: &str, id: &str) -> Result<(), DebridError> {
         self.delete_ids(key, &[id.to_string()]).await
     }
+}
+
+/// Teto de trackers no magnet enviado: a chamada é GET e a URI vai na query.
+const MAX_TRACKERS: usize = 12;
+
+/// Magnet rico a partir da URI gravada no banco: `xt` do MESMO hash, `dn` e até
+/// [`MAX_TRACKERS`] trackers, com os valores já codificados como vieram. URI de
+/// outro hash, sem `xt` ou que não é magnet devolve `None` (o chamador sobe o
+/// hash puro, como antes).
+pub fn rich_magnet(hash: &str, uri: &str) -> Option<String> {
+    let hash = hash.trim().to_lowercase();
+    let query = uri.trim().strip_prefix("magnet:?")?;
+    let mut name = None;
+    let mut trackers = Vec::new();
+    let mut same_hash = false;
+    for part in query.split('&') {
+        let Some((key, value)) = part.split_once('=') else {
+            continue;
+        };
+        match key {
+            "xt" => {
+                same_hash |= value
+                    .to_lowercase()
+                    .strip_prefix("urn:btih:")
+                    .is_some_and(|got| got == hash);
+            }
+            "dn" if name.is_none() && !value.is_empty() => name = Some(value),
+            "tr" if trackers.len() < MAX_TRACKERS && !value.is_empty() => trackers.push(value),
+            _ => {}
+        }
+    }
+    if !same_hash {
+        return None;
+    }
+    let mut out = format!("magnet:?xt=urn:btih:{hash}");
+    if let Some(name) = name {
+        out.push_str("&dn=");
+        out.push_str(name);
+    }
+    for tracker in trackers {
+        out.push_str("&tr=");
+        out.push_str(tracker);
+    }
+    Some(out)
 }
 
 fn progress(m: &Value) -> Option<AutofetchProgress> {
