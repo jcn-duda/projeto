@@ -39,7 +39,8 @@ impl CleanupGate {
         }
     }
 
-    /// O hash está a salvo? Hold do chamador OU hold volátil OU `adprot`.
+    /// O hash está a salvo? Hold do chamador OU hold volátil OU `adhold`/
+    /// `adprot` relidos do KV agora (fail-closed).
     pub fn protects(&self, hash: &str, now: i64) -> bool {
         let hash = hash.to_lowercase();
         if self.held.contains(&hash) || holds().is_held(&self.account, &hash) {
@@ -47,7 +48,7 @@ impl CleanupGate {
         }
         self.durable
             .as_ref()
-            .is_some_and(|peek| peek.is_protected(&self.account, &hash, now))
+            .is_some_and(|peek| peek.retains(&self.account, &hash, now))
     }
 }
 
@@ -100,7 +101,31 @@ pub struct CleanupPlan {
     /// Hashes poupados por hold/`adprot` (autofetch em voo ou acervo retido).
     pub protected: usize,
     pub suppressed: Option<CleanupSuppressed>,
+    /// Releitura da retenção na hora do delete (`None` = sem KV: só o plano).
+    pub guard: Option<RetentionGuard>,
 }
+
+/// Conta + leitor do KV para reler `adhold`/`adprot` na hora de apagar. Fica
+/// fora da igualdade do plano (é fonte, não dado).
+#[derive(Clone)]
+pub struct RetentionGuard {
+    pub account: String,
+    pub durable: std::sync::Arc<DurablePeek>,
+}
+
+impl std::fmt::Debug for RetentionGuard {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.write_str("RetentionGuard")
+    }
+}
+
+impl PartialEq for RetentionGuard {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for RetentionGuard {}
 
 impl CleanupPlan {
     pub fn suppressed(reason: CleanupSuppressed) -> Self {
@@ -150,12 +175,31 @@ impl CleanupPlan {
         if self.is_empty() {
             return None;
         }
-        let report =
-            crate::alldebrid_delete::delete_with_backoff(ad, api_key, &self.ids(), config).await;
+        let hash_of: std::collections::HashMap<&str, &str> = self
+            .ready
+            .iter()
+            .chain(self.uncached.iter())
+            .map(|target| (target.id.as_str(), target.hash.as_str()))
+            .collect();
+        let keep = |id: &str| -> bool {
+            let (Some(guard), Some(hash)) = (self.guard.as_ref(), hash_of.get(id)) else {
+                return false;
+            };
+            guard.durable.retains(&guard.account, hash, now_ms())
+        };
+        let report = crate::alldebrid_delete::delete_with_backoff_keeping(
+            ad,
+            api_key,
+            &self.ids(),
+            config,
+            &keep,
+        )
+        .await;
         eprintln!(
-            "[alldebrid] limpeza nativa: {} removido(s), {} falhou(ram){}",
+            "[alldebrid] limpeza nativa: {} removido(s), {} falhou(ram), {} poupado(s){}",
             report.removed.len(),
             report.failed.len(),
+            report.spared.len(),
             match report.stopped {
                 Some(stop) => format!(" — parada: {}", stop.as_str()),
                 None => String::new(),
@@ -216,4 +260,11 @@ pub fn classify_drop(
     } else {
         DropVerdict::KnownBefore
     }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
 }

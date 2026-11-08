@@ -160,3 +160,70 @@ fn guarda_duravel_checked_distingue_ilegivel_de_ausente() {
         "a sonda de legibilidade enxerga a mesma falha que o planejador usa"
     );
 }
+
+// ── Corrida checagem × Chupim (medida na VPS em 2026-11-07) ─────────────────
+
+/// O Chupim grava `adhold` no KV DEPOIS que a checagem paralela montou a lista
+/// `held`. O plano relê o KV: hold vivo segura o frio, mesmo fora da lista.
+#[tokio::test]
+async fn adhold_do_kv_protege_mesmo_fora_da_lista_held() {
+    const KEY: &str = "ad-cleanup-adhold-kv";
+    let account = account_scope(KEY);
+    let dir = tempfile::tempdir().unwrap();
+    let path = cache_db(dir.path(), &[adhold_key(&account, &hash_of('b'))]);
+    let durable = Arc::new(DurablePeek::new(path));
+    let scene = scene("", &[], DeleteMode::Ok);
+    let ad = open_scene(scene.clone()).await;
+    let report = ad
+        .check_cached(
+            KEY,
+            &[hash_of('b')],
+            &opts(false, true, Some(&[]), &[], true, Some(durable)),
+        )
+        .await
+        .unwrap();
+    let plan = report.cleanup.expect("plano");
+    assert!(plan.uncached.is_empty(), "download do Chupim fica");
+    assert_eq!(plan.protected, 1);
+}
+
+/// O delete roda segundos depois do plano (fila serial por conta). Hash que
+/// ganhou `adhold` nesse meio é poupado na hora — era o id que o Chupim acabara
+/// de adotar (o upload da AllDebrid devolve o id existente).
+#[tokio::test]
+async fn delete_poupa_o_que_ganhou_hold_depois_do_plano() {
+    const KEY: &str = "ad-cleanup-adhold-late";
+    let account = account_scope(KEY);
+    let dir = tempfile::tempdir().unwrap();
+    let path = cache_db(dir.path(), &[]);
+    let durable = Arc::new(DurablePeek::new(path.clone()));
+    let scene = scene("", &[], DeleteMode::Ok);
+    let ad = open_scene(scene.clone()).await;
+    let report = ad
+        .check_cached(
+            KEY,
+            &[hash_of('b'), hash_of('c')],
+            &opts(false, true, Some(&[]), &[], true, Some(durable)),
+        )
+        .await
+        .unwrap();
+    let plan = report.cleanup.expect("plano");
+    assert_eq!(plan.uncached.len(), 2, "no plano os dois são frios");
+    // O Chupim adota `b` antes da fila apagar.
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute(
+        "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+        rusqlite::params![
+            adhold_key(&account, &hash_of('b')),
+            crate::error::now_ms() as i64 + 60_000
+        ],
+    )
+    .unwrap();
+    let run = plan
+        .run_with(&ad, KEY, crate::alldebrid_delete::DeleteConfig::fast())
+        .await
+        .expect("execução");
+    assert_eq!(run.spared.len(), 1, "o adotado fica");
+    assert_eq!(run.removed.len(), 1, "o outro frio sai");
+    assert_eq!(delete_hits(&scene), 1);
+}

@@ -182,6 +182,15 @@ impl DurablePeek {
         .flatten()
     }
 
+    /// Retenção para a limpeza da checagem: hold do Chupim (`adhold`) OU
+    /// acervo BR (`adprot`). O hold nasce DEPOIS dos fatos da checagem que
+    /// corre em paralelo, então a limpeza tem de relê-lo do KV, não só da lista
+    /// `held` montada antes. Mesma régua fail-open do `is_protected` (banco
+    /// ausente avisa uma vez e segue); quem prova o lote é o `holds_complete`.
+    pub fn retains(&self, account: &str, hash: &str, now: i64) -> bool {
+        self.alive(&adhold_key(account, hash), now) || self.is_protected(account, hash, now)
+    }
+
     /// Acervo BR retido (`adprot:v1:alldebrid:...`).
     pub fn is_protected(&self, account: &str, hash: &str, now: i64) -> bool {
         self.alive(&adprot_key(account, hash), now)

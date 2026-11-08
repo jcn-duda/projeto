@@ -64,6 +64,8 @@ pub struct DeleteReport {
     pub stopped: Option<DeleteStop>,
     /// Chamadas HTTP feitas (inclui retentativas).
     pub attempts: usize,
+    /// Ids poupados na hora de apagar: ganharam retenção depois do plano.
+    pub spared: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -168,6 +170,20 @@ pub async fn delete_with_backoff(
     ids: &[String],
     config: DeleteConfig,
 ) -> DeleteReport {
+    delete_with_backoff_keeping(ad, api_key, ids, config, &|_| false).await
+}
+
+/// Igual a [`delete_with_backoff`], mas `keep(id)` é reavaliado DEPOIS de
+/// pegar o gate da conta: a fila serial pode segurar o plano por dezenas de
+/// segundos, e nesse meio o Chupim adota o mesmo magnet (o upload da AllDebrid
+/// devolve o id existente). Quem passou a ser retido sai como `spared`.
+pub async fn delete_with_backoff_keeping(
+    ad: &AllDebrid,
+    api_key: &str,
+    ids: &[String],
+    config: DeleteConfig,
+    keep: &(dyn Fn(&str) -> bool + Sync),
+) -> DeleteReport {
     if ids.is_empty() {
         return DeleteReport::default();
     }
@@ -192,7 +208,9 @@ pub async fn delete_with_backoff(
     }
 
     let mut report = DeleteReport::default();
-    let mut pending: Vec<String> = ids.to_vec();
+    let (spared, mut pending): (Vec<String>, Vec<String>) =
+        ids.iter().cloned().partition(|id| keep(id));
+    report.spared = spared;
     let rounds = config.rounds.max(1);
     for round in 0..rounds {
         if pending.is_empty() || report.stopped.is_some() {

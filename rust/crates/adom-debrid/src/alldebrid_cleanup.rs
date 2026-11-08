@@ -77,6 +77,7 @@ pub use inventory::{inventory, known_before, refresh_known_before, Inventory};
 mod plan;
 pub use plan::{
     classify_drop, CleanTarget, CleanupGate, CleanupPlan, CleanupSuppressed, DropVerdict,
+    RetentionGuard,
 };
 
 #[path = "cleanup_metrics.rs"]

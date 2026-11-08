@@ -22,8 +22,8 @@ use std::time::Duration;
 use super::{AllDebrid, CHECK_TIMEOUT, DEFAULT_BATCH};
 use crate::alldebrid_cleanup::{
     account_scope, bump, kill_switch_on, known_before, refresh_known_before, CleanupGate,
-    CleanupMode, CleanupPlan, CleanupSuppressed, DurablePeek, METRIC_KNOWN_BEFORE, METRIC_PLANNED,
-    METRIC_PROTECTED, METRIC_SUPPRESSED,
+    CleanupMode, CleanupPlan, CleanupSuppressed, DurablePeek, RetentionGuard, METRIC_KNOWN_BEFORE,
+    METRIC_PLANNED, METRIC_PROTECTED, METRIC_SUPPRESSED,
 };
 use crate::error::DebridError;
 
@@ -268,7 +268,13 @@ fn cleanup_run(
     let plan = if inventory.is_none() {
         CleanupPlan::suppressed(CleanupSuppressed::InventoryMissing)
     } else {
-        CleanupPlan::default()
+        CleanupPlan {
+            guard: opts.durable.clone().map(|durable| RetentionGuard {
+                account: account.to_string(),
+                durable,
+            }),
+            ..CleanupPlan::default()
+        }
     };
     Some(CleanupRun {
         plan,
