@@ -73,3 +73,33 @@ fn contas_nao_compartilham_snapshot() {
         "snapshot da conta A não vaza para B"
     );
 }
+
+/// Vencido não autoriza delete, mas segue valendo como prova de POSSE por um
+/// tempo: a rodada logo após o vencimento sobe magnets e precisa gravar `adsub`.
+#[test]
+fn snapshot_vencido_ainda_prova_posse_ate_a_idade_maxima() {
+    let inv = Inventory::new(Duration::from_millis(1));
+    assert!(inv.begin("conta"));
+    inv.finish("conta", Some(set(&["aa"])));
+    std::thread::sleep(Duration::from_millis(10));
+    assert!(inv.peek("conta").is_none(), "vencido não autoriza delete");
+    let reference = inv
+        .peek_reference("conta", 60_000)
+        .expect("referência de posse");
+    assert!(reference.contains("aa"));
+    assert!(
+        inv.peek_reference("conta", 5).is_none(),
+        "velho demais não prova nada"
+    );
+}
+
+/// Falha do refresh limpa a referência: sem foto nenhuma, não há prova.
+#[test]
+fn falha_do_refresh_apaga_a_referencia_de_posse() {
+    let inv = Inventory::new(Duration::from_millis(1));
+    assert!(inv.begin("conta"));
+    inv.finish("conta", Some(set(&["aa"])));
+    assert!(inv.begin("conta"));
+    inv.finish("conta", None);
+    assert!(inv.peek_reference("conta", 60_000).is_none());
+}

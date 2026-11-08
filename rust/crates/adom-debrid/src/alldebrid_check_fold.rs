@@ -125,22 +125,24 @@ async fn upload_batch(
                 piece.files.push((hash.clone(), id));
             }
         }
-        let run = gate.cleanup.as_ref().filter(|run| run.active());
-        if let Some(run) = run {
-            // Posse (8.15): só o que o snapshot prova NÃO estar na conta vira
-            // "nosso"; o upload é idempotente e não diz se criou ou reaproveitou.
+        // Posse (8.15): só o que o snapshot prova NÃO estar na conta vira
+        // "nosso"; o upload é idempotente e não diz se criou ou reaproveitou.
+        // Vale com a limpeza barrada também (snapshot vencido, holds): o
+        // upload aconteceu, e sem `adsub` o magnet virava acervo do usuário.
+        if let Some(run) = gate.cleanup.as_ref() {
             if run
-                .inventory
+                .reference
                 .as_ref()
                 .is_some_and(|snapshot| !snapshot.contains(&hash))
             {
                 remember_submitted(&run.account, &hash);
-                // A prova de criação é DAQUI (o hash não estava no snapshot):
-                // o Node grava a posse sem repetir a conta.
                 if !piece.submitted.contains(&hash) {
                     piece.submitted.push(hash.clone());
                 }
             }
+        }
+        let run = gate.cleanup.as_ref().filter(|run| run.active());
+        if let Some(run) = run {
             let flagged = if ready {
                 run.gate.drop_ready
             } else {

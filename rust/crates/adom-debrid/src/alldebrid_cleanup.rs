@@ -71,7 +71,9 @@ pub use prune::{prune_missing_plan, RetentionEntry};
 
 #[path = "cleanup_inventory.rs"]
 mod inventory;
-pub use inventory::{inventory, known_before, refresh_known_before, Inventory};
+pub use inventory::{
+    inventory, known_before, ownership_reference, refresh_known_before, Inventory,
+};
 
 #[path = "cleanup_plan.rs"]
 mod plan;

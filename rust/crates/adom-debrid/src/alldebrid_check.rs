@@ -21,9 +21,9 @@ use std::time::Duration;
 
 use super::{AllDebrid, CHECK_TIMEOUT, DEFAULT_BATCH};
 use crate::alldebrid_cleanup::{
-    account_scope, bump, kill_switch_on, known_before, refresh_known_before, CleanupGate,
-    CleanupMode, CleanupPlan, CleanupSuppressed, DurablePeek, RetentionGuard, METRIC_KNOWN_BEFORE,
-    METRIC_PLANNED, METRIC_PROTECTED, METRIC_SUPPRESSED,
+    account_scope, bump, kill_switch_on, known_before, ownership_reference, refresh_known_before,
+    CleanupGate, CleanupMode, CleanupPlan, CleanupSuppressed, DurablePeek, RetentionGuard,
+    METRIC_KNOWN_BEFORE, METRIC_PLANNED, METRIC_PROTECTED, METRIC_SUPPRESSED,
 };
 use crate::error::DebridError;
 
@@ -124,6 +124,10 @@ struct CleanupRun {
     plan: CleanupPlan,
     gate: CleanupGate,
     inventory: Option<Arc<HashSet<String>>>,
+    /// Prova de POSSE (fresco ou vencido há pouco). Vale até com a limpeza
+    /// barrada: o upload acontece de qualquer jeito e a posse não pode se
+    /// perder nessa rodada.
+    reference: Option<Arc<HashSet<String>>>,
     account: String,
 }
 
@@ -250,6 +254,7 @@ fn cleanup_run(
             plan: CleanupPlan::suppressed(reason),
             gate,
             inventory: None,
+            reference: ownership_reference(account),
             account: account.to_string(),
         });
     }
@@ -276,10 +281,12 @@ fn cleanup_run(
             ..CleanupPlan::default()
         }
     };
+    let reference = inventory.clone().or_else(|| ownership_reference(account));
     Some(CleanupRun {
         plan,
         gate,
         inventory,
+        reference,
         account: account.to_string(),
     })
 }

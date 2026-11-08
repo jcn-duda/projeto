@@ -62,6 +62,18 @@ impl Inventory {
         fresh.then_some(hashes)
     }
 
+    /// Último snapshot carregado, mesmo vencido, até `max_age_ms`. Serve SÓ
+    /// para provar posse (o hash não estava na conta há poucos minutos e a
+    /// checagem acabou de subi-lo) — nunca para autorizar delete, que segue
+    /// exigindo o snapshot fresco de [`Self::peek`].
+    fn peek_reference(&self, account: &str, max_age_ms: i64) -> Option<Arc<HashSet<String>>> {
+        let guard = self.entries.lock().unwrap_or_else(|err| err.into_inner());
+        let entry = guard.get(account)?;
+        let hashes = entry.hashes.clone()?;
+        let age = (now_ms() as i64).saturating_sub(entry.loaded_at_ms);
+        (age < max_age_ms).then_some(hashes)
+    }
+
     fn begin(&self, account: &str) -> bool {
         let now = now_ms() as i64;
         let mut guard = self.entries.lock().unwrap_or_else(|err| err.into_inner());
@@ -149,6 +161,21 @@ static INVENTORY: OnceLock<Inventory> = OnceLock::new();
 
 pub fn inventory() -> &'static Inventory {
     INVENTORY.get_or_init(Inventory::from_env)
+}
+
+/// Idade máxima do snapshot usado como prova de POSSE: 6× o TTL default.
+/// Sem isso, a rodada que cai logo depois do vencimento (5 min) subia magnets
+/// sem gravar `adsub`, e o snapshot seguinte os contava como acervo do usuário
+/// — imunes às varreduras para sempre (medido na VPS em 2026-11-08: 400 dos
+/// 429 magnets eram "preexisting").
+const OWNERSHIP_REFERENCE_MAX_AGE_MS: i64 = 30 * 60_000;
+
+/// Referência para gravar posse: o snapshot fresco ou, vencido, o último até
+/// [`OWNERSHIP_REFERENCE_MAX_AGE_MS`]. Não autoriza delete.
+pub fn ownership_reference(account: &str) -> Option<Arc<HashSet<String>>> {
+    let inv = inventory();
+    inv.peek(account)
+        .or_else(|| inv.peek_reference(account, OWNERSHIP_REFERENCE_MAX_AGE_MS))
 }
 
 /// Snapshot vigente (peek). `None` = sem referência autorizada nesta rodada.
