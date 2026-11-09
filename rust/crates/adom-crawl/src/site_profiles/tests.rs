@@ -31,6 +31,8 @@ fn registry_tem_dominio_vivo_dos_profiles_ts() {
         ("nerdfilmes", "xfilmeshd.net"),
         // 2026-11-06: xfilmeshd.net → 301 → galaxytorrents.org.
         ("nerdfilmes", "galaxytorrents.org"),
+        // 2026-11-09: galaxytorrents.org → 301 → galaxyfilmes.org.
+        ("nerdfilmes", "galaxyfilmes.org"),
         ("bludv-cardigann", "bludvfilmes1.xyz"),
         ("bludv-cardigann", "bludvfilmes2.xyz"),
         ("torrentdosfilmesv2", "torrentdosfilmes-v2.xyz"),

@@ -41,7 +41,8 @@ export const resolvers = () => ({
   // redirect vira blocked_host e a fonte morre em silêncio.
   // 2026-10-24: xfilmeshd.org responde 301 para xfilmeshd.net.
   // 2026-11-06: xfilmeshd.net responde 301 para www.galaxytorrents.org.
-  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.galaxytorrents.org').replace(/\/$/, ''),
+  // 2026-11-09: galaxytorrents.org responde 301 para www.galaxyfilmes.org.
+  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.galaxyfilmes.org').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
   // Vaca Torrent voltou ao domínio antigo: medido em 2026-11-02,
   // vaqueirofilmes1.com redireciona para vaqueirofilmes.com, que serve o site.

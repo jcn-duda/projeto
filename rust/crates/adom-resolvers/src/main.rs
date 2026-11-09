@@ -124,7 +124,7 @@ fn parse_entry(entry: &str) -> Result<(String, u16), Box<dyn std::error::Error>>
 const DEFAULT_URLS: &[(&str, &str)] = &[
     ("bludv", "https://bludvfilmes2.xyz"),
     ("comandotorrents", "https://comandotorrents.to"),
-    ("nerdfilmes", "https://www.galaxytorrents.org"),
+    ("nerdfilmes", "https://www.galaxyfilmes.org"),
     ("torrentdosfilmes", "https://torrentdosfilmes-v2.xyz"),
     ("vacatorrent", "https://vaqueirofilmes.com"),
     ("redetorrent", "https://www.redetorrent.xyz"),
