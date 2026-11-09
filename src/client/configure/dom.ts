@@ -27,6 +27,7 @@ export function bindElements(): void {
     debridService: $('debridService'), debridApiKey: $('debridApiKey'),
     keyHintPlain: $('keyHintPlain'), keyHintSealed: $('keyHintSealed'), debridKeyKept: $('debridKeyKept'),
     debridKeyField: $('debridKeyField'), keyLink: $('keyLink'),
+    exposeKeyForApp: $('exposeKeyForApp'), appKeyRow: $('appKeyRow'), appKeyNeedsPaste: $('appKeyNeedsPaste'),
     debridCachedOnly: $('debridCachedOnly'), cachedOnlyRow: $('cachedOnlyRow'),
     showUncachedBr: $('showUncachedBr'), uncachedBrRow: $('uncachedBrRow'),
     autoFetchBr: $('autoFetchBr'), autoFetchRow: $('autoFetchRow'),

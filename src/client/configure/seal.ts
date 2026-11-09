@@ -4,6 +4,7 @@
  * em texto puro e é trocada pela cifrada quando a resposta chega. */
 
 import { state } from './state.js';
+import { isOn } from './dom.js';
 
 export function applySegment(segment: string): void {
   const el = state.el;
@@ -24,6 +25,14 @@ export function applySegment(segment: string): void {
 // por caractere digitado na chave. Só o último estado interessa.
 export function requestSeal(segment: string): void {
   if (!state.instanceDefaults || !state.instanceDefaults.sealKeyEnabled) return;
+  // Chave liberada para o app Power Movie: o link fica em texto puro. Invalida
+  // o selo pendente, senão uma resposta atrasada trocaria o link de volta.
+  if (state.el.exposeKeyForApp && isOn(state.el.exposeKeyForApp)) {
+    if (state.sealTimer !== null) clearTimeout(state.sealTimer);
+    state.sealTimer = null;
+    state.sealToken++;
+    return;
+  }
   // Sem chave no segmento não há o que selar (P2P puro).
   if (!state.el.debridService.value || !state.el.debridApiKey.value.trim()) return;
 

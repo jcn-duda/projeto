@@ -104,6 +104,9 @@ export function apply(incoming: any): void {
   state.sealedKey = isSealedKey(incoming.debridApiKey) ? incoming.debridApiKey : '';
   el.debridApiKey.value = state.sealedKey ? '' : (incoming.debridApiKey || '');
   el.debridKeyKept.hidden = !state.sealedKey;
+  // Link reaberto com chave legível: o usuário tinha liberado para o app.
+  // Mantém liberada, senão mexer em qualquer opção cifraria de novo.
+  if (el.exposeKeyForApp) setOn(el.exposeKeyForApp, Boolean(incoming.debridApiKey) && !state.sealedKey);
   setOn(el.debridCachedOnly, incoming.debridCachedOnly);
   setOn(el.showUncachedBr, incoming.showUncachedBr);
   setOn(el.autoFetchBr, incoming.autoFetchBr);
@@ -185,6 +188,14 @@ function wireEvents(): void {
     .forEach((sw: any) => {
       sw.addEventListener('click', () => { setOn(sw, !isOn(sw)); setPresetChoice('custom'); render(); });
     });
+
+  // Não é escolha de busca: não troca o preset para "custom".
+  if (el.exposeKeyForApp) {
+    el.exposeKeyForApp.addEventListener('click', () => {
+      setOn(el.exposeKeyForApp, !isOn(el.exposeKeyForApp));
+      render();
+    });
+  }
 
   // Pool global Torrentio: toggle específico sobre a base de provedores. Não
   // existe no schema como opção própria — grava no KEYS.providers ('p').

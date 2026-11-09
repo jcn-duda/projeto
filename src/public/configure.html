@@ -229,6 +229,15 @@
       <p class="field-hint" id="keyHintPlain">Fica codificada na URL do addon. Não compartilhe esse link.</p>
       <p class="field-hint" id="keyHintSealed" hidden>Fica cifrada na URL do addon, e só esta instância consegue abrir. Ainda assim, não compartilhe o link.</p>
       <p class="field-hint" id="debridKeyKept" hidden>Chave protegida do link atual mantida. Cole outra para trocar.</p>
+      <p class="field-hint" id="appKeyNeedsPaste" hidden>Para liberar, cole a chave de novo: a que veio no link continua cifrada.</p>
+    </div>
+
+    <div class="row" id="appKeyRow" hidden>
+      <div class="row-text">
+        <strong>Liberar chave para o app Power Movie</strong>
+        <span>Deixa a chave legível no link, para o app usar o mesmo debrid (ex.: NZB). Quem tiver o link vê a chave: não compartilhe.</span>
+      </div>
+      <button type="button" class="switch" id="exposeKeyForApp" role="switch" aria-checked="false" aria-pressed="false" aria-label="Liberar chave para o app Power Movie"></button>
     </div>
 
     <div class="row" id="cachedOnlyRow" hidden>

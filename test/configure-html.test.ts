@@ -104,7 +104,7 @@ test('switches principais têm role=switch e aria-checked', () => {
   const re = /<button\b[^>]*\bclass="switch"[^>]*>/g;
   let m;
   while ((m = re.exec(html)) !== null) tags.push(m[0]);
-  assert.equal(tags.length, 9, 'esperava os 9 switches (8 + toggle do Torrentio)');
+  assert.equal(tags.length, 10, 'esperava os 10 switches (8 + Torrentio + liberar chave para o app)');
   tags.forEach((tag) => {
     assert.match(tag, /\brole="switch"/, 'switch sem role=switch: ' + tag);
     assert.match(tag, /\b(?:aria-checked="true"|aria-checked="false")/, 'switch sem aria-checked: ' + tag);

@@ -193,8 +193,14 @@ export function render(): void {
   el.debridKeyField.hidden = !svc;
   // A dica só pode prometer cifra quando a instância tem RESOLVE_SECRET.
   const sealOn = Boolean(state.instanceDefaults && state.instanceDefaults.sealKeyEnabled);
-  el.keyHintPlain.hidden = sealOn;
-  el.keyHintSealed.hidden = !sealOn;
+  // "Liberar para o app" só existe quando há selo para pular.
+  const exposeOn = sealOn && Boolean(el.exposeKeyForApp) && isOn(el.exposeKeyForApp);
+  if (el.appKeyRow) el.appKeyRow.hidden = !svc || !sealOn;
+  if (el.appKeyNeedsPaste) {
+    el.appKeyNeedsPaste.hidden = !svc || !exposeOn || !state.sealedKey || Boolean(el.debridApiKey.value.trim());
+  }
+  el.keyHintPlain.hidden = sealOn && !exposeOn;
+  el.keyHintSealed.hidden = !sealOn || exposeOn;
   // Sem consulta de cache o filtro não teria como funcionar: esconde e explica.
   el.cachedOnlyRow.hidden = !svc || !svc.cacheCheck;
   // Mesmo motivo do filtro: sem consulta o download automático não roda.
