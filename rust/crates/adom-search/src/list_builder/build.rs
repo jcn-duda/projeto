@@ -11,6 +11,7 @@ use crate::raw_item::RawItem;
 
 use super::audio_proof::apply_pt_title_dual;
 use super::finalize::finalize_streams;
+use super::size_limit::episode_size_limit;
 use super::helpers::*;
 use super::types::{seed_floor_for, BuildContext, BuildOptions, BuiltList, DebridCheck};
 
@@ -248,6 +249,10 @@ pub fn build_stream_list(
     if sem_hash > 0 {
         out.count("no-hash", sem_hash);
     }
+    // Lista de arquivos do build (memo `fsz`): mede o episódio no pack para o
+    // limite de tamanho (passo 6) e para o 💾 (passo 7).
+    let files_build = ctx.files_at_build.as_ref().unwrap_or(&ctx.files_by_hash);
+    let max_size_gb = episode_size_limit(&mut mapped, ctx, opts, files_build, &mut out);
     let pool_size = opts.max_results * opts.candidate_pool_factor;
     let sort = sort_and_limit(&SortInput {
         streams: mapped,
@@ -260,7 +265,7 @@ pub fn build_stream_list(
             prefer_dubbed: opts.prefer_dubbed,
             dubbed_only: opts.dubbed_only,
             exclude_cam: opts.exclude_cam,
-            max_size_gb: opts.max_size_gb,
+            max_size_gb,
             quality_limits: opts.quality_limits.clone(),
             br_reserved_slots: opts.br_reserved_slots,
             br_reserved_per_quality: opts.br_reserved_per_quality,
@@ -282,7 +287,6 @@ pub fn build_stream_list(
     //    fill do 💾. É o que decide se o `📦 pack` da 2ª passada nasce — o Node
     //    só o emite quando a 1ª passada já preencheu o 💾 (Breaking Bad alterna
     //    entre `💾 X` e `💾 X 📦 pack X` conforme o `fsz` estava quente).
-    let files_build = ctx.files_at_build.as_ref().unwrap_or(&ctx.files_by_hash);
     if let (Some(season), Some(episode)) = (ctx.season, ctx.episode) {
         let pack_opts = PackOpts {
             season,

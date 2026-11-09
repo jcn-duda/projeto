@@ -34,6 +34,7 @@ mod file_wants;
 mod finalize;
 mod finalize_play;
 mod helpers;
+mod size_limit;
 mod stats;
 mod stream_map;
 mod types;

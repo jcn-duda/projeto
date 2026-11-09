@@ -168,8 +168,8 @@ pub use duplicate_pack::{drop_duplicate_pack_files, DuplicatePackInput, Duplicat
 // ── episode ───────────────────────────────────────────────────────────
 pub use episode_annotate::{
     annotate_movie_sizes_core, annotate_pack_sizes_core, episodes_covered, episodes_covered_wanted,
-    exact_episode_bytes, fill_missing_sizes_core, fill_torrent_totals_core, EpisodeCounts,
-    FillOpts, PackOpts,
+    exact_episode_bytes, fill_missing_sizes_core, fill_torrent_totals_core,
+    fits_episode_size_limit, pack_episode_size, EpisodeCounts, FillOpts, PackEpisodeSize, PackOpts,
 };
 pub use episode_matching::{is_season_pack_fill_eligible, is_season_pack_release, matches_episode};
 pub use episode_parse::{

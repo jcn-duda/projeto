@@ -29,7 +29,7 @@ use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 
 use crate::bytes_to_size::bytes_to_size;
-use crate::debrid::{looks_pack_by_files, pick_file, DebridFile, PickOutcome, PlayHint, WorkHint};
+use crate::debrid::{pick_file, DebridFile, PickOutcome, PlayHint, WorkHint};
 use crate::episode_matching::is_season_pack_release;
 use crate::episode_parse::parse_title_season_episode;
 use crate::episode_size::parse_size_label;
@@ -38,6 +38,9 @@ use crate::stream_ranking_types::RankingStream;
 #[path = "episode_annotate_fill.rs"]
 mod episode_annotate_fill;
 pub use episode_annotate_fill::*;
+#[path = "episode_annotate_measure.rs"]
+mod episode_annotate_measure;
+pub use episode_annotate_measure::*;
 
 const PACK_MARK: &str = "📦 pack";
 
@@ -228,62 +231,16 @@ fn annotate_pack_one(
     let Some(title) = stream.title.as_deref() else {
         return stream.clone();
     };
-    if title.contains(PACK_MARK) {
+    if title.contains(PACK_MARK) || size_mark(title).is_none() {
         return stream.clone();
     }
-    // Pack de temporada, faixa multi-episódio nomeada ("Capítulo 086 ao 123")
-    // ou pack provado pela LISTA DE ARQUIVOS: o título da faixa nomeia
-    // episódios e por isso não é pack para o isSeasonPackRelease, mas o torrent
-    // cobre vários episódios, e o total não é o tamanho do pedido.
-    let season_pack = is_pack(stream, opts.season);
-    let files = files_of(files_by_hash, stream.info_hash.as_deref());
-    let files_pack = !season_pack && files.is_some_and(looks_pack_by_files);
-    let parsed = parse_title_season_episode(title);
-    let range_pack = !season_pack
-        && !files_pack
-        && parsed.episodes.len() > 1
-        && parsed.episodes.contains(&opts.episode);
-    if !season_pack && !range_pack && !files_pack {
-        return stream.clone();
-    }
-    // O Torrentio já responde por episódio: o 💾 dele é o tamanho do ARQUIVO
-    // escolhido; dividir de novo mostraria um episódio como fração dele mesmo.
-    if stream.indexer.as_deref() == Some("torrentio") {
-        return stream.clone();
-    }
-    let Some((mark_label, _, _)) = size_mark(title) else {
-        return stream.clone();
-    };
-    // `_size` não chega aqui (o sortAndLimit apaga): o total que o próprio
-    // título anuncia é a mesma medida, arredondada em duas casas.
-    let size = stream.size.unwrap_or(0.0);
-    let pack_bytes = if size != 0.0 {
-        size
-    } else {
-        parse_size_label(&mark_label)
-    };
-    let exact = files.and_then(|f| exact_episode_bytes(f, opts.season, opts.episode));
-    // Faixa parcial ou pack provado só pela lista não tem divisor honesto para
-    // média (a contagem do Cinemeta é da temporada inteira): só exato vale.
-    let count = if exact.is_none() && season_pack {
-        episodes_covered(title, opts.season, opts.meta)
-    } else {
-        0
-    };
-    let Some(exact_bytes) = exact else {
-        if pack_bytes == 0.0 || !season_pack || count <= 1 {
-            return stream.clone();
+    match pack_episode_size(stream, files_by_hash, opts) {
+        PackEpisodeSize::Exact { bytes, pack } if pack <= 0.0 || bytes < pack => {
+            with_episode_label(stream, bytes, "")
         }
-        let bytes = (pack_bytes / count as f64).round();
-        if pack_bytes > 0.0 && bytes >= pack_bytes {
-            return stream.clone();
-        }
-        return with_episode_label(stream, bytes, " (média)");
-    };
-    if pack_bytes > 0.0 && exact_bytes >= pack_bytes {
-        return stream.clone();
+        PackEpisodeSize::Average(bytes) => with_episode_label(stream, bytes, " (média)"),
+        _ => stream.clone(),
     }
-    with_episode_label(stream, exact_bytes, "")
 }
 
 /// `💾 {rótulo} 📦 pack {total}{nota}` no lugar do 💾 original.
