@@ -32,6 +32,12 @@ pub fn parse_metadata(title: &str) -> ParsedMetadata {
             source = parsed.2;
             continue;
         }
+        if let Some(pt) = language_line_pt(line) {
+            if pt {
+                kept.push(PT_FROM_LANGUAGE_LINE);
+            }
+            continue;
+        }
         if !line.is_empty() {
             kept.push(line);
         }
@@ -63,6 +69,63 @@ fn match_metadata_line(line: &str) -> Option<(Option<f64>, f64, String)> {
     let size_val = to_number(size_txt)?;
     let size_bytes = parse_size_bytes(size_val, unit_txt)?;
     Some((seeders, size_bytes, source))
+}
+
+/// Rótulos que o Torrentio põe na linha de idiomas (`Dubbed / Multi Subs /
+/// Dual Audio / 🇬🇧 / 🇵🇹 …`).
+const LANGUAGE_LABELS: &[&str] = &["dubbed", "multi subs", "multi audio", "dual audio"];
+
+/// O que entra no título no lugar de uma linha de idiomas que prova PT.
+const PT_FROM_LANGUAGE_LINE: &str = "PT-BR";
+
+/// Linha de idiomas do Torrentio: `None` se a linha não é uma; `Some(pt)`
+/// quando é, com `pt` dizendo se ela prova áudio português.
+///
+/// A linha NÃO é o título da release: o Torrentio mistura áudio e legenda nela.
+/// Anime `[Dual-Audio][Multi-Subs]` (JA+EN) chegava como `Dubbed / Multi Subs /
+/// … / 🇵🇹 / …` e o `Dubbed` genérico virava dublado PT — o item ganhava BR, e o
+/// espelho do mesmo hash vindo do Jackett herdava o BR no dedupe (Jujutsu
+/// Kaisen S03E02, 2026-11-11: sete releases JA/EN como "BR"). Sem `Multi Subs`
+/// a bandeira PT é do áudio (o BluDV do Torrentio publica `Dubbed / Dual Audio
+/// / 🇵🇹` com título só `DUAL`): essa vira `PT-BR` explícito.
+fn language_line_pt(line: &str) -> Option<bool> {
+    let tokens: Vec<&str> = line.split('/').map(str::trim).collect();
+    if tokens.iter().any(|t| t.is_empty()) {
+        return None;
+    }
+    let mut multi_subs = false;
+    let mut pt_flag = false;
+    let mut any_label = false;
+    for token in &tokens {
+        let lower = token.to_lowercase();
+        if LANGUAGE_LABELS.contains(&lower.as_str()) {
+            any_label = true;
+            multi_subs |= lower == "multi subs";
+        } else if is_flag(token) {
+            pt_flag |= *token == "🇵🇹" || *token == "🇧🇷";
+        } else {
+            return None;
+        }
+    }
+    // Bandeiras sozinhas também são a linha (`🇬🇧 / 🇫🇷`); um token só de
+    // bandeira, sem barra, não arrisca nada além de si mesmo.
+    if !any_label && tokens.len() < 2 && !pt_flag {
+        return None;
+    }
+    Some(pt_flag && !multi_subs)
+}
+
+/// Bandeira emoji: par de indicadores regionais (com tag/VS16 opcionais).
+fn is_flag(token: &str) -> bool {
+    let mut regional = 0;
+    for c in token.chars() {
+        match c {
+            '\u{1F1E6}'..='\u{1F1FF}' => regional += 1,
+            '\u{FE0F}' | '\u{200D}' | '\u{1F3F4}' | '\u{E0020}'..='\u{E007F}' => {}
+            _ => return false,
+        }
+    }
+    regional == 2 || token.starts_with('\u{1F3F4}')
 }
 
 fn strip_prefix_char(s: &str, ch: char) -> Option<&str> {
@@ -211,6 +274,51 @@ mod tests {
         assert_eq!(parsed.seeders, Some(1234.0));
         assert_eq!(parsed.size_bytes, (2.4 * 1024.0_f64.powi(3)).round());
         assert_eq!(parsed.source, "Torrentio");
+    }
+
+    fn with_meta(body: &str) -> String {
+        format!("{body}\n{META_USER} 11 {META_DISK} 2.10 GB {META_GEAR}\u{FE0F} TokyoTosho")
+    }
+
+    /// Jujutsu Kaisen S03E02 (2026-11-11): anime JA+EN com legenda PT virava
+    /// "BR" pelo `Dubbed` e pela bandeira da linha de idiomas.
+    #[test]
+    fn linha_de_idiomas_com_multi_subs_sai_do_titulo() {
+        let parsed = parse_metadata(&with_meta(
+            "[Earendur] Jujutsu Kaisen - S03E02 (2160p Upscaled HEVC Dual-Audio) [Multi-Subs].mkv\n\
+             Dubbed / Multi Subs / Dual Audio / 🇬🇧 / 🇷🇺 / 🇮🇹 / 🇵🇹 / 🇪🇸 / 🇲🇽",
+        ));
+        assert_eq!(
+            parsed.title,
+            "[Earendur] Jujutsu Kaisen - S03E02 (2160p Upscaled HEVC Dual-Audio) [Multi-Subs].mkv"
+        );
+        assert_eq!(parsed.source, "TokyoTosho");
+    }
+
+    #[test]
+    fn linha_de_idiomas_sem_pt_sai_do_titulo() {
+        for line in ["Dubbed / Dual Audio", "Dubbed / Dual Audio / 🇬🇧", "Multi Audio / 🇬🇧 / 🇮🇹"] {
+            let parsed = parse_metadata(&with_meta(&format!("[Purple] JUJUTSU KAISEN - S03E02.mkv\n{line}")));
+            assert_eq!(parsed.title, "[Purple] JUJUTSU KAISEN - S03E02.mkv", "{line}");
+        }
+    }
+
+    /// BluDV pelo Torrentio: título só `DUAL`, a bandeira PT é o áudio.
+    #[test]
+    fn bandeira_pt_sem_multi_subs_vira_pt_br_explicito() {
+        let parsed = parse_metadata(&with_meta(
+            "Jujutsu Kaisen S03 2026 WEB-DL 1080p x265 DUAL 2.0\nDubbed / Dual Audio / 🇵🇹",
+        ));
+        assert_eq!(
+            parsed.title,
+            "Jujutsu Kaisen S03 2026 WEB-DL 1080p x265 DUAL 2.0\nPT-BR"
+        );
+    }
+
+    #[test]
+    fn linha_comum_com_barra_nao_e_linha_de_idiomas() {
+        let parsed = parse_metadata(&with_meta("Filme 2024 1080p / Dual Audio\narquivo.mkv"));
+        assert_eq!(parsed.title, "Filme 2024 1080p / Dual Audio\narquivo.mkv");
     }
 
     #[test]

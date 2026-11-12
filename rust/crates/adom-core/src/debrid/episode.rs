@@ -14,6 +14,11 @@ use super::{
 
 const VIGNETTE_MAX: f64 = 15.0 * 1024.0 * 1024.0;
 
+/// Fronteira depois do NÚMERO do episódio: aceita o sufixo de revisão de
+/// fansub (`S03E02v2`, o reupload corrigido). Com a fronteira seca o pack do
+/// Judas de Jujutsu Kaisen S3 caía em `EpisodePick` e não tocava (2026-11-11).
+const EP_AFTER: &str = r"(?:V[0-9]{1,2})?(?![A-Z0-9_])";
+
 struct Pats {
     has_season: Regex,
     strong: Vec<Regex>,
@@ -60,34 +65,34 @@ fn pats_for(season: i64, episode: i64) -> Pats {
         compile(&format!(
             r"{wb}S{sf}[__SP__._-]*E{ef}{wa}",
             wb = WB_BEFORE,
-            wa = WB_AFTER
+            wa = EP_AFTER
         )),
         compile(&format!(
             r"{wb}T{sf}[__SP__._-]*E{ef}{wa}",
             wb = WB_BEFORE,
-            wa = WB_AFTER
+            wa = EP_AFTER
         )),
         compile(&format!(
             r"{wb}{sf}X{ef}{wa}",
             wb = WB_BEFORE,
-            wa = WB_AFTER
+            wa = EP_AFTER
         )),
-        compile(&format!(r"{wb}{joined}{wa}", wb = WB_BEFORE, wa = WB_AFTER)),
+        compile(&format!(r"{wb}{joined}{wa}", wb = WB_BEFORE, wa = EP_AFTER)),
     ];
     let weak = vec![
         compile(&format!(
             r"{wb}(?:EPIS[OÓ]DIO|CAP[IÍ]TULO|EP|CAP)[__SP__._-]*0{{0,2}}{episode}{wa}",
             wb = WB_BEFORE,
-            wa = WB_AFTER,
+            wa = EP_AFTER,
         )),
         compile(&format!(
             r"{wb}E[__SP__._-]*0{{0,2}}{episode}{wa}",
             wb = WB_BEFORE,
-            wa = WB_AFTER,
+            wa = EP_AFTER,
         )),
     ];
     let bare = compile(&format!(
-        r"(?:^|[__SP__._-])0{{0,2}}{episode}(?:[__SP__._-]|$|\.[A-Z0-9]+$)"
+        r"(?:^|[__SP__._-])0{{0,2}}{episode}(?:V[0-9]{{1,2}})?(?:[__SP__._-]|$|\.[A-Z0-9]+$)"
     ));
     Pats {
         has_season,
