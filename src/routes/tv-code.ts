@@ -8,18 +8,24 @@
  * legível), e 7 dígitos são só 9 milhões de combinações. Por isso:
  * - o código vale 30 min E no máximo 2 usos (o 2º cobre uma instalação que
  *   falhou no meio); fica só em memória — restart apaga, é só para instalar;
- * - só aceita link de manifest DESTA instância: não é um encurtador aberto;
+ * - só aceita link de manifest de addon (`.../manifest.json`): desta instância
+ *   ou de outro addon em https (legendas, Torrentio...) — nunca URL qualquer;
+ * - código que não é nosso é resolvido na AFTVnews pelo FlareSolverr
+ *   (`utils/aftv-resolve.ts`), porque a AFTVnews passou a barrar apps;
  * - consulta tem teto por IP e teto global, que tornam varrer o espaço inviável.
  */
 
 import { randomInt } from 'node:crypto';
 import type express from 'express';
+import type { AftvResult } from '../utils/aftv-resolve.js';
 
 const CODE_TTL_MS = 30 * 60_000;
 const MAX_ENTRIES = 5_000;
 const MAX_URL_LENGTH = 9_000;
 const CODE_PATTERN = /^\d{7}$/;
 const MAX_USES = 2;
+// Códigos da AFTVnews variam de tamanho (antigos têm 5-6 dígitos).
+const AFTV_CODE_PATTERN = /^\d{3,9}$/;
 
 interface Entry { url: string; expiresAt: number; usesLeft: number }
 
@@ -54,6 +60,8 @@ interface TvCodeOptions {
   createPerIp?: WindowLimit;
   lookupPerIp?: WindowLimit;
   lookupGlobal?: WindowLimit;
+  /** Resolve códigos que não são nossos na AFTVnews (FlareSolverr). */
+  aftv?: { resolve(code: string): Promise<AftvResult> };
 }
 
 /**
@@ -73,7 +81,13 @@ function clientIp(req: express.Request): string {
   return req.socket?.remoteAddress || 'unknown';
 }
 
-/** Aceita só `http(s)://<este host>/<segmento>/manifest.json`. */
+/**
+ * Aceita link de manifest de addon Stremio:
+ * - desta instância: `http(s)://<este host>/<segmento>/manifest.json`;
+ * - de outro addon: `https://<host>/.../manifest.json` (query permitida, que
+ *   alguns addons usam para a configuração).
+ * Nunca uma URL qualquer: o encurtador não vira redirecionador genérico.
+ */
 function acceptableUrl(raw: string, host: string | undefined): string | null {
   if (!raw || raw.length > MAX_URL_LENGTH || !host) return null;
   let parsed: URL;
@@ -82,10 +96,15 @@ function acceptableUrl(raw: string, host: string | undefined): string | null {
   } catch {
     return null;
   }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-  if (parsed.host.toLowerCase() !== host.toLowerCase()) return null;
-  if (!/^\/[^/]+\/manifest\.json$/.test(parsed.pathname)) return null;
-  if (parsed.search || parsed.hash || parsed.username || parsed.password) return null;
+  if (parsed.hash || parsed.username || parsed.password) return null;
+  if (parsed.host.toLowerCase() === host.toLowerCase()) {
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    if (!/^\/[^/]+\/manifest\.json$/.test(parsed.pathname)) return null;
+    if (parsed.search) return null;
+    return parsed.toString();
+  }
+  if (parsed.protocol !== 'https:') return null;
+  if (!/\/manifest\.json$/.test(parsed.pathname)) return null;
   return parsed.toString();
 }
 
@@ -143,15 +162,28 @@ function makeTvCodeHandlers(options: TvCodeOptions = {}) {
     return res.json({ code, expiresInSec: CODE_TTL_MS / 1000, usesLeft: MAX_USES });
   };
 
-  const lookup = (req: express.Request, res: express.Response) => {
+  async function fromAftv(code: string, res: express.Response) {
+    try {
+      const result = await options.aftv!.resolve(code);
+      if (!result.url) return res.status(404).json({ error: 'código não encontrado' });
+      return res.json({ url: result.url, source: 'aftvnews' });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'busy') {
+        return res.status(429).json({ error: 'encurtador ocupado; tente de novo em instantes' });
+      }
+      return res.status(502).json({ error: 'não foi possível consultar a AFTVnews' });
+    }
+  }
+
+  const lookup = async (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store');
     if (!allowLookupGlobal('global') || !allowLookupIp(clientIp(req))) {
       return res.status(429).json({ error: 'muitas tentativas; aguarde um minuto' });
     }
     const code = String(req.params.code || '');
-    if (!CODE_PATTERN.test(code)) return res.status(404).json({ error: 'código não encontrado' });
-    const entry = byCode.get(code);
+    const entry = CODE_PATTERN.test(code) ? byCode.get(code) : undefined;
     if (!entry || entry.expiresAt <= now()) {
+      if (options.aftv && AFTV_CODE_PATTERN.test(code)) return fromAftv(code, res);
       return res.status(404).json({ error: 'código não encontrado, expirado ou já usado' });
     }
     entry.usesLeft -= 1;

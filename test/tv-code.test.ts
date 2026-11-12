@@ -80,12 +80,68 @@ test('código expira em 30 minutos', async () => {
   }
 });
 
-test('recusa link de outro host ou que não é manifest', async () => {
+test('aceita manifest de outro addon em https (legendas, Torrentio)', async () => {
   const s = await serve();
   try {
-    assert.equal((await s.create('https://evil.example/x/manifest.json')).status, 400);
+    const subs = 'https://opensubtitles-v3.strem.io/manifest.json';
+    const created = await s.create(subs);
+    assert.equal(created.status, 200);
+    assert.equal((await s.lookup(created.json.code)).json.url, subs);
+    const torrentio = 'https://torrentio.strem.fun/providers=yts|eztv/manifest.json';
+    assert.equal((await s.create(torrentio)).status, 200);
+    assert.equal((await s.create('https://addon.example/manifest.json?cfg=abc')).status, 200, 'query de config é aceita');
+  } finally {
+    await s.close();
+  }
+});
+
+test('recusa o que não é manifest de addon', async () => {
+  const s = await serve();
+  try {
+    assert.equal((await s.create('http://outro.example/x/manifest.json')).status, 400, 'outro host só em https');
+    assert.equal((await s.create('https://outro.example/phishing')).status, 400);
     assert.equal((await s.create(`${s.base}/x/configure`)).status, 400);
     assert.equal((await s.create('não é url')).status, 400);
+  } finally {
+    await s.close();
+  }
+});
+
+test('código que não é nosso é resolvido na AFTVnews', async () => {
+  const calls: string[] = [];
+  const s = await serve({
+    aftv: {
+      async resolve(code: string) {
+        calls.push(code);
+        if (code === '7330456') return { url: 'https://powermovie.net/abc/manifest.json' };
+        if (code === '55555') throw new Error('busy');
+        if (code === '66666') throw new Error('FlareSolverr HTTP 500');
+        return { url: null };
+      },
+    },
+  });
+  try {
+    const found = await s.lookup('7330456');
+    assert.equal(found.status, 200);
+    assert.equal(found.json.url, 'https://powermovie.net/abc/manifest.json');
+    assert.equal(found.json.source, 'aftvnews');
+    assert.equal((await s.lookup('12345')).status, 404, 'inexistente na AFTVnews');
+    assert.equal((await s.lookup('55555')).status, 429, 'solver ocupado');
+    assert.equal((await s.lookup('66666')).status, 502, 'falha do solver');
+    assert.equal((await s.lookup('12')).status, 404, 'curto demais nem consulta');
+    assert.ok(!calls.includes('12'));
+  } finally {
+    await s.close();
+  }
+});
+
+test('código nosso válido não consulta a AFTVnews', async () => {
+  let called = false;
+  const s = await serve({ aftv: { async resolve() { called = true; return { url: null }; } } });
+  try {
+    const { json } = await s.create(s.manifest);
+    assert.equal((await s.lookup(json.code)).status, 200);
+    assert.equal(called, false);
   } finally {
     await s.close();
   }
@@ -115,9 +171,10 @@ test('teto global vale mesmo trocando o IP', async () => {
   }
 });
 
-test('acceptableUrl exige o host da requisição', () => {
+test('acceptableUrl: regra estrita para esta instância, https para outro addon', () => {
   assert.equal(acceptableUrl('https://powermovie.net/abc/manifest.json', 'powermovie.net'),
     'https://powermovie.net/abc/manifest.json');
-  assert.equal(acceptableUrl('https://powermovie.net/abc/manifest.json', 'outro.net'), null);
+  assert.equal(acceptableUrl('http://powermovie.net/abc/manifest.json', 'outro.net'), null, 'de outro host, só https');
+  assert.equal(acceptableUrl('https://powermovie.net/abc/manifest.json#x', 'outro.net'), null);
   assert.equal(acceptableUrl('https://powermovie.net/abc/manifest.json?x=1', 'powermovie.net'), null);
 });

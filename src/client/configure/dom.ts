@@ -35,6 +35,7 @@ export function bindElements(): void {
     adMagnetNotice: $('adMagnetNotice'),
     installUrl: $('installUrl'), installBtn: $('installBtn'), copyBtn: $('copyBtn'),
     tvCodeBtn: $('tvCodeBtn'), tvCodeOut: $('tvCodeOut'),
+    otherAddonUrl: $('otherAddonUrl'), otherCodeBtn: $('otherCodeBtn'), otherCodeOut: $('otherCodeOut'),
   };
 }
 

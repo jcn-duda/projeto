@@ -55,3 +55,32 @@ test('mudar o link esconde o código antigo', async () => {
     dom.cleanup();
   }
 });
+
+test('outro addon: cola o manifest e gera o código', async () => {
+  const { dom, mods } = await resetClientEnvironment();
+  const stub = stubFetch(() => ({ ok: true, json: async () => ({ code: '1234567', expiresInSec: 1800 }) }));
+  try {
+    const el = mods.state.state.el;
+    el.otherAddonUrl.value = 'stremio://opensubtitles-v3.strem.io/manifest.json';
+    await mods.tvCode.requestOtherAddonCode();
+    assert.equal(stub.calls[0].options?.body, 'https://opensubtitles-v3.strem.io/manifest.json', 'stremio:// vira https://');
+    assert.match(String(el.otherCodeOut.textContent), /1234567/);
+    assert.doesNotMatch(String(el.tvCodeOut.textContent), /1234567/, 'não mexe no código do Powermovie');
+  } finally {
+    stub.restore();
+    dom.cleanup();
+  }
+});
+
+test('outro addon: campo vazio avisa sem chamar o servidor', async () => {
+  const { dom, mods } = await resetClientEnvironment();
+  const stub = stubFetch(() => ({ ok: true, json: async () => ({}) }));
+  try {
+    await mods.tvCode.requestOtherAddonCode();
+    assert.equal(stub.calls.length, 0);
+    assert.match(String(mods.state.state.el.otherCodeOut.textContent), /Cole o link/);
+  } finally {
+    stub.restore();
+    dom.cleanup();
+  }
+});

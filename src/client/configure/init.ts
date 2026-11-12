@@ -10,7 +10,7 @@ import {
   fillJackettIndexers, normalizePriority, allJackettIndexerIds, pollIndexerStatuses,
 } from './indexers.js';
 import { applyPreset, render, setPresetChoice, togglePriority } from './view.js';
-import { requestTvCode } from './tv-code.js';
+import { requestTvCode, requestOtherAddonCode } from './tv-code.js';
 
 const INDEXER_STATUS_POLL_MS = 10000;
 
@@ -255,6 +255,7 @@ function wireEvents(): void {
   });
 
   el.tvCodeBtn.addEventListener('click', () => { void requestTvCode(); });
+  el.otherCodeBtn.addEventListener('click', () => { void requestOtherAddonCode(); });
 
   el.installBtn.addEventListener('click', (ev: any) => {
     if (el.installBtn.getAttribute('aria-disabled') === 'true') ev.preventDefault();
