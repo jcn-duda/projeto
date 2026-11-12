@@ -24,6 +24,7 @@ import { nativeMetrics } from './config/native-metrics.js';
 import { releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
+import { appUpdates, flaresolverrUrl } from './config/app-updates.js';
 
 const config = {
   // port, host, addonName, addonId, version, provider, logging
@@ -64,6 +65,10 @@ const config = {
   f3: f3(),
   // Raspagem total dos sites BR (desligada por padrão; ver config/crawl.ts).
   crawl: crawl(),
+  // Atualização do app Power Movie (desligada sem APP_UPDATE_TOKEN).
+  appUpdates: appUpdates(),
+  // FlareSolverr para resolver códigos da AFTVnews no /tv-code.
+  flaresolverrUrl: flaresolverrUrl(),
 };
 
 export default config;

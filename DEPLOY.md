@@ -390,16 +390,17 @@ está no código.
 
 ## 9. Deploy automático (pull da VPS)
 
-Todo push em `esm` entra no ar em até 5 minutos: um cron do
+Todo push em `rust` entra no ar em até 5 minutos: um cron do
 usuário da VPS roda `~/adom-deploy.sh`, que faz `git fetch` e, havendo commit
 novo, `checkout` + `docker compose up -d --build`. É pull, não push: o
 provedor só aceita a porta 22 vindo do IP do operador, então CI batendo de
 fora (GitHub Actions) nunca chega — testado de 10 locais do mundo, todos
 bloqueados.
 
-> Verificado em 2026-09-06: o `~/adom-deploy.sh` da VPS já faz `git fetch origin
-> esm` + `checkout -f -B esm` — o deploy automático observa a branch certa
-> (HEAD da VPS == `origin/esm`).
+> Verificado em 2026-11-12: o `~/adom-deploy.sh` da VPS faz `git fetch origin
+> rust` + `checkout -f -B rust` — o deploy automático observa a `rust` (o `esm`
+> parou em 2026-10-24). O build leva uns 50 min: o commit `998e621e` entrou às
+> 15:25 e o log marcou o fim às 16:13.
 
 O script tem trava (`~/.adom-deploy.lock`) para o cron não sobrepor um build
 em andamento e registra tudo em `~/adom-deploy.log`. Para deploy na hora,
@@ -411,6 +412,24 @@ sem esperar o cron:
 
 Se o build falhar, o container antigo continua no ar — o compose só troca
 quando o novo sobe.
+
+## 10. Atualização do app Power Movie
+
+O app consulta `GET /app/latest.json` e baixa o instalador de
+`GET /app/files/<nome>`, sempre com `Authorization: Bearer <APP_UPDATE_TOKEN>`.
+Sem `APP_UPDATE_TOKEN` no `.env` a rota inteira responde 404 — o APK leva as
+chaves do app compiladas, então o download nunca é público. O mesmo token vai
+no `.env` do app (`APP_UPDATE_TOKEN`), que é compilado no build.
+
+```bash
+openssl rand -hex 24   # APP_UPDATE_TOKEN (mesmo valor na VPS e no .env do app)
+```
+
+Os arquivos ficam em `docker-data/addon/app-updates/` no host (`/app/data/app-updates`
+no container) e são publicados pelo script `scripts/publish_app_update.ps1` do
+repositório do app, por `scp` (a porta 22 só aceita o IP do operador). Trocar
+o `latest.json` é o último passo da publicação: o app nunca vê versão nova
+antes do arquivo estar inteiro no servidor.
 
 ---
 

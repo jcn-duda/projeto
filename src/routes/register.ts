@@ -6,6 +6,8 @@ import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearchEffects } from './internal-search-effects.js';
 import { originOf } from './origin.js';
 import { makeTvCodeHandlers } from './tv-code.js';
+import { createAftvResolver } from '../utils/aftv-resolve.js';
+import { makeAppUpdateHandlers } from './app-updates.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
 import type { AppServices } from './types.js';
@@ -45,9 +47,15 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/defaults.json', publicHandlers.defaults);
   app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), publicHandlers.seal);
   // Encurtador numérico para a TV (app Power Movie): antes do /:userConfig.
-  const tvCode = makeTvCodeHandlers();
+  const tvCode = makeTvCodeHandlers({
+    aftv: createAftvResolver({ flaresolverrUrl: services.config.flaresolverrUrl }),
+  });
   app.post('/tv-code', express.text({ type: () => true, limit: '16kb' }), tvCode.create);
   app.get('/tv-code/:code', tvCode.lookup);
+  // Atualização do app Power Movie (token obrigatório): antes do /:userConfig.
+  const appUpdates = makeAppUpdateHandlers(() => services.config.appUpdates);
+  app.get('/app/latest.json', appUpdates.latest);
+  app.get('/app/files/:name', appUpdates.file);
 
   app.get('/metrics.json', diagnosticHandlers.metrics);
   app.get('/dashboard-status.json', diagnosticHandlers.dashboardStatus);

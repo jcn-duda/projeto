@@ -92,3 +92,6 @@ export const DEFAULT_MAGNET_BANK_DB_PATH = path.join(REPO_ROOT, 'data', 'magnets
 // site. SQLite PRÓPRIO pelo mesmo motivo dos irmãos — a fila é estado VIVO de
 // retomada, e o cache tem cota/TTL que a destruiriam a cada restart.
 export const DEFAULT_CRAWL_DB_PATH = path.join(REPO_ROOT, 'data', 'crawl.db');
+// Instaladores do app Power Movie (APK/EXE/TPK) e o latest.json que o app
+// consulta para se atualizar. Fica em data/ para sobreviver ao rebuild (volume).
+export const DEFAULT_APP_UPDATES_DIR = path.join(REPO_ROOT, 'data', 'app-updates');
