@@ -41,6 +41,7 @@ const CLIENT_ASSETS = [
   'client/configure/indexers.js',
   'client/configure/view.js',
   'client/configure/seal.js',
+  'client/configure/tv-code.js',
   'client/configure/init.js',
   'client/painel/vendor/preact.js',
   'client/painel/entry.js',

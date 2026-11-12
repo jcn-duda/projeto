@@ -5,6 +5,7 @@ import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearchEffects } from './internal-search-effects.js';
 import { originOf } from './origin.js';
+import { makeTvCodeHandlers } from './tv-code.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
 import type { AppServices } from './types.js';
@@ -43,6 +44,10 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/harvester', (_req, res) => res.redirect(302, '/painel#colhedor'));
   app.get('/defaults.json', publicHandlers.defaults);
   app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), publicHandlers.seal);
+  // Encurtador numérico para a TV (app Power Movie): antes do /:userConfig.
+  const tvCode = makeTvCodeHandlers();
+  app.post('/tv-code', express.text({ type: () => true, limit: '16kb' }), tvCode.create);
+  app.get('/tv-code/:code', tvCode.lookup);
 
   app.get('/metrics.json', diagnosticHandlers.metrics);
   app.get('/dashboard-status.json', diagnosticHandlers.dashboardStatus);

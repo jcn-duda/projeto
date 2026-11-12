@@ -173,6 +173,7 @@ export interface ClientModules {
   indexers: any;
   view: any;
   seal: any;
+  tvCode: any;
   init: any;
 }
 
@@ -188,6 +189,7 @@ export async function loadClientModules(): Promise<ClientModules> {
       indexers: await import(new URL('indexers.js', CLIENT_DIR).href),
       view: await import(new URL('view.js', CLIENT_DIR).href),
       seal: await import(new URL('seal.js', CLIENT_DIR).href),
+      tvCode: await import(new URL('tv-code.js', CLIENT_DIR).href),
       init: await import(new URL('init.js', CLIENT_DIR).href),
     };
   }

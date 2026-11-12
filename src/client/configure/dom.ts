@@ -34,6 +34,7 @@ export function bindElements(): void {
     noCacheNotice: $('noCacheNotice'),
     adMagnetNotice: $('adMagnetNotice'),
     installUrl: $('installUrl'), installBtn: $('installBtn'), copyBtn: $('copyBtn'),
+    tvCodeBtn: $('tvCodeBtn'), tvCodeOut: $('tvCodeOut'),
   };
 }
 

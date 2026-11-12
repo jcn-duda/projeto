@@ -5,6 +5,7 @@
 
 import { state } from './state.js';
 import { isOn } from './dom.js';
+import { clearTvCode } from './tv-code.js';
 
 export function applySegment(segment: string): void {
   const el = state.el;
@@ -16,6 +17,8 @@ export function applySegment(segment: string): void {
   el.installBtn.href = tooLong ? '#' : url.replace(/^https?:/, 'stremio:');
   el.installBtn.setAttribute('aria-disabled', tooLong ? 'true' : 'false');
   el.copyBtn.disabled = tooLong;
+  el.tvCodeBtn.disabled = tooLong;
+  clearTvCode();
   el.copyBtn.setAttribute('data-url', tooLong ? '' : url);
   el.installBtn.setAttribute('tabindex', tooLong ? '-1' : '0');
   if (tooLong) el.installUrl.textContent = 'Configuração grande demais: desmarque alguns indexadores.';

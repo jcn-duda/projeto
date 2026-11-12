@@ -313,12 +313,15 @@
     <div class="actions">
       <a class="btn btn-primary" id="installBtn" href="#">Instalar no Stremio</a>
       <button type="button" class="btn btn-ghost" id="copyBtn">Copiar link</button>
+      <button type="button" class="btn btn-ghost" id="tvCodeBtn">Código para TV</button>
     </div>
+    <p class="tv-code-out" id="tvCodeOut" hidden></p>
   </div>
 
   <footer>
     Padrões vêm do <code>.env</code> desta instância. Suas escolhas viajam codificadas
-    na URL — o servidor não guarda nada.
+    na URL — o servidor não guarda nada. O "Código para TV" é a exceção: o link
+    fica guardado em memória por 30 min e o código vale só 2 usos.
   </footer>
 
 </div>

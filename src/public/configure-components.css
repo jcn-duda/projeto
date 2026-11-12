@@ -162,7 +162,14 @@
     overflow-y: auto;
   }
 
-  .actions { display: flex; gap: 10px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .tv-code-out {
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .tv-code-out.tv-code-error { color: var(--muted); }
 
   .btn {
     flex: 1;
