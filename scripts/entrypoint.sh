@@ -377,6 +377,13 @@ jackett_env() {
     XDG_DATA_HOME=/config \
     TMPDIR=/run/jackett-temp \
     AUTO_UPDATE="${AUTO_UPDATE:-false}"
+  # Limite de descritores: o soft herdado é 1024 e o Jackett já usa ~340 ocioso.
+  # Teste de carga de 2026-11-13 (50 conexões): "No file descriptors available"
+  # no /run/jackett-temp, abort 134 e o container inteiro caiu. Sobe só o soft;
+  # se o hard do host for menor que o pedido, fica no hard.
+  local nofile="${JACKETT_NOFILE:-65536}"
+  ulimit -Sn "$nofile" 2>/dev/null || ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
+  echo "[entrypoint] jackett: limite de descritores $(ulimit -Sn)"
   exec env -i "$@" /app/Jackett/jackett --NoUpdates
 }
 
