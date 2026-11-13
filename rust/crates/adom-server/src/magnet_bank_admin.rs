@@ -297,6 +297,14 @@ pub(crate) fn spawn_boot_backfill() {
             Ok(n) => eprintln!("[magnetbank] backfill de classificação: {n} magnet(s)"),
             Err(err) => eprintln!("[magnetbank] backfill de classificação falhou: {err}"),
         }
+        // Reparo único do falso dublado (bandeiras do Torrentio, 2026-11-13).
+        match MagnetBankStore::from_env().and_then(|store| store.repair_false_dub_once()) {
+            Ok(0) => {}
+            Ok(n) => {
+                eprintln!("[magnetbank] falso dublado: {n} magnet(s) global(is) perderam o dubbed")
+            }
+            Err(err) => eprintln!("[magnetbank] reparo do falso dublado falhou: {err}"),
+        }
     });
 }
 

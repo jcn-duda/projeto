@@ -32,6 +32,9 @@ use super::MagnetBankStore;
 mod rows;
 #[path = "magnet_bank_import_sql.rs"]
 mod sql;
+// Reparo único do falso dublado do Torrentio (mesma família: corrige classificação).
+#[path = "magnet_bank_false_dub.rs"]
+mod false_dub;
 
 use rows::{js_text, read_magnet, read_source, read_work, BankMagnet, BankSource, BankWork};
 
