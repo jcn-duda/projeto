@@ -12,8 +12,16 @@
 //! A vaga vale a coleta INTEIRA, não só a janela da resposta: ela é solta
 //! quando o `completion` assenta (as tarefas que seguem em fundo também batem
 //! no Jackett). `0` = sem teto (default do crate e dos testes).
+//!
+//! Uma coleta por chave de busca (`claim`): a resposta pelo acervo devolve
+//! antes da coleta de fundo, o coalescing solta a chave e cada pedido seguinte
+//! da MESMA obra abria outra coleta inteira. Medido na VPS em 2026-11-13: um
+//! título popular enfileirou 230 coletas em 2 min e travou as vagas de quem
+//! pedia obra nova. Com a chave em voo, a busca responde do acervo e o passe
+//! tardio da coleta que já roda grava a lista.
 
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
@@ -23,6 +31,21 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 pub struct LiveSlots {
     sem: Option<Arc<Semaphore>>,
     max: usize,
+    pending: Arc<Mutex<HashSet<String>>>,
+}
+
+/// Posse da coleta de UMA chave; solta a chave ao cair.
+#[derive(Debug)]
+pub struct PendingGuard {
+    key: Option<(Arc<Mutex<HashSet<String>>>, String)>,
+}
+
+impl Drop for PendingGuard {
+    fn drop(&mut self) {
+        if let Some((set, key)) = self.key.take() {
+            set.lock().unwrap_or_else(|err| err.into_inner()).remove(&key);
+        }
+    }
 }
 
 impl LiveSlots {
@@ -34,7 +57,32 @@ impl LiveSlots {
         LiveSlots {
             sem: Some(Arc::new(Semaphore::new(max))),
             max,
+            pending: Arc::default(),
         }
+    }
+
+    /// Toma a coleta da chave. `None` = outra busca da mesma chave ainda coleta
+    /// (inclusive em fundo). Sem teto não há registro: sempre `Some`.
+    pub fn claim(&self, key: &str, id: &str) -> Option<PendingGuard> {
+        if self.sem.is_none() {
+            return Some(PendingGuard { key: None });
+        }
+        let mut set = self.pending.lock().unwrap_or_else(|err| err.into_inner());
+        if !set.insert(key.to_string()) {
+            eprintln!("[search] coleta de {id} já em voo; responde do acervo sem duplicar");
+            return None;
+        }
+        Some(PendingGuard {
+            key: Some((self.pending.clone(), key.to_string())),
+        })
+    }
+
+    /// A chave tem coleta em voo (o refresh SWR não deve abrir outra).
+    pub fn is_pending(&self, key: &str) -> bool {
+        self.pending
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .contains(key)
     }
 
     /// Produção: `SEARCH_LIVE_MAX_CONCURRENT`, default 3 (medido em

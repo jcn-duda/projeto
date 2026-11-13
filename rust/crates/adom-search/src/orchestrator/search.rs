@@ -7,6 +7,7 @@ use crate::latest_writer::LatestWriter;
 use super::fast_path::{full_window, merge_fast_with_live};
 use super::finish::{cache_max_age_for_finish, SearchInput};
 use super::live_state::{live_state_snapshot, merge_into_shared, merge_states, shared_live_state};
+use super::meta::SearchMeta;
 use super::respond::{now_ms, SearchOutcome};
 use super::Orchestrator;
 
@@ -15,6 +16,11 @@ impl Orchestrator {
         let writer = Arc::new(LatestWriter::new());
         let phase = writer.phase();
         let meta = self.load_meta(&input).await;
+        // Uma coleta por chave (`live_slots::claim`): com outra em voo, responde
+        // do acervo e deixa o passe tardio dela gravar a lista.
+        let Some(claim) = self.config.live_slots.claim(&input.key, &input.id) else {
+            return self.run_search_busy(&input, &meta, &writer, phase).await;
+        };
         let mut used_pack_fallback = false;
 
         // Via instantânea do banco e via do índice, na MESMA ordem do
@@ -181,6 +187,18 @@ impl Orchestrator {
         } else {
             self.with_pack_tail(&input, &meta, items.clone(), completion, tail_live.as_ref())
         };
+        // A chave fica tomada até a coleta de fundo (pack incluído) assentar.
+        let completion = match completion {
+            Some(handle) => Some(tokio::spawn(async move {
+                let items = handle.await.unwrap_or_default();
+                drop(claim);
+                items
+            })),
+            None => {
+                drop(claim);
+                None
+            }
+        };
 
         // Reserva 📦 da PRIMEIRA build: o lote canônico (`items`) continua sem
         // ela; a cópia é que vai ao build, como o `buildInput` do TS.
@@ -218,6 +236,32 @@ impl Orchestrator {
             entry: first.entry,
             partial: first.partial,
             collect_failed,
+            needs_debrid_refresh: first.needs_debrid_refresh,
+            cache_max_age,
+        })
+    }
+
+    /// Chave com coleta em voo: só o acervo (instantânea ou índice), sem
+    /// coleta, pack nem passe tardio. Sai parcial (TTL curto, o SWR não serve)
+    /// e sem stream vira o aviso de "buscando".
+    async fn run_search_busy(
+        &self,
+        input: &SearchInput,
+        meta: &SearchMeta,
+        writer: &LatestWriter,
+        phase: u64,
+    ) -> Arc<SearchOutcome> {
+        let items = self
+            .fast_path_items(input, meta)
+            .await
+            .map(|fast| fast.items)
+            .unwrap_or_default();
+        let first = self.finish(input, meta, writer, phase, &items, true, input.deadline_at);
+        let cache_max_age = cache_max_age_for_finish(&first, false, &self.config);
+        Arc::new(SearchOutcome {
+            entry: first.entry,
+            partial: first.partial,
+            collect_failed: false,
             needs_debrid_refresh: first.needs_debrid_refresh,
             cache_max_age,
         })

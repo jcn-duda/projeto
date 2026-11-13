@@ -109,6 +109,78 @@ async fn sem_teto_as_buscas_correm_juntas() {
     assert_eq!(collector.peak.load(Ordering::SeqCst), 3 * one);
 }
 
+/// Coletor lento: a coleta segue em fundo bem depois da resposta.
+#[derive(Default)]
+struct SlowCollector {
+    calls: AtomicUsize,
+}
+
+impl Collector for SlowCollector {
+    fn collect<'a>(
+        &'a self,
+        _job: CollectJob,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<CollectBatch, String>> + Send + 'a>,
+    > {
+        Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            Ok(CollectBatch::default())
+        })
+    }
+}
+
+#[test]
+fn claim_e_um_por_chave_e_sem_teto_nao_registra() {
+    let slots = LiveSlots::new(2);
+    let guard = slots.claim("k", "tt1").expect("primeira toma");
+    assert!(slots.is_pending("k"));
+    assert!(slots.claim("k", "tt1").is_none(), "mesma chave em voo");
+    assert!(slots.claim("outra", "tt2").is_some(), "outra chave segue");
+    drop(guard);
+    assert!(!slots.is_pending("k"), "a chave sai com a posse");
+    assert!(slots.claim("k", "tt1").is_some());
+
+    let free = LiveSlots::new(0);
+    let _a = free.claim("k", "tt1").expect("sem teto");
+    assert!(free.claim("k", "tt1").is_some(), "sem teto não deduplica");
+    assert!(!free.is_pending("k"));
+}
+
+#[tokio::test]
+async fn pedido_repetido_nao_abre_outra_coleta_da_mesma_obra() {
+    let collector = Arc::new(SlowCollector::default());
+    let mut cfg = config();
+    cfg.live_slots = LiveSlots::new(3);
+    // Prazo curto: a resposta sai antes da coleta, que segue em fundo.
+    cfg.stremio_reply_ms = 150;
+    let orch = Orchestrator::new(cfg, Arc::new(MemorySwrStore::new()))
+        .with_collector(collector.clone())
+        .with_meta(Arc::new(StubMeta(meta())));
+
+    let _ = orch.handle(request(1_000_000)).await;
+    let first = collector.calls.load(Ordering::SeqCst);
+    assert!(first >= 1, "a primeira busca coleta");
+    for _ in 0..5 {
+        let resp = orch.handle(request(1_000_000)).await;
+        assert!(!resp.streams.is_empty(), "sem lista, sai o aviso de busca");
+    }
+    assert_eq!(
+        collector.calls.load(Ordering::SeqCst),
+        first,
+        "com a coleta da chave em voo, os pedidos seguintes não coletam"
+    );
+
+    // Coleta assentada: a chave volta e o próximo pedido coleta de novo.
+    tokio::time::sleep(Duration::from_millis(1_500)).await;
+    assert_eq!(orch.config.live_slots.in_use(), 0, "vaga devolvida");
+    let _ = orch.handle(request(1_000_000)).await;
+    assert!(
+        collector.calls.load(Ordering::SeqCst) > first,
+        "a chave é solta ao fim da coleta"
+    );
+}
+
 #[tokio::test]
 async fn vaga_espera_a_anterior_e_zero_desliga() {
     assert!(

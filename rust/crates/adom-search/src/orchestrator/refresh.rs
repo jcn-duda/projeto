@@ -29,7 +29,9 @@ impl Orchestrator {
                 this.store
                     .get_fenced(&key, this.config.stale_grace_seconds, as_ms(now));
             let ainda_stale = hit.map(|hit| hit.stale).unwrap_or(true);
-            if ainda_stale {
+            // Coleta da chave já em voo: a busca sairia só do acervo, parcial,
+            // e gravaria por cima da entrada velha que o SWR ainda serve.
+            if ainda_stale && !this.config.live_slots.is_pending(&key) {
                 let input = SearchInput {
                     kind: req.kind.clone(),
                     id: req.id.clone(),
