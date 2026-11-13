@@ -161,23 +161,6 @@
         "size": "1.82 GB"
       },
       {
-        "infoHash": "13121036a0a971d7ae5601b9b95b5cc77d440b01",
-        "title": "Interstellar.2014.PROPER.IMAX.1080p.UHD.BluRay.x265.HDR.DV.DD+5.1.Dual.YG⭐\n📦 👤 ~505 💾 4.21 GB ⚙️ thepiratebay",
-        "name": "📦 · 4K IMAX BluRay · thepiratebay · 👤 ~505",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "4.21 GB"
-      },
-      {
         "infoHash": "d8d05ebec7303f05a7243986e8c7d0e201b0ac0d",
         "title": "Interstellar 2014 2160p PROPER IMAX REMUX DV HDR10 TrueHD 7 1 Atmos jennaortegaUHD\n📦 👤 ~257 💾 97.85 GB ⚙️ TheRARBG",
         "name": "📦 · 4K IMAX · TheRARBG · 👤 ~257",
@@ -193,6 +176,23 @@
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
         "size": "97.85 GB"
+      },
+      {
+        "infoHash": "abf5451366b96d8c518a7f56820f7d247b11222d",
+        "title": "Interstellar 2014 2160p AV1 HDR10 EN ITA FR ES OPUS 5 1 UH\n📦 👤 ~147 💾 16.90 GB ⚙️ TheRARBG",
+        "name": "📦 · 4K · TheRARBG · 👤 ~147",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "16.90 GB"
       }
     ],
     "cacheMaxAge": 0

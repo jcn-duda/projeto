@@ -4,7 +4,7 @@
  "mode": "record",
  "masked": true,
  "files": {
-  "expected/node-response.json": "1ce2648a06fc0e60e7a1361ac952508829333802e068ebcb61fef3aae265839c",
+  "expected/node-response.json": "4c33eb9dd11b92a5a6379f1cbae5e29aa3ba66d105049422694ebb6d7abe039f",
   "inputs/apply-debrid.json": "1eadcc905821486588d6a494e0edc3407128ff0d8b956056e25f28ba74f9fb48",
   "inputs/collect.json": "c0c01346c1161e5046908d159b7e405ac54eafac97a42931e0d1dbc355167b0e",
   "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",

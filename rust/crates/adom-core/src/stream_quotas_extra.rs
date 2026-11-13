@@ -64,7 +64,13 @@ pub fn quality_from_title(title: &str) -> &str {
                 a.replace(&format!("{pfx}{res}"), &format!("{pfx} {res}"))
             })
     });
-    if wb_contains(&t, "2160P") || wb_contains(&t, "4K") || wb_contains(&t, "UHD") {
+    // "UHD" sozinho é o disco de origem: "UHD BluRay 1080p" é 1080p. A
+    // resolução explícita vence; "2160p"/"4K" seguem decidindo sozinhos.
+    let explicit_lower = ["1080P", "720P", "480P"].iter().any(|r| wb_contains(&t, r));
+    if wb_contains(&t, "2160P")
+        || wb_contains(&t, "4K")
+        || (wb_contains(&t, "UHD") && !explicit_lower)
+    {
         return "2160p";
     }
     if wb_contains(&t, "1080P") {

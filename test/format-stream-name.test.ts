@@ -217,10 +217,11 @@ test('o rótulo da fonte encurta por regra, preferindo fronteira ao corte no mei
   assert.equal(label('AbCdefghijklmnopqrs'), 'AbCdefghijklmn');
 });
 
-test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', () => {
+test('quatro releases de alta resolução do mesmo filme não podem sair com a linha idêntica', () => {
   // Caso real (I Am Legend): a lista trazia quatro 4K em que só o número de
   // seeders mudava. Duas delas são CORTES DIFERENTES do filme — escolher pelo
-  // maior seed levava ao final alternativo sem o usuário saber.
+  // maior seed levava ao final alternativo sem o usuário saber. A primeira é
+  // "UHD BluRay 1080p": UHD é o disco de origem, a resolução é 1080p.
   const releases: Array<[string, number]> = [
     ['I Am Legend 2007 Theatrical UHD BluRay 1080p DD 5 1 DV HDR x265-SQS', 35],
     ['I Am Legend 2007 Alternate Ending 2160p 4K UHD BluRay h2', 27],
@@ -232,7 +233,7 @@ test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', 
   );
 
   assert.deepEqual(nomes, [
-    '4K Cinema BluRay · 👤 35',
+    '1080p Cinema BluRay · 👤 35',
     '4K Alt.End BluRay · 👤 27',
     '4K WEB-DL · 👤 18',
     '4K BluRay · 👤 12',

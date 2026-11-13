@@ -51,7 +51,10 @@ pub fn quality_from_title_ts(title: &str) -> &'static str {
         .to_uppercase()
         .replace('_', " ");
     let t = glue_re().replace_all(&upper, "$1 ").into_owned();
-    if has_word(&t, "2160P|4K|UHD") {
+    // "UHD" sozinho nomeia o disco de origem, não a resolução: "UHD BluRay
+    // 1080p" é encode 1080p (medido em Star Trek Beyond, 2026-11-12, saía 4K).
+    // A resolução explícita vence; "2160p"/"4K" continuam decidindo sozinhos.
+    if has_word(&t, "2160P|4K") || (has_word(&t, "UHD") && !has_word(&t, "1080P|720P|480P")) {
         return "2160p";
     }
     if has_word(&t, "1080P") {
@@ -113,5 +116,36 @@ fn to_stream_ref(stream: &CandidateStream) -> StreamRef {
         is_dub_claim: false,
         is_lied: stream.is_lied,
         is_season_pack: false,
+    }
+}
+
+#[cfg(test)]
+mod uhd_tests {
+    use super::quality_from_title_ts;
+    use crate::stream_quotas_extra::quality_from_title;
+
+    /// Caso real (Star Trek Beyond, TorBox, 2026-11-12): "UHD" é o disco de
+    /// origem e a resolução explícita é 1080p — a lista mostrava 4K.
+    #[test]
+    fn uhd_com_resolucao_explicita_menor_e_a_resolucao() {
+        let t = "Star Trek Beyond 2016 REPACK UHD BluRay 1080p DD Atmos 5 1 DoVi HDR10 x265-";
+        assert_eq!(quality_from_title_ts(t), "1080p");
+        assert_eq!(quality_from_title(t), "1080p");
+        assert_eq!(quality_from_title_ts("Movie UHD BluRay 720p x264"), "720p");
+        assert_eq!(quality_from_title("Movie UHD BluRay 720p x264"), "720p");
+    }
+
+    #[test]
+    fn uhd_sozinho_ou_com_2160p_4k_segue_2160p() {
+        for t in [
+            "Prometheus (2012) 4K UHD DUBLADO",
+            "Movie 2160p UHD",
+            "Movie UHD BluRay HDR",
+            "I Am Legend 2007 Alternate Ending 2160p 4K UHD BluRay h2",
+            "Movie 4K UHD 1080p",
+        ] {
+            assert_eq!(quality_from_title_ts(t), "2160p", "{t}");
+            assert_eq!(quality_from_title(t), "2160p", "{t}");
+        }
     }
 }
