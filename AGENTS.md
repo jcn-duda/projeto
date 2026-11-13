@@ -795,6 +795,38 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 
 ---
 
+## Código para TV e atualização do app
+
+Duas rotas do Node atendem o app Power Movie (fora do protocolo Stremio,
+montadas em `register.ts` antes do `/:userConfig`):
+
+- **`/tv-code`** (`src/routes/tv-code.ts`): `POST` troca um manifest por um
+  código de 7 dígitos (30 min, **2 usos**, só em memória, teto de criação por
+  IP); aceita manifest desta instância ou `https://.../manifest.json` de outro
+  addon — nunca URL qualquer. `GET /tv-code/<código>` devolve `{url}`; código
+  de 3-9 dígitos que não é nosso é resolvido na AFTVnews pelo FlareSolverr
+  (`src/utils/aftv-resolve.ts`: cache 24 h, 2 em paralelo, 3 tentativas quando
+  ela responde "under heavy load"). Consulta tem teto por IP **e** global
+  contra varredura. Erros do solver saem **503** com `{error}`: a Cloudflare
+  troca o corpo de um 502 da origem pela página dela e o app perdia a mensagem.
+  A AFTVnews barra todo cliente que não é navegador desde 2026-11-12
+  (`cf-mitigated: challenge`); o contorno mora só aqui.
+- **`/app/latest.json`** e **`/app/files/<nome>`** (`src/routes/app-updates.ts`):
+  versão publicada e instaladores (APK/EXE/TPK) de `APP_UPDATE_DIR`
+  (padrão `data/app-updates`, no volume), só com
+  `Authorization: Bearer APP_UPDATE_TOKEN`; sem token a rota inteira é 404 (o
+  APK leva as chaves do app). Quem publica é o `scripts/publish_app_update.ps1`
+  do repo do app, por `scp`; o servidor só lê.
+
+Armadilhas: o deploy (`docker compose up -d --build`) lê o `.env` no **início**
+do comando — mudar o `.env` durante o build não vale, recrie com
+`docker compose up -d`. `docker-data/addon` é do root do container; a pasta
+`app-updates` foi criada por `docker exec` e passada para o uid 1000. Testar o
+`GET` de um código nosso com curl gasta um dos 2 usos.
+
+Testes: `test/tv-code.test.ts`, `test/aftv-resolve.test.ts`,
+`test/app-updates.test.ts`, `test/configure-tv-code.test.ts`.
+
 ## Mapa dos arquivos (resumo)
 
 | Área | Onde |
@@ -808,6 +840,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `rust-remote.ts` é a ponte da checagem/conta/play no 8710). Warmer RD: nativo no gateway (`rust/crates/adom-server/src/rd_warmer*`, admin 8711: `/rd-warm`) e no Node só a ponte `utils/rd-warm-native.ts` |
 | Utils | `src/utils/` (`title-normalization.ts`, `trackers.ts`; `cache*.ts`, `magnetdb*.ts`, `magnet-bank-native.ts`/`-transfer.ts`, `release-index.ts` + `release-index-store.ts`, `native-kv.ts` (leitura do KV nativo), `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
+| App Power Movie | `src/routes/tv-code.ts` + `src/utils/aftv-resolve.ts` (código para TV, AFTVnews via FlareSolverr); `src/routes/app-updates.ts` + `src/config/app-updates.ts` (atualização do app) |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); não há mais resolver em TS (oráculo no `esm`) |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |
 | Infra | `Dockerfile`, `docker-compose.yml`, `scripts/entrypoint.sh`, `jackett-bludv/*.yml` |
@@ -881,6 +914,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 ## Git
 
 Branch de trabalho: `rust` (o `esm` é o oráculo dos goldens, no checkout
-irmão `E:/adom-esm`). Commits em português com prefixo convencional
+irmão `E:/adom-esm`). **Push em `rust` é deploy:** a VPS (`ssh vps38`, `~/adom`)
+puxa o `rust` a cada 5 min e rebuilda (~50 min); ver `DEPLOY.md` §9. Commits em português com prefixo convencional
 (`feat:`, `fix:`). `.env` é ignorado e **contém chaves reais** — nunca faça
 commit nem cole seu conteúdo.

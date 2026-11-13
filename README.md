@@ -106,6 +106,23 @@ Dá pra ajustar:
 
 Com `RESOLVE_SECRET` no `.env`, a API key vai **cifrada** no install URL.
 
+### Código para TV
+
+Digitar um install URL no controle é inviável, então a página gera um **código
+numérico de 7 dígitos** que o app Power Movie aceita em "Adicionar por URL":
+
+- **Código para TV** (na barra de instalação): código do link deste addon;
+- **Código para outro addon**: cole o manifest de qualquer addon
+  (`https://.../manifest.json` — legendas, Torrentio...) e gere o código dele.
+
+O código vale **30 minutos e 2 usos** e fica só na memória do servidor (um
+restart apaga). Só link de manifest é aceito: o encurtador não redireciona URL
+qualquer. Códigos antigos da **AFTVnews** também funcionam no app: desde
+2026-11-12 a AFTVnews barra apps com desafio do Cloudflare, e o servidor os
+resolve pelo FlareSolverr do container.
+
+Detalhes e limites em [`AGENTS.md`](AGENTS.md#código-para-tv-e-atualização-do-app).
+
 ### Serviços de debrid suportados
 
 | Serviço | Consulta de cache | Como |
@@ -394,6 +411,9 @@ stremio adom/
 2. No Stremio do aparelho instale:  
    `http://IP-DO-PC:7000/manifest.json`  
 3. Firewall do Windows: liberar porta **7000** (e 9117 se for configurar Jackett de fora).
+
+No app Power Movie na TV, o mais fácil é o **Código para TV** da página de
+configuração (ver acima).
 
 ---
 
