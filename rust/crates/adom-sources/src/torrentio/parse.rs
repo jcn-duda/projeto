@@ -88,6 +88,12 @@ const PT_FROM_LANGUAGE_LINE: &str = "PT-BR";
 /// Kaisen S03E02, 2026-11-11: sete releases JA/EN como "BR"). Sem `Multi Subs`
 /// a bandeira PT é do áudio (o BluDV do Torrentio publica `Dubbed / Dual Audio
 /// / 🇵🇹` com título só `DUAL`): essa vira `PT-BR` explícito.
+///
+/// Linha SÓ de bandeiras não prova áudio: é a lista de faixas/legendas da
+/// release de cena (`🇬🇧 / 🇵🇹 / 🇪🇸 / 🇫🇷 / 🇩🇪 / …`). Batman: Knightfall
+/// (tt32333324, 2026-11-13): SCOPE/BYNDR/PSA e até um `…English…-Sams`
+/// saíam "BR · PT-BR" por causa do 🇵🇹 no meio de nove bandeiras. A bandeira
+/// PT só vale ao lado de um rótulo de ÁUDIO (`Dubbed`/`Dual Audio`/`Multi Audio`).
 fn language_line_pt(line: &str) -> Option<bool> {
     let tokens: Vec<&str> = line.split('/').map(str::trim).collect();
     if tokens.iter().any(|t| t.is_empty()) {
@@ -96,11 +102,13 @@ fn language_line_pt(line: &str) -> Option<bool> {
     let mut multi_subs = false;
     let mut pt_flag = false;
     let mut any_label = false;
+    let mut audio_label = false;
     for token in &tokens {
         let lower = token.to_lowercase();
         if LANGUAGE_LABELS.contains(&lower.as_str()) {
             any_label = true;
             multi_subs |= lower == "multi subs";
+            audio_label |= lower != "multi subs";
         } else if is_flag(token) {
             pt_flag |= *token == "🇵🇹" || *token == "🇧🇷";
         } else {
@@ -112,7 +120,7 @@ fn language_line_pt(line: &str) -> Option<bool> {
     if !any_label && tokens.len() < 2 && !pt_flag {
         return None;
     }
-    Some(pt_flag && !multi_subs)
+    Some(pt_flag && audio_label && !multi_subs)
 }
 
 /// Bandeira emoji: par de indicadores regionais (com tag/VS16 opcionais).
@@ -313,6 +321,32 @@ mod tests {
             parsed.title,
             "Jujutsu Kaisen S03 2026 WEB-DL 1080p x265 DUAL 2.0\nPT-BR"
         );
+    }
+
+    /// Batman: Knightfall (tt32333324, 2026-11-13): release de cena com a lista
+    /// de faixas/legendas em bandeiras virava "BR · PT-BR" pelo 🇵🇹.
+    #[test]
+    fn linha_so_de_bandeiras_nao_prova_audio_pt() {
+        for line in [
+            "🇬🇧 / 🇵🇹 / 🇪🇸 / 🇫🇷 / 🇩🇪 / 🇳🇱 / 🇩🇰 / 🇸🇪 / 🇳🇴",
+            "🇬🇧 / 🇵🇹",
+            "🇧🇷",
+        ] {
+            let parsed = parse_metadata(&with_meta(&format!(
+                "Batman Knightfall Part 1 Knightfall 2026 2160p MA WEB-DL DDP5.1 DV HDR H265-SCOPE\n{line}"
+            )));
+            assert_eq!(
+                parsed.title,
+                "Batman Knightfall Part 1 Knightfall 2026 2160p MA WEB-DL DDP5.1 DV HDR H265-SCOPE",
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn multi_audio_com_bandeira_pt_vira_pt_br() {
+        let parsed = parse_metadata(&with_meta("Filme 2026 1080p MULTI\nMulti Audio / 🇬🇧 / 🇵🇹"));
+        assert_eq!(parsed.title, "Filme 2026 1080p MULTI\nPT-BR");
     }
 
     #[test]
