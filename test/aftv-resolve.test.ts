@@ -67,3 +67,28 @@ test('mais de 2 códigos diferentes ao mesmo tempo: o terceiro recebe busy', asy
   release();
   await Promise.all([a, b]);
 });
+
+test('AFTVnews sobrecarregada: tenta de novo e resolve quando ela volta', async () => {
+  const bodies = ['The server is under heavy load. Please try again in a few minutes.', 'window.location = "' + DEST + '";'];
+  let calls = 0;
+  const fetchImpl = async () => {
+    const response = bodies[Math.min(calls++, bodies.length - 1)];
+    return new Response(JSON.stringify({ status: 'ok', solution: { url: 'https://go.aftvnews.com/8508163', response } }));
+  };
+  const resolver = createAftvResolver({ flaresolverrUrl: 'http://fs/v1', fetchImpl, retryDelayMs: 0 });
+  assert.deepEqual(await resolver.resolve('8508163'), { url: DEST });
+  assert.equal(calls, 2);
+});
+
+test('AFTVnews sobrecarregada nas 3 tentativas: erro overloaded e nada em cache', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls++;
+    return new Response(JSON.stringify({ status: 'ok', solution: { url: 'https://go.aftvnews.com/1', response: 'under heavy load' } }));
+  };
+  const resolver = createAftvResolver({ flaresolverrUrl: 'http://fs/v1', fetchImpl, retryDelayMs: 0 });
+  await assert.rejects(resolver.resolve('8508163'), /overloaded/);
+  assert.equal(calls, 3);
+  await assert.rejects(resolver.resolve('8508163'), /overloaded/);
+  assert.equal(calls, 6, 'falha não fica em cache');
+});

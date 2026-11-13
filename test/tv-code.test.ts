@@ -116,6 +116,7 @@ test('código que não é nosso é resolvido na AFTVnews', async () => {
         if (code === '7330456') return { url: 'https://powermovie.net/abc/manifest.json' };
         if (code === '55555') throw new Error('busy');
         if (code === '66666') throw new Error('FlareSolverr HTTP 500');
+        if (code === '77777') throw new Error('overloaded');
         return { url: null };
       },
     },
@@ -126,8 +127,11 @@ test('código que não é nosso é resolvido na AFTVnews', async () => {
     assert.equal(found.json.url, 'https://powermovie.net/abc/manifest.json');
     assert.equal(found.json.source, 'aftvnews');
     assert.equal((await s.lookup('12345')).status, 404, 'inexistente na AFTVnews');
-    assert.equal((await s.lookup('55555')).status, 429, 'solver ocupado');
-    assert.equal((await s.lookup('66666')).status, 502, 'falha do solver');
+    assert.equal((await s.lookup('55555')).status, 503, 'solver ocupado');
+    assert.equal((await s.lookup('66666')).status, 503, 'falha do solver (503: a Cloudflare engole o corpo do 502)');
+    const overloaded = await s.lookup('77777');
+    assert.equal(overloaded.status, 503);
+    assert.match(overloaded.json.error, /sobrecarregada/);
     assert.equal((await s.lookup('12')).status, 404, 'curto demais nem consulta');
     assert.ok(!calls.includes('12'));
   } finally {

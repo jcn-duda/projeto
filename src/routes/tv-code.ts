@@ -168,10 +168,15 @@ function makeTvCodeHandlers(options: TvCodeOptions = {}) {
       if (!result.url) return res.status(404).json({ error: 'código não encontrado' });
       return res.json({ url: result.url, source: 'aftvnews' });
     } catch (error) {
+      // 503, não 502: a Cloudflare troca o corpo de um 502 da origem pela
+      // página dela, e o app perderia a mensagem.
       if (error instanceof Error && error.message === 'busy') {
-        return res.status(429).json({ error: 'encurtador ocupado; tente de novo em instantes' });
+        return res.status(503).json({ error: 'Encurtador ocupado. Tente de novo em instantes.' });
       }
-      return res.status(502).json({ error: 'não foi possível consultar a AFTVnews' });
+      if (error instanceof Error && error.message === 'overloaded') {
+        return res.status(503).json({ error: 'A AFTVnews está sobrecarregada. Tente de novo em alguns minutos.' });
+      }
+      return res.status(503).json({ error: 'Não foi possível consultar a AFTVnews agora. Tente de novo em alguns minutos.' });
     }
   }
 

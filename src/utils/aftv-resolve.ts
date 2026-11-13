@@ -14,6 +14,11 @@ const AFTV_BASE = 'https://go.aftvnews.com/';
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 const CACHE_MAX = 2_000;
 const MAX_CONCURRENT = 2;
+// A AFTVnews às vezes responde "The server is under heavy load" (texto puro,
+// sem destino). É passageiro: tenta de novo algumas vezes antes de desistir.
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 4_000;
+const OVERLOADED = /under heavy load/i;
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -22,6 +27,8 @@ interface AftvResolverOptions {
   fetchImpl?: FetchLike;
   now?: () => number;
   timeoutMs?: number;
+  /** Espera entre tentativas (teste injeta 0). */
+  retryDelayMs?: number;
 }
 
 /** `url` = destino; `null` = o código não existe; erro = falha de rede/solver. */
@@ -29,8 +36,9 @@ type AftvResult = { url: string } | { url: null };
 
 const DESTINATION = /window\.location\s*=\s*"(https?:\/\/[^"]+)"/;
 
-function extractDestination(solutionUrl: string, body: string): AftvResult | 'unknown' {
+function extractDestination(solutionUrl: string, body: string): AftvResult | 'unknown' | 'overloaded' {
   if (/does not exist/i.test(body)) return { url: null };
+  if (OVERLOADED.test(body)) return 'overloaded';
   if (solutionUrl && !solutionUrl.startsWith(AFTV_BASE) && /^https?:\/\//.test(solutionUrl)) {
     return { url: solutionUrl };
   }
@@ -43,11 +51,12 @@ function createAftvResolver(options: AftvResolverOptions) {
   const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const now = options.now ?? Date.now;
   const timeoutMs = options.timeoutMs ?? 60_000;
+  const retryDelayMs = options.retryDelayMs ?? RETRY_DELAY_MS;
   const cache = new Map<string, { result: AftvResult; at: number }>();
   const inflight = new Map<string, Promise<AftvResult>>();
   let active = 0;
 
-  async function solve(code: string): Promise<AftvResult> {
+  async function solveOnce(code: string): Promise<AftvResult | 'unknown' | 'overloaded'> {
     const response = await fetchImpl(options.flaresolverrUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,9 +68,20 @@ function createAftvResolver(options: AftvResolverOptions) {
     if (data?.status !== 'ok' || !data.solution) {
       throw new Error(`FlareSolverr: ${data?.message || 'sem solução'}`);
     }
-    const outcome = extractDestination(String(data.solution.url || ''), String(data.solution.response || ''));
-    if (outcome === 'unknown') throw new Error('página da AFTVnews sem destino reconhecível');
-    return outcome;
+    return extractDestination(String(data.solution.url || ''), String(data.solution.response || ''));
+  }
+
+  /** Lança `Error('overloaded')` quando a AFTVnews segue sobrecarregada. */
+  async function solve(code: string): Promise<AftvResult> {
+    let last: 'unknown' | 'overloaded' = 'unknown';
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const outcome = await solveOnce(code);
+      if (outcome !== 'unknown' && outcome !== 'overloaded') return outcome;
+      last = outcome;
+      if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, retryDelayMs));
+    }
+    if (last === 'overloaded') throw new Error('overloaded');
+    throw new Error('página da AFTVnews sem destino reconhecível');
   }
 
   /** Lança `Error('busy')` quando o solver já está no limite de concorrência. */
