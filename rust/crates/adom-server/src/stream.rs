@@ -110,7 +110,8 @@ pub fn build_orchestrator_from(
     warmer: Option<Arc<crate::rd_warmer::Warmer>>,
     harvest: crate::harvest_effect::HarvestSlot,
 ) -> Result<Orchestrator, String> {
-    let config = orchestrator_config_from_env();
+    let mut config = orchestrator_config_from_env();
+    config.live_slots = adom_search::orchestrator::live_slots::LiveSlots::from_env();
     let StreamStores { swr, streams } = stores;
     let mut orch = Orchestrator::new(config, swr);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que

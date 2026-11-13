@@ -55,6 +55,10 @@ impl Orchestrator {
         bool,
         SharedLiveState,
     ) {
+        // Vaga ANTES do orçamento: a espera na fila sai do prazo da resposta
+        // (quem esperou demais responde com o aviso e a coleta assenta no
+        // cache pelo passe tardio).
+        let slot = self.config.live_slots.acquire(&input.id).await;
         // Relógio de parede (como o `Date.now()` do Node em
         // `computeCollectionBudget`): metadados já consumiram parte do prazo —
         // orçar com `input.now_ms` (início) inflava a coleta e comia a reserva
@@ -234,13 +238,20 @@ impl Orchestrator {
         .await;
         let partial = !window.done || batch_partial.load(Ordering::SeqCst);
         let failed = total > 0 && failures.load(Ordering::SeqCst) == total;
-        (
-            window.items,
-            partial,
-            Some(window.completion),
-            failed,
-            live_state,
-        )
+        // A vaga só volta quando TODAS as tarefas assentam: as que seguem em
+        // fundo depois da resposta continuam batendo no Jackett.
+        let completion = match slot {
+            Some(slot) => {
+                let inner = window.completion;
+                tokio::spawn(async move {
+                    let items = inner.await.unwrap_or_default();
+                    drop(slot);
+                    items
+                })
+            }
+            None => window.completion,
+        };
+        (window.items, partial, Some(completion), failed, live_state)
     }
 
     /// Config de relevância do filtro da conta: as MESMAS chaves que o build

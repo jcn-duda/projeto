@@ -57,6 +57,7 @@ mod jackett_collector;
 mod jackett_live;
 mod known_broken;
 mod late;
+pub mod live_slots;
 mod live_state;
 mod meta;
 mod meta_build;
