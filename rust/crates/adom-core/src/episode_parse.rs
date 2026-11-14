@@ -181,14 +181,22 @@ pub(crate) fn parse_title_season_episode_prepared(t: &str, raw_c: &str) -> Parse
         add_range(&mut episodes, lo, hi);
     }
 
-    // (4) Trackers BR: "T01 E004", "T01E004", com lista/intervalo no cru.
-    let t_re = re!(r"(?:^|[^A-Z0-9])T([0-9]{1,2})[__SP__]*E[__SP__]?([0-9]{1,3})");
+    // (4) Trackers BR: "T01 E004", "T01E004", com lista/intervalo no cru. O "C"
+    // é o Capítulo das releases latinas ("El Señor de los Cielos T03 C12"):
+    // sem ele a release não tinha S/E e passava como pack em qualquer episódio
+    // (S10E1 listava os capítulos 11 e 12 da T3, medido em 2026-11-14).
+    let t_re = re!(r"(?:^|[^A-Z0-9])T([0-9]{1,2})[__SP__]*([EC])[__SP__]?([0-9]{1,3})");
     let tail_re = re!(
-        r"^(?:[__SP__]*([-–—])[__SP__]*|[__SP__]*(?:E|AND)[__SP__]+|[__SP__]*,[__SP__]*|[__SP__]+)E[__SP__]?([0-9]{1,3})"
+        r"^(?:[__SP__]*([-–—])[__SP__]*|[__SP__]*(?:E|AND)[__SP__]+|[__SP__]*,[__SP__]*|[__SP__]+)[EC][__SP__]?([0-9]{1,3})"
     );
     for c in all(t_re, raw_c) {
+        // "C" com mais dígito colado é número de outra coisa ("T3C 1080p"); o
+        // "E" mantém a régua antiga.
+        if c.g(2) == "C" && raw_c[c.end..].starts_with(|ch: char| ch.is_ascii_digit()) {
+            continue;
+        }
         push_unique(&mut seasons, num(c.g(1)));
-        let mut eps = vec![num(c.g(2))];
+        let mut eps = vec![num(c.g(3))];
         let mut cursor = c.end;
         let mut ranged = false;
         while cursor < raw_c.len() {
